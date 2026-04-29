@@ -1,12 +1,12 @@
-# Harkwick
+# Harwick
 
-Harkwick is a production-first AI operating layer for real estate teams and brokerages. The system captures inbound demand from social channels and voice calls, qualifies leads, routes work to the right operator, syncs qualified opportunities to Follow Up Boss, and keeps enough audit state for a brokerage to understand why each lead changed.
+Harwick is a production-first AI operating layer for real estate teams and brokerages. The system captures inbound demand from social channels and voice calls, qualifies leads, routes work to the right operator, syncs qualified opportunities to Follow Up Boss, and keeps enough audit state for a brokerage to understand why each lead changed.
 
 This README is an internal engineering reference. It is not marketing copy and should be kept accurate as the backend evolves.
 
 ## Product Scope
 
-Harkwick is built as a multi-tenant workspace platform. A workspace represents a brokerage, team, or solo realtor business. Each workspace owns its integrations, voice agents, connected Meta accounts, CRM credentials, listing facts, routing rules, lead events, and worker job state.
+Harwick is built as a multi-tenant workspace platform. A workspace represents a brokerage, team, or solo realtor business. Each workspace owns its integrations, voice agents, connected Meta accounts, CRM credentials, listing facts, routing rules, lead events, and worker job state.
 
 The north-star flow is:
 
