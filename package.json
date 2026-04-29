@@ -1,0 +1,44 @@
+{
+  "name": "harkwick",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "constraints:check": "node scripts/validate-codex-constraints.mjs",
+    "dev": "npm run dev --workspace @realty-ops/web",
+    "worker:dev": "npm run dev --workspace @realty-ops/worker",
+    "worker:start": "npm run start --workspace @realty-ops/worker",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --build --pretty false",
+    "build": "npm run build --workspace @realty-ops/web",
+    "supabase:migrate": "node scripts/apply-supabase-migration.mjs",
+    "supabase:seed": "node scripts/seed-customer-zero.mjs",
+    "release:check": "npm run constraints:check && npm run typecheck && npm run lint && npm test"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.104.1",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "next": "^16.2.4",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "retell-sdk": "^5.16.0",
+    "zod": "^3.24.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.25.1",
+    "@types/node": "^20.17.30",
+    "eslint": "^9.25.1",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.31.0",
+    "vitest": "^3.1.2"
+  },
+  "engines": {
+    "node": ">=20.19.4"
+  }
+}

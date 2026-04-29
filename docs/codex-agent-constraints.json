@@ -1,0 +1,190 @@
+{
+  "schemaVersion": 1,
+  "name": "Realty Ops production coding constraints",
+  "loadPolicy": {
+    "readEveryTurn": true,
+    "usage": "Apply the matching rule groups for files being touched. Do not paste this file into chat unless asked.",
+    "priority": "These constraints extend AGENTS.md and docs/realty-ops-engineering-grail.md. If rules conflict, choose the stricter production/security rule."
+  },
+  "refs": {
+    "architecture": ["docs/realty-ops-engineering-grail.md"],
+    "memory": ["docs/realty-ops-product-memory.md"],
+    "security": ["docs/security-model.md"],
+    "environment": ["docs/environment-model.md"],
+    "integrations": ["docs/integration-model.md"],
+    "design": ["docs/realty-ops-design-guide.md"]
+  },
+  "pathTriggers": {
+    "apps/web/src/app/**": ["architecture", "inputValidation", "security", "testing"],
+    "apps/web/src/features/**": ["architecture", "testing", "design"],
+    "apps/web/src/components/**": ["design", "testing"],
+    "packages/core/**": ["typeAndContractSafety", "inputValidation", "testing"],
+    "packages/integrations/**": ["integrations", "security", "inputValidation", "testing"],
+    "packages/api-client/**": ["typeAndContractSafety", "security", "testing"],
+    "supabase/**": ["security", "supabase", "testing"],
+    ".github/**": ["releaseAndObservability", "testing"],
+    "package.json": ["dependencyHygiene", "testing"],
+    "package-lock.json": ["dependencyHygiene"]
+  },
+  "productIdentity": {
+    "rules": [
+      "Use Realty Ops as the internal repo name until a public name is chosen.",
+      "Do not use Kova.",
+      "Build as a multi-tenant brokerage platform, not a one-off custom automation.",
+      "Keep Instagram DMs and comments in the day-one product scope."
+    ]
+  },
+  "architecture": {
+    "rules": [
+      "Route files in apps/web/src/app must stay thin and compose feature or package services only.",
+      "Cross-boundary DTOs and validation schemas belong in packages/core/src/domains.",
+      "Provider payload mapping, webhook signature helpers, and integration normalization belong in packages/integrations.",
+      "API transport and response validation belong in packages/api-client.",
+      "Feature-specific state and product composition belongs in apps/web/src/features.",
+      "Reusable app UI belongs in apps/web/src/components.",
+      "Do not create prototype, scratch, v2, backup, or duplicate implementation folders inside product paths."
+    ]
+  },
+  "typeAndContractSafety": {
+    "rules": [
+      "Use strict TypeScript and avoid any.",
+      "Use unknown for untrusted input and narrow with Zod or explicit type guards.",
+      "Validate untrusted inputs and API responses with Zod at package boundaries.",
+      "Derive TypeScript types from schemas where possible instead of maintaining parallel shapes.",
+      "Model nullable, optional, and environment-specific values explicitly.",
+      "Do not let UI components parse raw provider payloads."
+    ]
+  },
+  "inputValidation": {
+    "rules": [
+      "Every public API route must validate request method, body, query, and params before side effects.",
+      "Every webhook handler must parse provider payloads into internal events before business logic.",
+      "Normalize phone numbers, emails, Instagram usernames, provider IDs, timestamps, and lead source values.",
+      "Reject malformed payloads with structured errors and no side effects.",
+      "Never trust AI-extracted fields without schema validation."
+    ]
+  },
+  "sanitization": {
+    "rules": [
+      "Trim freeform message text before persistence.",
+      "Preserve raw provider payloads only in controlled audit storage when needed.",
+      "Redact tokens, phone numbers, emails, and provider secrets from logs.",
+      "Do not render raw provider text as HTML.",
+      "Normalize outbound SMS content through opt-out and quiet-hour checks before production."
+    ]
+  },
+  "security": {
+    "baseline": "OWASP ASVS for web app and API controls.",
+    "rules": [
+      "Never commit real secrets, service-role keys, access tokens, webhook secrets, or CRM credentials.",
+      "Never expose Supabase service-role keys or provider credentials to client code.",
+      "Encrypt integration credentials before persistence.",
+      "Validate Meta, Twilio, Retell, and internal webhook signatures before production side effects.",
+      "Do not log raw tokens, private lead payloads, call recording URLs, or full transcripts in production logs.",
+      "Admin overrides and assignment changes must be auditable.",
+      "Every tenant-owned table must have RLS enabled before production access."
+    ]
+  },
+  "environmentsAndStaging": {
+    "rules": [
+      "Keep local, staging, and production data and config separate.",
+      "Staging must not write to production CRMs, production Meta apps, or production Twilio numbers.",
+      "Add or update .env*.example files when introducing required variables.",
+      "Environment readers must fail loudly for missing required runtime config in staging and production.",
+      "Production webhook URLs must be stable deployed URLs, not tunnels."
+    ]
+  },
+  "supabase": {
+    "rules": [
+      "Schema changes must be represented by SQL migrations under supabase/migrations.",
+      "Do not make dashboard-only schema changes without migrations.",
+      "Every workspace-owned row must include workspace_id.",
+      "RLS policies must cover broker admin, assigned agent, unassigned workspace member, and outsider access.",
+      "Insert and update policies must use with check for rows being written.",
+      "Generate or update typed contracts after DB shape changes when app code consumes those shapes."
+    ]
+  },
+  "integrations": {
+    "rules": [
+      "Meta events normalize into internal lead events before lead mutation.",
+      "Follow Up Boss sync must be queued, retryable, and logged.",
+      "Twilio inbound requests require signature validation before production.",
+      "Retell call webhooks must validate signature or configured secret before production.",
+      "Provider errors should be captured with provider, workspace, event type, and retry metadata.",
+      "Provider credentials are workspace scoped and least-privilege where the provider allows it."
+    ]
+  },
+  "design": {
+    "rules": [
+      "Build quiet, premium, operational UI instead of a marketing dashboard.",
+      "Use a gray/white neutral-first visual system with sparse status colors.",
+      "Use real shadcn/Radix primitives when the web app shell is introduced.",
+      "Build custom product components by composing shadcn primitives instead of importing generic dashboard kits.",
+      "Use cards only for repeated items, modals, and framed tools.",
+      "Prioritize scanability, lead status clarity, assignment clarity, and fast action.",
+      "Do not put explanatory product copy inside workflow screens unless it directly helps the task.",
+      "Icon-only controls require tooltips and should use lucide-react when available."
+    ]
+  },
+  "testing": {
+    "releaseGate": "npm run release:check",
+    "rules": [
+      "Add tests for schemas, normalization, webhook parsing, scoring, assignment, and CRM sync decisions.",
+      "Add policy or migration verification before treating sensitive Supabase data as production-ready.",
+      "Keep visual components thin enough that model logic can be tested outside React rendering.",
+      "Run releaseGate after structural changes and before handoff.",
+      "Do not weaken lint, typecheck, or tests to make a feature pass."
+    ]
+  },
+  "releaseAndObservability": {
+    "rules": [
+      "CI must run typecheck, lint, tests, and constraints check before staging or production.",
+      "Use separate Sentry/PostHog environment labels for development, staging, and production.",
+      "Capture errors with enough context to debug but without secrets or sensitive lead payloads.",
+      "Document rollback steps for migrations and provider config changes before launch.",
+      "Prefer promoting the same tested artifact from staging to production when possible."
+    ]
+  },
+  "dependencyHygiene": {
+    "rules": [
+      "Do not add runtime dependencies when platform APIs or existing packages solve the problem cleanly.",
+      "Track npm audit output and prioritize high or critical issues.",
+      "Keep provider SDKs isolated behind packages/integrations or server-only app code.",
+      "Do not import server-only dependencies into client components."
+    ]
+  },
+  "sources": [
+    {
+      "name": "OWASP ASVS",
+      "url": "https://owasp.org/www-project-application-security-verification-standard/"
+    },
+    {
+      "name": "Supabase Row Level Security",
+      "url": "https://supabase.com/docs/guides/database/postgres/row-level-security"
+    },
+    {
+      "name": "Supabase Auth RLS",
+      "url": "https://supabase.com/docs/guides/auth/auth-deep-dive/auth-row-level-security"
+    },
+    {
+      "name": "Meta Messenger Platform for Instagram",
+      "url": "https://developers.facebook.com/docs/messenger-platform/instagram/"
+    },
+    {
+      "name": "Meta Instagram Webhooks",
+      "url": "https://developers.facebook.com/docs/webhooks/components/instagram"
+    },
+    {
+      "name": "Twilio Request Validation",
+      "url": "https://www.twilio.com/docs/usage/security#validating-requests"
+    },
+    {
+      "name": "Retell Webhooks",
+      "url": "https://docs.retellai.com/features/webhook"
+    },
+    {
+      "name": "Follow Up Boss Open API",
+      "url": "https://help.followupboss.com/hc/en-us/articles/7787906777751-Follow-Up-Boss-Open-API"
+    }
+  ]
+}

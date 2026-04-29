@@ -1,0 +1,19 @@
+app = "realty-ops-worker"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  APP_ENV = "staging"
+  WORKER_ID = "realty-ops-worker"
+  WORKER_POLL_INTERVAL_MS = "5000"
+  WORKER_BATCH_SIZE = "10"
+
+[processes]
+  app = "npm run worker:start"
+
+[[vm]]
+  memory = "512mb"
+  cpu_kind = "shared"
+  cpus = 1
