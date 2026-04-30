@@ -87,4 +87,36 @@ describe("sendMetaReply", () => {
       body: { error: "integration_not_found" },
     });
   });
+
+  it("does not send when conversation automation is paused", async () => {
+    const findConnectedCredential = vi.fn();
+    const response = await sendMetaReply({
+      request: {
+        workspaceId: "123e4567-e89b-12d3-a456-426614174000",
+        leadId: "123e4567-e89b-12d3-a456-426614174001",
+        providerAccountId: "ig-1",
+        channel: "instagram_dm",
+        recipientUserId: "ig-user-1",
+        reply: "Thanks for reaching out.",
+        automationMode: "human_takeover",
+      },
+      credentialSecret,
+      credentialRepository: {
+        findConnectedCredential,
+      },
+      leadEventRepository: {
+        insertLeadEventRows: vi.fn(),
+      },
+      metaClient: {
+        sendDirectMessage: vi.fn(),
+        replyToComment: vi.fn(),
+      },
+    });
+
+    expect(response).toEqual({
+      status: 400,
+      body: { error: "invalid_request" },
+    });
+    expect(findConnectedCredential).not.toHaveBeenCalled();
+  });
 });

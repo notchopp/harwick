@@ -31,6 +31,19 @@ function buildListingRow(overrides: Partial<ListingFactRow> = {}): ListingFactRo
   };
 }
 
+function buildRepository(overrides: Partial<ListingFactsRepository> = {}): ListingFactsRepository {
+  return {
+    findCachedListing: vi.fn(),
+    saveListingFact: vi.fn(),
+    listWorkspaceListings: vi.fn(),
+    findListingById: vi.fn(),
+    updateListingFact: vi.fn(),
+    completeVerifyListingTasks: vi.fn().mockResolvedValue(0),
+    enqueueListingRecheck: vi.fn().mockResolvedValue(undefined),
+    ...overrides,
+  };
+}
+
 describe("upsertManualListingFact", () => {
   it("normalizes manual listing details into a listing fact", async () => {
     const saveListingFact = vi.fn<ListingFactsRepository["saveListingFact"]>()
@@ -48,13 +61,7 @@ describe("upsertManualListingFact", () => {
         notes: "4.99% interest rate and closing cost assistance.",
         incentives: ["4.99% interest rate", "closing cost assistance"],
       },
-      repository: {
-        findCachedListing: vi.fn(),
-        saveListingFact,
-        listWorkspaceListings: vi.fn(),
-        findListingById: vi.fn(),
-        updateListingFact: vi.fn(),
-      },
+      repository: buildRepository({ saveListingFact }),
       now: () => new Date("2026-04-29T12:00:00.000Z"),
     });
 
@@ -86,13 +93,10 @@ describe("upsertManualListingFact", () => {
         price: 349990,
         hasPool: false,
       },
-      repository: {
-        findCachedListing: vi.fn(),
-        saveListingFact: vi.fn(),
-        listWorkspaceListings: vi.fn(),
+      repository: buildRepository({
         findListingById: vi.fn().mockResolvedValue(buildListingRow()),
         updateListingFact,
-      },
+      }),
       now: () => new Date("2026-04-29T13:00:00.000Z"),
     });
 
@@ -113,7 +117,13 @@ describe("upsertManualListingFact", () => {
 
   it("marks a listing verified now with notes and a future recheck", async () => {
     const updateListingFact = vi.fn<ListingFactsRepository["updateListingFact"]>()
-      .mockResolvedValue(buildListingRow());
+      .mockResolvedValue(buildListingRow({
+        needs_recheck_at: "2026-04-30T12:00:00.000Z",
+      }));
+    const completeVerifyListingTasks = vi.fn<ListingFactsRepository["completeVerifyListingTasks"]>()
+      .mockResolvedValue(2);
+    const enqueueListingRecheck = vi.fn<ListingFactsRepository["enqueueListingRecheck"]>()
+      .mockResolvedValue(undefined);
 
     await verifyManualListingFact({
       workspaceId: "workspace-1",
@@ -123,13 +133,12 @@ describe("upsertManualListingFact", () => {
         notes: "confirmed with builder rep",
         needsRecheckAt: "2026-04-30T12:00:00.000Z",
       },
-      repository: {
-        findCachedListing: vi.fn(),
-        saveListingFact: vi.fn(),
-        listWorkspaceListings: vi.fn(),
+      repository: buildRepository({
         findListingById: vi.fn().mockResolvedValue(buildListingRow()),
         updateListingFact,
-      },
+        completeVerifyListingTasks,
+        enqueueListingRecheck,
+      }),
       now: () => new Date("2026-04-29T13:00:00.000Z"),
     });
 
@@ -147,6 +156,15 @@ describe("upsertManualListingFact", () => {
         notes: "confirmed with builder rep",
         lastManualRefreshSource: "verified_now",
       }) as Record<string, unknown>,
+    });
+    expect(completeVerifyListingTasks).toHaveBeenCalledWith({
+      workspaceId: "workspace-1",
+      listing: expect.objectContaining({ id: "listing-row-1" }) as ListingFactRow,
+    });
+    expect(enqueueListingRecheck).toHaveBeenCalledWith({
+      workspaceId: "workspace-1",
+      listingId: "listing-row-1",
+      runAfter: "2026-04-30T12:00:00.000Z",
     });
   });
 
@@ -172,13 +190,11 @@ describe("upsertManualListingFact", () => {
           ",450000,4,2,yes,missing address,",
         ].join("\n"),
       },
-      repository: {
+      repository: buildRepository({
         findCachedListing: vi.fn().mockResolvedValue(null),
         saveListingFact,
-        listWorkspaceListings: vi.fn(),
-        findListingById: vi.fn(),
         updateListingFact,
-      },
+      }),
       now: () => new Date("2026-04-29T14:00:00.000Z"),
     });
 

@@ -58,21 +58,31 @@ function buildListingRow(overrides: Partial<ListingFactRow> = {}): ListingFactRo
   };
 }
 
+function buildRepository(overrides: Partial<ListingFactsRepository>): ListingFactsRepository {
+  return {
+    findCachedListing: vi.fn(),
+    saveListingFact: vi.fn(),
+    listWorkspaceListings: vi.fn(),
+    findListingById: vi.fn(),
+    updateListingFact: vi.fn(),
+    completeVerifyListingTasks: vi.fn().mockResolvedValue(0),
+    enqueueListingRecheck: vi.fn().mockResolvedValue(undefined),
+    ...overrides,
+  };
+}
+
 describe("createWorkspaceScopedListingLookupRepository", () => {
   it("uses the workspace Repliers credential before env fallback", async () => {
     const saveListingFact = vi.fn<ListingFactsRepository["saveListingFact"]>()
       .mockImplementation((params) => Promise.resolve(buildListingRow({
         price: params.listing.price,
       })));
-    const repository: ListingFactsRepository = {
+    const repository = buildRepository({
       findCachedListing: vi.fn().mockResolvedValue(buildListingRow({
         verified_at: null,
       })),
       saveListingFact,
-      listWorkspaceListings: vi.fn(),
-      findListingById: vi.fn(),
-      updateListingFact: vi.fn(),
-    };
+    });
 
     const lookupRepository = createWorkspaceScopedListingLookupRepository({
       repository,

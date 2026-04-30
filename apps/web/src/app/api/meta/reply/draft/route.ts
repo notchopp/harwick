@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createOpenAIReplyClient } from "@realty-ops/integrations";
+import { checkRateLimit, rateLimitKeyFromRequest } from "../../../../../lib/rate-limit";
 import { getServerEnvironment } from "../../../../../lib/server-env";
 import {
   hydrateMetaSocialPostContext,
@@ -17,6 +18,21 @@ function readString(record: Record<string, unknown>, key: string): string | null
 }
 
 export async function POST(request: Request) {
+  const rateLimit = checkRateLimit({
+    key: rateLimitKeyFromRequest({ request, namespace: "meta-reply-draft" }),
+    limit: 120,
+    windowMs: 60_000,
+  });
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: "rate_limited" },
+      {
+        status: 429,
+        headers: { "Retry-After": String(rateLimit.retryAfterSeconds) },
+      },
+    );
+  }
+
   const environment = getServerEnvironment();
   if (environment.OPENAI_API_KEY === undefined) {
     return NextResponse.json({ error: "missing_openai_api_key" }, { status: 500 });

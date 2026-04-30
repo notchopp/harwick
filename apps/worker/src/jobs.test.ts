@@ -3,6 +3,7 @@ import { handleWorkflowJob, parseWorkerJobRows, type WorkerJobRow, type Workflow
 
 const workspaceId = "123e4567-e89b-12d3-a456-426614174000";
 const leadId = "123e4567-e89b-12d3-a456-426614174001";
+const enrollmentId = "123e4567-e89b-12d3-a456-426614174003";
 
 function createRow(overrides: Partial<WorkerJobRow> = {}): WorkerJobRow {
   return {
@@ -94,6 +95,61 @@ describe("handleWorkflowJob", () => {
     await expect(handleWorkflowJob(job!, services as WorkflowJobServices)).resolves.toEqual({
       status: "completed",
       message: "Follow Up Boss synced contact 123",
+    });
+  });
+
+  it("processes nurture delivery jobs through the worker service", async () => {
+    const [job] = parseWorkerJobRows([createRow({
+      job_type: "nurture_delivery",
+      payload: {
+        jobType: "nurture_delivery",
+        workspaceId,
+        leadId,
+        enrollmentId,
+        reason: "scheduled_followup",
+      },
+      idempotency_key: `nurture_delivery:${enrollmentId}:0`,
+    })]);
+    const services: Pick<WorkflowJobServices, "processNurtureDelivery"> = {
+      processNurtureDelivery(params) {
+        expect(params).toEqual({
+          workspaceId,
+          leadId,
+          enrollmentId,
+        });
+        return Promise.resolve("nurture drafted step 0");
+      },
+    };
+
+    await expect(handleWorkflowJob(job!, services as WorkflowJobServices)).resolves.toEqual({
+      status: "completed",
+      message: "nurture drafted step 0",
+    });
+  });
+
+  it("processes listing recheck jobs through the worker service", async () => {
+    const listingId = "123e4567-e89b-12d3-a456-426614174004";
+    const [job] = parseWorkerJobRows([createRow({
+      lead_id: null,
+      job_type: "listing_recheck",
+      payload: {
+        jobType: "listing_recheck",
+        workspaceId,
+        listingId,
+        reason: "scheduled_recheck",
+      },
+      idempotency_key: `listing_recheck:${listingId}:2026-04-29T12:00:00.000Z`,
+    })]);
+    const services: Pick<WorkflowJobServices, "processListingRecheck"> = {
+      processListingRecheck(params) {
+        expect(params).toEqual({ workspaceId, listingId });
+        return Promise.resolve("listing recheck task created");
+      },
+    };
+
+    await expect(handleWorkflowJob(job!, services as WorkflowJobServices)).resolves.toEqual({
+      status: "completed",
+      message: "listing recheck task created",
     });
   });
 

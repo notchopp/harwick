@@ -1,4 +1,4 @@
-import type { IntegrationProvider, NormalizedLeadEvent } from "@realty-ops/core";
+import { isOptOutMessage, type IntegrationProvider, type NormalizedLeadEvent } from "@realty-ops/core";
 import type { LeadEventWriter, MetaWorkspaceResolver } from "../../features/lead-intake/meta-webhook";
 import type { LeadUpsertRepository } from "./leads";
 import { upsertLeadFromInboundEvent } from "./leads";
@@ -36,6 +36,11 @@ export type LeadEventPersistenceRepository = {
   findWorkspaceIdByVoiceAgent?(retellAgentId: string): Promise<string | null>;
   findExistingLeadEventIdentities(identities: LeadEventIdentity[]): Promise<Set<string>>;
   insertLeadEventRows(rows: LeadEventInsertRow[]): Promise<number>;
+  markLeadNurtureOptedOut?(params: {
+    workspaceId: string;
+    leadId: string;
+    reason: string;
+  }): Promise<void>;
 };
 
 export type LeadEventWriterOptions = {
@@ -152,6 +157,13 @@ export function createLeadEventWriter(
         leadId = result.leadId;
         rows.push(mapNormalizedLeadEventToInsertRow(event, result.leadId));
         leadUpsertCount += 1;
+        if (event.text !== null && isOptOutMessage(event.text)) {
+          await repository.markLeadNurtureOptedOut?.({
+            workspaceId: event.workspaceId,
+            leadId: result.leadId,
+            reason: "inbound_stop_keyword",
+          });
+        }
       }
 
       if (options.enqueueWorkflowJob !== undefined) {
@@ -300,6 +312,25 @@ export function createSupabaseLeadEventRepository(
       }
 
       return data?.length ?? rows.length;
+    },
+
+    async markLeadNurtureOptedOut(params) {
+      const { error } = await supabase
+        .from("nurture_enrollments")
+        .update({
+          status: "opted_out",
+          next_action_at: null,
+          opted_out_at: new Date().toISOString(),
+          opt_out_reason: params.reason,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("workspace_id", params.workspaceId)
+        .eq("lead_id", params.leadId)
+        .eq("status", "active");
+
+      if (error !== null) {
+        throw error;
+      }
     },
   };
 }

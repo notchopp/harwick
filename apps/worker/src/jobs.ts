@@ -85,6 +85,15 @@ export type WorkflowJobServices = {
     workspaceId: string;
     backsyncEventId: string;
   }): Promise<void>;
+  processNurtureDelivery?(params: {
+    workspaceId: string;
+    leadId: string;
+    enrollmentId: string;
+  }): Promise<string>;
+  processListingRecheck?(params: {
+    workspaceId: string;
+    listingId: string;
+  }): Promise<string>;
 };
 
 function toWorkflowJob(row: WorkerJobRow): WorkflowJob {
@@ -233,6 +242,37 @@ export async function handleWorkflowJob(
       return {
         status: "completed",
         message: `handoff task accepted from ${job.payload.source}`,
+      };
+    case "listing_recheck":
+      if (services?.processListingRecheck === undefined) {
+        return {
+          status: "skipped",
+          message: "listing recheck skipped because listing services are missing",
+        };
+      }
+
+      return {
+        status: "completed",
+        message: await services.processListingRecheck({
+          workspaceId: job.payload.workspaceId,
+          listingId: job.payload.listingId,
+        }),
+      };
+    case "nurture_delivery":
+      if (services?.processNurtureDelivery === undefined || job.payload.leadId === undefined) {
+        return {
+          status: "skipped",
+          message: "nurture delivery skipped because services or lead id are missing",
+        };
+      }
+
+      return {
+        status: "completed",
+        message: await services.processNurtureDelivery({
+          workspaceId: job.payload.workspaceId,
+          leadId: job.payload.leadId,
+          enrollmentId: job.payload.enrollmentId,
+        }),
       };
   }
 }

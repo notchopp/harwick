@@ -1,0 +1,1609 @@
+"use client";
+
+import {
+  automationModeLabel,
+  type ConversationAutomationMode,
+} from "@realty-ops/core";
+import {
+  ArrowUpRight,
+  Bot,
+  CalendarClock,
+  CheckCircle2,
+  ClipboardCheck,
+  CircleDollarSign,
+  Home,
+  LayoutGrid,
+  List,
+  MapPin,
+  MessageSquare,
+  PauseCircle,
+  Play,
+  Phone,
+  Route,
+  Search,
+  Send,
+  ShieldCheck,
+  SlidersHorizontal,
+  UserRound,
+} from "lucide-react";
+import { type KeyboardEvent, type ReactNode, useEffect, useMemo, useState } from "react";
+
+import { AppShell } from "../../components/app-shell";
+import { Badge } from "../../components/ui/badge";
+import { Button } from "../../components/ui/button";
+import { Input } from "../../components/ui/input";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "../../components/ui/sheet";
+import { ToggleGroup, ToggleGroupItem } from "../../components/ui/toggle-group";
+import { cn } from "../../lib/utils";
+import type { LeadPageItem } from "./leads-data";
+
+type LeadSource = "instagram" | "facebook" | "voice";
+type LeadStage = "hot" | "qualified" | "unrouted" | "callback" | "nurture" | "showing";
+type LeadFilter = "all" | LeadStage | "seller";
+type LeadCardKind = "listing" | "area" | "seller";
+type LeadViewMode = "grid" | "list";
+type AreaTheme = "waterfront" | "suburban" | "unknown";
+type RolePreview = "owner" | "admin" | "team_lead" | "agent";
+
+type LeadRecord = {
+  areaTheme?: AreaTheme;
+  automationMode: ConversationAutomationMode;
+  automationReason: string;
+  helperSuggestions: string[];
+  primaryAction: string;
+  secondaryAction: string;
+  cardKind: LeadCardKind;
+  id: string;
+  name: string;
+  initials: string;
+  source: LeadSource;
+  sourceDetail: string;
+  stage: LeadStage;
+  stageLabel: string;
+  imageUrl: string;
+  intent: string;
+  signal: string;
+  score: number;
+  budget: string;
+  area: string;
+  timeline: string;
+  propertyType: string;
+  assignedTo: string;
+  sourceOwner: string;
+  lastTouch: string;
+  nextAction: string;
+  routeReason: string;
+  listing: string;
+  message: string;
+  draft: string;
+  sellerEstimate?: string;
+  sellerProperty?: {
+    address: string;
+    city: string;
+  };
+  sellerTarget?: string;
+  timelineItems: string[];
+};
+
+type ActivityItem = {
+  detail: string;
+  label: string;
+  time: string;
+  tone: "green" | "amber" | "stone";
+};
+
+const rolePreviewProfiles: Record<RolePreview, {
+  label: string;
+  memberName: string;
+  summary: string;
+}> = {
+  owner: {
+    label: "owner",
+    memberName: "Ademola",
+    summary: "sees all leads, source credit, routing conflicts, and admin assignment context.",
+  },
+  admin: {
+    label: "admin",
+    memberName: "Marcus T.",
+    summary: "sees all operational leads, sync state, route reasons, and owner review queues.",
+  },
+  team_lead: {
+    label: "team lead",
+    memberName: "Ademola",
+    summary: "sees team leads, source credit, capacity, and can reassign before CRM sync.",
+  },
+  agent: {
+    label: "agent",
+    memberName: "Sarah K.",
+    summary: "sees assigned leads, conversation, qualification, next action, and personal workload.",
+  },
+};
+
+const leads: LeadRecord[] = [
+  {
+    cardKind: "listing",
+    automationMode: "ai_on",
+    automationReason: "safe listing reply with one missing qualification field",
+    helperSuggestions: [
+      "If Marcus gives a timeline under 90 days, route immediately and offer two showing windows.",
+      "Mention the price adjustment only once; keep the next reply focused on timing.",
+    ],
+    primaryAction: "ask timeline",
+    secondaryAction: "take over",
+    id: "lead-marcus-t",
+    name: "Marcus T.",
+    initials: "MT",
+    source: "instagram",
+    sourceDetail: "comment on 4BR Coral Gables",
+    stage: "hot",
+    stageLabel: "hot buyer",
+    imageUrl: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1100&q=88",
+    intent: "buy",
+    signal: "asked if the listing is still available",
+    score: 86,
+    budget: "$450k-$520k",
+    area: "Katy / Coral Gables",
+    timeline: "60 days",
+    propertyType: "new construction",
+    assignedTo: "Sarah K.",
+    sourceOwner: "Ademola",
+    lastTouch: "2m ago",
+    nextAction: "approve reply, then offer showing slots",
+    routeReason: "area match, buyer lead accepted, capacity open",
+    listing: "1234 Ocean View Dr",
+    message: "Is this still available? We've been looking in this area for months",
+    draft:
+      "Hi Marcus - yes, still available. This one had a price adjustment last week. I can send the full details and help schedule a walkthrough. What timeline are you working with?",
+    timelineItems: [
+      "instagram comment captured",
+      "budget and area inferred from thread",
+      "routing matched Sarah K. by area and new construction tag",
+    ],
+  },
+  {
+    cardKind: "listing",
+    automationMode: "paused_by_rule",
+    automationReason: "callback intent needs human contact before more automation",
+    helperSuggestions: [
+      "Call first, then let Harwick summarize and draft the follow-up text.",
+      "Ask move-in date, pets, and whether she has already toured Midtown rentals.",
+    ],
+    primaryAction: "call back",
+    secondaryAction: "resume ai after call",
+    id: "lead-diana-reyes",
+    name: "Diana Reyes",
+    initials: "DR",
+    source: "voice",
+    sourceDetail: "missed call, requested agent",
+    stage: "callback",
+    stageLabel: "callback",
+    imageUrl: "https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&w=1100&q=88",
+    intent: "rent",
+    signal: "wants a call now",
+    score: 74,
+    budget: "$2k-$3k/mo",
+    area: "Midtown",
+    timeline: "now",
+    propertyType: "lease",
+    assignedTo: "owner review",
+    sourceOwner: "workspace",
+    lastTouch: "18m ago",
+    nextAction: "owner review because no lease agent is available",
+    routeReason: "no available lease agent matched Midtown",
+    listing: "Midtown rental search",
+    message: "I'm looking for a 3BR rental and I want to talk to someone today.",
+    draft: "Call Diana back first. Confirm move-in date, pets, and whether she has already toured any Midtown rentals.",
+    timelineItems: [
+      "voice call summarized",
+      "renter intent and budget extracted",
+      "held for owner review because routing profile had no clean match",
+    ],
+  },
+  {
+    cardKind: "listing",
+    automationMode: "ai_on",
+    automationReason: "open house details are verified and safe to send",
+    helperSuggestions: [
+      "Register Keisha and her husband before asking for a private showing.",
+      "If she asks for address details, send the public listing link instead of freeform directions.",
+    ],
+    primaryAction: "register attendee",
+    secondaryAction: "take over",
+    id: "lead-keisha-brown",
+    name: "Keisha Brown",
+    initials: "KB",
+    source: "facebook",
+    sourceDetail: "DM on Coconut Grove open house",
+    stage: "showing",
+    stageLabel: "open house",
+    imageUrl: "https://images.unsplash.com/photo-1570129477492-45c003edd2be?auto=format&fit=crop&w=1100&q=88",
+    intent: "buy",
+    signal: "asked to bring husband to open house",
+    score: 72,
+    budget: "$850k-$950k",
+    area: "Coconut Grove",
+    timeline: "30-45 days",
+    propertyType: "bungalow",
+    assignedTo: "Keisha B.",
+    sourceOwner: "Ademola",
+    lastTouch: "41m ago",
+    nextAction: "register for open house and send reminder",
+    routeReason: "open house owner already known",
+    listing: "246 Palm Ave",
+    message: "What time does the open house start this Sunday? Can I bring my husband?",
+    draft:
+      "Hi Keisha - the open house is Sunday from 1-4 PM, and yes, bring your husband. I can also register you so the team has your details ready.",
+    timelineItems: [
+      "facebook DM linked to open house listing",
+      "spouse attendance captured as high intent",
+      "open house registration can run without routing override",
+    ],
+  },
+  {
+    areaTheme: "waterfront",
+    cardKind: "area",
+    automationMode: "paused_by_rule",
+    automationReason: "CRM ownership conflict blocks outbound confidence",
+    helperSuggestions: [
+      "Resolve FUB ownership before Harwick sends another answer.",
+      "After ownership is fixed, ask whether he means this property or a broader waterfront search.",
+    ],
+    primaryAction: "resolve owner",
+    secondaryAction: "keep paused",
+    id: "lead-jordan-mills",
+    name: "Jordan Mills",
+    initials: "JM",
+    source: "voice",
+    sourceDetail: "CRM ownership mismatch",
+    stage: "unrouted",
+    stageLabel: "owner review",
+    imageUrl: "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1100&q=88",
+    intent: "buy",
+    signal: "Follow Up Boss shows unassigned",
+    score: 61,
+    budget: "$1.5m+",
+    area: "Waterfront / TBD",
+    timeline: "90 days",
+    propertyType: "waterfront",
+    assignedTo: "unassigned",
+    sourceOwner: "Sarah K.",
+    lastTouch: "2h ago",
+    nextAction: "resolve ownership before next reply",
+    routeReason: "CRM owner conflict blocks clean sync and no listing match is confirmed",
+    listing: "waterfront search",
+    message: "I might want waterfront, but I need to know if the current owner is still taking offers.",
+    draft: "Resolve CRM ownership, then route to Marcus T. for Miami Beach waterfront coverage.",
+    timelineItems: [
+      "voice inquiry linked to listing",
+      "waterfront intent extracted",
+      "FUB owner mismatch detected before assignment",
+    ],
+  },
+  {
+    areaTheme: "suburban",
+    cardKind: "area",
+    automationMode: "ai_on",
+    automationReason: "soft nurture reply can continue collecting preferences",
+    helperSuggestions: [
+      "Ask only one preference question next: budget or neighborhood, not both.",
+      "Keep Tonya in nurture until she gives a timeline under 6 months.",
+    ],
+    primaryAction: "ask budget",
+    secondaryAction: "take over",
+    id: "lead-tonya-w",
+    name: "Tonya W.",
+    initials: "TW",
+    source: "instagram",
+    sourceDetail: "DM after saved search",
+    stage: "nurture",
+    stageLabel: "nurture",
+    imageUrl: "https://images.unsplash.com/photo-1600047509807-ba8f99d2cdde?auto=format&fit=crop&w=1100&q=88",
+    intent: "browse",
+    signal: "watching waterfront posts",
+    score: 44,
+    budget: "$320k-$420k",
+    area: "Katy / suburbs",
+    timeline: "6+ months",
+    propertyType: "waterfront",
+    assignedTo: "nurture lane",
+    sourceOwner: "workspace",
+    lastTouch: "3h ago",
+    nextAction: "ask one budget question before assigning",
+    routeReason: "missing budget and financing status",
+    listing: "saved search",
+    message: "Love this one. Just browsing for now but send me more like it.",
+    draft: "Send a soft saved-search link and ask whether she has a target budget or preferred neighborhood.",
+    timelineItems: [
+      "instagram DM captured",
+      "saved-search interest logged",
+      "qualification incomplete, parked in nurture",
+    ],
+  },
+  {
+    areaTheme: "unknown",
+    cardKind: "area",
+    automationMode: "ai_on",
+    automationReason: "low-risk qualifying question, no listing claims needed",
+    helperSuggestions: [
+      "Start with area because budget without geography will not route cleanly.",
+      "Do not send a specific listing until Harwick has at least area and price range.",
+    ],
+    primaryAction: "ask area",
+    secondaryAction: "take over",
+    id: "lead-ray-n",
+    name: "Ray N.",
+    initials: "RN",
+    source: "facebook",
+    sourceDetail: 'comment - "how do I get more info"',
+    stage: "unrouted",
+    stageLabel: "qualifying",
+    imageUrl: "https://images.unsplash.com/photo-1600047508788-786f3865b4b3?auto=format&fit=crop&w=1100&q=88",
+    intent: "browse",
+    signal: "asking for general inventory",
+    score: 0,
+    budget: "unknown",
+    area: "unknown",
+    timeline: "gathering",
+    propertyType: "unknown",
+    assignedTo: "awaiting qualification",
+    sourceOwner: "workspace",
+    lastTouch: "just now",
+    nextAction: "ask area and budget before routing",
+    routeReason: "not enough qualification signals",
+    listing: "no listing matched",
+    message: "How do I get more info on homes like this?",
+    draft: "Ask Ray what area he is looking in and whether he has a target price range.",
+    timelineItems: [
+      "facebook comment captured",
+      "intent is not specific enough to route",
+      "qualification questions queued",
+    ],
+  },
+  {
+    cardKind: "seller",
+    automationMode: "human_takeover",
+    automationReason: "operator is handling valuation positioning before AI resumes",
+    helperSuggestions: [
+      "Ask for square footage, upgrades, and preferred listing month before quoting confidence.",
+      "Harwick can draft a seller consult invite after those details are collected.",
+    ],
+    primaryAction: "send consult invite",
+    secondaryAction: "resume ai",
+    id: "lead-luis-carter",
+    name: "Luis Carter",
+    initials: "LC",
+    source: "facebook",
+    sourceDetail: "seller valuation request",
+    stage: "qualified",
+    stageLabel: "seller lead",
+    imageUrl: "https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&w=1100&q=88",
+    intent: "sell",
+    signal: "requested pricing opinion",
+    score: 79,
+    budget: "$1.1m target",
+    area: "South Miami",
+    timeline: "3 months",
+    propertyType: "townhome",
+    assignedTo: "unassigned",
+    sourceOwner: "Ademola",
+    lastTouch: "41m ago",
+    nextAction: "book seller consult request + approve",
+    routeReason: "seller lead needs owner assignment before consult",
+    listing: "482 Brickell Key Dr",
+    message: "What could my townhome sell for if I list after summer?",
+    draft: "Invite Luis to a seller consult and ask for square footage, address, and upgrade history.",
+    sellerEstimate: "$680k-$740k",
+    sellerProperty: {
+      address: "482 Brickell Key Dr",
+      city: "Brickell, FL 33131",
+    },
+    sellerTarget: "summer",
+    timelineItems: [
+      "facebook seller intent detected",
+      "South Miami route matched Marcus T.",
+      "seller consult should use request + approve calendar mode",
+    ],
+  },
+  {
+    cardKind: "seller",
+    automationMode: "ai_on",
+    automationReason: "seller consult route is clear and reply can stay high level",
+    helperSuggestions: [
+      "Avoid promising a sale price; frame it as a quick pricing consult.",
+      "If Maria says she is ready now, request + approve a consult slot with Sarah.",
+    ],
+    primaryAction: "offer consult",
+    secondaryAction: "take over",
+    id: "lead-maria-p",
+    name: "Maria P.",
+    initials: "MP",
+    source: "instagram",
+    sourceDetail: "DM after market update post",
+    stage: "qualified",
+    stageLabel: "seller lead",
+    imageUrl: "https://images.unsplash.com/photo-1600607688969-a5bfcd646154?auto=format&fit=crop&w=1100&q=88",
+    intent: "sell",
+    signal: "asked if now is a good time to sell",
+    score: 83,
+    budget: "$920k-$1.1m estimate",
+    area: "Coconut Grove",
+    timeline: "now",
+    propertyType: "single family",
+    assignedTo: "Sarah K.",
+    sourceOwner: "Ademola",
+    lastTouch: "1h ago",
+    nextAction: "send seller consult link and ask for property upgrades",
+    routeReason: "seller lead, Coconut Grove, Sarah owns seller consults there",
+    listing: "1102 Coconut Ave",
+    message: "Thinking about selling my place - is now a good time in Coconut Grove?",
+    draft: "Tell Maria the market is active and offer a quick pricing consult with Sarah K.",
+    sellerEstimate: "$920k-$1.1m",
+    sellerProperty: {
+      address: "1102 Coconut Ave",
+      city: "Coconut Grove, FL 33133",
+    },
+    sellerTarget: "now",
+    timelineItems: [
+      "instagram DM captured from market update",
+      "seller intent and area extracted",
+      "matched Sarah K. by seller consult coverage",
+    ],
+  },
+];
+
+const demoWorkspaceId = "123e4567-e89b-12d3-a456-426614174000";
+
+const imagePool = [
+  "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1100&q=88",
+  "https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&w=1100&q=88",
+  "https://images.unsplash.com/photo-1583608205776-bfd35f0d9f83?auto=format&fit=crop&w=1100&q=88",
+  "https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&w=1100&q=88",
+];
+
+function mapLeadPageItemToRecord(item: LeadPageItem, index: number): LeadRecord {
+  return {
+    cardKind: item.cardKind,
+    automationMode: "ai_on",
+    automationReason: item.stage === "callback"
+      ? "callback intent needs human contact before more automation"
+      : "Harwick is qualifying from current lead fields and conversation context",
+    helperSuggestions: [
+      `Current qualification: ${item.intent}, ${item.area}, ${item.budget}, ${item.timeline}.`,
+      "Update the route once the next missing field is captured.",
+    ],
+    primaryAction: item.timeline === "unknown" ? "ask timeline" : item.stage === "callback" ? "call back" : "send next step",
+    secondaryAction: "take over",
+    id: item.id,
+    name: item.name,
+    initials: item.initials,
+    source: item.source,
+    sourceDetail: item.sourceDetail,
+    stage: item.stage,
+    stageLabel: item.stageLabel,
+    imageUrl: imagePool[index % imagePool.length] ?? "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1100&q=88",
+    intent: item.intent,
+    signal: item.message,
+    score: item.score,
+    budget: item.budget,
+    area: item.area,
+    timeline: item.timeline,
+    propertyType: item.propertyType,
+    assignedTo: item.assignedTo,
+    sourceOwner: item.sourceOwner,
+    lastTouch: item.lastTouch,
+    nextAction: item.timeline === "unknown" ? "capture timeline before routing" : "continue from qualified context",
+    routeReason: item.routeReason,
+    listing: item.listing,
+    message: item.message,
+    draft: item.timeline === "unknown"
+      ? `Hi ${item.name.split(" ")[0] ?? "there"} - happy to help. What timeline are you working with?`
+      : `Hi ${item.name.split(" ")[0] ?? "there"} - I have your ${item.area} search in mind. I can send the right next step from here.`,
+    timelineItems: [
+      "lead row loaded from workspace backend",
+      "latest captured message attached",
+      item.routeReason,
+    ],
+  };
+}
+
+const filters: Array<{ label: string; value: LeadFilter }> = [
+  { label: "all", value: "all" },
+  { label: "hot", value: "hot" },
+  { label: "qualified", value: "qualified" },
+  { label: "unrouted", value: "unrouted" },
+  { label: "callbacks", value: "callback" },
+  { label: "sellers", value: "seller" },
+];
+
+function SourceIcon(props: { source: LeadSource }) {
+  if (props.source === "instagram") {
+    return (
+      <svg aria-hidden="true" className="h-3.5 w-3.5" viewBox="0 0 24 24">
+        <path
+          d="M7.5 2h9A5.5 5.5 0 0 1 22 7.5v9a5.5 5.5 0 0 1-5.5 5.5h-9A5.5 5.5 0 0 1 2 16.5v-9A5.5 5.5 0 0 1 7.5 2Zm0 2A3.5 3.5 0 0 0 4 7.5v9A3.5 3.5 0 0 0 7.5 20h9a3.5 3.5 0 0 0 3.5-3.5v-9A3.5 3.5 0 0 0 16.5 4h-9Zm4.5 3.8a4.2 4.2 0 1 1 0 8.4 4.2 4.2 0 0 1 0-8.4Zm0 2a2.2 2.2 0 1 0 0 4.4 2.2 2.2 0 0 0 0-4.4Zm4.75-2.95a1.05 1.05 0 1 1 0 2.1 1.05 1.05 0 0 1 0-2.1Z"
+          fill="currentColor"
+        />
+      </svg>
+    );
+  }
+
+  if (props.source === "facebook") {
+    return (
+      <svg aria-hidden="true" className="h-3.5 w-3.5" viewBox="0 0 24 24">
+        <path
+          d="M13.4 21v-7.7h2.6l.4-3h-3V8.4c0-.9.25-1.5 1.55-1.5h1.65V4.2A22.2 22.2 0 0 0 14.2 4c-2.38 0-4 1.45-4 4.1v2.2H7.5v3h2.7V21h3.2Z"
+          fill="currentColor"
+        />
+      </svg>
+    );
+  }
+
+  return <Phone aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={1.8} />;
+}
+
+function sourceLabel(source: LeadSource) {
+  if (source === "voice") {
+    return "voice";
+  }
+
+  return source;
+}
+
+function stageTone(stage: LeadStage): "hot" | "qualified" | "warm" | "neutral" {
+  if (stage === "hot" || stage === "callback" || stage === "unrouted") {
+    return "hot";
+  }
+
+  if (stage === "qualified" || stage === "showing") {
+    return "qualified";
+  }
+
+  return "warm";
+}
+
+function Stat(props: { icon: typeof MapPin; label: string; light?: boolean; value: string }) {
+  const Icon = props.icon;
+
+  return (
+    <div className="min-w-0">
+      <div className={cn("flex items-center gap-1.5", props.light ? "text-muted-subtle" : "text-white/62")}>
+        <Icon aria-hidden="true" className="h-3.5 w-3.5 shrink-0" strokeWidth={1.7} />
+        <span className="truncate text-[10px] uppercase tracking-[0.08em]">{props.label}</span>
+      </div>
+      <div className={cn("mt-1 truncate text-[13px] font-semibold", props.light ? "text-foreground" : "text-white/88")}>{props.value}</div>
+    </div>
+  );
+}
+
+function scoreTone(score: number) {
+  if (score >= 78) {
+    return "border-qualified/55";
+  }
+
+  if (score >= 60) {
+    return "border-warm/55";
+  }
+
+  return "border-white/18";
+}
+
+function areaThemeClasses(theme: AreaTheme | undefined) {
+  if (theme === "waterfront") {
+    return "bg-[linear-gradient(145deg,#102532_0%,#1a3a49_48%,#12303f_100%)]";
+  }
+
+  if (theme === "suburban") {
+    return "bg-[linear-gradient(145deg,#241c14_0%,#362515_50%,#2a1e10_100%)]";
+  }
+
+  return "bg-[linear-gradient(145deg,#1c1e28_0%,#252838_52%,#1a1c26_100%)]";
+}
+
+function AreaGlyph(props: { theme?: AreaTheme | undefined }) {
+  if (props.theme === "suburban") {
+    return (
+      <svg aria-hidden="true" className="absolute left-1/2 top-[42%] h-32 w-32 -translate-x-1/2 -translate-y-1/2 text-white/[0.07]" fill="none" viewBox="0 0 120 120">
+        <rect height="50" stroke="currentColor" strokeWidth="1" width="80" x="20" y="50" />
+        <path d="M10 50 60 15l50 35" stroke="currentColor" strokeWidth="1" />
+        <rect height="30" stroke="currentColor" strokeWidth="0.8" width="24" x="48" y="70" />
+      </svg>
+    );
+  }
+
+  if (props.theme === "waterfront") {
+    return (
+      <svg aria-hidden="true" className="absolute left-1/2 top-[42%] h-32 w-32 -translate-x-1/2 -translate-y-1/2 text-white/[0.07]" fill="none" viewBox="0 0 120 120">
+        <path d="M20 80q20-40 40-20t40-20" stroke="currentColor" strokeWidth="1.5" />
+        <circle cx="60" cy="40" r="20" stroke="currentColor" strokeWidth="1" />
+        <path d="M10 90h100" stroke="currentColor" strokeWidth="0.8" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg aria-hidden="true" className="absolute left-1/2 top-[42%] h-28 w-28 -translate-x-1/2 -translate-y-1/2 text-white/[0.06]" fill="none" viewBox="0 0 100 100">
+      <circle cx="50" cy="50" r="35" stroke="currentColor" strokeWidth="1" />
+      <circle cx="50" cy="50" r="18" stroke="currentColor" strokeWidth="0.8" />
+      <path d="M50 15v70M15 50h70" stroke="currentColor" strokeWidth="0.6" />
+    </svg>
+  );
+}
+
+function LeadBadges(props: { lead: LeadRecord; light?: boolean }) {
+  return (
+    <div className="absolute left-4 top-4 z-10 flex max-w-[calc(100%-92px)] flex-wrap gap-1.5">
+      <Badge
+        className={cn(
+          "border px-2.5 py-1 text-[10px] shadow-[0_10px_24px_rgba(8,15,10,0.10)]",
+          props.light
+            ? "border-harwick-brass/20 bg-brass-soft text-warm"
+            : "border-white/12 bg-white/14 text-white/88 backdrop-blur-md",
+        )}
+        tone="neutral"
+      >
+        <SourceIcon source={props.lead.source} />
+        {sourceLabel(props.lead.source)}
+      </Badge>
+      <Badge
+        className={cn(
+          "border px-2.5 py-1 text-[10px] shadow-[0_10px_24px_rgba(8,15,10,0.10)]",
+          props.light
+            ? "border-0 bg-harwick-brass text-harwick-ink"
+            : props.lead.stage === "hot"
+              ? "border-harwick-brass/30 bg-harwick-brass/25 text-[#f0cc70]"
+              : props.lead.stage === "callback"
+                ? "border-oxblood/30 bg-oxblood/30 text-[#f0a0a0]"
+                : props.lead.stage === "showing" || props.lead.stage === "qualified"
+                  ? "border-sage/30 bg-sage/35 text-[#92d5ae]"
+                  : props.lead.stage === "unrouted"
+                    ? "border-warm/25 bg-warm/25 text-[#efbd73]"
+                    : "border-white/10 bg-white/10 text-white/62",
+        )}
+        tone="neutral"
+      >
+        {props.lead.stageLabel}
+      </Badge>
+    </div>
+  );
+}
+
+function LeadCard(props: { lead: LeadRecord; onOpen: (lead: LeadRecord) => void; priority?: boolean }) {
+  const openLead = () => props.onOpen(props.lead);
+  const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      openLead();
+    }
+  };
+
+  return (
+    <article
+      className={cn(
+        "group relative min-h-[320px] cursor-pointer overflow-hidden rounded-[22px] text-left shadow-[0_24px_68px_rgba(18,26,20,0.12)] ring-1 ring-black/[0.05] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_30px_76px_rgba(18,26,20,0.18)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-harwick-brass",
+        props.lead.cardKind === "seller" ? "bg-harwick-ink text-white" : "bg-harwick-ink",
+      )}
+      onClick={openLead}
+      onKeyDown={handleKeyDown}
+      role="button"
+      tabIndex={0}
+    >
+      {props.lead.cardKind === "seller" ? (
+        <SellerLeadCardContent lead={props.lead} />
+      ) : (
+        <BuyerLeadCardContent lead={props.lead} priority={props.priority} />
+      )}
+    </article>
+  );
+}
+
+function BuyerLeadCardContent(props: { lead: LeadRecord; priority?: boolean | undefined }) {
+  return (
+    <>
+      {props.lead.cardKind === "listing" ? (
+        <>
+          <img
+            alt={`${props.lead.listing} context`}
+            className="absolute inset-0 h-full w-full object-cover opacity-60 transition duration-500 group-hover:scale-[1.035] group-hover:opacity-70"
+            loading={props.priority === true ? "eager" : "lazy"}
+            src={props.lead.imageUrl}
+          />
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,15,10,0.08)_0%,rgba(7,15,10,0.44)_50%,rgba(7,15,10,0.90)_100%)]" />
+        </>
+      ) : (
+        <>
+          <div className={cn("absolute inset-0", areaThemeClasses(props.lead.areaTheme))} />
+          <div className="absolute inset-0 bg-[linear-gradient(160deg,rgba(0,0,0,0.08)_0%,rgba(0,0,0,0.54)_68%,rgba(0,0,0,0.84)_100%)]" />
+          <div className="absolute inset-0 opacity-[0.13] [background-image:radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.35)_1px,transparent_0)] [background-size:18px_18px]" />
+          <AreaGlyph theme={props.lead.areaTheme} />
+        </>
+      )}
+      <LeadBadges lead={props.lead} />
+      <div className={cn("absolute right-4 top-4 z-10 flex h-10 w-10 items-center justify-center rounded-full border bg-white/88 text-harwick-ink shadow-[0_14px_32px_rgba(14,18,15,0.16)] backdrop-blur-md", scoreTone(props.lead.score))}>
+        <span className="text-[13px] font-semibold">{props.lead.score > 0 ? props.lead.score : ""}</span>
+      </div>
+      <div className="absolute right-[60px] top-[18px] z-10 flex h-7 w-7 items-center justify-center rounded-full border border-white/12 bg-white/10 text-white/62 opacity-0 backdrop-blur-md transition group-hover:opacity-100">
+        <ArrowUpRight aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={1.8} />
+      </div>
+
+      <div className="absolute inset-x-0 bottom-0 p-4 text-white">
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-56 bg-[radial-gradient(circle_at_28%_72%,rgba(91,113,56,0.30),transparent_44%),linear-gradient(180deg,transparent_0%,rgba(8,17,10,0.88)_100%)]" />
+        <div className="relative rounded-[22px] border border-white/10 bg-white/[0.06] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_-24px_70px_rgba(6,12,8,0.16)] backdrop-blur-[12px]">
+          <LeadIdentity lead={props.lead} />
+          <LeadQuote lead={props.lead} />
+          <div className="my-3 h-px bg-white/14" />
+          <div className="grid grid-cols-3 gap-3">
+            <Stat icon={MapPin} label="area" value={props.lead.area} />
+            <Stat icon={CircleDollarSign} label="range" value={props.lead.budget} />
+            <Stat icon={CalendarClock} label="timeline" value={props.lead.timeline} />
+          </div>
+          <LeadCardFooter lead={props.lead} />
+        </div>
+      </div>
+    </>
+  );
+}
+
+function SellerLeadCardContent(props: { lead: LeadRecord }) {
+  return (
+    <>
+      <div className="absolute inset-0 bg-[linear-gradient(145deg,#4d360d_0%,#9b741f_45%,#2a210d_100%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_12%,rgba(255,231,159,0.30),transparent_26%),linear-gradient(160deg,rgba(0,0,0,0.04)_0%,rgba(0,0,0,0.44)_58%,rgba(0,0,0,0.86)_100%)]" />
+      <div className="absolute inset-0 opacity-[0.12] [background-image:radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.38)_1px,transparent_0)] [background-size:18px_18px]" />
+      <Home
+        aria-hidden="true"
+        className="absolute left-1/2 top-[42%] h-32 w-32 -translate-x-1/2 -translate-y-1/2 text-white/[0.055]"
+        strokeWidth={1}
+      />
+      <LeadBadges lead={props.lead} />
+      <div className={cn("absolute right-4 top-4 z-10 flex h-10 w-10 items-center justify-center rounded-full border bg-white/88 text-harwick-ink shadow-[0_14px_32px_rgba(14,18,15,0.16)] backdrop-blur-md", scoreTone(props.lead.score))}>
+        <span className="text-[13px] font-semibold">{props.lead.score}</span>
+      </div>
+      <div className="absolute right-[60px] top-[18px] z-10 flex h-7 w-7 items-center justify-center rounded-full border border-white/12 bg-white/10 text-white/62 opacity-0 backdrop-blur-md transition group-hover:opacity-100">
+        <ArrowUpRight aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={1.8} />
+      </div>
+
+      <div className="absolute inset-x-0 bottom-0 p-4 text-white">
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-56 bg-[radial-gradient(circle_at_28%_72%,rgba(201,168,76,0.36),transparent_44%),linear-gradient(180deg,transparent_0%,rgba(18,15,7,0.88)_100%)]" />
+        <div className="relative rounded-[22px] border border-white/12 bg-white/[0.07] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.13),0_-24px_70px_rgba(16,11,4,0.20)] backdrop-blur-[12px]">
+          <LeadIdentity lead={props.lead} />
+          <LeadQuote lead={props.lead} />
+          <div className="my-3 h-px bg-white/14" />
+          <div className="grid grid-cols-3 gap-3">
+            <Stat icon={Home} label="property" value={props.lead.sellerProperty?.address ?? props.lead.listing} />
+            <Stat icon={CircleDollarSign} label="estimate" value={props.lead.sellerEstimate ?? props.lead.budget} />
+            <Stat icon={CalendarClock} label="target" value={props.lead.sellerTarget ?? props.lead.timeline} />
+          </div>
+          <LeadCardFooter lead={props.lead} />
+        </div>
+      </div>
+    </>
+  );
+}
+
+function LeadIdentity(props: { lead: LeadRecord; light?: boolean }) {
+  return (
+    <div className="mb-2 flex items-center gap-2.5">
+      <span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-[11px] font-semibold", props.light ? "border-border bg-surface-muted text-muted" : "border-white/18 bg-white/14 text-white")}>
+        {props.lead.initials}
+      </span>
+      <div className="min-w-0">
+        <div className={cn("truncate text-[21px] font-semibold leading-none", props.light ? "text-foreground" : "text-white")}>{props.lead.name}</div>
+        <div className={cn("mt-1 truncate text-[11px]", props.light ? "text-muted-subtle" : "text-white/54")}>{props.lead.sourceDetail}</div>
+      </div>
+    </div>
+  );
+}
+
+function LeadQuote(props: { lead: LeadRecord; light?: boolean }) {
+  return (
+    <div className={cn("line-clamp-2 rounded-[16px] px-3 py-2.5 text-[12px] italic leading-5", props.light ? "bg-surface-muted text-muted" : "border border-white/10 bg-black/10 text-white/74")}>
+      "{props.lead.message}"
+    </div>
+  );
+}
+
+function LeadCardFooter(props: { lead: LeadRecord; light?: boolean }) {
+  const isHeld = props.lead.assignedTo.includes("owner") || props.lead.assignedTo.includes("awaiting") || props.lead.assignedTo === "unassigned";
+
+  return (
+    <div className={cn("mt-3 flex items-center justify-between gap-3 border-t pt-3 text-[11px]", props.light ? "border-border text-muted-subtle" : "border-white/14 text-white/48")}>
+      <span className={cn("truncate", isHeld && !props.light && "text-[#efbd73]", isHeld && props.light && "text-warm")}>
+        {isHeld ? props.lead.assignedTo : "to "}
+        {!isHeld ? <span className={cn("font-semibold", props.light ? "text-muted" : "text-white/82")}>{props.lead.assignedTo}</span> : null}
+      </span>
+      <span className="shrink-0">{props.lead.lastTouch}</span>
+    </div>
+  );
+}
+
+function LeadFilterSwitch(props: { activeFilter: LeadFilter; counts: Map<LeadFilter, number>; onChange: (filter: LeadFilter) => void }) {
+  return (
+    <ToggleGroup
+      aria-label="lead filter"
+      className="inline-flex h-[42px] rounded-full border border-border bg-surface/80 p-1 shadow-[0_16px_40px_rgba(31,42,34,0.05)]"
+      onValueChange={(value) => {
+        if (value) {
+          props.onChange(value as LeadFilter);
+        }
+      }}
+      type="single"
+      value={props.activeFilter}
+    >
+      {filters.map((filter) => (
+        <ToggleGroupItem
+          className="h-8 !rounded-full border border-transparent px-3 text-[11px] font-semibold text-muted-subtle shadow-none transition hover:bg-surface-muted hover:text-foreground data-[state=on]:border-harwick-ink data-[state=on]:bg-harwick-ink data-[state=on]:text-white data-[state=on]:shadow-[0_4px_12px_rgba(31,42,34,0.12)]"
+          key={filter.value}
+          value={filter.value}
+        >
+          <span>{filter.label}</span>
+          <span className="ml-1.5 rounded-full bg-black/[0.06] px-1.5 py-0.5 text-[10px] data-[state=on]:bg-white/14">
+            {props.counts.get(filter.value) ?? 0}
+          </span>
+        </ToggleGroupItem>
+      ))}
+    </ToggleGroup>
+  );
+}
+
+function LeadViewSwitch(props: { mode: LeadViewMode; onChange: (mode: LeadViewMode) => void }) {
+  return (
+    <ToggleGroup
+      aria-label="lead view"
+      className="inline-flex h-[42px] rounded-full border border-border bg-surface/80 p-1 shadow-[0_16px_40px_rgba(31,42,34,0.05)]"
+      onValueChange={(value) => {
+        if (value === "grid" || value === "list") {
+          props.onChange(value);
+        }
+      }}
+      type="single"
+      value={props.mode}
+    >
+      <ToggleGroupItem
+        aria-label="grid view"
+        className="h-8 !rounded-full border border-transparent px-3 text-muted-subtle shadow-none transition hover:bg-surface-muted hover:text-foreground data-[state=on]:border-harwick-ink data-[state=on]:bg-harwick-ink data-[state=on]:text-white data-[state=on]:shadow-[0_4px_12px_rgba(31,42,34,0.12)]"
+        value="grid"
+      >
+        <LayoutGrid aria-hidden="true" className="h-4 w-4" strokeWidth={1.8} />
+      </ToggleGroupItem>
+      <ToggleGroupItem
+        aria-label="list view"
+        className="h-8 !rounded-full border border-transparent px-3 text-muted-subtle shadow-none transition hover:bg-surface-muted hover:text-foreground data-[state=on]:border-harwick-ink data-[state=on]:bg-harwick-ink data-[state=on]:text-white data-[state=on]:shadow-[0_4px_12px_rgba(31,42,34,0.12)]"
+        value="list"
+      >
+        <List aria-hidden="true" className="h-4 w-4" strokeWidth={1.8} />
+      </ToggleGroupItem>
+    </ToggleGroup>
+  );
+}
+
+function LeadListView(props: { leads: LeadRecord[]; onOpen: (lead: LeadRecord) => void }) {
+  return (
+    <div className="overflow-hidden rounded-[24px] border border-border bg-surface shadow-[0_24px_68px_rgba(18,26,20,0.07)]">
+      <div className="grid grid-cols-[1.4fr_0.72fr_0.6fr_0.86fr_0.72fr_0.5fr] gap-4 border-b border-border bg-surface-muted/70 px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-subtle">
+        <span>lead</span>
+        <span>source</span>
+        <span>score</span>
+        <span>assigned</span>
+        <span>routing</span>
+        <span className="text-right">last</span>
+      </div>
+      <div className="divide-y divide-border">
+        {props.leads.map((lead) => (
+          <button
+            className="grid w-full grid-cols-[1.4fr_0.72fr_0.6fr_0.86fr_0.72fr_0.5fr] items-center gap-4 px-5 py-4 text-left transition hover:bg-surface-muted/45 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-harwick-brass"
+            key={lead.id}
+            onClick={() => props.onOpen(lead)}
+            type="button"
+          >
+            <span className="flex min-w-0 items-center gap-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border bg-surface-muted text-[11px] font-semibold text-muted">
+                {lead.initials}
+              </span>
+              <span className="min-w-0">
+                <span className="block truncate text-[13px] font-semibold text-foreground">{lead.name}</span>
+                <span className="mt-1 block truncate text-[11px] text-muted-subtle">{lead.signal}</span>
+              </span>
+            </span>
+            <span className="flex min-w-0 items-center gap-2">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-surface-muted text-muted">
+                <SourceIcon source={lead.source} />
+              </span>
+              <span className="truncate text-[12px] text-muted">{sourceLabel(lead.source)}</span>
+            </span>
+            <span>
+              <span className="mb-1 flex items-center justify-between text-[12px] font-semibold text-foreground">
+                {lead.score > 0 ? lead.score : "new"}
+              </span>
+              <span className="block h-1.5 overflow-hidden rounded-full bg-surface-muted">
+                <span
+                  className={cn(
+                    "block h-full rounded-full",
+                    lead.score >= 80 && "bg-qualified",
+                    lead.score >= 60 && lead.score < 80 && "bg-warm",
+                    lead.score < 60 && "bg-harwick-brass",
+                  )}
+                  style={{ width: `${Math.max(lead.score, 12)}%` }}
+                />
+              </span>
+            </span>
+            <span className="min-w-0">
+              <span className="block truncate text-[12px] font-semibold text-foreground">{lead.assignedTo}</span>
+              <span className="mt-1 block truncate text-[11px] text-muted-subtle">{lead.area}</span>
+            </span>
+            <span>
+              <Badge className="rounded-full px-2 py-0.5 text-[10px]" tone={lead.cardKind === "seller" ? "warm" : stageTone(lead.stage)}>
+                {lead.stageLabel}
+              </Badge>
+            </span>
+            <span className="text-right text-[12px] text-muted-subtle">{lead.lastTouch}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TypingDots() {
+  return (
+    <span className="inline-flex items-center gap-1" aria-label="Harwick is typing">
+      <span className="h-1.5 w-1.5 rounded-full bg-muted-subtle" />
+      <span className="h-1.5 w-1.5 rounded-full bg-muted-subtle" />
+      <span className="h-1.5 w-1.5 rounded-full bg-muted-subtle" />
+    </span>
+  );
+}
+
+function getInlineQualificationTags(lead: LeadRecord) {
+  const timelineMatch = lead.message.match(/\b(\d{1,3})\s*(?:day|days|d)\b/i);
+  const timeline = timelineMatch ? `${timelineMatch[1]} days` : lead.timeline;
+  const tags = [
+    { label: "intent", value: lead.intent },
+    { label: "area", value: lead.area },
+    { label: "budget", value: lead.budget },
+    { label: "timeline", value: timeline },
+    { label: "type", value: lead.propertyType },
+  ];
+
+  return tags.filter((tag) => tag.value.trim().length > 0 && tag.value.toLowerCase() !== "unknown");
+}
+
+function getLeadActivity(lead: LeadRecord): ActivityItem[] {
+  const qualificationTags = getInlineQualificationTags(lead);
+  const qualificationDetail = qualificationTags
+    .map((tag) => `${tag.label}: ${tag.value}`)
+    .join(" / ");
+
+  return [
+    {
+      label: "message captured",
+      detail: lead.message,
+      time: lead.lastTouch,
+      tone: "stone",
+    },
+    {
+      label: "qualification updated",
+      detail: qualificationDetail,
+      time: "live",
+      tone: "green",
+    },
+    {
+      label: "routing decision",
+      detail: lead.routeReason,
+      time: lead.assignedTo,
+      tone: lead.assignedTo.toLowerCase().includes("review") || lead.assignedTo.toLowerCase().includes("awaiting") ? "amber" : "green",
+    },
+    ...lead.timelineItems.map((item) => ({
+      label: "system event",
+      detail: item,
+      time: "recorded",
+      tone: "stone" as const,
+    })),
+  ];
+}
+
+function QualificationStrip(props: { lead: LeadRecord }) {
+  return (
+    <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+      {getInlineQualificationTags(props.lead).map((tag) => (
+        <span
+          className="inline-flex items-center gap-1 rounded-full border border-border bg-surface-muted px-2.5 py-1 text-[10.5px] text-muted"
+          key={tag.label}
+        >
+          <span className="font-semibold text-muted-subtle">{tag.label}</span>
+          <span className="max-w-[150px] truncate font-semibold text-foreground">{tag.value}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function ConversationPane(props: {
+  helperSuggestions: string[];
+  lead: LeadRecord;
+  mode: ConversationAutomationMode | null;
+  onModeChange: (mode: ConversationAutomationMode) => void;
+  primaryAction: string;
+  reason: string;
+  secondaryAction: string;
+}) {
+  const aiPaused = props.mode !== "ai_on";
+  const mode = props.mode ?? "paused_by_rule";
+  const modeTone = mode === "ai_on"
+    ? "border-sage/25 bg-sage-soft text-qualified"
+    : mode === "human_takeover"
+      ? "border-clay/25 bg-clay-soft text-warm"
+      : "border-oxblood/20 bg-oxblood-soft text-hot";
+
+  return (
+    <div className="overflow-hidden rounded-[22px] border border-border bg-surface">
+      <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-4">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 text-[13px] font-semibold text-foreground">
+            <MessageSquare aria-hidden="true" className="h-4 w-4 text-muted" strokeWidth={1.8} />
+            conversation
+          </div>
+          <div className="mt-2">
+            <QualificationStrip lead={props.lead} />
+          </div>
+        </div>
+        <div className={cn("inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-semibold", modeTone)}>
+          {aiPaused ? (
+            <PauseCircle aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={1.8} />
+          ) : (
+            <Bot aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={1.8} />
+          )}
+          {props.mode === null ? "loading" : automationModeLabel(props.mode)}
+        </div>
+      </div>
+
+      <div className="max-h-[430px] min-h-[330px] space-y-3 overflow-y-auto bg-background p-5">
+        <div className="flex justify-start">
+          <div className="max-w-[78%] rounded-[18px] rounded-bl-md bg-surface-muted px-4 py-3">
+            <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-subtle">
+              {props.lead.name}
+            </div>
+            <div className="text-[13px] leading-5 text-foreground">{props.lead.message}</div>
+          </div>
+        </div>
+        <div className="flex justify-end">
+          <div className="max-w-[82%] rounded-[18px] rounded-br-md border border-harwick-brass/35 bg-brass-soft/70 px-4 py-3">
+            <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-warm">
+              <Bot aria-hidden="true" className="h-3.5 w-3.5" />
+              ready to send
+            </div>
+            <div className="text-[13px] leading-5 text-foreground">{props.lead.draft}</div>
+          </div>
+        </div>
+        <div className="flex justify-end">
+          <div className="rounded-full border border-border bg-surface px-3 py-2 text-[12px] text-muted">
+            {aiPaused ? "Harwick is listening only" : <TypingDots />}
+          </div>
+        </div>
+      </div>
+
+      <div className="border-t border-border bg-surface px-5 py-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-[220px] flex-1">
+            <div className="flex items-center gap-2 text-[11.5px] font-semibold text-foreground">
+              <ClipboardCheck aria-hidden="true" className="h-3.5 w-3.5 text-harwick-brass" strokeWidth={1.8} />
+              Harwick helper
+            </div>
+            <p className="mt-1 text-[11.5px] leading-5 text-muted">{props.reason}</p>
+            <p className="mt-1 text-[11px] leading-5 text-muted-subtle">{props.helperSuggestions[0]}</p>
+          </div>
+          <Button
+            className={cn(
+              "h-8 shrink-0 rounded-full px-3 text-[11.5px]",
+              aiPaused
+                ? "bg-harwick-ink text-white"
+                : "border-border bg-surface-muted text-foreground hover:bg-surface-muted hover:text-foreground",
+            )}
+            onClick={() => props.onModeChange(aiPaused ? "ai_on" : "human_takeover")}
+            size="sm"
+            type="button"
+            variant={aiPaused ? "default" : "outline"}
+          >
+            {aiPaused ? <Play aria-hidden="true" /> : <PauseCircle aria-hidden="true" />}
+            {aiPaused ? "resume ai" : "take over"}
+          </Button>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2 border-t border-border pt-3">
+          <Button className="rounded-full bg-harwick-ink px-4 text-[12px]" size="sm" type="button">
+            <Send aria-hidden="true" />
+            {props.primaryAction}
+          </Button>
+          <Button className="rounded-full border-border bg-surface px-4 text-[12px] text-foreground hover:bg-surface hover:text-foreground" size="sm" type="button" variant="outline">
+            {props.secondaryAction}
+          </Button>
+          <Button className="rounded-full border-border bg-surface px-4 text-[12px] text-foreground hover:bg-surface hover:text-foreground" size="sm" type="button" variant="outline">
+            edit reply
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ActivityTimelinePanel(props: { lead: LeadRecord }) {
+  const items = getLeadActivity(props.lead).map((item) => ({
+    title: item.label,
+    meta: `${item.time} - ${item.detail}`,
+    tone: item.tone,
+  }));
+
+  return (
+    <DetailSection title="activity timeline">
+      <div className="space-y-0">
+        {items.map((item, index) => (
+          <div className="flex gap-3" key={`${item.title}-${index}`}>
+            <div className="flex w-3 flex-col items-center">
+              <span
+                className={cn(
+                  "mt-1.5 h-2.5 w-2.5 rounded-full",
+                  item.tone === "green" && "bg-qualified",
+                  item.tone === "amber" && "bg-warm",
+                  item.tone === "stone" && "bg-muted-subtle",
+                )}
+              />
+              {index === items.length - 1 ? null : <span className="mt-1 h-11 w-px bg-border" />}
+            </div>
+            <div className="pb-4">
+              <div className="text-[12.5px] font-semibold text-foreground">{item.title}</div>
+              <div className="mt-0.5 text-[11px] text-muted-subtle">{item.meta}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </DetailSection>
+  );
+}
+
+function DetailSection(props: { title: string; children: ReactNode; className?: string }) {
+  return (
+    <div className={cn("rounded-[16px] border border-border bg-surface px-4 py-4", props.className)}>
+      <div className="mb-3 text-[10px] font-semibold uppercase tracking-[0.13em] text-muted-subtle">
+        {props.title}
+      </div>
+      {props.children}
+    </div>
+  );
+}
+
+function ListingContextCard(props: { lead: LeadRecord }) {
+  const lead = props.lead;
+
+  return (
+    <div className="overflow-hidden rounded-[22px] border border-border bg-surface">
+      <div className="relative h-[156px] bg-harwick-ink">
+        <img alt={`${lead.listing} preview`} className="absolute inset-0 h-full w-full object-cover" src={lead.imageUrl} />
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,15,10,0.02),rgba(7,15,10,0.72))]" />
+        <div className="absolute inset-x-4 bottom-4 text-white">
+          <div className="text-[10px] uppercase tracking-[0.14em] text-white/58">
+            {lead.cardKind === "seller" ? "seller property" : lead.cardKind === "area" ? "search context" : "listing context"}
+          </div>
+          <div className="mt-1 truncate font-display text-[23px] font-medium leading-none">{lead.listing}</div>
+          <div className="mt-1 truncate text-[12px] text-white/68">{lead.signal}</div>
+        </div>
+      </div>
+      <div className="grid gap-2 p-4">
+        <DetailMetric icon={MapPin} label="area" value={lead.area} />
+        <DetailMetric icon={CircleDollarSign} label="budget" value={lead.budget} />
+        <DetailMetric icon={CalendarClock} label="timeline" value={lead.timeline} />
+      </div>
+    </div>
+  );
+}
+
+function LeadDetailSheet(props: {
+  automationMode: ConversationAutomationMode | null;
+  lead: LeadRecord | null;
+  onAutomationModeChange: (leadId: string, mode: ConversationAutomationMode) => void;
+  onOpenChange: (open: boolean) => void;
+  rolePreview: RolePreview;
+}) {
+  const lead = props.lead;
+  const mode = props.automationMode;
+  const roleProfile = rolePreviewProfiles[props.rolePreview];
+  const isAgentView = props.rolePreview === "agent";
+
+  return (
+    <Sheet onOpenChange={props.onOpenChange} open={lead !== null}>
+      <SheetContent className="w-[min(1040px,calc(100vw-24px))] gap-0 overflow-y-auto bg-background p-0 sm:max-w-none">
+        {lead ? (
+          <>
+            <SheetHeader className="border-b border-border bg-surface px-7 py-6">
+              <div className="flex flex-wrap items-start justify-between gap-4 pr-9">
+                <div className="min-w-0">
+                  <div className="mb-3 flex flex-wrap gap-2">
+                    <Badge tone={stageTone(lead.stage)}>{lead.stageLabel}</Badge>
+                    <Badge tone="neutral">
+                      <SourceIcon source={lead.source} />
+                      {sourceLabel(lead.source)}
+                    </Badge>
+                    <Badge tone={isAgentView ? "neutral" : "warm"}>
+                      viewing as {roleProfile.label}
+                    </Badge>
+                  </div>
+                  <SheetTitle className="font-display text-[30px] font-medium leading-none">{lead.name}</SheetTitle>
+                  <SheetDescription className="mt-2 text-[13px] text-muted">
+                    {lead.intent} lead from {lead.sourceDetail}. score {lead.score}. last touch {lead.lastTouch}.
+                  </SheetDescription>
+                </div>
+                <div className="flex gap-2">
+                  <Button className="rounded-full bg-harwick-ink px-4 text-[12px]" size="sm">
+                    <Phone aria-hidden="true" />
+                    call
+                  </Button>
+                  <Button className="rounded-full border-border bg-surface px-4 text-[12px] text-foreground hover:bg-surface-muted hover:text-foreground" size="sm" variant="outline">
+                    <MessageSquare aria-hidden="true" />
+                    message
+                  </Button>
+                </div>
+              </div>
+            </SheetHeader>
+
+            <div className="grid gap-6 p-7 lg:grid-cols-[minmax(0,1fr)_330px]">
+              <section className="min-w-0 space-y-5">
+                <ConversationPane
+                  helperSuggestions={lead.helperSuggestions}
+                  lead={lead}
+                  mode={mode}
+                  onModeChange={(nextMode) => props.onAutomationModeChange(lead.id, nextMode)}
+                  primaryAction={lead.primaryAction}
+                  reason={lead.automationReason}
+                  secondaryAction={lead.secondaryAction}
+                />
+                <ActivityTimelinePanel lead={lead} />
+              </section>
+
+              <aside className="space-y-5">
+                <ListingContextCard lead={lead} />
+                <div className="rounded-[22px] border border-border bg-surface p-5">
+                  <div className="flex items-center gap-2 text-[13px] font-semibold">
+                    <Route aria-hidden="true" className="h-4 w-4 text-qualified" strokeWidth={1.8} />
+                    assignment
+                  </div>
+                  <div className="mt-4 space-y-3 text-[12px]">
+                    <KeyValue label={isAgentView ? "assigned" : "assigned to"} value={isAgentView && lead.assignedTo === roleProfile.memberName ? "you" : lead.assignedTo} />
+                    {isAgentView ? null : <KeyValue label="source credit" value={lead.sourceOwner} />}
+                    {isAgentView ? null : <KeyValue label="route reason" value={lead.routeReason} />}
+                    <KeyValue label="next action" value={lead.nextAction} />
+                    <KeyValue label="view scope" value={roleProfile.summary} />
+                  </div>
+                </div>
+
+                <div className="rounded-[22px] border border-border bg-surface p-5">
+                  <div className="flex items-center gap-2 text-[13px] font-semibold">
+                    <ShieldCheck aria-hidden="true" className="h-4 w-4 text-qualified" strokeWidth={1.8} />
+                    qualification
+                  </div>
+                  <div className="mt-4 grid grid-cols-2 gap-2">
+                    {[
+                      ["intent", lead.intent],
+                      ["type", lead.propertyType],
+                      ["score", String(lead.score)],
+                      ["source", sourceLabel(lead.source)],
+                    ].map(([label, value]) => (
+                      <div className="rounded-[16px] bg-surface-muted p-3" key={label}>
+                        <div className="text-[10px] uppercase tracking-[0.1em] text-muted-subtle">{label}</div>
+                        <div className="mt-1 truncate text-[12px] font-semibold">{value}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {isAgentView ? null : (
+                  <div className="rounded-[22px] border border-border bg-surface p-5">
+                    <div className="flex items-center gap-2 text-[13px] font-semibold">
+                      <CheckCircle2 aria-hidden="true" className="h-4 w-4 text-qualified" strokeWidth={1.8} />
+                      admin detail
+                    </div>
+                    <div className="mt-3 text-[12px] leading-5 text-muted">
+                      admin and team lead views include source credit, route reason, assignment conflicts, and CRM sync context before handoff.
+                    </div>
+                  </div>
+                )}
+              </aside>
+            </div>
+          </>
+        ) : null}
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function DetailMetric(props: { icon: typeof MapPin; label: string; value: string }) {
+  const Icon = props.icon;
+
+  return (
+    <div className="rounded-[18px] bg-surface-muted p-4">
+      <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.1em] text-muted-subtle">
+        <Icon aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={1.7} />
+        {props.label}
+      </div>
+      <div className="mt-2 truncate text-[13px] font-semibold">{props.value}</div>
+    </div>
+  );
+}
+
+function KeyValue(props: { label: string; value: string }) {
+  return (
+    <div className="border-b border-border pb-2.5 last:border-b-0 last:pb-0">
+      <div className="text-[10px] uppercase tracking-[0.1em] text-muted-subtle">{props.label}</div>
+      <div className="mt-1 text-[12px] font-semibold text-foreground">{props.value}</div>
+    </div>
+  );
+}
+
+function LegendItem(props: { label: string; tone: "listing" | "area" | "seller" }) {
+  return (
+    <div className="flex items-center gap-2 text-[12px] text-muted">
+      <span
+        className={cn(
+          "h-[18px] w-8 shrink-0 rounded-md border",
+          props.tone === "listing" && "border-transparent bg-[linear-gradient(135deg,#2a2520,#3d3228)]",
+          props.tone === "area" && "border-transparent bg-[linear-gradient(135deg,#102532,#362515)]",
+          props.tone === "seller" && "border-transparent bg-[linear-gradient(135deg,#4d360d,#b48728,#2a210d)]",
+        )}
+      />
+      {props.label}
+    </div>
+  );
+}
+
+function RolePreviewSwitch(props: {
+  rolePreview: RolePreview;
+  onChange: (role: RolePreview) => void;
+}) {
+  const roles: RolePreview[] = ["owner", "admin", "team_lead", "agent"];
+
+  return (
+    <div className="rounded-full border border-border bg-surface p-1 shadow-[0_12px_30px_rgba(31,42,34,0.04)]">
+      <ToggleGroup
+        aria-label="preview role view"
+        className="gap-1"
+        onValueChange={(value) => {
+          if (value !== "") {
+            props.onChange(value as RolePreview);
+          }
+        }}
+        type="single"
+        value={props.rolePreview}
+      >
+        {roles.map((role) => (
+          <ToggleGroupItem
+            className="h-7 rounded-full border-0 px-3 text-[10.5px] text-muted data-[state=on]:bg-harwick-ink data-[state=on]:text-white"
+            key={role}
+            value={role}
+          >
+            {rolePreviewProfiles[role].label}
+          </ToggleGroupItem>
+        ))}
+      </ToggleGroup>
+    </div>
+  );
+}
+
+export function LeadsPage() {
+  const [activeFilter, setActiveFilter] = useState<LeadFilter>("all");
+  const [automationModes, setAutomationModes] = useState<Record<string, ConversationAutomationMode>>({});
+  const [backendLeads, setBackendLeads] = useState<LeadRecord[]>(leads);
+  const [listingFilter, setListingFilter] = useState<string>("all");
+  const [query, setQuery] = useState("");
+  const [rolePreview, setRolePreview] = useState<RolePreview>("admin");
+  const [viewMode, setViewMode] = useState<LeadViewMode>("grid");
+  const [selectedLead, setSelectedLead] = useState<LeadRecord | null>(null);
+  const selectedAutomationMode = selectedLead ? automationModes[selectedLead.id] ?? selectedLead.automationMode : null;
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function refreshLeads() {
+      try {
+        const response = await fetch(`/api/leads?workspaceId=${demoWorkspaceId}&limit=50`, {
+          cache: "no-store",
+        });
+        if (!response.ok) {
+          return;
+        }
+        const body: unknown = await response.json();
+        const items = typeof body === "object" && body !== null && "items" in body && Array.isArray(body.items)
+          ? body.items
+          : [];
+        const mapped = items.map((item, index) => mapLeadPageItemToRecord(item as LeadPageItem, index));
+        if (!ignore && mapped.length > 0) {
+          setBackendLeads(mapped);
+        }
+      } catch {
+        // Keep local demo leads until the workspace has seed data/auth.
+      }
+    }
+
+    void refreshLeads();
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  const counts = useMemo(() => {
+    const nextCounts = new Map<LeadFilter, number>([
+      ["all", backendLeads.length],
+      ["seller", backendLeads.filter((lead) => lead.cardKind === "seller").length],
+    ]);
+    for (const lead of backendLeads) {
+      nextCounts.set(lead.stage, (nextCounts.get(lead.stage) ?? 0) + 1);
+    }
+    return nextCounts;
+  }, [backendLeads]);
+
+  const visibleLeads = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+
+    return backendLeads.filter((lead) => {
+      const matchesRole = rolePreview !== "agent" || lead.assignedTo === rolePreviewProfiles.agent.memberName;
+      const matchesFilter =
+        activeFilter === "all" ||
+        (activeFilter === "seller" ? lead.cardKind === "seller" : lead.stage === activeFilter);
+      const matchesListing = listingFilter === "all" || lead.listing === listingFilter;
+      const matchesQuery =
+        normalizedQuery.length === 0 ||
+        [
+          lead.name,
+          lead.area,
+          lead.listing,
+          lead.assignedTo,
+          lead.intent,
+          lead.sourceDetail,
+          lead.sellerProperty?.address ?? "",
+        ]
+          .join(" ")
+          .toLowerCase()
+          .includes(normalizedQuery);
+
+      return matchesRole && matchesFilter && matchesListing && matchesQuery;
+    });
+  }, [activeFilter, backendLeads, listingFilter, query, rolePreview]);
+
+  const listingLanes = useMemo(() => {
+    return Array.from(new Set(backendLeads.map((lead) => lead.listing))).filter((listing) => listing !== "no listing matched");
+  }, [backendLeads]);
+
+  return (
+    <AppShell activeItem="Leads" title="Prestige Realty">
+      <div className="mb-7 flex flex-wrap items-end justify-between gap-5">
+        <div>
+          <h2 className="font-display text-[30px] font-medium leading-none text-foreground">leads</h2>
+          <p className="mt-2 max-w-2xl text-[13px] leading-6 text-muted">
+            active people Harwick has answered, qualified, scored, and prepared for assignment.
+          </p>
+          <p className="mt-1 text-[12px] text-muted-subtle">
+            viewing as {rolePreviewProfiles[rolePreview].memberName}: {rolePreviewProfiles[rolePreview].summary}
+          </p>
+        </div>
+        <div className="grid grid-cols-4 gap-2">
+          {[
+            ["14", "active"],
+            ["5", "ready"],
+            ["3", "needs owner"],
+            ["2", "seller leads"],
+          ].map(([value, label]) => (
+            <div className="min-w-[92px] rounded-[18px] bg-surface px-4 py-3 shadow-[0_14px_34px_rgba(31,42,34,0.045)] ring-1 ring-border" key={label}>
+              <div className="font-display text-[25px] leading-none">{value}</div>
+              <div className="mt-1 text-[11px] text-muted-subtle">{label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-[22px] border border-border bg-surface px-4 py-3 shadow-[0_14px_40px_rgba(31,42,34,0.035)]">
+        <div>
+          <div className="text-[12.5px] font-semibold text-foreground">temporary role view</div>
+          <div className="mt-0.5 text-[11.5px] text-muted">switch between admin, team lead, and agent visibility before we wire auth roles into the route.</div>
+        </div>
+        <RolePreviewSwitch onChange={setRolePreview} rolePreview={rolePreview} />
+      </div>
+
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-[280px] flex-1 items-center gap-2 rounded-full border border-border bg-surface px-3 py-1.5 shadow-[0_16px_40px_rgba(31,42,34,0.04)]">
+          <Search aria-hidden="true" className="h-4 w-4 shrink-0 text-muted-subtle" strokeWidth={1.8} />
+          <Input
+            aria-label="search leads"
+            className="h-8 border-0 bg-transparent px-0 text-[13px] shadow-none focus-visible:ring-0"
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="search lead, area, listing, agent"
+            value={query}
+          />
+          <Button className="h-8 rounded-full border-border bg-surface-muted px-3 text-[11px] text-foreground hover:bg-surface-muted" size="sm" type="button" variant="outline">
+            <SlidersHorizontal aria-hidden="true" />
+            filters
+          </Button>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <LeadFilterSwitch activeFilter={activeFilter} counts={counts} onChange={setActiveFilter} />
+          <LeadViewSwitch mode={viewMode} onChange={setViewMode} />
+        </div>
+      </div>
+
+      <div className="mb-6 flex flex-wrap gap-4">
+        <LegendItem label="listing-attached" tone="listing" />
+        <LegendItem label="intent DNA" tone="area" />
+        <LegendItem label="seller lead" tone="seller" />
+      </div>
+
+      <div className="mb-6 flex flex-wrap items-center gap-2">
+        <span className="mr-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-subtle">listing lane</span>
+        <Button
+          className={cn("h-8 rounded-full px-3 text-[11px]", listingFilter === "all" ? "bg-harwick-ink text-white" : "border-border bg-surface text-foreground hover:bg-surface-muted")}
+          onClick={() => setListingFilter("all")}
+          size="sm"
+          type="button"
+          variant={listingFilter === "all" ? "default" : "outline"}
+        >
+          all listings
+        </Button>
+        {listingLanes.slice(0, 6).map((listing) => (
+          <Button
+            className={cn("h-8 rounded-full px-3 text-[11px]", listingFilter === listing ? "bg-harwick-ink text-white" : "border-border bg-surface text-foreground hover:bg-surface-muted")}
+            key={listing}
+            onClick={() => setListingFilter(listing)}
+            size="sm"
+            type="button"
+            variant={listingFilter === listing ? "default" : "outline"}
+          >
+            {listing}
+          </Button>
+        ))}
+      </div>
+
+      {visibleLeads.length === 0 ? (
+        <div className="rounded-[22px] border border-dashed border-border bg-surface/50 px-6 py-12 text-center text-[13px] text-muted">
+          no leads match this lane.
+        </div>
+      ) : (
+        <>
+          {viewMode === "grid" ? (
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {visibleLeads.map((lead, index) => (
+                <LeadCard key={lead.id} lead={lead} onOpen={setSelectedLead} priority={index < 3} />
+              ))}
+            </div>
+          ) : (
+            <LeadListView leads={visibleLeads} onOpen={setSelectedLead} />
+          )}
+        </>
+      )}
+
+      <div className="mt-7 rounded-[24px] border border-border bg-surface px-5 py-4 shadow-[0_18px_48px_rgba(31,42,34,0.05)]">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-[14px] bg-harwick-ink text-white">
+              <UserRound aria-hidden="true" className="h-4 w-4" strokeWidth={1.8} />
+            </span>
+            <div>
+              <div className="text-[13px] font-semibold">routing is active</div>
+              <div className="text-[12px] text-muted">area, lead type, price, capacity, then round-robin only when tied.</div>
+            </div>
+          </div>
+          <Button className="rounded-full bg-harwick-ink px-4 text-[12px]" size="sm">
+            <Home aria-hidden="true" />
+            manage profiles
+          </Button>
+        </div>
+      </div>
+
+      <LeadDetailSheet
+        automationMode={selectedAutomationMode}
+        lead={selectedLead}
+        onAutomationModeChange={(leadId, mode) => {
+          setAutomationModes((current) => ({ ...current, [leadId]: mode }));
+        }}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedLead(null);
+          }
+        }}
+        rolePreview={rolePreview}
+      />
+    </AppShell>
+  );
+}

@@ -72,6 +72,15 @@ export type ListingFactsRepository = {
     listingId: string;
     values: ListingFactUpdateValues;
   }): Promise<ListingFactRow | null>;
+  completeVerifyListingTasks(params: {
+    workspaceId: string;
+    listing: Pick<ListingFactRow, "id" | "address" | "mls_number">;
+  }): Promise<number>;
+  enqueueListingRecheck(params: {
+    workspaceId: string;
+    listingId: string;
+    runAfter: string;
+  }): Promise<void>;
 };
 
 function buildLookupQuery(params: {
@@ -225,6 +234,68 @@ export function createSupabaseListingFactsRepository(
       }
 
       return data ?? null;
+    },
+
+    async completeVerifyListingTasks(params) {
+      const references = [
+        params.listing.address,
+        params.listing.mls_number,
+      ].filter((value): value is string => value !== null && value.trim().length > 0);
+      if (references.length === 0) {
+        return 0;
+      }
+
+      const completedTaskIds = new Set<string>();
+      for (const reference of references) {
+        const { data, error } = await supabase
+          .from("lead_tasks")
+          .update({
+            status: "completed",
+            listing_id: params.listing.id,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("workspace_id", params.workspaceId)
+          .eq("task_type", "verify_listing")
+          .in("status", ["open", "in_progress"])
+          .ilike("title", `%${reference}%`)
+          .select("id");
+
+        if (error !== null) {
+          throw error;
+        }
+
+        for (const row of data ?? []) {
+          completedTaskIds.add(row.id);
+        }
+      }
+
+      return completedTaskIds.size;
+    },
+
+    async enqueueListingRecheck(params) {
+      const { error } = await supabase
+        .from("workflow_jobs")
+        .upsert({
+          workspace_id: params.workspaceId,
+          lead_id: null,
+          lead_event_id: null,
+          job_type: "listing_recheck",
+          run_after: params.runAfter,
+          payload: {
+            jobType: "listing_recheck",
+            workspaceId: params.workspaceId,
+            listingId: params.listingId,
+            reason: "scheduled_recheck",
+          },
+          idempotency_key: `listing_recheck:${params.listingId}:${params.runAfter}`,
+        }, {
+          onConflict: "workspace_id,idempotency_key",
+          ignoreDuplicates: true,
+        });
+
+      if (error !== null) {
+        throw error;
+      }
     },
   };
 

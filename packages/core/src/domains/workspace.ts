@@ -18,6 +18,10 @@ export const WorkspaceMemberSchema = z.object({
   role: WorkspaceRoleSchema,
   displayName: NonEmptyStringSchema.max(120),
   email: z.string().email().nullable(),
+  avatarUrl: z.string().url().nullable(),
+  roleLabel: z.string().trim().min(1).max(120).nullable(),
+  presenceStatus: z.enum(["online", "in_call", "away"]).nullable(),
+  presenceLastSeenAt: IsoDateTimeSchema.nullable(),
   isActive: z.boolean(),
   createdAt: IsoDateTimeSchema,
   updatedAt: IsoDateTimeSchema,
@@ -26,4 +30,3 @@ export const WorkspaceMemberSchema = z.object({
 export type WorkspaceRole = z.infer<typeof WorkspaceRoleSchema>;
 export type Workspace = z.infer<typeof WorkspaceSchema>;
 export type WorkspaceMember = z.infer<typeof WorkspaceMemberSchema>;
-

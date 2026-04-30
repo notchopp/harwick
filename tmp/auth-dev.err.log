@@ -1,0 +1,2488 @@
+⚠ Blocked cross-origin request to Next.js dev resource /_next/webpack-hmr from "127.0.0.1".
+Cross-origin access to Next.js dev resources is blocked by default for safety.
+
+To allow this host in development, add it to "allowedDevOrigins" in next.config.js and restart the dev server:
+
+// next.config.js
+module.exports = {
+  allowedDevOrigins: ['127.0.0.1'],
+}
+
+Read more: https://nextjs.org/docs/app/api-reference/config/next-config-js/allowedDevOrigins
+[browser] Uncaught Error: @supabase/ssr: Your project's URL and API key are required to create a Supabase client!
+
+Check your Supabase project's API settings to find these values
+
+https://supabase.com/dashboard/project/_/settings/api
+    at <unknown> (https://supabase.com/dashboard/project/_/settings/api)
+    at createBrowserSupabaseClient (.next\dev\static\chunks\apps_web_src_0e0lx40._.js:135:213)
+    at LoginPage.useMemo[supabase] (.next\dev\static\chunks\apps_web_src_0e0lx40._.js:191:237)
+    at LoginPage (.next\dev\static\chunks\apps_web_src_0e0lx40._.js:190:195)
+    at Page (about://React/Server/C:%5CUsers%5Cwhoch%5Crealty-ops%5Capps%5Cweb%5C.next%5Cdev%5Cserver%5Cchunks%5Cssr%5C%5Broot-of-the-server%5D__0-0~pnj._.js?10:3450:263)
+⨯ Error: @supabase/ssr: Your project's URL and API key are required to create a Supabase client!
+
+Check your Supabase project's API settings to find these values
+
+https://supabase.com/dashboard/project/_/settings/api
+    at <unknown> (https://supabase.com/dashboard/project/_/settings/api)
+    at createBrowserSupabaseClient (src\lib\supabase\browser-client.ts:18:29)
+    at <unknown> (src\features\auth\login-page.tsx:16:61)
+    at LoginPage (src\features\auth\login-page.tsx:16:27)
+  16 |   },
+  17 | ): BrowserSupabaseClient {
+> 18 |   return createBrowserClient<RealtyOpsDatabase>(environment.url, environment.anonKey);
+     |                             ^
+  19 | }
+  20 | {
+  digest: '972124853'
+}
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+⨯ Error: @supabase/ssr: Your project's URL and API key are required to create a Supabase client!
+
+Check your Supabase project's API settings to find these values
+
+https://supabase.com/dashboard/project/_/settings/api
+    at <unknown> (https://supabase.com/dashboard/project/_/settings/api)
+    at createBrowserSupabaseClient (src\lib\supabase\browser-client.ts:18:29)
+    at <unknown> (src\features\auth\login-page.tsx:16:61)
+    at LoginPage (src\features\auth\login-page.tsx:16:27)
+  16 |   },
+  17 | ): BrowserSupabaseClient {
+> 18 |   return createBrowserClient<RealtyOpsDatabase>(environment.url, environment.anonKey);
+     |                             ^
+  19 | }
+  20 | {
+  digest: '972124853'
+}
+⨯ Error: @supabase/ssr: Your project's URL and API key are required to create a Supabase client!
+
+Check your Supabase project's API settings to find these values
+
+https://supabase.com/dashboard/project/_/settings/api
+    at <unknown> (https://supabase.com/dashboard/project/_/settings/api)
+    at createBrowserSupabaseClient (src\lib\supabase\browser-client.ts:18:29)
+    at <unknown> (src\features\auth\login-page.tsx:16:61)
+    at LoginPage (src\features\auth\login-page.tsx:16:27)
+  16 |   },
+  17 | ): BrowserSupabaseClient {
+> 18 |   return createBrowserClient<RealtyOpsDatabase>(environment.url, environment.anonKey);
+     |                             ^
+  19 | }
+  20 | {
+  digest: '972124853'
+}
+⚠ Found a change in next.config.mjs. Restarting the server to apply the changes...
+[browser] Uncaught Error: @supabase/ssr: Your project's URL and API key are required to create a Supabase client!
+
+Check your Supabase project's API settings to find these values
+
+https://supabase.com/dashboard/project/_/settings/api
+    at <unknown> (https://supabase.com/dashboard/project/_/settings/api)
+    at createBrowserSupabaseClient (.next\dev\static\chunks\apps_web_src_0e0lx40._.js:135:213)
+    at LoginPage.useMemo[supabase] (.next\dev\static\chunks\apps_web_src_0e0lx40._.js:191:237)
+    at LoginPage (.next\dev\static\chunks\apps_web_src_0e0lx40._.js:190:195)
+    at Page (about://React/Server/C:%5CUsers%5Cwhoch%5Crealty-ops%5Capps%5Cweb%5C.next%5Cdev%5Cserver%5Cchunks%5Cssr%5C%5Broot-of-the-server%5D__0-0~pnj._.js?10:3450:263)
+[browser] Uncaught Error: @supabase/ssr: Your project's URL and API key are required to create a Supabase client!
+
+Check your Supabase project's API settings to find these values
+
+https://supabase.com/dashboard/project/_/settings/api
+    at <unknown> (https://supabase.com/dashboard/project/_/settings/api)
+    at createBrowserSupabaseClient (.next\dev\static\chunks\apps_web_src_0e0lx40._.js:135:213)
+    at LoginPage.useMemo[supabase] (.next\dev\static\chunks\apps_web_src_0e0lx40._.js:191:237)
+    at LoginPage (.next\dev\static\chunks\apps_web_src_0e0lx40._.js:190:195)
+    at Page (about://React/Server/C:%5CUsers%5Cwhoch%5Crealty-ops%5Capps%5Cweb%5C.next%5Cdev%5Cserver%5Cchunks%5Cssr%5C%5Broot-of-the-server%5D__0-0~pnj._.js?10:3450:263)
+[browser] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <HotReload globalError={[...]} webSocket={WebSocket} staticIndicatorState={{pathname:null, ...}}>
+      <AppDevOverlayErrorBoundary globalError={[...]}>
+        <ReplaySsrOnlyErrors>
+        <DevRootHTTPAccessFallbackBoundary>
+          <HTTPAccessFallbackBoundary notFound={<NotAllowedRootHTTPFallbackError>}>
+            <HTTPAccessFallbackErrorBoundary pathname="/login" notFound={<NotAllowedRootHTTPFallbackError>} ...>
+              <RedirectBoundary>
+                <RedirectErrorBoundary router={{...}}>
+                  <Head>
+                  <__next_root_layout_boundary__>
+                    <SegmentViewNode type="layout" pagePath="layout.tsx">
+                      <SegmentTrieNode>
+                      <link>
+                      <script>
+                      <script>
+                      <RootLayout>
+                        <html
+                          lang="en"
+-                         webcrx=""
+                        >
+                  ...
+ 
+[browser] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <HotReload globalError={[...]} webSocket={WebSocket} staticIndicatorState={{pathname:null, ...}}>
+      <AppDevOverlayErrorBoundary globalError={[...]}>
+        <ReplaySsrOnlyErrors>
+        <DevRootHTTPAccessFallbackBoundary>
+          <HTTPAccessFallbackBoundary notFound={<NotAllowedRootHTTPFallbackError>}>
+            <HTTPAccessFallbackErrorBoundary pathname="/login" notFound={<NotAllowedRootHTTPFallbackError>} ...>
+              <RedirectBoundary>
+                <RedirectErrorBoundary router={{...}}>
+                  <Head>
+                  <__next_root_layout_boundary__>
+                    <SegmentViewNode type="layout" pagePath="layout.tsx">
+                      <SegmentTrieNode>
+                      <link>
+                      <script>
+                      <script>
+                      <RootLayout>
+                        <html
+                          lang="en"
+-                         webcrx=""
+                        >
+                  ...
+ 
+[browser] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <HotReload globalError={[...]} webSocket={WebSocket} staticIndicatorState={{pathname:null, ...}}>
+      <AppDevOverlayErrorBoundary globalError={[...]}>
+        <ReplaySsrOnlyErrors>
+        <DevRootHTTPAccessFallbackBoundary>
+          <HTTPAccessFallbackBoundary notFound={<NotAllowedRootHTTPFallbackError>}>
+            <HTTPAccessFallbackErrorBoundary pathname="/login" notFound={<NotAllowedRootHTTPFallbackError>} ...>
+              <RedirectBoundary>
+                <RedirectErrorBoundary router={{...}}>
+                  <Head>
+                  <__next_root_layout_boundary__>
+                    <SegmentViewNode type="layout" pagePath="layout.tsx">
+                      <SegmentTrieNode>
+                      <link>
+                      <script>
+                      <script>
+                      <RootLayout>
+                        <html
+                          lang="en"
+-                         webcrx=""
+                        >
+                  ...
+ 
+[browser] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <HotReload globalError={[...]} webSocket={WebSocket} staticIndicatorState={{pathname:null, ...}}>
+      <AppDevOverlayErrorBoundary globalError={[...]}>
+        <ReplaySsrOnlyErrors>
+        <DevRootHTTPAccessFallbackBoundary>
+          <HTTPAccessFallbackBoundary notFound={<NotAllowedRootHTTPFallbackError>}>
+            <HTTPAccessFallbackErrorBoundary pathname="/login" notFound={<NotAllowedRootHTTPFallbackError>} ...>
+              <RedirectBoundary>
+                <RedirectErrorBoundary router={{...}}>
+                  <Head>
+                  <__next_root_layout_boundary__>
+                    <SegmentViewNode type="layout" pagePath="layout.tsx">
+                      <SegmentTrieNode>
+                      <link>
+                      <script>
+                      <script>
+                      <RootLayout>
+                        <html
+                          lang="en"
+-                         webcrx=""
+                        >
+                  ...
+ 
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <HotReload globalError={[...]} webSocket={WebSocket} staticIndicatorState={{pathname:null, ...}}>
+      <AppDevOverlayErrorBoundary globalError={[...]}>
+        <ReplaySsrOnlyErrors>
+        <DevRootHTTPAccessFallbackBoundary>
+          <HTTPAccessFallbackBoundary notFound={<NotAllowedRootHTTPFallbackError>}>
+            <HTTPAccessFallbackErrorBoundary pathname="/login" notFound={<NotAllowedRootHTTPFallbackError>} ...>
+              <RedirectBoundary>
+                <RedirectErrorBoundary router={{...}}>
+                  <Head>
+                  <__next_root_layout_boundary__>
+                    <SegmentViewNode type="layout" pagePath="layout.tsx">
+                      <SegmentTrieNode>
+                      <link>
+                      <script>
+                      <script>
+                      <RootLayout>
+                        <html
+                          lang="en"
+-                         webcrx=""
+                        >
+                  ...
+ 
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught ReferenceError: currentTheme is not defined
+    at LoginPage (.next\dev\static\chunks\apps_web_src_0e0lx40._.js:115:37)
+    at Page (src\app\login\page.tsx:19:10)
+  17 |   }
+  18 |
+> 19 |   return <LoginPage error={searchParams.error ?? null} next={nextPath} />;
+     |          ^
+  20 | }
+  21 |
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <HotReload globalError={[...]} webSocket={WebSocket} staticIndicatorState={{pathname:null, ...}}>
+      <AppDevOverlayErrorBoundary globalError={[...]}>
+        <ReplaySsrOnlyErrors>
+        <DevRootHTTPAccessFallbackBoundary>
+          <HTTPAccessFallbackBoundary notFound={<NotAllowedRootHTTPFallbackError>}>
+            <HTTPAccessFallbackErrorBoundary pathname="/login" notFound={<NotAllowedRootHTTPFallbackError>} ...>
+              <RedirectBoundary>
+                <RedirectErrorBoundary router={{...}}>
+                  <Head>
+                  <__next_root_layout_boundary__>
+                    <SegmentViewNode type="layout" pagePath="layout.tsx">
+                      <SegmentTrieNode>
+                      <link>
+                      <script>
+                      <script>
+                      <RootLayout>
+                        <html
+                          lang="en"
+-                         webcrx=""
+                        >
+                          ...
+                            <SegmentViewNode type="page" pagePath="login/page...">
+                              <SegmentTrieNode>
+                              <Page>
+                                <LoginPage error={null} next="/home">
+                                  <main
++                                   className="min-h-screen bg-background px-5 py-6 text-foreground"
+-                                   className="min-h-screen px-5 py-6 text-foreground transition-all duration-500"
+-                                   style={{background-image:"linear-gra...",background-position-x:"initial", ...}}
+                                  >
+                                    <div className="mx-auto fl...">
+                                      <div className="mb-8">
+                                        <div
++                                         className="font-display text-[26px] font-medium leading-none"
+-                                         className="font-display text-[26px] font-medium leading-none text-white"
+                                        >
++                                         Harwick
+                                        <div
++                                         className="mt-1 text-[11px] uppercase tracking-[0.16em] text-muted-subtle"
+-                                         className="mt-1 text-[11px] uppercase tracking-[0.16em] text-white/70"
+                                        >
++                                         real estate ai layer
+                                      <section
++                                       className="rounded-[18px] border border-border bg-surface px-5 py-5 shadow-[0_..."
+-                                       className="rounded-[18px] border border-white/10 bg-white/95 px-5 py-5 shadow-..."
+                                      >
+                                        <div className="mb-5">
+                                          <h1
++                                           className="font-display text-[24px] font-medium leading-none"
+-                                           className="font-display text-[24px] font-medium leading-none text-foreground"
+                                          >
++                                           sign in
+                                          ...
+                                        ...
+                            ...
+                  ...
+ 
+[browser] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <HotReload globalError={[...]} webSocket={WebSocket} staticIndicatorState={{pathname:null, ...}}>
+      <AppDevOverlayErrorBoundary globalError={[...]}>
+        <ReplaySsrOnlyErrors>
+        <DevRootHTTPAccessFallbackBoundary>
+          <HTTPAccessFallbackBoundary notFound={<NotAllowedRootHTTPFallbackError>}>
+            <HTTPAccessFallbackErrorBoundary pathname="/login" notFound={<NotAllowedRootHTTPFallbackError>} ...>
+              <RedirectBoundary>
+                <RedirectErrorBoundary router={{...}}>
+                  <Head>
+                  <__next_root_layout_boundary__>
+                    <SegmentViewNode type="layout" pagePath="layout.tsx">
+                      <SegmentTrieNode>
+                      <link>
+                      <script>
+                      <script>
+                      <RootLayout>
+                        <html
+                          lang="en"
+-                         webcrx=""
+                        >
+                  ...
+ 
+⨯ ./apps/web/src/app/login/page.tsx:2:1
+Module not found: Can't resolve '../../features/auth/login-page'
+  [90m1 |[0m [36mimport[0m { redirect } [36mfrom[0m [32m"next/navigation"[0m;
+[31m[1m>[0m [90m2 |[0m [36mimport[0m { [33mLoginPage[0m } [36mfrom[0m [32m"../../features/auth/login-page"[0m;
+  [90m  |[0m [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m3 |[0m [36mimport[0m { getCookieAuthSessionSummary } [36mfrom[0m [32m"../../features/auth/session"[0m;
+  [90m4 |[0m [36mimport[0m { normalizeAuthRedirect } [36mfrom[0m [32m"../../features/auth/redirects"[0m;
+  [90m5 |[0m
+
+
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./apps/web/src/app/login/page.tsx:2:1
+Module not found: Can't resolve '../../features/auth/login-page'
+  [90m1 |[0m [36mimport[0m { redirect } [36mfrom[0m [32m"next/navigation"[0m;
+[31m[1m>[0m [90m2 |[0m [36mimport[0m { [33mLoginPage[0m } [36mfrom[0m [32m"../../features/auth/login-page"[0m;
+  [90m  |[0m [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m3 |[0m [36mimport[0m { getCookieAuthSessionSummary } [36mfrom[0m [32m"../../features/auth/session"[0m;
+  [90m4 |[0m [36mimport[0m { normalizeAuthRedirect } [36mfrom[0m [32m"../../features/auth/redirects"[0m;
+  [90m5 |[0m
+
+
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] ./apps/web/src/app/login/page.tsx:2:1
+Module not found: Can't resolve '../../features/auth/login-page'
+  1 | import { redirect } from "next/navigation";
+> 2 | import { LoginPage } from "../../features/auth/login-page";
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  3 | import { getCookieAuthSessionSummary } from "../../features/auth/session";
+  4 | import { normalizeAuthRedirect } from "../../features/auth/redirects";
+  5 |
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./apps/web/src/app/login/page.tsx:2:1
+Module not found: Can't resolve '../../features/auth/login-page'
+  1 | import { redirect } from "next/navigation";
+> 2 | import { LoginPage } from "../../features/auth/login-page";
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  3 | import { getCookieAuthSessionSummary } from "../../features/auth/session";
+  4 | import { normalizeAuthRedirect } from "../../features/auth/redirects";
+  5 |
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./apps/web/src/app/login/page.tsx:2:1
+Module not found: Can't resolve '../../features/auth/login-page'
+  1 | import { redirect } from "next/navigation";
+> 2 | import { LoginPage } from "../../features/auth/login-page";
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  3 | import { getCookieAuthSessionSummary } from "../../features/auth/session";
+  4 | import { normalizeAuthRedirect } from "../../features/auth/redirects";
+  5 |
+
+https://nextjs.org/docs/messages/module-not-found 
+⨯ ./apps/web/src/app/login/page.tsx:2:1
+Module not found: Can't resolve '../../features/auth/login-page'
+  [90m1 |[0m [36mimport[0m { redirect } [36mfrom[0m [32m"next/navigation"[0m;
+[31m[1m>[0m [90m2 |[0m [36mimport[0m { [33mLoginPage[0m } [36mfrom[0m [32m"../../features/auth/login-page"[0m;
+  [90m  |[0m [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m3 |[0m [36mimport[0m { getCookieAuthSessionSummary } [36mfrom[0m [32m"../../features/auth/session"[0m;
+  [90m4 |[0m [36mimport[0m { normalizeAuthRedirect } [36mfrom[0m [32m"../../features/auth/redirects"[0m;
+  [90m5 |[0m
+
+
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[browser] ./apps/web/src/app/login/page.tsx:2:1
+Module not found: Can't resolve '../../features/auth/login-page'
+  1 | import { redirect } from "next/navigation";
+> 2 | import { LoginPage } from "../../features/auth/login-page";
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  3 | import { getCookieAuthSessionSummary } from "../../features/auth/session";
+  4 | import { normalizeAuthRedirect } from "../../features/auth/redirects";
+  5 |
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./apps/web/src/app/login/page.tsx:2:1
+Module not found: Can't resolve '../../features/auth/login-page'
+  1 | import { redirect } from "next/navigation";
+> 2 | import { LoginPage } from "../../features/auth/login-page";
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  3 | import { getCookieAuthSessionSummary } from "../../features/auth/session";
+  4 | import { normalizeAuthRedirect } from "../../features/auth/redirects";
+  5 |
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./apps/web/src/app/login/page.tsx:2:1
+Module not found: Can't resolve '../../features/auth/login-page'
+  1 | import { redirect } from "next/navigation";
+> 2 | import { LoginPage } from "../../features/auth/login-page";
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  3 | import { getCookieAuthSessionSummary } from "../../features/auth/session";
+  4 | import { normalizeAuthRedirect } from "../../features/auth/redirects";
+  5 |
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./apps/web/src/app/login/page.tsx:2:1
+Module not found: Can't resolve '../../features/auth/login-page'
+  1 | import { redirect } from "next/navigation";
+> 2 | import { LoginPage } from "../../features/auth/login-page";
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  3 | import { getCookieAuthSessionSummary } from "../../features/auth/session";
+  4 | import { normalizeAuthRedirect } from "../../features/auth/redirects";
+  5 |
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./apps/web/src/app/login/page.tsx:2:1
+Module not found: Can't resolve '../../features/auth/login-page'
+  1 | import { redirect } from "next/navigation";
+> 2 | import { LoginPage } from "../../features/auth/login-page";
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  3 | import { getCookieAuthSessionSummary } from "../../features/auth/session";
+  4 | import { normalizeAuthRedirect } from "../../features/auth/redirects";
+  5 |
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./apps/web/src/app/login/page.tsx:2:1
+Module not found: Can't resolve '../../features/auth/login-page'
+  1 | import { redirect } from "next/navigation";
+> 2 | import { LoginPage } from "../../features/auth/login-page";
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  3 | import { getCookieAuthSessionSummary } from "../../features/auth/session";
+  4 | import { normalizeAuthRedirect } from "../../features/auth/redirects";
+  5 |
+
+https://nextjs.org/docs/messages/module-not-found 
+⨯ ./apps/web/src/app/login/page.tsx:2:1
+Module not found: Can't resolve '../../features/auth/login-page'
+  [90m1 |[0m [36mimport[0m { redirect } [36mfrom[0m [32m"next/navigation"[0m;
+[31m[1m>[0m [90m2 |[0m [36mimport[0m { [33mLoginPage[0m } [36mfrom[0m [32m"../../features/auth/login-page"[0m;
+  [90m  |[0m [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m3 |[0m [36mimport[0m { getCookieAuthSessionSummary } [36mfrom[0m [32m"../../features/auth/session"[0m;
+  [90m4 |[0m [36mimport[0m { normalizeAuthRedirect } [36mfrom[0m [32m"../../features/auth/redirects"[0m;
+  [90m5 |[0m
+
+
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./apps/web/src/app/login/page.tsx:2:1
+Module not found: Can't resolve '../../features/auth/login-page'
+  [90m1 |[0m [36mimport[0m { redirect } [36mfrom[0m [32m"next/navigation"[0m;
+[31m[1m>[0m [90m2 |[0m [36mimport[0m { [33mLoginPage[0m } [36mfrom[0m [32m"../../features/auth/login-page"[0m;
+  [90m  |[0m [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m3 |[0m [36mimport[0m { getCookieAuthSessionSummary } [36mfrom[0m [32m"../../features/auth/session"[0m;
+  [90m4 |[0m [36mimport[0m { normalizeAuthRedirect } [36mfrom[0m [32m"../../features/auth/redirects"[0m;
+  [90m5 |[0m
+
+
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./apps/web/src/app/login/page.tsx:2:1
+Module not found: Can't resolve '../../features/auth/login-page'
+  [90m1 |[0m [36mimport[0m { redirect } [36mfrom[0m [32m"next/navigation"[0m;
+[31m[1m>[0m [90m2 |[0m [36mimport[0m { [33mLoginPage[0m } [36mfrom[0m [32m"../../features/auth/login-page"[0m;
+  [90m  |[0m [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m3 |[0m [36mimport[0m { getCookieAuthSessionSummary } [36mfrom[0m [32m"../../features/auth/session"[0m;
+  [90m4 |[0m [36mimport[0m { normalizeAuthRedirect } [36mfrom[0m [32m"../../features/auth/redirects"[0m;
+  [90m5 |[0m
+
+
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./apps/web/src/app/login/page.tsx:2:1
+Module not found: Can't resolve '../../features/auth/login-page'
+  [90m1 |[0m [36mimport[0m { redirect } [36mfrom[0m [32m"next/navigation"[0m;
+[31m[1m>[0m [90m2 |[0m [36mimport[0m { [33mLoginPage[0m } [36mfrom[0m [32m"../../features/auth/login-page"[0m;
+  [90m  |[0m [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m3 |[0m [36mimport[0m { getCookieAuthSessionSummary } [36mfrom[0m [32m"../../features/auth/session"[0m;
+  [90m4 |[0m [36mimport[0m { normalizeAuthRedirect } [36mfrom[0m [32m"../../features/auth/redirects"[0m;
+  [90m5 |[0m
+
+
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./apps/web/src/app/login/page.tsx:2:1
+Module not found: Can't resolve '../../features/auth/login-page'
+  [90m1 |[0m [36mimport[0m { redirect } [36mfrom[0m [32m"next/navigation"[0m;
+[31m[1m>[0m [90m2 |[0m [36mimport[0m { [33mLoginPage[0m } [36mfrom[0m [32m"../../features/auth/login-page"[0m;
+  [90m  |[0m [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m3 |[0m [36mimport[0m { getCookieAuthSessionSummary } [36mfrom[0m [32m"../../features/auth/session"[0m;
+  [90m4 |[0m [36mimport[0m { normalizeAuthRedirect } [36mfrom[0m [32m"../../features/auth/redirects"[0m;
+  [90m5 |[0m
+
+
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./apps/web/src/app/login/page.tsx:2:1
+Module not found: Can't resolve '../../features/auth/login-page'
+  [90m1 |[0m [36mimport[0m { redirect } [36mfrom[0m [32m"next/navigation"[0m;
+[31m[1m>[0m [90m2 |[0m [36mimport[0m { [33mLoginPage[0m } [36mfrom[0m [32m"../../features/auth/login-page"[0m;
+  [90m  |[0m [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m3 |[0m [36mimport[0m { getCookieAuthSessionSummary } [36mfrom[0m [32m"../../features/auth/session"[0m;
+  [90m4 |[0m [36mimport[0m { normalizeAuthRedirect } [36mfrom[0m [32m"../../features/auth/redirects"[0m;
+  [90m5 |[0m
+
+
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[browser] ./apps/web/src/app/login/page.tsx:2:1
+Module not found: Can't resolve '../../features/auth/login-page'
+  1 | import { redirect } from "next/navigation";
+> 2 | import { LoginPage } from "../../features/auth/login-page";
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  3 | import { getCookieAuthSessionSummary } from "../../features/auth/session";
+  4 | import { normalizeAuthRedirect } from "../../features/auth/redirects";
+  5 |
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./apps/web/src/app/login/page.tsx:2:1
+Module not found: Can't resolve '../../features/auth/login-page'
+  1 | import { redirect } from "next/navigation";
+> 2 | import { LoginPage } from "../../features/auth/login-page";
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  3 | import { getCookieAuthSessionSummary } from "../../features/auth/session";
+  4 | import { normalizeAuthRedirect } from "../../features/auth/redirects";
+  5 |
+
+https://nextjs.org/docs/messages/module-not-found 
+⨯ ./apps/web/src/app/login/page.tsx:2:1
+Module not found: Can't resolve '../../features/auth/login-page'
+  [90m1 |[0m [36mimport[0m { redirect } [36mfrom[0m [32m"next/navigation"[0m;
+[31m[1m>[0m [90m2 |[0m [36mimport[0m { [33mLoginPage[0m } [36mfrom[0m [32m"../../features/auth/login-page"[0m;
+  [90m  |[0m [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m3 |[0m [36mimport[0m { getCookieAuthSessionSummary } [36mfrom[0m [32m"../../features/auth/session"[0m;
+  [90m4 |[0m [36mimport[0m { normalizeAuthRedirect } [36mfrom[0m [32m"../../features/auth/redirects"[0m;
+  [90m5 |[0m
+
+
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./apps/web/src/app/login/page.tsx:2:1
+Module not found: Can't resolve '../../features/auth/login-page'
+  [90m1 |[0m [36mimport[0m { redirect } [36mfrom[0m [32m"next/navigation"[0m;
+[31m[1m>[0m [90m2 |[0m [36mimport[0m { [33mLoginPage[0m } [36mfrom[0m [32m"../../features/auth/login-page"[0m;
+  [90m  |[0m [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m3 |[0m [36mimport[0m { getCookieAuthSessionSummary } [36mfrom[0m [32m"../../features/auth/session"[0m;
+  [90m4 |[0m [36mimport[0m { normalizeAuthRedirect } [36mfrom[0m [32m"../../features/auth/redirects"[0m;
+  [90m5 |[0m
+
+
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[browser] ./apps/web/src/app/login/page.tsx:2:1
+Module not found: Can't resolve '../../features/auth/login-page'
+  1 | import { redirect } from "next/navigation";
+> 2 | import { LoginPage } from "../../features/auth/login-page";
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  3 | import { getCookieAuthSessionSummary } from "../../features/auth/session";
+  4 | import { normalizeAuthRedirect } from "../../features/auth/redirects";
+  5 |
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./apps/web/src/app/login/page.tsx:2:1
+Module not found: Can't resolve '../../features/auth/login-page'
+  1 | import { redirect } from "next/navigation";
+> 2 | import { LoginPage } from "../../features/auth/login-page";
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  3 | import { getCookieAuthSessionSummary } from "../../features/auth/session";
+  4 | import { normalizeAuthRedirect } from "../../features/auth/redirects";
+  5 |
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] Uncaught Error: ./apps/web/src/app/login/page.tsx:2:1
+Module not found: Can't resolve '../../features/auth/login-page'
+  1 | import { redirect } from "next/navigation";
+> 2 | import { LoginPage } from "../../features/auth/login-page";
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  3 | import { getCookieAuthSessionSummary } from "../../features/auth/session";
+  4 | import { normalizeAuthRedirect } from "../../features/auth/redirects";
+  5 |
+
+
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+    at <unknown> (Error: ./apps/web/src/app/login/page.tsx:2:1)
+    at <unknown> (https://nextjs.org/docs/messages/module-not-found)
+    at <unknown> (Error: (./apps/web/src/app/login/page.tsx:2:1)
+    at <unknown> (https://nextjs.org/docs/messages/module-not-found)
+[browser] ./apps/web/src/app/login/page.tsx:2:1
+Module not found: Can't resolve '../../features/auth/login-page'
+  1 | import { redirect } from "next/navigation";
+> 2 | import { LoginPage } from "../../features/auth/login-page";
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  3 | import { getCookieAuthSessionSummary } from "../../features/auth/session";
+  4 | import { normalizeAuthRedirect } from "../../features/auth/redirects";
+  5 |
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./apps/web/src/app/login/page.tsx:2:1
+Module not found: Can't resolve '../../features/auth/login-page'
+  1 | import { redirect } from "next/navigation";
+> 2 | import { LoginPage } from "../../features/auth/login-page";
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  3 | import { getCookieAuthSessionSummary } from "../../features/auth/session";
+  4 | import { normalizeAuthRedirect } from "../../features/auth/redirects";
+  5 |
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./apps/web/src/app/login/page.tsx:2:1
+Module not found: Can't resolve '../../features/auth/login-page'
+  1 | import { redirect } from "next/navigation";
+> 2 | import { LoginPage } from "../../features/auth/login-page";
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  3 | import { getCookieAuthSessionSummary } from "../../features/auth/session";
+  4 | import { normalizeAuthRedirect } from "../../features/auth/redirects";
+  5 |
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./apps/web/src/app/login/page.tsx:2:1
+Module not found: Can't resolve '../../features/auth/login-page'
+  1 | import { redirect } from "next/navigation";
+> 2 | import { LoginPage } from "../../features/auth/login-page";
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  3 | import { getCookieAuthSessionSummary } from "../../features/auth/session";
+  4 | import { normalizeAuthRedirect } from "../../features/auth/redirects";
+  5 |
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./apps/web/src/app/login/page.tsx:2:1
+Module not found: Can't resolve '../../features/auth/login-page'
+  1 | import { redirect } from "next/navigation";
+> 2 | import { LoginPage } from "../../features/auth/login-page";
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  3 | import { getCookieAuthSessionSummary } from "../../features/auth/session";
+  4 | import { normalizeAuthRedirect } from "../../features/auth/redirects";
+  5 |
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./apps/web/src/app/login/page.tsx:2:1
+Module not found: Can't resolve '../../features/auth/login-page'
+  1 | import { redirect } from "next/navigation";
+> 2 | import { LoginPage } from "../../features/auth/login-page";
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  3 | import { getCookieAuthSessionSummary } from "../../features/auth/session";
+  4 | import { normalizeAuthRedirect } from "../../features/auth/redirects";
+  5 |
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./apps/web/src/app/login/page.tsx:2:1
+Module not found: Can't resolve '../../features/auth/login-page'
+  1 | import { redirect } from "next/navigation";
+> 2 | import { LoginPage } from "../../features/auth/login-page";
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  3 | import { getCookieAuthSessionSummary } from "../../features/auth/session";
+  4 | import { normalizeAuthRedirect } from "../../features/auth/redirects";
+  5 |
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./apps/web/src/app/login/page.tsx:2:1
+Module not found: Can't resolve '../../features/auth/login-page'
+  1 | import { redirect } from "next/navigation";
+> 2 | import { LoginPage } from "../../features/auth/login-page";
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  3 | import { getCookieAuthSessionSummary } from "../../features/auth/session";
+  4 | import { normalizeAuthRedirect } from "../../features/auth/redirects";
+  5 |
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./apps/web/src/app/login/page.tsx:2:1
+Module not found: Can't resolve '../../features/auth/login-page'
+  1 | import { redirect } from "next/navigation";
+> 2 | import { LoginPage } from "../../features/auth/login-page";
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  3 | import { getCookieAuthSessionSummary } from "../../features/auth/session";
+  4 | import { normalizeAuthRedirect } from "../../features/auth/redirects";
+  5 |
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./apps/web/src/app/login/page.tsx:2:1
+Module not found: Can't resolve '../../features/auth/login-page'
+  1 | import { redirect } from "next/navigation";
+> 2 | import { LoginPage } from "../../features/auth/login-page";
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  3 | import { getCookieAuthSessionSummary } from "../../features/auth/session";
+  4 | import { normalizeAuthRedirect } from "../../features/auth/redirects";
+  5 |
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./apps/web/src/app/login/page.tsx:2:1
+Module not found: Can't resolve '../../features/auth/login-page'
+  1 | import { redirect } from "next/navigation";
+> 2 | import { LoginPage } from "../../features/auth/login-page";
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  3 | import { getCookieAuthSessionSummary } from "../../features/auth/session";
+  4 | import { normalizeAuthRedirect } from "../../features/auth/redirects";
+  5 |
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./apps/web/src/app/login/page.tsx:2:1
+Module not found: Can't resolve '../../features/auth/login-page'
+  1 | import { redirect } from "next/navigation";
+> 2 | import { LoginPage } from "../../features/auth/login-page";
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  3 | import { getCookieAuthSessionSummary } from "../../features/auth/session";
+  4 | import { normalizeAuthRedirect } from "../../features/auth/redirects";
+  5 |
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./apps/web/src/app/login/page.tsx:2:1
+Module not found: Can't resolve '../../features/auth/login-page'
+  1 | import { redirect } from "next/navigation";
+> 2 | import { LoginPage } from "../../features/auth/login-page";
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  3 | import { getCookieAuthSessionSummary } from "../../features/auth/session";
+  4 | import { normalizeAuthRedirect } from "../../features/auth/redirects";
+  5 |
+
+https://nextjs.org/docs/messages/module-not-found 
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Hydration failed because the server rendered HTML didn't match the client. As a result this tree will be regenerated on the client. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <RenderFromTemplateContext>
+      <ScrollAndMaybeFocusHandler cacheNode={{rsc:{...}, ...}}>
+        <InnerScrollAndFocusHandlerOld focusAndScrollRef={{scrollRef:null, ...}} cacheNode={{rsc:{...}, ...}}>
+          <ErrorBoundary errorComponent={undefined} errorStyles={undefined} errorScripts={undefined}>
+            <LoadingBoundary name="login/" loading={null}>
+              <HTTPAccessFallbackBoundary notFound={undefined} forbidden={undefined} unauthorized={undefined}>
+                <RedirectBoundary>
+                  <RedirectErrorBoundary router={{...}}>
+                    <InnerLayoutRouter url="/login" tree={[...]} params={{}} cacheNode={{rsc:{...}, ...}} ...>
+                      <SegmentViewNode type="page" pagePath="login/page...">
+                        <SegmentTrieNode>
+                        <Page>
+                          <LoginPage error={null} next="/home">
+                            <main
++                             className="min-h-screen px-5 py-6 text-foreground transition-all duration-500"
+-                             className="jsx-3487381684 relative min-h-screen overflow-hidden px-5 py-6 text-foreground"
+                              style={{
++                               background: "linear-gradient(135deg, #2e6b4f 0%, #1a2a20 100%)"
+                              }}
+                            >
+                              <div
++                               className="mx-auto flex min-h-[calc(100vh-48px)] w-full max-w-[420px] flex-col justify..."
+-                               className="jsx-3487381684 absolute inset-0 transition-all duration-700"
+-                               aria-hidden="true"
+-                               style={{background-image:"repeating-...",background-position-x:"initial, i...", ...}}
+                              >
++                               <div className="mb-8">
+                                ...
+                      ...
+                    ...
+          ...
+    ...
+
+    at <unknown> (https://react.dev/link/hydration-mismatch)
+    at div (<anonymous>)
+    at LoginPage (.next\dev\static\chunks\apps_web_src_0e0lx40._.js:253:219)
+    at Page (src\app\login\page.tsx:19:10)
+  17 |   }
+  18 |
+> 19 |   return <LoginPage error={searchParams.error ?? null} next={nextPath} />;
+     |          ^
+  20 | }
+  21 |
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Module [project]/node_modules/styled-jsx/style.js [app-client] (ecmascript) was instantiated because it was required from module [project]/apps/web/src/features/auth/login-page.tsx [app-client] (ecmascript), but the module factory is not available.
+This is often caused by a stale browser cache, misconfigured Cache-Control headers, or a service worker serving outdated responses.
+To fix this, make sure your Cache-Control headers allow revalidation of chunks and review your service worker configuration. As an immediate workaround, try hard-reloading the page, clearing the browser cache, or unregistering any service workers.
+    at instantiateModuleShared (.next\dev\static\chunks\turbopack-apps_web_0p44nws._.js:1272:15)
+    at instantiateModule (.next\dev\static\chunks\turbopack-apps_web_0p44nws._.js:1621:12)
+    at getOrInstantiateModuleFromParent (.next\dev\static\chunks\turbopack-apps_web_0p44nws._.js:1604:12)
+    at DevContext.esmImport [as i] (.next\dev\static\chunks\turbopack-apps_web_0p44nws._.js:278:20)
+    at module evaluation (.next\dev\static\chunks\apps_web_src_0e0lx40._.js:172:167)
+    at <unknown> (.next\dev\static\chunks\turbopack-apps_web_0p44nws._.js:1307:27)
+    at runModuleExecutionHooks (.next\dev\static\chunks\turbopack-apps_web_0p44nws._.js:1636:13)
+    at instantiateModuleShared (.next\dev\static\chunks\turbopack-apps_web_0p44nws._.js:1305:9)
+    at instantiateModule (.next\dev\static\chunks\turbopack-apps_web_0p44nws._.js:1621:12)
+    at getOrInstantiateModuleFromParent (.next\dev\static\chunks\turbopack-apps_web_0p44nws._.js:1604:12)
+    at DevContext.commonJsRequire [as r] (.next\dev\static\chunks\turbopack-apps_web_0p44nws._.js:299:12)
+    at Page (src\app\login\page.tsx:19:10)
+  17 |   }
+  18 |
+> 19 |   return <LoginPage error={searchParams.error ?? null} next={nextPath} />;
+     |          ^
+  20 | }
+  21 |
+[browser] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <HotReload globalError={[...]} webSocket={WebSocket} staticIndicatorState={{pathname:null, ...}}>
+      <AppDevOverlayErrorBoundary globalError={[...]}>
+        <ReplaySsrOnlyErrors>
+        <DevRootHTTPAccessFallbackBoundary>
+          <HTTPAccessFallbackBoundary notFound={<NotAllowedRootHTTPFallbackError>}>
+            <HTTPAccessFallbackErrorBoundary pathname="/login" notFound={<NotAllowedRootHTTPFallbackError>} ...>
+              <RedirectBoundary>
+                <RedirectErrorBoundary router={{...}}>
+                  <Head>
+                  <__next_root_layout_boundary__>
+                    <SegmentViewNode type="layout" pagePath="layout.tsx">
+                      <SegmentTrieNode>
+                      <link>
+                      <script>
+                      <script>
+                      <RootLayout>
+                        <html
+                          lang="en"
+-                         webcrx=""
+                        >
+                  ...
+ 
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Hydration failed because the server rendered HTML didn't match the client. As a result this tree will be regenerated on the client. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <HotReload globalError={[...]} webSocket={WebSocket} staticIndicatorState={{pathname:null, ...}}>
+      <AppDevOverlayErrorBoundary globalError={[...]}>
+        <ReplaySsrOnlyErrors>
+        <DevRootHTTPAccessFallbackBoundary>
+          <HTTPAccessFallbackBoundary notFound={<NotAllowedRootHTTPFallbackError>}>
+            <HTTPAccessFallbackErrorBoundary pathname="/login" notFound={<NotAllowedRootHTTPFallbackError>} ...>
+              <RedirectBoundary>
+                <RedirectErrorBoundary router={{...}}>
+                  <Head>
+                  <__next_root_layout_boundary__>
+                    <SegmentViewNode type="layout" pagePath="layout.tsx">
+                      <SegmentTrieNode>
+                      <link>
+                      <script>
+                      <script>
+                      <RootLayout>
+                        <html
+                          lang="en"
+-                         webcrx=""
+                        >
+                          ...
+                            <form className="space-y-3" onSubmit={function onSubmit}>
+                              <label>
+                              <label className="block">
+                                <span>
+                                <Input autoComplete="current-pa..." className="h-11 round..." ...>
++                                 <input
++                                   type="password"
++                                   data-slot="input"
++                                   className="w-full min-w-0 border px-3 py-1 transition-[color,box-shadow] outline-n..."
++                                   autoComplete="current-password"
++                                   onChange={function onChange}
++                                   required={true}
++                                   style={{borderColor:"#d8ddd6",boxShadow:"inset 0 1p..."}}
++                                   value=""
++                                 >
+-                                 <div className="relative">
+                              ...
+                  ...
+
+    at <unknown> (https://react.dev/link/hydration-mismatch)
+    at input (<anonymous>)
+    at Input (.next\dev\static\chunks\apps_web_src_0e0lx40._.js:101:214)
+    at LoginPage (.next\dev\static\chunks\apps_web_src_0e0lx40._.js:594:247)
+    at Page (src\app\login\page.tsx:19:10)
+  17 |   }
+  18 |
+> 19 |   return <LoginPage error={searchParams.error ?? null} next={nextPath} />;
+     |          ^
+  20 | }
+  21 |
+[browser] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <HotReload globalError={[...]} webSocket={WebSocket} staticIndicatorState={{pathname:null, ...}}>
+      <AppDevOverlayErrorBoundary globalError={[...]}>
+        <ReplaySsrOnlyErrors>
+        <DevRootHTTPAccessFallbackBoundary>
+          <HTTPAccessFallbackBoundary notFound={<NotAllowedRootHTTPFallbackError>}>
+            <HTTPAccessFallbackErrorBoundary pathname="/login" notFound={<NotAllowedRootHTTPFallbackError>} ...>
+              <RedirectBoundary>
+                <RedirectErrorBoundary router={{...}}>
+                  <Head>
+                  <__next_root_layout_boundary__>
+                    <SegmentViewNode type="layout" pagePath="layout.tsx">
+                      <SegmentTrieNode>
+                      <link>
+                      <script>
+                      <script>
+                      <RootLayout>
+                        <html
+                          lang="en"
+-                         webcrx=""
+                        >
+                  ...
+ 
+[browser] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <HotReload globalError={[...]} webSocket={WebSocket} staticIndicatorState={{pathname:null, ...}}>
+      <AppDevOverlayErrorBoundary globalError={[...]}>
+        <ReplaySsrOnlyErrors>
+        <DevRootHTTPAccessFallbackBoundary>
+          <HTTPAccessFallbackBoundary notFound={<NotAllowedRootHTTPFallbackError>}>
+            <HTTPAccessFallbackErrorBoundary pathname="/login" notFound={<NotAllowedRootHTTPFallbackError>} ...>
+              <RedirectBoundary>
+                <RedirectErrorBoundary router={{...}}>
+                  <Head>
+                  <__next_root_layout_boundary__>
+                    <SegmentViewNode type="layout" pagePath="layout.tsx">
+                      <SegmentTrieNode>
+                      <link>
+                      <script>
+                      <script>
+                      <RootLayout>
+                        <html
+                          lang="en"
+-                         webcrx=""
+                        >
+                  ...
+ 
+[browser] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <HotReload globalError={[...]} webSocket={WebSocket} staticIndicatorState={{pathname:null, ...}}>
+      <AppDevOverlayErrorBoundary globalError={[...]}>
+        <ReplaySsrOnlyErrors>
+        <DevRootHTTPAccessFallbackBoundary>
+          <HTTPAccessFallbackBoundary notFound={<NotAllowedRootHTTPFallbackError>}>
+            <HTTPAccessFallbackErrorBoundary pathname="/login" notFound={<NotAllowedRootHTTPFallbackError>} ...>
+              <RedirectBoundary>
+                <RedirectErrorBoundary router={{...}}>
+                  <Head>
+                  <__next_root_layout_boundary__>
+                    <SegmentViewNode type="layout" pagePath="layout.tsx">
+                      <SegmentTrieNode>
+                      <link>
+                      <script>
+                      <script>
+                      <RootLayout>
+                        <html
+                          lang="en"
+-                         webcrx=""
+                        >
+                  ...
+ 
+[browser] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <HotReload globalError={[...]} webSocket={WebSocket} staticIndicatorState={{pathname:null, ...}}>
+      <AppDevOverlayErrorBoundary globalError={[...]}>
+        <ReplaySsrOnlyErrors>
+        <DevRootHTTPAccessFallbackBoundary>
+          <HTTPAccessFallbackBoundary notFound={<NotAllowedRootHTTPFallbackError>}>
+            <HTTPAccessFallbackErrorBoundary pathname="/home" notFound={<NotAllowedRootHTTPFallbackError>} ...>
+              <RedirectBoundary>
+                <RedirectErrorBoundary router={{...}}>
+                  <Head>
+                  <__next_root_layout_boundary__>
+                    <SegmentViewNode type="layout" pagePath="layout.tsx">
+                      <SegmentTrieNode>
+                      <link>
+                      <script>
+                      <script>
+                      <RootLayout>
+                        <html
+                          lang="en"
+-                         webcrx=""
+                        >
+                  ...
+ 
+GET /api/home team presence fallback: {
+  code: '42703',
+  details: null,
+  hint: null,
+  message: 'column workspace_members.avatar_url does not exist'
+}
+GET /api/home readiness fallback: {
+  code: 'PGRST205',
+  details: null,
+  hint: null,
+  message: "Could not find the table 'public.follow_up_boss_webhook_subscriptions' in the schema cache"
+}
+[browser] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <HotReload globalError={[...]} webSocket={WebSocket} staticIndicatorState={{pathname:null, ...}}>
+      <AppDevOverlayErrorBoundary globalError={[...]}>
+        <ReplaySsrOnlyErrors>
+        <DevRootHTTPAccessFallbackBoundary>
+          <HTTPAccessFallbackBoundary notFound={<NotAllowedRootHTTPFallbackError>}>
+            <HTTPAccessFallbackErrorBoundary pathname="/home" notFound={<NotAllowedRootHTTPFallbackError>} ...>
+              <RedirectBoundary>
+                <RedirectErrorBoundary router={{...}}>
+                  <Head>
+                  <__next_root_layout_boundary__>
+                    <SegmentViewNode type="layout" pagePath="layout.tsx">
+                      <SegmentTrieNode>
+                      <link>
+                      <script>
+                      <script>
+                      <RootLayout>
+                        <html
+                          lang="en"
+-                         webcrx=""
+                        >
+                  ...
+ 
+GET /api/home team presence fallback: {
+  code: '42703',
+  details: null,
+  hint: null,
+  message: 'column workspace_members.avatar_url does not exist'
+}
+GET /api/home readiness fallback: {
+  code: 'PGRST205',
+  details: null,
+  hint: null,
+  message: "Could not find the table 'public.follow_up_boss_webhook_subscriptions' in the schema cache"
+}
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <HotReload globalError={[...]} webSocket={WebSocket} staticIndicatorState={{pathname:null, ...}}>
+      <AppDevOverlayErrorBoundary globalError={[...]}>
+        <ReplaySsrOnlyErrors>
+        <DevRootHTTPAccessFallbackBoundary>
+          <HTTPAccessFallbackBoundary notFound={<NotAllowedRootHTTPFallbackError>}>
+            <HTTPAccessFallbackErrorBoundary pathname="/home" notFound={<NotAllowedRootHTTPFallbackError>} ...>
+              <RedirectBoundary>
+                <RedirectErrorBoundary router={{...}}>
+                  <Head>
+                  <__next_root_layout_boundary__>
+                    <SegmentViewNode type="layout" pagePath="layout.tsx">
+                      <SegmentTrieNode>
+                      <link>
+                      <script>
+                      <script>
+                      <RootLayout>
+                        <html
+                          lang="en"
+-                         webcrx=""
+                        >
+                  ...
+ 
+GET /api/home team presence fallback: {
+  code: '42703',
+  details: null,
+  hint: null,
+  message: 'column workspace_members.avatar_url does not exist'
+}
+GET /api/home readiness fallback: {
+  code: 'PGRST205',
+  details: null,
+  hint: null,
+  message: "Could not find the table 'public.follow_up_boss_webhook_subscriptions' in the schema cache"
+}
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <HotReload globalError={[...]} webSocket={WebSocket} staticIndicatorState={{pathname:null, ...}}>
+      <AppDevOverlayErrorBoundary globalError={[...]}>
+        <ReplaySsrOnlyErrors>
+        <DevRootHTTPAccessFallbackBoundary>
+          <HTTPAccessFallbackBoundary notFound={<NotAllowedRootHTTPFallbackError>}>
+            <HTTPAccessFallbackErrorBoundary pathname="/leads" notFound={<NotAllowedRootHTTPFallbackError>} ...>
+              <RedirectBoundary>
+                <RedirectErrorBoundary router={{...}}>
+                  <Head>
+                  <__next_root_layout_boundary__>
+                    <SegmentViewNode type="layout" pagePath="layout.tsx">
+                      <SegmentTrieNode>
+                      <link>
+                      <script>
+                      <script>
+                      <RootLayout>
+                        <html
+                          lang="en"
+-                         webcrx=""
+                        >
+                  ...
+ 
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <HotReload globalError={[...]} webSocket={WebSocket} staticIndicatorState={{pathname:null, ...}}>
+      <AppDevOverlayErrorBoundary globalError={[...]}>
+        <ReplaySsrOnlyErrors>
+        <DevRootHTTPAccessFallbackBoundary>
+          <HTTPAccessFallbackBoundary notFound={<NotAllowedRootHTTPFallbackError>}>
+            <HTTPAccessFallbackErrorBoundary pathname="/settings" notFound={<NotAllowedRootHTTPFallbackError>} ...>
+              <RedirectBoundary>
+                <RedirectErrorBoundary router={{...}}>
+                  <Head>
+                  <__next_root_layout_boundary__>
+                    <SegmentViewNode type="layout" pagePath="layout.tsx">
+                      <SegmentTrieNode>
+                      <link>
+                      <script>
+                      <script>
+                      <RootLayout>
+                        <html
+                          lang="en"
+-                         webcrx=""
+                        >
+                  ...
+ 
+[browser] Uncaught Error: Hydration failed because the server rendered HTML didn't match the client. As a result this tree will be regenerated on the client. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <HTTPAccessFallbackBoundary notFound={undefined} forbidden={undefined} unauthorized={undefined}>
+      <RedirectBoundary>
+        <RedirectErrorBoundary router={{...}}>
+          <InnerLayoutRouter url="/home" tree={[...]} params={{}} cacheNode={{rsc:{...}, ...}} segmentPath={[...]} ...>
+            <SegmentViewNode type="page" pagePath="home/page.tsx">
+              <SegmentTrieNode>
+              <Page>
+                <HomePage>
+                  <AppShell activeItem="Work Queue" title="Prestige R...">
+                    <div className="flex h-scr...">
+                      <aside className="flex h-scr..." style={{...}}>
+                        <a>
+                        <nav aria-label="primary na..." className="flex flex-...">
+                          <NavGroup>
+                          <div className="mt-2">
+                            <NavGroup activeItem="Work Queue" items={[...]} label="System">
+                              <div>
+                                <div>
+                                <div className="space-y-0.5">
+-                                 <a
+-                                   className="flex min-h-[34px] items-center gap-2.5 rounded-lg px-3 text-[12.5px] tr..."
+-                                   href="/settings"
+-                                 >
+                        ...
+                      ...
+            ...
+          ...
+
+    at <unknown> (https://react.dev/link/hydration-mismatch)
+    at div (<anonymous>)
+    at NavGroup (.next\dev\static\chunks\_04do.3.._.js:3597:215)
+    at AppShell (.next\dev\static\chunks\_04do.3.._.js:3744:245)
+    at HomePage (.next\dev\static\chunks\_04do.3.._.js:7614:214)
+    at Page (src\app\home\page.tsx:6:10)
+  4 | export default async function Page() {
+  5 |   await requireWorkspaceSession("/home");
+> 6 |   return <HomePage />;
+    |          ^
+  7 | }
+  8 |
+GET /api/home team presence fallback: {
+  code: '42703',
+  details: null,
+  hint: null,
+  message: 'column workspace_members.avatar_url does not exist'
+}
+GET /api/home team presence fallback: {
+  code: '42703',
+  details: null,
+  hint: null,
+  message: 'column workspace_members.avatar_url does not exist'
+}
+GET /api/home readiness fallback: {
+  code: 'PGRST205',
+  details: null,
+  hint: null,
+  message: "Could not find the table 'public.follow_up_boss_webhook_subscriptions' in the schema cache"
+}
+GET /api/home readiness fallback: {
+  code: 'PGRST205',
+  details: null,
+  hint: null,
+  message: "Could not find the table 'public.follow_up_boss_webhook_subscriptions' in the schema cache"
+}
+[browser] Uncaught Error: Hydration failed because the server rendered HTML didn't match the client. As a result this tree will be regenerated on the client. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <HotReload globalError={[...]} webSocket={WebSocket} staticIndicatorState={{pathname:null, ...}}>
+      <AppDevOverlayErrorBoundary globalError={[...]}>
+        <ReplaySsrOnlyErrors>
+        <DevRootHTTPAccessFallbackBoundary>
+          <HTTPAccessFallbackBoundary notFound={<NotAllowedRootHTTPFallbackError>}>
+            <HTTPAccessFallbackErrorBoundary pathname="/leads" notFound={<NotAllowedRootHTTPFallbackError>} ...>
+              <RedirectBoundary>
+                <RedirectErrorBoundary router={{...}}>
+                  <Head>
+                  <__next_root_layout_boundary__>
+                    <SegmentViewNode type="layout" pagePath="layout.tsx">
+                      <SegmentTrieNode>
+                      <link>
+                      <script>
+                      <script>
+                      <RootLayout>
+                        <html
+                          lang="en"
+-                         webcrx=""
+                        >
+                          ...
+                            <div className="flex h-scr...">
+                              <aside className="flex h-scr..." style={{...}}>
+                                <a>
+                                <nav>
+                                <div className="mt-4 space..." style={{...}}>
+                                  <button
++                                   className="flex w-full items-center gap-2.5 text-left"
+-                                   className="flex h-9 w-full items-center gap-2.5 rounded-lg px-3 text-left text-[12..."
+                                    type="button"
+                                  >
++                                   <span
++                                     className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-l..."
++                                     style={{background:"linear-gra..."}}
++                                   >
+-                                   <svg
+-                                     xmlns="http://www.w3.org/2000/svg"
+-                                     width="24"
+-                                     height="24"
+-                                     viewBox="0 0 24 24"
+-                                     fill="none"
+-                                     stroke="currentColor"
+-                                     stroke-width="1.8"
+-                                     stroke-linecap="round"
+-                                     stroke-linejoin="round"
+-                                     className="lucide lucide-log-out h-[15px] w-[15px] shrink-0"
+-                                     aria-hidden="true"
+-                                   >
+                                    ...
+                                  ...
+                              ...
+                  ...
+
+    at <unknown> (https://react.dev/link/hydration-mismatch)
+    at span (<anonymous>)
+    at AppShell (.next\dev\static\chunks\_0f5t_2x._.js:3779:239)
+    at LeadsPage (.next\dev\static\chunks\_0f5t_2x._.js:7382:214)
+    at Page (src\app\leads\page.tsx:6:10)
+  4 | export default async function Page() {
+  5 |   await requireWorkspaceSession("/leads");
+> 6 |   return <LeadsPage />;
+    |          ^
+  7 | }
+  8 |
+[browser] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <HotReload globalError={[...]} webSocket={WebSocket} staticIndicatorState={{pathname:null, ...}}>
+      <AppDevOverlayErrorBoundary globalError={[...]}>
+        <ReplaySsrOnlyErrors>
+        <DevRootHTTPAccessFallbackBoundary>
+          <HTTPAccessFallbackBoundary notFound={<NotAllowedRootHTTPFallbackError>}>
+            <HTTPAccessFallbackErrorBoundary pathname="/home" notFound={<NotAllowedRootHTTPFallbackError>} ...>
+              <RedirectBoundary>
+                <RedirectErrorBoundary router={{...}}>
+                  <Head>
+                  <__next_root_layout_boundary__>
+                    <SegmentViewNode type="layout" pagePath="layout.tsx">
+                      <SegmentTrieNode>
+                      <link>
+                      <script>
+                      <script>
+                      <RootLayout>
+                        <html
+                          lang="en"
+-                         webcrx=""
+                        >
+                  ...
+ 
+GET /api/home team presence fallback: {
+  code: '42703',
+  details: null,
+  hint: null,
+  message: 'column workspace_members.avatar_url does not exist'
+}
+GET /api/home readiness fallback: {
+  code: 'PGRST205',
+  details: null,
+  hint: null,
+  message: "Could not find the table 'public.follow_up_boss_webhook_subscriptions' in the schema cache"
+}
+GET /api/home team presence fallback: {
+  code: '42703',
+  details: null,
+  hint: null,
+  message: 'column workspace_members.avatar_url does not exist'
+}
+GET /api/home readiness fallback: {
+  code: 'PGRST205',
+  details: null,
+  hint: null,
+  message: "Could not find the table 'public.follow_up_boss_webhook_subscriptions' in the schema cache"
+}
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+⨯ ./apps/web/src/app/leads/page.tsx:1:1
+Module not found: Can't resolve '../../features/leads/leads-page'
+[31m[1m>[0m [90m1 |[0m [36mimport[0m { [33mLeadsPage[0m } [36mfrom[0m [32m"../../features/leads/leads-page"[0m;
+  [90m  |[0m [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m2 |[0m [36mimport[0m { requireWorkspaceSession } [36mfrom[0m [32m"../../features/auth/session"[0m;
+  [90m3 |[0m
+  [90m4 |[0m [36mexport[0m [36mdefault[0m [36masync[0m [36mfunction[0m [33mPage[0m() {
+
+
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./apps/web/src/app/leads/page.tsx:1:1
+Module not found: Can't resolve '../../features/leads/leads-page'
+[31m[1m>[0m [90m1 |[0m [36mimport[0m { [33mLeadsPage[0m } [36mfrom[0m [32m"../../features/leads/leads-page"[0m;
+  [90m  |[0m [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m2 |[0m [36mimport[0m { requireWorkspaceSession } [36mfrom[0m [32m"../../features/auth/session"[0m;
+  [90m3 |[0m
+  [90m4 |[0m [36mexport[0m [36mdefault[0m [36masync[0m [36mfunction[0m [33mPage[0m() {
+
+
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] ./apps/web/src/app/leads/page.tsx:1:1
+Module not found: Can't resolve '../../features/leads/leads-page'
+> 1 | import { LeadsPage } from "../../features/leads/leads-page";
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  2 | import { requireWorkspaceSession } from "../../features/auth/session";
+  3 |
+  4 | export default async function Page() {
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./apps/web/src/app/leads/page.tsx:1:1
+Module not found: Can't resolve '../../features/leads/leads-page'
+> 1 | import { LeadsPage } from "../../features/leads/leads-page";
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  2 | import { requireWorkspaceSession } from "../../features/auth/session";
+  3 |
+  4 | export default async function Page() {
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] ./apps/web/src/app/leads/page.tsx:1:1
+Module not found: Can't resolve '../../features/leads/leads-page'
+> 1 | import { LeadsPage } from "../../features/leads/leads-page";
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  2 | import { requireWorkspaceSession } from "../../features/auth/session";
+  3 |
+  4 | export default async function Page() {
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./apps/web/src/app/leads/page.tsx:1:1
+Module not found: Can't resolve '../../features/leads/leads-page'
+> 1 | import { LeadsPage } from "../../features/leads/leads-page";
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  2 | import { requireWorkspaceSession } from "../../features/auth/session";
+  3 |
+  4 | export default async function Page() {
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./apps/web/src/app/leads/page.tsx:1:1
+Module not found: Can't resolve '../../features/leads/leads-page'
+> 1 | import { LeadsPage } from "../../features/leads/leads-page";
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  2 | import { requireWorkspaceSession } from "../../features/auth/session";
+  3 |
+  4 | export default async function Page() {
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./apps/web/src/app/leads/page.tsx:1:1
+Module not found: Can't resolve '../../features/leads/leads-page'
+> 1 | import { LeadsPage } from "../../features/leads/leads-page";
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  2 | import { requireWorkspaceSession } from "../../features/auth/session";
+  3 |
+  4 | export default async function Page() {
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./apps/web/src/app/leads/page.tsx:1:1
+Module not found: Can't resolve '../../features/leads/leads-page'
+> 1 | import { LeadsPage } from "../../features/leads/leads-page";
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  2 | import { requireWorkspaceSession } from "../../features/auth/session";
+  3 |
+  4 | export default async function Page() {
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./apps/web/src/app/leads/page.tsx:1:1
+Module not found: Can't resolve '../../features/leads/leads-page'
+> 1 | import { LeadsPage } from "../../features/leads/leads-page";
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  2 | import { requireWorkspaceSession } from "../../features/auth/session";
+  3 |
+  4 | export default async function Page() {
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./apps/web/src/app/leads/page.tsx:1:1
+Module not found: Can't resolve '../../features/leads/leads-page'
+> 1 | import { LeadsPage } from "../../features/leads/leads-page";
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  2 | import { requireWorkspaceSession } from "../../features/auth/session";
+  3 |
+  4 | export default async function Page() {
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./apps/web/src/app/leads/page.tsx:1:1
+Module not found: Can't resolve '../../features/leads/leads-page'
+> 1 | import { LeadsPage } from "../../features/leads/leads-page";
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  2 | import { requireWorkspaceSession } from "../../features/auth/session";
+  3 |
+  4 | export default async function Page() {
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] Uncaught Error: ./apps/web/src/app/leads/page.tsx:1:1
+Module not found: Can't resolve '../../features/leads/leads-page'
+> 1 | import { LeadsPage } from "../../features/leads/leads-page";
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  2 | import { requireWorkspaceSession } from "../../features/auth/session";
+  3 |
+  4 | export default async function Page() {
+
+
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+    at <unknown> (Error: ./apps/web/src/app/leads/page.tsx:1:1)
+    at <unknown> (https://nextjs.org/docs/messages/module-not-found)
+    at <unknown> (Error: (./apps/web/src/app/leads/page.tsx:1:1)
+    at <unknown> (https://nextjs.org/docs/messages/module-not-found)
+[browser] ./apps/web/src/app/leads/page.tsx:1:1
+Module not found: Can't resolve '../../features/leads/leads-page'
+> 1 | import { LeadsPage } from "../../features/leads/leads-page";
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  2 | import { requireWorkspaceSession } from "../../features/auth/session";
+  3 |
+  4 | export default async function Page() {
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./apps/web/src/app/leads/page.tsx:1:1
+Module not found: Can't resolve '../../features/leads/leads-page'
+> 1 | import { LeadsPage } from "../../features/leads/leads-page";
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  2 | import { requireWorkspaceSession } from "../../features/auth/session";
+  3 |
+  4 | export default async function Page() {
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./apps/web/src/app/leads/page.tsx:1:1
+Module not found: Can't resolve '../../features/leads/leads-page'
+> 1 | import { LeadsPage } from "../../features/leads/leads-page";
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  2 | import { requireWorkspaceSession } from "../../features/auth/session";
+  3 |
+  4 | export default async function Page() {
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./apps/web/src/app/leads/page.tsx:1:1
+Module not found: Can't resolve '../../features/leads/leads-page'
+> 1 | import { LeadsPage } from "../../features/leads/leads-page";
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  2 | import { requireWorkspaceSession } from "../../features/auth/session";
+  3 |
+  4 | export default async function Page() {
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./apps/web/src/app/leads/page.tsx:1:1
+Module not found: Can't resolve '../../features/leads/leads-page'
+> 1 | import { LeadsPage } from "../../features/leads/leads-page";
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  2 | import { requireWorkspaceSession } from "../../features/auth/session";
+  3 |
+  4 | export default async function Page() {
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./apps/web/src/app/leads/page.tsx:1:1
+Module not found: Can't resolve '../../features/leads/leads-page'
+> 1 | import { LeadsPage } from "../../features/leads/leads-page";
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  2 | import { requireWorkspaceSession } from "../../features/auth/session";
+  3 |
+  4 | export default async function Page() {
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./apps/web/src/app/leads/page.tsx:1:1
+Module not found: Can't resolve '../../features/leads/leads-page'
+> 1 | import { LeadsPage } from "../../features/leads/leads-page";
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  2 | import { requireWorkspaceSession } from "../../features/auth/session";
+  3 |
+  4 | export default async function Page() {
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <InnerScrollAndFocusHandlerOld focusAndScrollRef={{scrollRef:null, ...}} cacheNode={{rsc:{...}, ...}}>
+      <ErrorBoundary errorComponent={undefined} errorStyles={undefined} errorScripts={undefined}>
+        <LoadingBoundary name="home/" loading={null}>
+          <HTTPAccessFallbackBoundary notFound={undefined} forbidden={undefined} unauthorized={undefined}>
+            <RedirectBoundary>
+              <RedirectErrorBoundary router={{...}}>
+                <InnerLayoutRouter url="/home" tree={[...]} params={{}} cacheNode={{rsc:{...}, ...}} segmentPath={[...]} ...>
+                  <SegmentViewNode type="page" pagePath="home/page.tsx">
+                    <SegmentTrieNode>
+                    <Page>
+                      <HomePage>
+                        <AppShell activeItem="Work Queue" title="Prestige R...">
+                          <div className="flex h-scr...">
+                            <aside className="flex h-scr..." style={{...}}>
+                              <a>
+                              <nav aria-label="primary na..." className="flex flex-...">
+                                <NavGroup activeItem="Work Queue" items={[...]} label="Operations">
+                                  <div>
+                                    <div>
+                                    <div className="space-y-0.5">
+                                      <a
+                                        aria-current="page"
++                                       className="flex min-h-[34px] items-center gap-2.5 rounded-lg px-3 text-[12.5px..."
+-                                       className="flex min-h-[34px] items-center gap-2.5 rounded-lg px-3 text-[12.5px..."
+                                        href="/home"
+                                      >
+                                        <LayoutGrid aria-hidden="true" className="h-[15px] w..." strokeWidth={1.8}>
+                                          <svg
+                                            ref={null}
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            width={24}
+                                            height={24}
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            strokeWidth={1.8}
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
++                                           className="lucide lucide-layout-grid h-[15px] w-[15px] shrink-0"
+-                                           className="lucide lucide-layout-grid h-[15px] w-[15px] shrink-0 transition..."
+                                            aria-hidden="true"
+                                          >
+                                        ...
+                                      <a
+                                        aria-current={undefined}
++                                       className="flex min-h-[34px] items-center gap-2.5 rounded-lg px-3 text-[12.5px..."
+-                                       className="flex min-h-[34px] items-center gap-2.5 rounded-lg px-3 text-[12.5px..."
+                                        href="/leads"
+                                      >
+                                        <UsersRound aria-hidden="true" className="h-[15px] w..." strokeWidth={1.8}>
+                                          <svg
+                                            ref={null}
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            width={24}
+                                            height={24}
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            strokeWidth={1.8}
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
++                                           className="lucide lucide-users-round h-[15px] w-[15px] shrink-0"
+-                                           className="lucide lucide-users-round h-[15px] w-[15px] shrink-0 transition..."
+                                            aria-hidden="true"
+                                          >
+                                        ...
+                                      <a
+                                        aria-current={undefined}
++                                       className="flex min-h-[34px] items-center gap-2.5 rounded-lg px-3 text-[12.5px..."
+-                                       className="flex min-h-[34px] items-center gap-2.5 rounded-lg px-3 text-[12.5px..."
+                                        href="/home"
+                                      >
+                                        <MessageSquare aria-hidden="true" className="h-[15px] w..." strokeWidth={1.8}>
+                                          <svg
+                                            ref={null}
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            width={24}
+                                            height={24}
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            strokeWidth={1.8}
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
++                                           className="lucide lucide-message-square h-[15px] w-[15px] shrink-0"
+-                                           className="lucide lucide-message-square h-[15px] w-[15px] shrink-0 transit..."
+                                            aria-hidden="true"
+                                          >
+                                        ...
+                                      <a
+                                        aria-current={undefined}
++                                       className="flex min-h-[34px] items-center gap-2.5 rounded-lg px-3 text-[12.5px..."
+-                                       className="flex min-h-[34px] items-center gap-2.5 rounded-lg px-3 text-[12.5px..."
+                                        href="/prestige-realty/listings"
+                                      >
+                                        <House aria-hidden="true" className="h-[15px] w..." strokeWidth={1.8}>
+                                          <svg
+                                            ref={null}
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            width={24}
+                                            height={24}
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            strokeWidth={1.8}
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
++                                           className="lucide lucide-house h-[15px] w-[15px] shrink-0"
+-                                           className="lucide lucide-house h-[15px] w-[15px] shrink-0 transition-opaci..."
+                                            aria-hidden="true"
+                                          >
+                                        ...
+                                      <a
+                                        aria-current={undefined}
++                                       className="flex min-h-[34px] items-center gap-2.5 rounded-lg px-3 text-[12.5px..."
+-                                       className="flex min-h-[34px] items-center gap-2.5 rounded-lg px-3 text-[12.5px..."
+                                        href="/home"
+                                      >
+                                        <Phone aria-hidden="true" className="h-[15px] w..." strokeWidth={1.8}>
+                                          <svg
+                                            ref={null}
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            width={24}
+                                            height={24}
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            strokeWidth={1.8}
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
++                                           className="lucide lucide-phone h-[15px] w-[15px] shrink-0"
+-                                           className="lucide lucide-phone h-[15px] w-[15px] shrink-0 transition-opaci..."
+                                            aria-hidden="true"
+                                          >
+                                        ...
+                                <div className="mt-2">
+                                  <NavGroup activeItem="Work Queue" items={[...]} label="System">
+                                    <div>
+                                      <div>
+                                      <div className="space-y-0.5">
+                                        <a
+                                          aria-current={undefined}
++                                         className="flex min-h-[34px] items-center gap-2.5 rounded-lg px-3 text-[12.5..."
+-                                         className="flex min-h-[34px] items-center gap-2.5 rounded-lg px-3 text-[12.5..."
+                                          href="/home"
+                                        >
+                                          <RadioTower aria-hidden="true" className="h-[15px] w..." strokeWidth={1.8}>
+                                            <svg
+                                              ref={null}
+                                              xmlns="http://www.w3.org/2000/svg"
+                                              width={24}
+                                              height={24}
+                                              viewBox="0 0 24 24"
+                                              fill="none"
+                                              stroke="currentColor"
+                                              strokeWidth={1.8}
+                                              strokeLinecap="round"
+                                              strokeLinejoin="round"
++                                             className="lucide lucide-radio-tower h-[15px] w-[15px] shrink-0"
+-                                             className="lucide lucide-radio-tower h-[15px] w-[15px] shrink-0 transiti..."
+                                              aria-hidden="true"
+                                            >
+                                          ...
+                                        <a
+                                          aria-current={undefined}
++                                         className="flex min-h-[34px] items-center gap-2.5 rounded-lg px-3 text-[12.5..."
+-                                         className="flex min-h-[34px] items-center gap-2.5 rounded-lg px-3 text-[12.5..."
+                                          href="/home"
+                                        >
+                                          <Clock3 aria-hidden="true" className="h-[15px] w..." strokeWidth={1.8}>
+                                            <svg
+                                              ref={null}
+                                              xmlns="http://www.w3.org/2000/svg"
+                                              width={24}
+                                              height={24}
+                                              viewBox="0 0 24 24"
+                                              fill="none"
+                                              stroke="currentColor"
+                                              strokeWidth={1.8}
+                                              strokeLinecap="round"
+                                              strokeLinejoin="round"
++                                             className="lucide lucide-clock3 lucide-clock-3 h-[15px] w-[15px] shrink-0"
+-                                             className="lucide lucide-clock3 lucide-clock-3 h-[15px] w-[15px] shrink-..."
+                                              aria-hidden="true"
+                                            >
+                                          ...
+                                        <a
+                                          aria-current={undefined}
++                                         className="flex min-h-[34px] items-center gap-2.5 rounded-lg px-3 text-[12.5..."
+-                                         className="flex min-h-[34px] items-center gap-2.5 rounded-lg px-3 text-[12.5..."
+                                          href="/settings"
+                                        >
+                                          <Settings aria-hidden="true" className="h-[15px] w..." strokeWidth={1.8}>
+                                            <svg
+                                              ref={null}
+                                              xmlns="http://www.w3.org/2000/svg"
+                                              width={24}
+                                              height={24}
+                                              viewBox="0 0 24 24"
+                                              fill="none"
+                                              stroke="currentColor"
+                                              strokeWidth={1.8}
+                                              strokeLinecap="round"
+                                              strokeLinejoin="round"
++                                             className="lucide lucide-settings h-[15px] w-[15px] shrink-0"
+-                                             className="lucide lucide-settings h-[15px] w-[15px] shrink-0 transition-..."
+                                              aria-hidden="true"
+                                            >
+                                          ...
+                              <div className="mt-4 space..." style={{...}}>
+                                <button
++                                 className="flex h-9 w-full items-center gap-2.5 rounded-lg px-3 text-left text-[12.5..."
+-                                 className="flex h-9 w-full items-center gap-2.5 rounded-lg px-3 text-left text-[12.5..."
+                                  disabled={false}
+                                  onClick={function onClick}
+                                  type="button"
+                                >
+                                  <LogOut aria-hidden="true" className="h-[15px] w..." strokeWidth={1.8}>
+                                    <svg
+                                      ref={null}
+                                      xmlns="http://www.w3.org/2000/svg"
+                                      width={24}
+                                      height={24}
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth={1.8}
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
++                                     className="lucide lucide-log-out h-[15px] w-[15px] shrink-0"
+-                                     className="lucide lucide-log-out h-[15px] w-[15px] shrink-0 opacity-65"
+                                      aria-hidden="true"
+                                    >
+                                  ...
+                                ...
+                            ...
+                  ...
+                ...
+      ...
+ 
+GET /api/home team presence fallback: {
+  code: '42703',
+  details: null,
+  hint: null,
+  message: 'column workspace_members.avatar_url does not exist'
+}
+GET /api/home readiness fallback: {
+  code: 'PGRST205',
+  details: null,
+  hint: null,
+  message: "Could not find the table 'public.follow_up_boss_webhook_subscriptions' in the schema cache"
+}
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+GET /api/home team presence fallback: {
+  code: '42703',
+  details: null,
+  hint: null,
+  message: 'column workspace_members.avatar_url does not exist'
+}
+GET /api/home readiness fallback: {
+  code: 'PGRST205',
+  details: null,
+  hint: null,
+  message: "Could not find the table 'public.follow_up_boss_webhook_subscriptions' in the schema cache"
+}
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.
+[browser] Uncaught Error: Internal Next.js error: Router action dispatched before initialization.

@@ -1,27 +1,135 @@
 @import "tailwindcss";
 
+@font-face {
+  font-family: "Instrument Sans";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/instrument-sans-4.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "Instrument Sans";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/instrument-sans-5.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "Instrument Sans";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/instrument-sans-6.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "Instrument Sans";
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/instrument-sans-0.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "Newsreader";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/newsreader-light-0.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "Newsreader";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/newsreader-8.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "Newsreader";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/newsreader-9.ttf") format("truetype");
+}
+
+@custom-variant dark (&:is(.dark *));
+
 @theme {
-  --font-sans: "Geist", "Aptos", "Segoe UI", sans-serif;
-  --color-background: #f7f7f5;
-  --color-foreground: #161616;
-  --color-surface: #ffffff;
-  --color-surface-muted: #efefec;
-  --color-border: #deded9;
-  --color-muted: #73736d;
-  --color-accent: #20201e;
-  --color-hot: #c2412d;
-  --color-warm: #b7791f;
-  --color-qualified: #207646;
-  --color-syncing: #2e5fa7;
+  --font-sans: "Instrument Sans", "Inter", "Geist", "Aptos", "Segoe UI", sans-serif;
+  --font-display: "Newsreader", "Instrument Sans", serif;
+  --color-harwick-ink: #1a2a20;
+  --color-harwick-ink-soft: #2d3a30;
+  --color-harwick-parchment: #f5f3ef;
+  --color-harwick-paper: #fafaf8;
+  --color-harwick-linen: #efede9;
+  --color-harwick-border: #ddd7cc;
+  --color-harwick-border-strong: #c9c0b1;
+  --color-harwick-brass: #c9a84c;
+  --color-harwick-brass-soft: #f5edd6;
+  --color-sage: #2e6b4f;
+  --color-sage-soft: #e0ede7;
+  --color-clay: #8b5e1a;
+  --color-clay-soft: #f5ead6;
+  --color-oxblood: #9b3a3a;
+  --color-oxblood-soft: #f5e5e5;
+  --color-stone: #6b6860;
+  --color-stone-soft: #efede9;
+  --color-background: var(--color-harwick-parchment);
+  --color-foreground: var(--color-harwick-ink);
+  --color-surface: var(--color-harwick-paper);
+  --color-surface-muted: var(--color-harwick-linen);
+  --color-surface-raised: #f8f4eb;
+  --color-border: var(--color-harwick-border);
+  --color-border-strong: var(--color-harwick-border-strong);
+  --color-muted: #6b6860;
+  --color-muted-subtle: #a8a59f;
+  --color-accent: var(--color-harwick-ink);
+  --color-accent-foreground: var(--color-harwick-paper);
+  --color-primary: var(--color-harwick-ink);
+  --color-primary-foreground: var(--color-harwick-paper);
+  --color-secondary: var(--color-harwick-linen);
+  --color-secondary-foreground: var(--color-harwick-ink);
+  --color-muted-foreground: #6b6860;
+  --color-card: var(--color-harwick-paper);
+  --color-card-foreground: var(--color-harwick-ink);
+  --color-popover: var(--color-harwick-paper);
+  --color-popover-foreground: var(--color-harwick-ink);
+  --color-input: var(--color-harwick-border);
+  --color-ring: var(--color-harwick-brass);
+  --color-destructive: var(--color-oxblood);
+  --color-brass: var(--color-harwick-brass);
+  --color-brass-soft: var(--color-harwick-brass-soft);
+  --color-hot: var(--color-oxblood);
+  --color-warm: var(--color-clay);
+  --color-qualified: var(--color-sage);
+  --color-syncing: var(--color-stone);
+  --color-archived: var(--color-stone);
 }
 
 :root {
   color-scheme: light;
   background: var(--color-background);
   color: var(--color-foreground);
+  --shadow-soft: 0 18px 60px rgba(31, 42, 34, 0.08);
+  --shadow-tight: 0 10px 30px rgba(31, 42, 34, 0.06);
+  --radius-panel: 18px;
+  --radius-card: 10px;
+  --radius-control: 8px;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  --sidebar: var(--color-harwick-paper);
+  --sidebar-foreground: var(--color-harwick-ink);
+  --sidebar-primary: var(--color-harwick-ink);
+  --sidebar-primary-foreground: var(--color-harwick-paper);
+  --sidebar-accent: var(--color-harwick-linen);
+  --sidebar-accent-foreground: var(--color-harwick-ink);
+  --sidebar-border: var(--color-harwick-border);
+  --sidebar-ring: var(--color-harwick-brass);
 }
 
 * {
@@ -35,10 +143,9 @@ html {
 body {
   min-height: 100vh;
   margin: 0;
-  background:
-    radial-gradient(circle at 20% 0%, rgba(255, 255, 255, 0.92), transparent 28rem),
-    linear-gradient(135deg, rgba(247, 247, 245, 0.96), rgba(232, 232, 226, 0.92));
+  background: var(--color-background);
   font-family: var(--font-sans);
+  font-size: 13px;
 }
 
 button,
@@ -49,6 +156,39 @@ select {
 }
 
 ::selection {
-  background: #1f1f1d;
-  color: #ffffff;
+  background: var(--color-harwick-ink);
+  color: var(--color-harwick-paper);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.harwick-wordmark {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: 0.01em;
+}
+
+.dark {
+  --sidebar: var(--color-harwick-paper);
+  --sidebar-foreground: var(--color-harwick-ink);
+  --sidebar-primary: var(--color-harwick-ink);
+  --sidebar-primary-foreground: var(--color-harwick-paper);
+  --sidebar-accent: var(--color-harwick-linen);
+  --sidebar-accent-foreground: var(--color-harwick-ink);
+  --sidebar-border: var(--color-harwick-border);
+  --sidebar-ring: var(--color-harwick-brass);
+}
+
+@theme inline {
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
 }

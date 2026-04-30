@@ -39,6 +39,7 @@ function createRepository(params: {
   workspaceByProviderAccountId?: Map<string, string>;
   existingIdentities?: Set<string>;
   insertedRows?: LeadEventInsertRow[];
+  optedOutLeadIds?: string[];
 }): LeadEventPersistenceRepository {
   return {
     findWorkspaceIdByIntegrationAccount(lookup: IntegrationAccountLookup) {
@@ -59,6 +60,10 @@ function createRepository(params: {
     insertLeadEventRows(rows: LeadEventInsertRow[]) {
       params.insertedRows?.push(...rows);
       return Promise.resolve(rows.length);
+    },
+    markLeadNurtureOptedOut(input) {
+      params.optedOutLeadIds?.push(input.leadId);
+      return Promise.resolve();
     },
   };
 }
@@ -213,5 +218,25 @@ describe("createLeadEventWriter", () => {
         idempotencyKey: "lead_qualification:meta:comment-1",
       }),
     ]);
+  });
+
+  it("marks active nurture opted out when an inbound event says stop", async () => {
+    const optedOutLeadIds: string[] = [];
+    const writer = createLeadEventWriter(
+      createRepository({ optedOutLeadIds }),
+      {
+        leadUpsertRepository: createLeadUpsertRepository({ upsertedLookups: [] }),
+      },
+    );
+
+    await writer([{
+      ...normalizedEvent,
+      providerEventId: "message-stop-1",
+      eventType: "message_received",
+      sourceChannel: "instagram_dm",
+      text: "STOP",
+    }]);
+
+    expect(optedOutLeadIds).toEqual(["lead-id"]);
   });
 });

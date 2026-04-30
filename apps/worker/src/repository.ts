@@ -1,6 +1,11 @@
 import { z } from "zod";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { type WorkflowJob } from "@realty-ops/core";
+import {
+  decideNurtureAction,
+  NurtureEnrollmentSchema,
+  NurtureLeadContactSchema,
+  type WorkflowJob,
+} from "@realty-ops/core";
 import { createFollowUpBossClient, type FollowUpBossLeadEventInput } from "@realty-ops/integrations";
 import { chooseAssignmentCandidate, type AssignmentRoutingCandidate } from "./assignment-routing.js";
 import { decryptCredential } from "./credentials.js";
@@ -28,6 +33,7 @@ type RealtyOpsWorkerDatabase = {
           full_name: string | null;
           phone: string | null;
           email: string | null;
+          instagram_user_id: string | null;
           follow_up_boss_contact_id: string | null;
           source_channel: LeadWorkflowContext["sourceChannel"];
           lead_type: LeadWorkflowContext["leadType"];
@@ -162,37 +168,96 @@ type RealtyOpsWorkerDatabase = {
         Row: {
           id: string;
           workspace_id: string;
-          lead_id: string;
+          lead_id: string | null;
+          listing_id: string | null;
           task_type: "call_back" | "verify_listing" | "assign_lead" | "fub_retry" | "nurture_review";
           status: "open" | "in_progress" | "completed" | "dismissed";
           priority: "low" | "normal" | "high" | "urgent";
           assigned_member_id: string | null;
+          title: string;
+          description: string | null;
+          due_at: string | null;
           created_at: string;
         };
         Insert: {
           workspace_id: string;
-          lead_id: string;
+          lead_id?: string | null;
+          listing_id?: string | null;
           task_type: "call_back" | "verify_listing" | "assign_lead" | "fub_retry" | "nurture_review";
           priority: "low" | "normal" | "high" | "urgent";
           title: string;
           description: string;
+          due_at?: string | null;
           assigned_member_id: string | null;
         };
         Update: Record<string, never>;
         Relationships: [];
       };
       nurture_enrollments: {
-        Row: Record<string, unknown>;
+        Row: {
+          id: string;
+          workspace_id: string;
+          lead_id: string;
+          status: "active" | "paused" | "completed" | "opted_out";
+          sequence_key: string;
+          next_action_at: string | null;
+          quiet_hours_timezone: string;
+          last_step_index: number;
+          opted_out_at: string | null;
+          opt_out_reason: string | null;
+        };
         Insert: {
           workspace_id: string;
           lead_id: string;
           status: "active";
           sequence_key: string;
           next_action_at: string;
+          quiet_hours_timezone?: string;
+          last_step_index?: number;
         };
         Update: {
-          status?: "active";
-          next_action_at?: string;
+          status?: "active" | "paused" | "completed" | "opted_out";
+          next_action_at?: string | null;
+          last_step_index?: number;
+          opted_out_at?: string | null;
+          opt_out_reason?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      nurture_messages: {
+        Row: Record<string, unknown>;
+        Insert: {
+          workspace_id: string;
+          lead_id: string;
+          enrollment_id: string;
+          channel: "sms" | "instagram_dm" | "facebook_dm";
+          status: "queued" | "blocked" | "drafted" | "sent" | "failed";
+          step_index: number;
+          body?: string | null;
+          block_reason?: "opted_out" | "quiet_hours" | "missing_contact" | "sequence_complete" | null;
+          scheduled_for?: string | null;
+          sent_at?: string | null;
+          last_error_code?: string | null;
+          last_error_message?: string | null;
+        };
+        Update: Record<string, never>;
+        Relationships: [];
+      };
+      listing_facts: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          address: string;
+          mls_number: string | null;
+          status: string | null;
+          verification_status: "unverified" | "verified" | "needs_recheck";
+          needs_recheck_at: string | null;
+        };
+        Insert: Record<string, never>;
+        Update: {
+          verification_status?: "unverified" | "verified" | "needs_recheck";
+          needs_recheck_at?: string | null;
           updated_at?: string;
         };
         Relationships: [];
@@ -722,21 +787,315 @@ export function createSupabaseWorkflowJobServices(
     },
 
     async enrollNurture(params) {
-      const { error } = await supabase
+      const nextActionAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+      const { data, error } = await supabase
         .from("nurture_enrollments")
         .upsert({
           workspace_id: params.workspaceId,
           lead_id: params.leadId,
           status: "active",
           sequence_key: "default_realtor_nurture_v1",
-          next_action_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+          next_action_at: nextActionAt,
+          quiet_hours_timezone: "America/Chicago",
+          last_step_index: 0,
         }, {
           onConflict: "workspace_id,lead_id,sequence_key",
-        });
+        })
+        .select("id")
+        .single<{ id: string }>();
 
       if (error !== null) {
         throw error;
       }
+
+      const { error: jobError } = await supabase
+        .from("workflow_jobs")
+        .upsert({
+          workspace_id: params.workspaceId,
+          lead_id: params.leadId,
+          lead_event_id: null,
+          job_type: "nurture_delivery",
+          run_after: nextActionAt,
+          payload: {
+            jobType: "nurture_delivery",
+            workspaceId: params.workspaceId,
+            leadId: params.leadId,
+            enrollmentId: data.id,
+            reason: "scheduled_followup",
+          },
+          idempotency_key: `nurture_delivery:${data.id}:0`,
+        }, {
+          onConflict: "workspace_id,idempotency_key",
+          ignoreDuplicates: true,
+        });
+
+      if (jobError !== null) {
+        throw jobError;
+      }
+    },
+
+    async processListingRecheck(params) {
+      const { data: listing, error: listingError } = await supabase
+        .from("listing_facts")
+        .select("id,workspace_id,address,mls_number,status,verification_status,needs_recheck_at")
+        .eq("workspace_id", params.workspaceId)
+        .eq("id", params.listingId)
+        .maybeSingle();
+
+      if (listingError !== null) {
+        throw listingError;
+      }
+      if (listing === null) {
+        return "listing recheck skipped because listing was not found";
+      }
+
+      const { data: existingTask, error: taskLookupError } = await supabase
+        .from("lead_tasks")
+        .select("id")
+        .eq("workspace_id", params.workspaceId)
+        .eq("listing_id", params.listingId)
+        .eq("task_type", "verify_listing")
+        .in("status", ["open", "in_progress"])
+        .limit(1)
+        .maybeSingle();
+
+      if (taskLookupError !== null) {
+        throw taskLookupError;
+      }
+      if (existingTask !== null) {
+        return "listing recheck task already open";
+      }
+
+      const reference = listing.mls_number === null ? listing.address : `${listing.address} (${listing.mls_number})`;
+      const { error: taskError } = await supabase
+        .from("lead_tasks")
+        .insert({
+          workspace_id: params.workspaceId,
+          lead_id: null,
+          listing_id: listing.id,
+          task_type: "verify_listing",
+          priority: "normal",
+          title: `Recheck listing details: ${reference}`.slice(0, 255),
+          description: `Scheduled listing freshness checkpoint. Confirm price, status, incentives, and availability for ${reference}.`,
+          due_at: listing.needs_recheck_at,
+          assigned_member_id: null,
+        });
+
+      if (taskError !== null) {
+        throw taskError;
+      }
+
+      const { error: listingUpdateError } = await supabase
+        .from("listing_facts")
+        .update({
+          verification_status: "needs_recheck",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("workspace_id", params.workspaceId)
+        .eq("id", params.listingId);
+
+      if (listingUpdateError !== null) {
+        throw listingUpdateError;
+      }
+
+      return "listing recheck task created";
+    },
+
+    async processNurtureDelivery(params) {
+      const { data: enrollmentRow, error: enrollmentError } = await supabase
+        .from("nurture_enrollments")
+        .select("id,workspace_id,lead_id,status,sequence_key,next_action_at,quiet_hours_timezone,last_step_index,opted_out_at,opt_out_reason")
+        .eq("workspace_id", params.workspaceId)
+        .eq("lead_id", params.leadId)
+        .eq("id", params.enrollmentId)
+        .maybeSingle();
+
+      if (enrollmentError !== null) {
+        throw enrollmentError;
+      }
+      if (enrollmentRow === null) {
+        return "nurture enrollment was not found";
+      }
+
+      const { data: leadRow, error: leadError } = await supabase
+        .from("leads")
+        .select("id,workspace_id,full_name,phone,instagram_user_id,source_channel")
+        .eq("workspace_id", params.workspaceId)
+        .eq("id", params.leadId)
+        .maybeSingle();
+
+      if (leadError !== null) {
+        throw leadError;
+      }
+      if (leadRow === null) {
+        return "nurture lead was not found";
+      }
+
+      const enrollment = NurtureEnrollmentSchema.parse({
+        id: enrollmentRow.id,
+        workspaceId: enrollmentRow.workspace_id,
+        leadId: enrollmentRow.lead_id,
+        status: enrollmentRow.status,
+        sequenceKey: enrollmentRow.sequence_key,
+        nextActionAt: enrollmentRow.next_action_at,
+        quietHoursTimezone: enrollmentRow.quiet_hours_timezone,
+        lastStepIndex: enrollmentRow.last_step_index,
+        optedOutAt: enrollmentRow.opted_out_at,
+        optOutReason: enrollmentRow.opt_out_reason,
+      });
+      const lead = NurtureLeadContactSchema.parse({
+        leadId: leadRow.id,
+        workspaceId: leadRow.workspace_id,
+        fullName: leadRow.full_name,
+        phone: leadRow.phone,
+        instagramUserId: leadRow.instagram_user_id,
+        sourceChannel: leadRow.source_channel,
+      });
+      const decision = decideNurtureAction({
+        enrollment,
+        lead,
+        now: new Date(),
+      });
+
+      if (decision.action === "block") {
+        const { error: messageError } = await supabase
+          .from("nurture_messages")
+          .insert({
+            workspace_id: params.workspaceId,
+            lead_id: params.leadId,
+            enrollment_id: params.enrollmentId,
+            channel: lead.phone === null ? "instagram_dm" : "sms",
+            status: "blocked",
+            step_index: enrollment.lastStepIndex,
+            body: null,
+            block_reason: decision.reason,
+            scheduled_for: decision.nextActionAt,
+          });
+
+        if (messageError !== null) {
+          throw messageError;
+        }
+
+        const shouldComplete = decision.reason === "sequence_complete" || decision.reason === "missing_contact";
+        const { error: updateError } = await supabase
+          .from("nurture_enrollments")
+          .update({
+            status: decision.reason === "opted_out" ? "opted_out" : shouldComplete ? "completed" : "active",
+            next_action_at: decision.nextActionAt,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", params.enrollmentId);
+
+        if (updateError !== null) {
+          throw updateError;
+        }
+
+        if (decision.reason === "quiet_hours" && decision.nextActionAt !== null) {
+          const { error: jobError } = await supabase
+            .from("workflow_jobs")
+            .upsert({
+              workspace_id: params.workspaceId,
+              lead_id: params.leadId,
+              lead_event_id: null,
+              job_type: "nurture_delivery",
+              run_after: decision.nextActionAt,
+              payload: {
+                jobType: "nurture_delivery",
+                workspaceId: params.workspaceId,
+                leadId: params.leadId,
+                enrollmentId: params.enrollmentId,
+                reason: "quiet_hour_resume",
+              },
+              idempotency_key: `nurture_delivery:${params.enrollmentId}:${enrollment.lastStepIndex}:quiet_hours`,
+            }, {
+              onConflict: "workspace_id,idempotency_key",
+              ignoreDuplicates: true,
+            });
+
+          if (jobError !== null) {
+            throw jobError;
+          }
+        }
+
+        return `nurture blocked: ${decision.reason}`;
+      }
+
+      const { error: messageError } = await supabase
+        .from("nurture_messages")
+        .insert({
+          workspace_id: params.workspaceId,
+          lead_id: params.leadId,
+          enrollment_id: params.enrollmentId,
+          channel: decision.step.channel,
+          status: "drafted",
+          step_index: decision.step.index,
+          body: decision.step.body,
+          block_reason: null,
+          scheduled_for: null,
+        });
+
+      if (messageError !== null) {
+        throw messageError;
+      }
+
+      const { error: taskError } = await supabase
+        .from("lead_tasks")
+        .insert({
+          workspace_id: params.workspaceId,
+          lead_id: params.leadId,
+          task_type: "nurture_review",
+          priority: "normal",
+          title: "Review nurture follow-up",
+          description: decision.step.body,
+          assigned_member_id: null,
+        });
+
+      if (taskError !== null) {
+        throw taskError;
+      }
+
+      const nextStepIndex = decision.step.index + 1;
+      const { error: updateError } = await supabase
+        .from("nurture_enrollments")
+        .update({
+          last_step_index: nextStepIndex,
+          next_action_at: decision.nextActionAt,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", params.enrollmentId);
+
+      if (updateError !== null) {
+        throw updateError;
+      }
+
+      if (decision.nextActionAt !== null) {
+        const { error: jobError } = await supabase
+          .from("workflow_jobs")
+          .upsert({
+            workspace_id: params.workspaceId,
+            lead_id: params.leadId,
+            lead_event_id: null,
+            job_type: "nurture_delivery",
+            run_after: decision.nextActionAt,
+            payload: {
+              jobType: "nurture_delivery",
+              workspaceId: params.workspaceId,
+              leadId: params.leadId,
+              enrollmentId: params.enrollmentId,
+              reason: "scheduled_followup",
+            },
+            idempotency_key: `nurture_delivery:${params.enrollmentId}:${nextStepIndex}`,
+          }, {
+            onConflict: "workspace_id,idempotency_key",
+            ignoreDuplicates: true,
+          });
+
+        if (jobError !== null) {
+          throw jobError;
+        }
+      }
+
+      return `nurture drafted step ${decision.step.index}`;
     },
 
     async syncLeadToFub(params) {

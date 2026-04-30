@@ -71,9 +71,15 @@ export const SupabaseRuntimeEnvironmentSchema = ServerEnvironmentBaseSchema.pick
   SUPABASE_SERVICE_ROLE_KEY: true,
 });
 
+export const SupabasePublicEnvironmentSchema = ServerEnvironmentBaseSchema.pick({
+  NEXT_PUBLIC_SUPABASE_URL: true,
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: true,
+});
+
 export type AppEnvironment = z.infer<typeof AppEnvironmentSchema>;
 export type ServerEnvironment = z.infer<typeof ServerEnvironmentSchema>;
 export type SupabaseRuntimeEnvironment = z.infer<typeof SupabaseRuntimeEnvironmentSchema>;
+export type SupabasePublicEnvironment = z.infer<typeof SupabasePublicEnvironmentSchema>;
 
 export function parseServerEnvironment(input: unknown): ServerEnvironment {
   return ServerEnvironmentSchema.parse(input);
@@ -81,4 +87,33 @@ export function parseServerEnvironment(input: unknown): ServerEnvironment {
 
 export function parseSupabaseRuntimeEnvironment(input: unknown): SupabaseRuntimeEnvironment {
   return SupabaseRuntimeEnvironmentSchema.parse(input);
+}
+
+export function parseSupabasePublicEnvironment(input: unknown): SupabasePublicEnvironment {
+  return SupabasePublicEnvironmentSchema.parse(input);
+}
+
+export function validateProductionReadiness(environment: ServerEnvironment): string[] {
+  if (environment.APP_ENV === "development") {
+    return [];
+  }
+
+  const missing: string[] = [];
+  if (environment.CREDENTIAL_ENCRYPTION_KEY === undefined) {
+    missing.push("CREDENTIAL_ENCRYPTION_KEY");
+  }
+  if (environment.OPENAI_API_KEY === undefined) {
+    missing.push("OPENAI_API_KEY");
+  }
+  if (environment.RETELL_CONVERSATION_FLOW_TEMPLATE_ID === undefined) {
+    missing.push("RETELL_CONVERSATION_FLOW_TEMPLATE_ID");
+  }
+  if (environment.RETELL_VOICE_ID === undefined) {
+    missing.push("RETELL_VOICE_ID");
+  }
+  if (environment.NEXT_PUBLIC_APP_URL.includes("localhost")) {
+    missing.push("NEXT_PUBLIC_APP_URL_PUBLIC_HOST");
+  }
+
+  return missing;
 }

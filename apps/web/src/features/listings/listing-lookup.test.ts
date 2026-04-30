@@ -45,18 +45,28 @@ function buildListingFact(overrides: Partial<ListingFact> = {}): ListingFact {
   };
 }
 
+function buildRepository(overrides: Partial<ListingFactsRepository>): ListingFactsRepository {
+  return {
+    findCachedListing: vi.fn(),
+    saveListingFact: vi.fn(),
+    listWorkspaceListings: vi.fn(),
+    findListingById: vi.fn(),
+    updateListingFact: vi.fn(),
+    completeVerifyListingTasks: vi.fn().mockResolvedValue(0),
+    enqueueListingRecheck: vi.fn().mockResolvedValue(undefined),
+    ...overrides,
+  };
+}
+
 describe("createListingLookupRepository", () => {
   it("returns a fresh cached listing without calling the provider", async () => {
     const findCachedListing = vi.fn<ListingFactsRepository["findCachedListing"]>()
       .mockResolvedValue(buildListingRow());
     const saveListingFact = vi.fn<ListingFactsRepository["saveListingFact"]>();
-    const repository: ListingFactsRepository = {
+    const repository = buildRepository({
       findCachedListing,
       saveListingFact,
-      listWorkspaceListings: vi.fn(),
-      findListingById: vi.fn(),
-      updateListingFact: vi.fn(),
-    };
+    });
     const lookupListing = vi.fn<ListingProviderClient["lookupListing"]>();
     const provider: ListingProviderClient = {
       provider: "repliers",
@@ -93,13 +103,10 @@ describe("createListingLookupRepository", () => {
         price: 470000,
         verified_at: "2026-04-29T12:05:00.000Z",
       }));
-    const repository: ListingFactsRepository = {
+    const repository = buildRepository({
       findCachedListing,
       saveListingFact,
-      listWorkspaceListings: vi.fn(),
-      findListingById: vi.fn(),
-      updateListingFact: vi.fn(),
-    };
+    });
     const lookupListing = vi.fn<ListingProviderClient["lookupListing"]>()
       .mockResolvedValue(buildListingFact({
         price: 470000,
@@ -146,13 +153,10 @@ describe("createListingLookupRepository", () => {
     const findCachedListing = vi.fn<ListingFactsRepository["findCachedListing"]>()
       .mockResolvedValue(cachedListing);
     const saveListingFact = vi.fn<ListingFactsRepository["saveListingFact"]>();
-    const repository: ListingFactsRepository = {
+    const repository = buildRepository({
       findCachedListing,
       saveListingFact,
-      listWorkspaceListings: vi.fn(),
-      findListingById: vi.fn(),
-      updateListingFact: vi.fn(),
-    };
+    });
     const writes: string[] = [];
     const lookupListing = vi.fn<ListingProviderClient["lookupListing"]>()
       .mockRejectedValue(new ListingProviderRequestError({
@@ -192,13 +196,10 @@ describe("createListingLookupRepository", () => {
         verified_at: "2026-04-29T11:00:00.000Z",
       }));
     const saveListingFact = vi.fn<ListingFactsRepository["saveListingFact"]>();
-    const repository: ListingFactsRepository = {
+    const repository = buildRepository({
       findCachedListing,
       saveListingFact,
-      listWorkspaceListings: vi.fn(),
-      findListingById: vi.fn(),
-      updateListingFact: vi.fn(),
-    };
+    });
     const lookupListing = vi.fn<ListingProviderClient["lookupListing"]>()
       .mockResolvedValue(null);
     const provider: ListingProviderClient = {

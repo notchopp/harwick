@@ -1,4 +1,5 @@
 import {
+  canAutomationSend,
   MetaConnectedCredentialSchema,
   SendMetaReplyRequestSchema,
   SendMetaReplyResponseSchema,
@@ -63,6 +64,12 @@ export async function sendMetaReply(params: {
 > {
   const parsed = SendMetaReplyRequestSchema.safeParse(params.request);
   if (!parsed.success) {
+    return {
+      status: 400,
+      body: { error: "invalid_request" },
+    };
+  }
+  if (!canAutomationSend(parsed.data.automationMode)) {
     return {
       status: 400,
       body: { error: "invalid_request" },

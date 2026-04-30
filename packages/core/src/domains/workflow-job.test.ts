@@ -6,6 +6,8 @@ import {
 
 const workspaceId = "123e4567-e89b-12d3-a456-426614174000";
 const leadId = "123e4567-e89b-12d3-a456-426614174001";
+const listingId = "123e4567-e89b-12d3-a456-426614174002";
+const enrollmentId = "123e4567-e89b-12d3-a456-426614174003";
 
 describe("WorkflowJobPayloadSchema", () => {
   it("accepts known real estate worker payloads", () => {
@@ -26,6 +28,25 @@ describe("WorkflowJobPayloadSchema", () => {
     })).toMatchObject({
       jobType: "lead_qualification",
       reason: "crm_backsync_activity",
+    });
+    expect(WorkflowJobPayloadSchema.parse({
+      jobType: "listing_recheck",
+      workspaceId,
+      listingId,
+      reason: "scheduled_recheck",
+    })).toMatchObject({
+      jobType: "listing_recheck",
+      listingId,
+    });
+    expect(WorkflowJobPayloadSchema.parse({
+      jobType: "nurture_delivery",
+      workspaceId,
+      leadId,
+      enrollmentId,
+      reason: "scheduled_followup",
+    })).toMatchObject({
+      jobType: "nurture_delivery",
+      enrollmentId,
     });
   });
 

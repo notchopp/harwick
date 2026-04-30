@@ -8,6 +8,8 @@ export const WorkflowJobTypeSchema = z.enum([
   "fub_sync",
   "fub_backsync_reconcile",
   "handoff_task",
+  "listing_recheck",
+  "nurture_delivery",
 ]);
 
 export const WorkflowJobStatusSchema = z.enum([
@@ -54,6 +56,18 @@ export const HandoffTaskJobPayloadSchema = WorkflowJobPayloadBaseSchema.extend({
   source: z.enum(["voice", "instagram", "facebook", "sms", "manual"]),
 });
 
+export const ListingRecheckJobPayloadSchema = WorkflowJobPayloadBaseSchema.extend({
+  jobType: z.literal("listing_recheck"),
+  listingId: UuidSchema,
+  reason: z.enum(["scheduled_recheck", "manual_refresh"]),
+});
+
+export const NurtureDeliveryJobPayloadSchema = WorkflowJobPayloadBaseSchema.extend({
+  jobType: z.literal("nurture_delivery"),
+  enrollmentId: UuidSchema,
+  reason: z.enum(["scheduled_followup", "quiet_hour_resume", "manual_review"]),
+});
+
 export const WorkflowJobPayloadSchema = z.discriminatedUnion("jobType", [
   LeadIntakeJobPayloadSchema,
   LeadQualificationJobPayloadSchema,
@@ -61,6 +75,8 @@ export const WorkflowJobPayloadSchema = z.discriminatedUnion("jobType", [
   FubSyncJobPayloadSchema,
   FubBacksyncReconcileJobPayloadSchema,
   HandoffTaskJobPayloadSchema,
+  ListingRecheckJobPayloadSchema,
+  NurtureDeliveryJobPayloadSchema,
 ]);
 
 export const EnqueueWorkflowJobInputSchema = z.object({

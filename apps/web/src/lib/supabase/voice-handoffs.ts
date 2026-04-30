@@ -24,12 +24,22 @@ export type VoiceLeadHandoffRow = {
   urgency: CreateLeadHandoffArgs["urgency"];
   summary: string;
   status: "captured" | "queued" | "synced" | "failed";
+  review_status: "pending" | "callback_created" | "reviewed" | "dismissed";
+  reviewed_by_member_id: string | null;
+  reviewed_at: string | null;
+  callback_task_id: string | null;
+  dismissal_reason: string | null;
   created_at: string;
   updated_at: string;
 };
 
-export type VoiceLeadHandoffInsertRow = Omit<VoiceLeadHandoffRow, "id" | "created_at" | "updated_at"> & {
+export type VoiceLeadHandoffInsertRow = Omit<VoiceLeadHandoffRow, "id" | "review_status" | "reviewed_by_member_id" | "reviewed_at" | "callback_task_id" | "dismissal_reason" | "created_at" | "updated_at"> & {
   id?: string;
+  review_status?: VoiceLeadHandoffRow["review_status"];
+  reviewed_by_member_id?: string | null;
+  reviewed_at?: string | null;
+  callback_task_id?: string | null;
+  dismissal_reason?: string | null;
   created_at?: string;
   updated_at?: string;
 };

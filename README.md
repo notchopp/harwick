@@ -32,6 +32,7 @@ Instagram, Facebook, or voice call
 - Stored social post context for captions, permalinks, media type, areas, CTA hints, and listing hints.
 - OpenAI-powered reply drafting with lead context and post context.
 - Audited outbound Meta reply send for DMs/comments.
+- Social operator queue for pending DM/comment replies, approve/send/dismiss actions, and send failure state.
 
 ### Voice Intake
 
@@ -44,6 +45,7 @@ Instagram, Facebook, or voice call
   - `end_call`
 - Voice handoff persistence and qualification job enqueueing.
 - Known-caller lookup and assigned-member transfer routing.
+- Voice handoff operator queue with callback task creation, review, and dismiss actions.
 
 ### Lead Workflow
 
@@ -51,6 +53,7 @@ Instagram, Facebook, or voice call
 - Worker job foundation for qualification, assignment, FUB sync, back-sync reconciliation, and task creation.
 - Assignment routing that can prefer source-owned/member-owned channels and balance work across eligible teammates.
 - Lead tasks for callbacks, listing verification, assignment review, FUB retry, and nurture review.
+- Nurture execution foundation with opt-out detection, quiet-hour blocking, step scheduling, durable worker jobs, and reviewable outbound drafts.
 
 ### Follow Up Boss
 
@@ -59,6 +62,7 @@ Instagram, Facebook, or voice call
 - Webhook subscription and back-sync foundation.
 - Reconciliation for bounded FUB person, stage, call, text, task, and note activity.
 - Correlation metadata to suppress self-echo loops where Realty Ops caused the FUB change.
+- CRM and worker failure operations APIs for failed sync visibility, workflow retry/dismiss actions, and provider error review.
 
 ### Listings
 
@@ -214,35 +218,24 @@ Current major tables include:
 The backend is functional across the main intake surfaces, but these slices remain before the system should be treated as fully backend-complete:
 
 1. Nurture execution:
-   - quiet hours
-   - opt-out state
-   - sequence state
-   - next follow-up scheduling
-   - outbound delivery job path
+   - connect drafted nurture messages to the selected production SMS/social delivery provider
+   - add delivery receipts and provider callback reconciliation
+   - expose approve/send/dismiss APIs for nurture drafts
 
 2. Listing task closure loop:
-   - complete related `verify_listing` tasks when a listing is verified
-   - create proactive tasks from `needs_recheck_at`
-   - schedule listing recheck work through the worker
+   - expose listing recheck queue APIs for operators
 
 3. Social operator queue backend:
-   - pending suggested replies
-   - approve/send/dismiss actions
-   - conversation timeline endpoints
-   - status transitions for comments and DMs
+   - persist OpenAI draft output directly onto queue items
+   - add conversation-thread endpoints around queue records
 
 4. Voice operator queue backend:
-   - recent calls and handoffs
-   - post-call analysis status
    - safe transcript and summary fields
-   - callback task generation from call outcome
+   - post-call analysis status beyond handoff summaries
 
 5. CRM and worker operations visibility:
-   - sync failure APIs
-   - stuck job APIs
-   - provider error log APIs
-   - worker heartbeat/status endpoints
    - FUB ownership conflict surfacing
+   - richer stuck-job recovery controls beyond retry/dismiss
 
 6. Workspace readiness backend:
    - Meta readiness

@@ -309,11 +309,26 @@ export async function quickUpdateManualListingFact(params: {
     values.needs_recheck_at = parsed.needsRecheckAt ?? null;
   }
 
-  return params.repository.updateListingFact({
+  const updated = await params.repository.updateListingFact({
     workspaceId: params.workspaceId,
     listingId: params.listingId,
     values,
   });
+  if (updated !== null && values.verification_status === "verified") {
+    await params.repository.completeVerifyListingTasks({
+      workspaceId: params.workspaceId,
+      listing: updated,
+    });
+  }
+  if (updated !== null && updated.needs_recheck_at !== null) {
+    await params.repository.enqueueListingRecheck({
+      workspaceId: params.workspaceId,
+      listingId: updated.id,
+      runAfter: updated.needs_recheck_at,
+    });
+  }
+
+  return updated;
 }
 
 export async function verifyManualListingFact(params: {
@@ -335,7 +350,7 @@ export async function verifyManualListingFact(params: {
   }
 
   const verifiedAt = (params.now?.() ?? new Date()).toISOString();
-  return params.repository.updateListingFact({
+  const updated = await params.repository.updateListingFact({
     workspaceId: params.workspaceId,
     listingId: params.listingId,
     values: {
@@ -352,6 +367,23 @@ export async function verifyManualListingFact(params: {
       needs_recheck_at: parsed.needsRecheckAt ?? null,
     },
   });
+  if (updated === null) {
+    return null;
+  }
+
+  await params.repository.completeVerifyListingTasks({
+    workspaceId: params.workspaceId,
+    listing: updated,
+  });
+  if (updated.needs_recheck_at !== null) {
+    await params.repository.enqueueListingRecheck({
+      workspaceId: params.workspaceId,
+      listingId: updated.id,
+      runAfter: updated.needs_recheck_at,
+    });
+  }
+
+  return updated;
 }
 
 export async function importManualListingCsv(params: {

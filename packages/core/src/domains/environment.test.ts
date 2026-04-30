@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseServerEnvironment } from "./environment.js";
+import { parseServerEnvironment, validateProductionReadiness } from "./environment.js";
 
 const validEnvironment = {
   APP_ENV: "development",
@@ -39,5 +39,18 @@ describe("parseServerEnvironment", () => {
       REPLIERS_API_KEY: "",
       REPLIERS_BOARD_ID: "",
     }).LISTING_PROVIDER).toBeUndefined();
+  });
+
+  it("reports missing staging and production runtime requirements", () => {
+    expect(validateProductionReadiness(parseServerEnvironment({
+      ...validEnvironment,
+      APP_ENV: "production",
+    }))).toEqual(expect.arrayContaining([
+      "CREDENTIAL_ENCRYPTION_KEY",
+      "OPENAI_API_KEY",
+      "RETELL_CONVERSATION_FLOW_TEMPLATE_ID",
+      "RETELL_VOICE_ID",
+      "NEXT_PUBLIC_APP_URL_PUBLIC_HOST",
+    ]));
   });
 });

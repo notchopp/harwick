@@ -12,25 +12,35 @@ This is the design standard for the web app. The product should feel quiet, prem
 
 ## Palette
 
-Use a neutral system first:
+Harwick uses an old-money operating palette: parchment surfaces, green-black ink, aged brass, sage, clay, and oxblood. The product should never read as pure black, bright SaaS blue, or generic CRM rainbow.
 
-- `background`: near white, not pure blue-gray.
-- `surface`: white.
-- `surface-muted`: soft neutral gray.
-- `border`: light neutral gray.
-- `text`: near black.
-- `text-muted`: mid gray.
-- `accent`: graphite or black for primary action.
+Core tokens:
 
-Status colors should be sparse:
+- `harwick-ink`: deep green-black for primary text and selected states.
+- `harwick-ink-soft`: softened ink for secondary controls and dense labels.
+- `harwick-parchment`: app background.
+- `harwick-paper`: primary panel and card surface.
+- `harwick-linen`: muted panel, hover, and input surface.
+- `harwick-border`: default divider and card border.
+- `harwick-border-strong`: active divider, focus-adjacent border, and subtle emphasis.
+- `harwick-brass`: restrained brand accent and focus ring.
 
-- hot lead: controlled red or vermilion
-- warm/nurture: amber
-- qualified/active: green
-- syncing/system: blue
-- archived/lost: gray
+Status tokens:
 
-Never let status colors dominate the screen. They should work as small chips, dots, rings, and table indicators.
+- `sage`: safe, healthy, qualified, completed.
+- `clay`: warm, nurture, manual, needs owner context.
+- `oxblood`: hot lead, urgent human attention, risk.
+- `stone`: syncing, system work, neutral pending state.
+
+Usage rules:
+
+- Do not use pure black for Harwick identity, selected navigation, or primary actions.
+- Do not use bright blue unless the UI is representing a literal external provider that requires it.
+- Brass is the product accent, not a warning color.
+- Oxblood is reserved for urgency and human attention.
+- Sage is reserved for healthy, qualified, ready, or complete states.
+- Clay is reserved for warm/manual/nurture work.
+- Status colors should work as small chips, dots, rings, icon backgrounds, and table indicators. Never let them dominate the screen.
 
 ## Component Stack
 
@@ -118,4 +128,3 @@ Build these as hand-made primitives:
 - Unstyled tables.
 - Raw provider payload text rendered directly in UI.
 - Buttons with vague labels like `Submit` when the action has a real name.
-

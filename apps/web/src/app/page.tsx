@@ -1,15 +1,7 @@
-import { DashboardPage } from "../features/dashboard/dashboard-page";
-import { loadDashboardData } from "../features/dashboard/live-dashboard-data";
-import { createServerSupabaseClient } from "../lib/supabase/server-client";
+import { redirect } from "next/navigation";
+import { getCookieAuthSessionSummary } from "../features/auth/session";
 
-export default async function HomePage() {
-  const liveData = await loadDashboardData(createServerSupabaseClient());
-
-  return (
-    <DashboardPage
-      liveLeads={liveData.leads}
-      liveMetrics={liveData.metrics}
-      livePipelineStages={liveData.pipelineStages}
-    />
-  );
+export default async function RootPage() {
+  const session = await getCookieAuthSessionSummary();
+  redirect(session === null || session.memberships.length === 0 ? "/login" : "/home");
 }

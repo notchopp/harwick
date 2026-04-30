@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ConversationAutomationModeSchema } from "./conversation-automation.js";
 import { IsoDateTimeSchema, ProviderIdSchema, UuidSchema } from "./common.js";
 import { LeadSourceChannelSchema } from "./lead.js";
 
@@ -18,6 +19,7 @@ export const SendMetaReplyRequestSchema = z.object({
   sourceCommentId: ProviderIdSchema.nullable().default(null),
   sourcePostId: ProviderIdSchema.nullable().default(null),
   reply: z.string().trim().min(1).max(1000),
+  automationMode: ConversationAutomationModeSchema.default("ai_on"),
 }).superRefine((value, context) => {
   if ((value.channel === "instagram_dm" || value.channel === "facebook_dm") && value.recipientUserId === null) {
     context.addIssue({
