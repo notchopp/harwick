@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AlertCircle, Activity, Zap, Share2, Repeat2, Settings } from "lucide-react";
+import { AlertCircle, Zap, Share2, Repeat2, Settings } from "lucide-react";
 import { cn } from "../../lib/utils";
 
 type EventType = "lead" | "voice" | "social" | "fub" | "system" | "assign";
@@ -164,7 +164,11 @@ export function ActivityPageContent() {
       {/* Topbar */}
       <div className="h-[58px] border-b border-border bg-surface px-8 flex items-center gap-4 flex-shrink-0">
         <span className="font-display text-[19px] font-medium">Activity Log</span>
-        <select className="ml-auto text-[12px] rounded-lg border border-border bg-surface px-2.5 py-1.5 font-medium text-foreground hover:border-border-strong focus:outline-none">
+        <select
+          value={filterType === "all" ? "all" : filterType}
+          onChange={(e) => setFilterType(e.target.value === "all" ? "all" : (e.target.value as EventType))}
+          className="ml-auto text-[12px] rounded-lg border border-border bg-surface px-2.5 py-1.5 font-medium text-foreground hover:border-border-strong focus:outline-none"
+        >
           <option value="all">All types</option>
           <option value="lead">Lead events</option>
           <option value="voice">Voice</option>
