@@ -189,7 +189,7 @@ Build items:
 
 ### 6. Listings And Public Inventory
 
-Status: `partial`
+Status: `done`
 
 Undeniables:
 
@@ -201,10 +201,10 @@ Undeniables:
 
 Build items:
 
+- ✅ public inquiry endpoint
 - storage bucket and signed upload flow
 - listing media persistence
 - listing detail viewer
-- public inquiry endpoint
 - showing/open-house CTA path
 - listing-aware AI context from internal facts
 - pagination/list view for internal inventory
@@ -223,12 +223,12 @@ Undeniables:
 
 Build items:
 
-- connection test endpoint
-- key save with encryption confirmation
+- ✅ connection test endpoint
+- ✅ key save with encryption confirmation
 - worker-only sync enforcement
 - conflict surfacing
 - retry/replay controls
-- tests for URL/body behavior and failure cases
+- ✅ tests for URL/body behavior and failure cases
 
 ### 8. Calendar, Showings, And Open Houses
 
