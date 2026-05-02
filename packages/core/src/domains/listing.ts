@@ -90,6 +90,16 @@ export const ManualListingCsvImportRequestSchema = z.object({
   csv: z.string().trim().min(1),
 });
 
+export const PublicListingInquiryRequestSchema = z.object({
+  fullName: z.string().trim().min(1).max(160),
+  email: z.string().trim().email().max(254),
+  phone: z.string().trim().min(10).max(20),
+  message: z.string().trim().min(1).max(2000).nullable().optional(),
+  propertyType: z.string().trim().min(1).max(120).nullable().optional(),
+  budget: z.number().int().nonnegative().nullable().optional(),
+  timeline: z.string().trim().max(120).nullable().optional(),
+});
+
 export type ListingFact = z.infer<typeof ListingFactSchema>;
 export type ListingFactSource = z.infer<typeof ListingFactSourceSchema>;
 export type ListingVerificationStatus = z.infer<typeof ListingVerificationStatusSchema>;
@@ -100,3 +110,4 @@ export type ManualListingFactRequest = z.infer<typeof ManualListingFactRequestSc
 export type ManualListingQuickUpdateRequest = z.infer<typeof ManualListingQuickUpdateRequestSchema>;
 export type ManualListingVerifyRequest = z.infer<typeof ManualListingVerifyRequestSchema>;
 export type ManualListingCsvImportRequest = z.infer<typeof ManualListingCsvImportRequestSchema>;
+export type PublicListingInquiryRequest = z.infer<typeof PublicListingInquiryRequestSchema>;
