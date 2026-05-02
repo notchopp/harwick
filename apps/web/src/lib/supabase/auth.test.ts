@@ -28,12 +28,14 @@ describe("mapMembershipRowsToAuthMemberships", () => {
         display_name: "Demo Broker",
         workspaces: {
           name: "Demo Realty",
+          slug: "demo-realty",
         },
       },
     ])).toEqual([
       {
         workspaceId: "323e4567-e89b-12d3-a456-426614174000",
         workspaceName: "Demo Realty",
+        workspaceSlug: "demo-realty",
         memberId: "223e4567-e89b-12d3-a456-426614174000",
         role: "owner",
         displayName: "Demo Broker",

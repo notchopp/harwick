@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  ConnectFollowUpBossIntegrationRequestSchema,
   CrmSyncLogSchema,
   FollowUpBossWebhookNotificationSchema,
   IntegrationProviderSchema,
@@ -25,6 +26,18 @@ describe("FollowUpBossWebhookNotificationSchema", () => {
     })).toMatchObject({
       event: "peopleStageUpdated",
       resourceIds: [1234],
+    });
+  });
+});
+
+describe("ConnectFollowUpBossIntegrationRequestSchema", () => {
+  it("trims and accepts the workspace API key payload", () => {
+    expect(ConnectFollowUpBossIntegrationRequestSchema.parse({
+      apiKey: "  fub-key  ",
+      providerAccountName: "  Team FUB  ",
+    })).toEqual({
+      apiKey: "fub-key",
+      providerAccountName: "Team FUB",
     });
   });
 });

@@ -67,8 +67,21 @@ describe("operator queues", () => {
     const repository: SocialReplyQueueRepository = {
       materializePendingSocialReplies,
       listSocialReplyReviews: vi.fn().mockResolvedValue([socialItem()]),
+      listLeadActionabilityInputs: vi.fn().mockResolvedValue([{
+        leadId,
+        input: {
+          sourceChannel: "instagram_dm",
+          status: "qualified",
+          intent: "medium",
+          score: 62,
+          assignedAgentId: memberId,
+          nextFollowUpAt: null,
+          followUpBossContactId: null,
+        },
+      }]),
       findSocialReplyReview: vi.fn(),
       updateSocialReplyReview: vi.fn(),
+      setConversationAutomationForReview: vi.fn(),
       listSocialConversationThread: vi.fn(),
     };
 
@@ -81,14 +94,64 @@ describe("operator queues", () => {
     });
   });
 
+  it("filters low-signal social replies out of the queue", async () => {
+    const repository: SocialReplyQueueRepository = {
+      materializePendingSocialReplies: vi.fn(),
+      listSocialReplyReviews: vi.fn().mockResolvedValue([
+        socialItem(),
+        socialItem({
+          id: "99999999-9999-4999-8999-999999999999",
+          leadId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        }),
+      ]),
+      listLeadActionabilityInputs: vi.fn().mockResolvedValue([
+        {
+          leadId,
+          input: {
+            sourceChannel: "instagram_dm",
+            status: "qualified",
+            intent: "medium",
+            score: 62,
+            assignedAgentId: memberId,
+            nextFollowUpAt: null,
+            followUpBossContactId: null,
+          },
+        },
+        {
+          leadId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          input: {
+            sourceChannel: "instagram_comment",
+            status: "new",
+            intent: "unknown",
+            score: 0,
+            assignedAgentId: null,
+            nextFollowUpAt: null,
+            followUpBossContactId: null,
+          },
+        },
+      ]),
+      findSocialReplyReview: vi.fn(),
+      updateSocialReplyReview: vi.fn(),
+      setConversationAutomationForReview: vi.fn(),
+      listSocialConversationThread: vi.fn(),
+    };
+
+    const queue = await loadSocialReplyQueue({ workspaceId, repository });
+
+    expect(queue.items).toHaveLength(1);
+    expect(queue.items[0]?.leadId).toBe(leadId);
+  });
+
   it("approves a social reply without sending it", async () => {
     const updateSocialReplyReview = vi.fn<SocialReplyQueueRepository["updateSocialReplyReview"]>()
       .mockResolvedValue(socialItem({ status: "approved", suggestedReply: "Sending details." }));
     const repository: SocialReplyQueueRepository = {
       materializePendingSocialReplies: vi.fn(),
       listSocialReplyReviews: vi.fn(),
+      listLeadActionabilityInputs: vi.fn(),
       findSocialReplyReview: vi.fn().mockResolvedValue(socialItem()),
       updateSocialReplyReview,
+      setConversationAutomationForReview: vi.fn(),
       listSocialConversationThread: vi.fn(),
     };
 
@@ -116,8 +179,10 @@ describe("operator queues", () => {
     const repository: SocialReplyQueueRepository = {
       materializePendingSocialReplies: vi.fn(),
       listSocialReplyReviews: vi.fn(),
+      listLeadActionabilityInputs: vi.fn(),
       findSocialReplyReview: vi.fn().mockResolvedValue(socialItem()),
       updateSocialReplyReview,
+      setConversationAutomationForReview: vi.fn(),
       listSocialConversationThread: vi.fn(),
     };
 
@@ -147,8 +212,10 @@ describe("operator queues", () => {
     const repository: SocialReplyQueueRepository = {
       materializePendingSocialReplies: vi.fn(),
       listSocialReplyReviews: vi.fn(),
+      listLeadActionabilityInputs: vi.fn(),
       findSocialReplyReview: vi.fn().mockResolvedValue(socialItem({ automationMode: "human_takeover" })),
       updateSocialReplyReview,
+      setConversationAutomationForReview: vi.fn(),
       listSocialConversationThread: vi.fn(),
     };
     const sendReply = vi.fn();
@@ -172,13 +239,15 @@ describe("operator queues", () => {
   });
 
   it("updates social automation mode and stores an ai decision", async () => {
-    const updateSocialReplyReview = vi.fn<SocialReplyQueueRepository["updateSocialReplyReview"]>()
+    const setConversationAutomationForReview = vi.fn<SocialReplyQueueRepository["setConversationAutomationForReview"]>()
       .mockResolvedValue(socialItem({ automationMode: "human_takeover" }));
     const repository: SocialReplyQueueRepository = {
       materializePendingSocialReplies: vi.fn(),
       listSocialReplyReviews: vi.fn(),
+      listLeadActionabilityInputs: vi.fn(),
       findSocialReplyReview: vi.fn().mockResolvedValue(socialItem({ suggestedReply: "What area are you looking in?" })),
-      updateSocialReplyReview,
+      updateSocialReplyReview: vi.fn(),
+      setConversationAutomationForReview,
       listSocialConversationThread: vi.fn(),
     };
 
@@ -191,7 +260,11 @@ describe("operator queues", () => {
       now: () => new Date("2026-04-30T12:00:00.000Z"),
     });
 
-    expect(updateSocialReplyReview).toHaveBeenCalledWith(expect.objectContaining({
+    expect(setConversationAutomationForReview).toHaveBeenCalledWith(expect.objectContaining({
+      review: expect.objectContaining({
+        id: "44444444-4444-4444-8444-444444444444",
+        leadId,
+      }) as Record<string, unknown>,
       values: expect.objectContaining({
         automationMode: "human_takeover",
         automationReason: "agent is replying live",
@@ -251,8 +324,10 @@ describe("operator queues", () => {
     const repository: SocialReplyQueueRepository = {
       materializePendingSocialReplies: vi.fn(),
       listSocialReplyReviews: vi.fn(),
+      listLeadActionabilityInputs: vi.fn(),
       findSocialReplyReview: vi.fn().mockResolvedValue(socialItem()),
       updateSocialReplyReview: vi.fn(),
+      setConversationAutomationForReview: vi.fn(),
       listSocialConversationThread,
     };
 

@@ -10,6 +10,7 @@ export const WorkflowJobTypeSchema = z.enum([
   "handoff_task",
   "listing_recheck",
   "nurture_delivery",
+  "harwick_ai_reply",
 ]);
 
 export const WorkflowJobStatusSchema = z.enum([
@@ -68,6 +69,17 @@ export const NurtureDeliveryJobPayloadSchema = WorkflowJobPayloadBaseSchema.exte
   reason: z.enum(["scheduled_followup", "quiet_hour_resume", "manual_review"]),
 });
 
+export const HarwickAiReplyJobPayloadSchema = WorkflowJobPayloadBaseSchema.extend({
+  jobType: z.literal("harwick_ai_reply"),
+  turnId: UuidSchema,
+  socialReplyReviewId: UuidSchema.nullable().default(null),
+  channel: z.enum(["instagram_dm", "instagram_comment", "facebook_dm", "facebook_comment"]),
+  providerAccountId: z.string().trim().min(1).max(180),
+  recipientUserId: z.string().trim().min(1).max(180).nullable().default(null),
+  sourceCommentId: z.string().trim().min(1).max(180).nullable().default(null),
+  sourcePostId: z.string().trim().min(1).max(180).nullable().default(null),
+});
+
 export const WorkflowJobPayloadSchema = z.discriminatedUnion("jobType", [
   LeadIntakeJobPayloadSchema,
   LeadQualificationJobPayloadSchema,
@@ -77,6 +89,7 @@ export const WorkflowJobPayloadSchema = z.discriminatedUnion("jobType", [
   HandoffTaskJobPayloadSchema,
   ListingRecheckJobPayloadSchema,
   NurtureDeliveryJobPayloadSchema,
+  HarwickAiReplyJobPayloadSchema,
 ]);
 
 export const EnqueueWorkflowJobInputSchema = z.object({

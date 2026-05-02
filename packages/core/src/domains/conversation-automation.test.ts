@@ -5,6 +5,7 @@ import {
   automationModeLabel,
   canAutomationSend,
   ConversationAutomationControlSchema,
+  ConversationAutomationScopeSchema,
 } from "./conversation-automation.js";
 
 describe("conversation automation", () => {
@@ -23,6 +24,18 @@ describe("conversation automation", () => {
     });
 
     expect(parsed.mode).toBe("human_takeover");
+  });
+
+  it("validates a single lead or provider thread as the automation scope", () => {
+    const parsed = ConversationAutomationScopeSchema.parse({
+      workspaceId: "123e4567-e89b-12d3-a456-426614174111",
+      leadId: "123e4567-e89b-12d3-a456-426614174333",
+      providerAccountId: "ig-1",
+      recipientUserId: "ig-user-1",
+      channel: "instagram_dm",
+    });
+
+    expect(parsed.leadId).toBe("123e4567-e89b-12d3-a456-426614174333");
   });
 
   it("keeps labels and descriptions operator-facing", () => {

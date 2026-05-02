@@ -1,12 +1,13 @@
 import { AppShell } from "../../components/app-shell";
 import { ConversationsPageContent } from "../../features/conversations/conversations-page";
-import { requireWorkspaceSession } from "../../features/auth/session";
+import { requireActiveWorkspace } from "../../features/auth/session";
 
 export default async function Page() {
-  await requireWorkspaceSession("/conversations");
+  const { membership } = await requireActiveWorkspace({ nextPath: "/conversations" });
+
   return (
-    <AppShell activeItem="Conversations" title="Conversations">
-      <ConversationsPageContent />
+    <AppShell activeItem="Conversations" title="Conversations" workspaceName={membership.workspaceName}>
+      <ConversationsPageContent workspaceId={membership.workspaceId} workspaceName={membership.workspaceName} />
     </AppShell>
   );
 }

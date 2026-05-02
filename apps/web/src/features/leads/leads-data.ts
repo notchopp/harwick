@@ -1,3 +1,5 @@
+import { classifyHarwickLeadActionability, workspaceRoleHasCapability } from "@realty-ops/core";
+import type { ConversationAutomationMode } from "@realty-ops/core";
 import type { WorkspaceMemberRow } from "../../lib/supabase/database.types";
 import type { LeadRow } from "../../lib/supabase/leads";
 import type { ListingFactRow } from "../../lib/supabase/listings";
@@ -11,6 +13,7 @@ export type LeadPageItem = {
   workspaceId: string;
   name: string;
   initials: string;
+  phone: string | null;
   source: LeadPageSource;
   sourceDetail: string;
   stage: LeadPageStage;
@@ -28,6 +31,9 @@ export type LeadPageItem = {
   routeReason: string;
   listing: string;
   message: string;
+  reviewId: string | null;
+  automationMode: ConversationAutomationMode | null;
+  automationReason: string | null;
 };
 
 export type LeadsPageData = {
@@ -35,11 +41,21 @@ export type LeadsPageData = {
   items: LeadPageItem[];
 };
 
+export type LeadsPageViewer = {
+  memberId: string;
+  role: WorkspaceMemberRow["role"];
+};
+
 export type LeadsPageRepository = {
-  listLeads(workspaceId: string, limit: number): Promise<LeadRow[]>;
+  listLeads(workspaceId: string, limit: number, viewer: LeadsPageViewer): Promise<LeadRow[]>;
   listWorkspaceMembers(workspaceId: string): Promise<Array<Pick<WorkspaceMemberRow, "id" | "display_name" | "role">>>;
   listListingFacts(workspaceId: string, limit: number): Promise<Array<Pick<ListingFactRow, "address" | "status" | "price">>>;
   findLatestLeadMessage(params: { workspaceId: string; leadId: string }): Promise<string | null>;
+  findLatestSocialReviewForLead(params: { workspaceId: string; leadId: string }): Promise<{
+    id: string;
+    automationMode: ConversationAutomationMode;
+    automationReason: string | null;
+  } | null>;
 };
 
 function initialsForName(name: string): string {
@@ -59,12 +75,22 @@ function sourceFromChannel(channel: LeadRow["source_channel"]): LeadPageSource {
 }
 
 function stageFromLead(lead: LeadRow): LeadPageStage {
-  if (lead.status === "hot") return "hot";
-  if (lead.status === "qualified" || lead.status === "assigned") return "qualified";
-  if (lead.status === "nurture") return "nurture";
+  const actionability = classifyHarwickLeadActionability({
+    sourceChannel: lead.source_channel,
+    status: lead.status,
+    intent: lead.intent,
+    score: lead.score,
+    assignedAgentId: lead.assigned_agent_id,
+    nextFollowUpAt: lead.next_followup_at,
+    followUpBossContactId: lead.follow_up_boss_contact_id,
+  });
+
+  if (actionability.state === "callback") return "callback";
   if (lead.status === "appointment_booked") return "showing";
-  if (lead.assigned_agent_id === null && lead.score >= 50) return "unrouted";
-  return lead.source_channel === "call" ? "callback" : "unrouted";
+  if (actionability.state === "nurture") return "nurture";
+  if (lead.status === "hot" || lead.score >= 70 || lead.intent === "high") return "hot";
+  if (actionability.state === "qualified" && lead.assigned_agent_id === null) return "unrouted";
+  return "qualified";
 }
 
 function stageLabel(stage: LeadPageStage, lead: LeadRow): string {
@@ -105,25 +131,58 @@ function relativeLastTouch(lead: LeadRow): string {
 
 export async function loadLeadsPageData(params: {
   workspaceId: string;
+  viewer: LeadsPageViewer;
   repository: LeadsPageRepository;
   limit?: number;
 }): Promise<LeadsPageData> {
   const limit = Math.min(params.limit ?? 50, 100);
   const [leads, members, listings] = await Promise.all([
-    params.repository.listLeads(params.workspaceId, limit),
+    params.repository.listLeads(params.workspaceId, limit, params.viewer),
     params.repository.listWorkspaceMembers(params.workspaceId),
     params.repository.listListingFacts(params.workspaceId, 25),
   ]);
   const membersById = new Map(members.map((member) => [member.id, member]));
   const firstListing = listings[0]?.address ?? "no listing matched";
 
-  const items = await Promise.all(leads.map(async (lead): Promise<LeadPageItem> => {
+  const actionableLeads = leads.filter((lead) => {
+    if (
+      !workspaceRoleHasCapability(params.viewer.role, "leads.read_all")
+      && lead.assigned_agent_id !== params.viewer.memberId
+    ) {
+      return false;
+    }
+
+    return classifyHarwickLeadActionability({
+      sourceChannel: lead.source_channel,
+      status: lead.status,
+      intent: lead.intent,
+      score: lead.score,
+      assignedAgentId: lead.assigned_agent_id,
+      nextFollowUpAt: lead.next_followup_at,
+      followUpBossContactId: lead.follow_up_boss_contact_id,
+    }).shouldShow;
+  });
+
+  const items = await Promise.all(actionableLeads.map(async (lead): Promise<LeadPageItem> => {
     const name = lead.full_name ?? lead.instagram_username ?? lead.phone ?? "unknown lead";
     const stage = stageFromLead(lead);
-    const assignedMember = lead.assigned_agent_id === null ? null : membersById.get(lead.assigned_agent_id);
+    const assignedMember = lead.assigned_agent_id === null ? null : (membersById.get(lead.assigned_agent_id) ?? null);
     const message = await params.repository.findLatestLeadMessage({
       workspaceId: params.workspaceId,
       leadId: lead.id,
+    });
+    const review = await params.repository.findLatestSocialReviewForLead({
+      workspaceId: params.workspaceId,
+      leadId: lead.id,
+    });
+    const actionability = classifyHarwickLeadActionability({
+      sourceChannel: lead.source_channel,
+      status: lead.status,
+      intent: lead.intent,
+      score: lead.score,
+      assignedAgentId: lead.assigned_agent_id,
+      nextFollowUpAt: lead.next_followup_at,
+      followUpBossContactId: lead.follow_up_boss_contact_id,
     });
 
     return {
@@ -131,6 +190,7 @@ export async function loadLeadsPageData(params: {
       workspaceId: params.workspaceId,
       name,
       initials: initialsForName(name),
+      phone: lead.phone,
       source: sourceFromChannel(lead.source_channel),
       sourceDetail: sourceDetail(lead),
       stage,
@@ -145,9 +205,14 @@ export async function loadLeadsPageData(params: {
       assignedTo: assignedMember?.display_name ?? (lead.assigned_agent_id === null ? "owner review" : "assigned agent"),
       sourceOwner: "workspace",
       lastTouch: relativeLastTouch(lead),
-      routeReason: assignedMember === null ? "no assigned member on lead row yet" : "assigned from lead owner field",
+      routeReason: assignedMember === null
+        ? `${actionability.reason} no assigned member is set yet.`
+        : `${actionability.reason} ${assignedMember.display_name} owns the next step.`,
       listing: firstListing,
       message: message ?? "No conversation text has been captured for this lead yet.",
+      reviewId: review?.id ?? null,
+      automationMode: review?.automationMode ?? null,
+      automationReason: review?.automationReason ?? null,
     };
   }));
 

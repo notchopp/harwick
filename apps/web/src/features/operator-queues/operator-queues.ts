@@ -1,5 +1,6 @@
 import {
   canAutomationSend,
+  classifyHarwickLeadActionability,
   decideHarwickAiNextAction,
   SocialReplyQueueActionRequestSchema,
   SocialReplyAutomationControlRequestSchema,
@@ -8,6 +9,7 @@ import {
   VoiceHandoffQueueActionRequestSchema,
   VoiceHandoffQueueResponseSchema,
   type SendMetaReplyRequest,
+  type HarwickLeadActionabilityInput,
   type SocialConversationThreadItem,
   type SocialConversationThreadResponse,
   type SocialReplyAutomationControlRequest,
@@ -28,6 +30,10 @@ export type SocialReplyQueueRepository = {
     workspaceId: string;
     limit: number;
   }): Promise<SocialReplyQueueItem[]>;
+  listLeadActionabilityInputs(params: {
+    workspaceId: string;
+    leadIds: string[];
+  }): Promise<Array<{ leadId: string; input: HarwickLeadActionabilityInput }>>;
   findSocialReplyReview(params: {
     workspaceId: string;
     reviewId: string;
@@ -49,6 +55,17 @@ export type SocialReplyQueueRepository = {
       dismissalReason?: string | null;
       lastErrorCode?: string | null;
       lastErrorMessage?: string | null;
+    };
+  }): Promise<SocialReplyQueueItem | null>;
+  setConversationAutomationForReview(params: {
+    workspaceId: string;
+    review: SocialReplyQueueItem;
+    values: {
+      automationMode: SocialReplyQueueItem["automationMode"];
+      automationReason: string;
+      automationChangedByMemberId: string;
+      automationChangedAt: string;
+      aiDecision: SocialReplyQueueItem["aiDecision"];
     };
   }): Promise<SocialReplyQueueItem | null>;
   listSocialConversationThread(params: {
@@ -105,12 +122,27 @@ export async function loadSocialReplyQueue(params: {
     workspaceId: params.workspaceId,
     limit,
   });
+  const items = await params.repository.listSocialReplyReviews({
+    workspaceId: params.workspaceId,
+    limit,
+  });
+  const leadIds = [...new Set(items.flatMap((item) => item.leadId === null ? [] : [item.leadId]))];
+  const actionableLeadIds = new Set((await params.repository.listLeadActionabilityInputs({
+    workspaceId: params.workspaceId,
+    leadIds,
+  }))
+    .flatMap((entry) => {
+      return classifyHarwickLeadActionability(entry.input).shouldShow ? [entry.leadId] : [];
+    }));
 
   return SocialReplyQueueResponseSchema.parse({
     workspaceId: params.workspaceId,
-    items: await params.repository.listSocialReplyReviews({
-      workspaceId: params.workspaceId,
-      limit,
+    items: items.filter((item) => {
+      if (item.status !== "pending" && item.status !== "approved" && item.status !== "failed") {
+        return false;
+      }
+
+      return item.leadId !== null && actionableLeadIds.has(item.leadId);
     }),
   });
 }
@@ -272,11 +304,10 @@ export async function updateSocialReplyAutomation(params: {
     },
   });
 
-  return params.repository.updateSocialReplyReview({
+  return params.repository.setConversationAutomationForReview({
     workspaceId: params.workspaceId,
-    reviewId: params.reviewId,
+    review,
     values: {
-      status: review.status,
       automationMode: action.mode,
       automationReason: reason,
       automationChangedByMemberId: params.memberId,
@@ -317,12 +348,14 @@ export async function loadVoiceHandoffQueue(params: {
   repository: VoiceHandoffQueueRepository;
   limit?: number;
 }): Promise<VoiceHandoffQueueResponse> {
+  const items = await params.repository.listVoiceHandoffs({
+    workspaceId: params.workspaceId,
+    limit: Math.min(params.limit ?? 50, 100),
+  });
+
   return VoiceHandoffQueueResponseSchema.parse({
     workspaceId: params.workspaceId,
-    items: await params.repository.listVoiceHandoffs({
-      workspaceId: params.workspaceId,
-      limit: Math.min(params.limit ?? 50, 100),
-    }),
+    items: items.filter((item) => item.reviewStatus === "pending" || item.reviewStatus === "callback_created"),
   });
 }
 

@@ -11,6 +11,7 @@ export const AuthenticatedUserSchema = z.object({
 export const AuthWorkspaceMembershipSchema = z.object({
   workspaceId: UuidSchema,
   workspaceName: z.string().trim().min(1),
+  workspaceSlug: z.string().trim().min(2).max(80).regex(/^[a-z0-9-]+$/),
   memberId: UuidSchema,
   role: WorkspaceRoleSchema,
   displayName: z.string().trim().min(1),
@@ -24,4 +25,3 @@ export const AuthSessionSummarySchema = z.object({
 export type AuthenticatedUser = z.infer<typeof AuthenticatedUserSchema>;
 export type AuthWorkspaceMembership = z.infer<typeof AuthWorkspaceMembershipSchema>;
 export type AuthSessionSummary = z.infer<typeof AuthSessionSummarySchema>;
-

@@ -1,64 +1,1114 @@
 "use client";
 
-import { useState } from "react";
-import { Search } from "lucide-react";
+import {
+  ConversationsInboxResponseSchema,
+  type ConversationAutomationMode,
+  type ConversationInboxMessage,
+  type ConversationInboxSource,
+  type ConversationInboxStageTone,
+  type ConversationInboxThread,
+} from "@realty-ops/core";
+import { AlertCircle, ArrowUpRight, Bot, Loader2, RefreshCw, Sparkles } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { SearchGlyph } from "../../components/harwick-icons";
+import { WorkspaceTopbar } from "../../components/workspace-topbar";
 import { cn } from "../../lib/utils";
+import {
+  appendConversationLeadMessage,
+  conversationSandboxPromptLibrary,
+  isConversationSandboxThread,
+  mergeConversationThreadsWithSandbox,
+} from "./conversation-sandbox";
+import {
+  draftConversationSandboxReplySet,
+  type SandboxReplySet,
+} from "./conversation-sandbox-reply";
 
-type Source = "instagram" | "facebook" | "voice";
+type ThreadFilter = "all" | "dms" | "comments";
+type LoadState = "loading" | "ready" | "error";
+const isDevelopment = process.env["NODE_ENV"] === "development";
 
-const conversations = [
-  { id: "1", name: "Marcus Thompson", ts: "2m", unread: true, preview: '"Is this still available? We\'ve been..."', source: "instagram" as Source, avatar: "MT" },
-  { id: "2", name: "Keisha Brown", ts: "41m", unread: false, preview: '"What time does the open house..."', source: "facebook" as Source, avatar: "KB" },
-  { id: "3", name: "Diana Reyes", ts: "1h", unread: true, preview: "Voice call transcript ready", source: "voice" as Source, avatar: "DR" },
-];
+const sourceBadgeStyles: Record<ConversationInboxSource, string> = {
+  instagram: "bg-[#F0E5F5] text-[#5B2D7B]",
+  facebook: "bg-[#E5EBF5] text-[#1A3A6B]",
+  voice: "bg-sage-soft text-qualified",
+  sms: "bg-sage-soft text-qualified",
+  manual: "bg-surface-muted text-muted-subtle",
+};
 
-export function ConversationsPageContent() {
-  const [selected, setSelected] = useState(conversations[0]?.id ?? "");
-  const [reply, setReply] = useState("");
+const stageBadgeStyles: Record<ConversationInboxStageTone, string> = {
+  new: "bg-brass-soft text-warm",
+  qualified: "bg-sage-soft text-qualified",
+  nurture: "bg-surface-muted text-muted-subtle",
+  review: "bg-brass-soft text-warm",
+  lost: "bg-oxblood-soft text-hot",
+};
+
+function FilterChip(props: { active: boolean; children: string; onClick: () => void }) {
+  return (
+    <button
+      className={cn(
+        "harwick-pill px-[10px] py-[3px] text-[11px] text-muted transition-all hover:-translate-y-px hover:border-border-strong hover:text-foreground",
+        props.active && "harwick-pill-active hover:border-harwick-ink hover:text-white",
+      )}
+      onClick={props.onClick}
+      type="button"
+    >
+      {props.children}
+    </button>
+  );
+}
+
+function ListEmptyState(props: { title: string; detail: string }) {
+  return (
+    <div className="px-4 py-6 text-center">
+      <div className="text-[12.5px] font-medium text-foreground">{props.title}</div>
+      <div className="mt-1 text-[11.5px] leading-5 text-muted">{props.detail}</div>
+    </div>
+  );
+}
+
+function getThreadDraft(thread: ConversationInboxThread): string {
+  const draftMessage = [...thread.messages].reverse().find((message) => message.kind === "ai_action");
+  return draftMessage?.body ?? "";
+}
+
+function getLatestLeadMessage(thread: ConversationInboxThread): string {
+  const leadMessage = [...thread.messages].reverse().find((message) => message.kind === "lead");
+  return leadMessage?.body ?? thread.preview;
+}
+
+function getPreviewFromMessages(thread: ConversationInboxThread): string {
+  const previewMessage = [...thread.messages].reverse().find((message) => message.kind !== "ai_action");
+  return previewMessage?.body ?? thread.preview;
+}
+
+function resolveDraftChannel(thread: ConversationInboxThread): "instagram_dm" | "instagram_comment" | "facebook_dm" | "facebook_comment" {
+  if (thread.source === "facebook") {
+    return thread.bucket === "comments" ? "facebook_comment" : "facebook_dm";
+  }
+
+  return thread.bucket === "comments" ? "instagram_comment" : "instagram_dm";
+}
+
+function buildLeadContext(thread: ConversationInboxThread): string {
+  return [thread.intentType, thread.area, thread.timeline, thread.budget]
+    .filter((value) => value.trim().length > 0 && value !== "Unknown")
+    .join(" • ");
+}
+
+function threadTimelineLabel(thread: ConversationInboxThread): string {
+  return thread.source === "voice" ? "Call summary + follow-up" : "Live thread";
+}
+
+function composerPlaceholder(thread: ConversationInboxThread): string {
+  return thread.source === "voice"
+    ? "Write a follow-up message from this call summary..."
+    : "Write a reply or next action...";
+}
+
+function composerContextLabel(thread: ConversationInboxThread): string {
+  return thread.source === "voice"
+    ? "Voice summary captured. Send the next follow-up message from here."
+    : `Replying via ${thread.sourceLabel} ${thread.channelLabel}`;
+}
+
+function buildLocalDraft(thread: ConversationInboxThread): string {
+  const firstName = thread.name.split(" ")[0] ?? thread.name;
+  const context = buildLeadContext(thread);
+  return context.length > 0
+    ? `Thanks ${firstName} — I can help with ${context.toLowerCase()}. Want me to line up the best next step and a few options for you?`
+    : `Thanks ${firstName} — I can help. Want me to line up the best next step and a few options for you?`;
+}
+
+function applyLocalDraft(thread: ConversationInboxThread, draft: string): ConversationInboxThread {
+  const nextMessages = [
+    ...thread.messages.filter((message) => message.kind !== "ai_action"),
+    {
+      id: `local-ai-${thread.id}`,
+      kind: "ai_action" as const,
+      body: draft,
+      meta: "Harwick AI action",
+      occurredAt: new Date().toISOString(),
+    },
+  ];
+
+  return {
+    ...thread,
+    messages: nextMessages,
+    preview: draft,
+    listingStatus: "AI action ready",
+    automationReason: thread.automationReason ?? "Working locally on a development thread.",
+  };
+}
+
+function applyLocalSend(thread: ConversationInboxThread, draft: string): ConversationInboxThread {
+  const nextMessages = [
+    ...thread.messages.filter((message) => message.kind !== "ai_action"),
+    {
+      id: `local-sent-${thread.id}-${thread.messages.length}`,
+      kind: "sent" as const,
+      body: draft,
+      meta: "Sent just now",
+      occurredAt: new Date().toISOString(),
+    },
+  ];
+
+  return {
+    ...thread,
+    messages: nextMessages,
+    preview: draft,
+    lastTouchLabel: "now",
+    unread: false,
+    listingStatus: thread.followUpBossContactId === null ? "Live conversation" : "FUB synced",
+  };
+}
+
+function applyLocalDismiss(thread: ConversationInboxThread): ConversationInboxThread {
+  const nextMessages = thread.messages.filter((message) => message.kind !== "ai_action");
+  return {
+    ...thread,
+    messages: nextMessages,
+    preview: getPreviewFromMessages({ ...thread, messages: nextMessages }),
+    listingStatus: "Action dismissed",
+  };
+}
+
+function applyLocalAutomation(
+  thread: ConversationInboxThread,
+  mode: ConversationAutomationMode,
+  reason: string,
+): ConversationInboxThread {
+  return {
+    ...thread,
+    automationMode: mode,
+    automationReason: reason,
+  };
+}
+
+function MessageBubble(props: {
+  avatar: string;
+  disabled: boolean;
+  message: ConversationInboxMessage;
+  onDismissAction: () => void;
+  onEditAction: (draft: string) => void;
+  onSendAction: (draft: string) => void;
+}) {
+  if (props.message.kind === "system") {
+    return (
+      <div className="mb-3 flex justify-center">
+        <div className="rounded-full border border-border bg-surface px-3 py-1.5 text-[11px] text-muted">
+          {props.message.body}
+        </div>
+      </div>
+    );
+  }
+
+  if (props.message.kind === "sent") {
+    return (
+      <div className="mb-3 flex justify-end">
+        <div className="max-w-[76%] rounded-[13px_4px_13px_13px] bg-foreground px-3 py-[9px] text-[12.5px] leading-[1.5] text-white">
+          {props.message.body}
+          <div className="mt-1 text-[10px] text-white/70">{props.message.meta}</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex h-full flex-1 flex-col overflow-hidden bg-background">
-      <div className="flex h-14 items-center border-b border-border bg-surface px-7">
-        <div className="font-display text-[19px]">Conversations</div>
-        <div className="ml-auto flex w-[180px] items-center gap-2 rounded-lg border border-border bg-muted px-2.5 py-1.5 text-[12px] text-muted-foreground"><Search className="h-3 w-3" />Search…</div>
+    <div className="mb-3 flex gap-[9px]">
+      <div
+        className={cn(
+          "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-medium",
+          props.message.kind === "ai_action" ? "bg-brass-soft text-warm" : "bg-surface-muted text-muted",
+        )}
+      >
+        {props.message.kind === "ai_action" ? "AI" : props.avatar}
       </div>
 
-      <div className="flex min-h-0 flex-1">
-        <div className="w-[252px] overflow-y-auto border-r border-border bg-surface">
-          <div className="flex gap-1 border-b border-border p-3">
-            <button className="rounded-full bg-foreground px-3 py-1 text-[11px] text-background">All</button>
-            <button className="rounded-full border px-3 py-1 text-[11px]">DMs</button>
-            <button className="rounded-full border px-3 py-1 text-[11px]">Comments</button>
-          </div>
-          {conversations.map((c) => (
-            <button key={c.id} onClick={() => setSelected(c.id)} className={cn("w-full border-b border-border px-3.5 py-3 text-left", selected === c.id ? "bg-muted" : "hover:bg-muted") }>
-              <div className="mb-1 flex items-center gap-2"><div className="flex h-6 w-6 items-center justify-center rounded-full bg-muted text-[10px]">{c.avatar}</div><div className="flex-1 text-[12.5px] font-medium">{c.name}</div>{c.unread ? <div className="h-1.5 w-1.5 rounded-full bg-harwick-brass" /> : null}<div className="text-[11px] text-muted">{c.ts}</div></div>
-              <div className={cn("ml-8 truncate text-[11.5px]", c.unread ? "font-medium" : "text-muted")}>{c.preview}</div>
-              <div className="ml-8 mt-1 text-[9px] text-muted">{c.source.charAt(0).toUpperCase() + c.source.slice(1)}</div>
+      <div>
+        <div
+          className={cn(
+            "max-w-[72%] px-3 py-[9px] text-[12.5px] leading-[1.5]",
+            props.message.kind === "lead" && "rounded-[4px_13px_13px_13px] bg-surface-muted text-foreground",
+            props.message.kind === "ai_action" && "rounded-[4px_13px_13px_13px] border border-dashed border-[#E8D08A] bg-brass-soft text-foreground",
+          )}
+        >
+          {props.message.kind === "ai_action" ? (
+            <>
+              <div className="mb-1 text-[9px] font-medium uppercase tracking-[0.1em] text-warm">
+                {props.message.meta}
+              </div>
+              {props.message.body}
+            </>
+          ) : (
+            props.message.body
+          )}
+        </div>
+        {props.message.kind === "lead" ? (
+          <div className="mt-0.5 text-[10px] text-muted-subtle">{props.message.meta}</div>
+        ) : null}
+        {props.message.kind === "ai_action" ? (
+          <div className="mt-[5px] flex gap-[5px]">
+            <button
+              className="rounded-full bg-qualified px-[11px] py-[4px] text-[11px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={props.disabled}
+              onClick={() => props.onSendAction(props.message.body)}
+              type="button"
+            >
+              Send
             </button>
-          ))}
+            <button
+              className="rounded-full border border-border bg-transparent px-[11px] py-[4px] text-[11px] font-medium text-muted transition-colors hover:border-border-strong hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={props.disabled}
+              onClick={() => props.onEditAction(props.message.body)}
+              type="button"
+            >
+              Edit
+            </button>
+            <button
+              className="rounded-full border border-border bg-transparent px-[11px] py-[4px] text-[11px] font-medium text-muted transition-colors hover:border-border-strong hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={props.disabled}
+              onClick={props.onDismissAction}
+              type="button"
+            >
+              Dismiss
+            </button>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+export function ConversationsPageContent(props: { workspaceId: string; workspaceName: string }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const leadIdParam = searchParams.get("leadId");
+  const reviewIdParam = searchParams.get("reviewId");
+  const [activeFilter, setActiveFilter] = useState<ThreadFilter>("all");
+  const [threads, setThreads] = useState<ConversationInboxThread[]>([]);
+  const [loadState, setLoadState] = useState<LoadState>("loading");
+  const [selectedId, setSelectedId] = useState("");
+  const [search, setSearch] = useState("");
+  const [reply, setReply] = useState("");
+  const [sandboxLeadMessage, setSandboxLeadMessage] = useState("");
+  const [sandboxReplySets, setSandboxReplySets] = useState<Record<string, SandboxReplySet>>({});
+  const [actionBusy, setActionBusy] = useState(false);
+  const [actionStatus, setActionStatus] = useState<string | null>(null);
+
+  function replaceConversationQuery(thread: ConversationInboxThread | null) {
+    const params = new URLSearchParams(searchParams.toString());
+    if (thread === null) {
+      params.delete("leadId");
+      params.delete("reviewId");
+    } else {
+      params.set("leadId", thread.leadId);
+      if (thread.reviewId === null) {
+        params.delete("reviewId");
+      } else {
+        params.set("reviewId", thread.reviewId);
+      }
+    }
+    const query = params.toString();
+    router.replace(query.length > 0 ? `/conversations?${query}` : "/conversations");
+  }
+
+  function openLead(thread: ConversationInboxThread) {
+    router.push(`/leads?leadId=${thread.leadId}`);
+  }
+
+  const refreshThreads = useCallback(async () => {
+    setLoadState("loading");
+
+    try {
+      const response = await fetch(`/api/conversations?workspaceId=${props.workspaceId}&limit=30`, {
+        cache: "no-store",
+      });
+      if (!response.ok) {
+        throw new Error("conversation_fetch_failed");
+      }
+
+      const body: unknown = await response.json();
+      const parsed = ConversationsInboxResponseSchema.safeParse(body);
+      if (!parsed.success) {
+        throw new Error("conversation_parse_failed");
+      }
+
+      const nextThreads = isDevelopment
+        ? mergeConversationThreadsWithSandbox(parsed.data.threads, props.workspaceId)
+        : parsed.data.threads;
+
+      setThreads(nextThreads);
+      setSelectedId((current) => {
+        if (current.length > 0 && nextThreads.some((thread) => thread.id === current)) {
+          return current;
+        }
+
+        const queryMatch = nextThreads.find((thread) => {
+          if (reviewIdParam !== null) {
+            return thread.reviewId === reviewIdParam;
+          }
+          if (leadIdParam !== null) {
+            return thread.leadId === leadIdParam;
+          }
+          return false;
+        });
+        return queryMatch?.id ?? nextThreads[0]?.id ?? "";
+      });
+      setLoadState("ready");
+    } catch {
+      setThreads([]);
+      setSelectedId("");
+      setLoadState("error");
+    }
+  }, [leadIdParam, props.workspaceId, reviewIdParam]);
+
+  useEffect(() => {
+    void refreshThreads();
+  }, [refreshThreads]);
+
+  const filteredThreads = useMemo(() => {
+    const normalizedSearch = search.trim().toLowerCase();
+
+    return threads.filter((thread) => {
+      if (activeFilter !== "all" && thread.bucket !== activeFilter) {
+        return false;
+      }
+
+      if (!normalizedSearch) {
+        return true;
+      }
+
+      return [
+        thread.name,
+        thread.preview,
+        thread.sourceContext,
+        thread.area,
+        thread.assignedTo,
+      ].some((field) => field.toLowerCase().includes(normalizedSearch));
+    });
+  }, [activeFilter, search, threads]);
+
+  useEffect(() => {
+    const deepLinkedThread = threads.find((thread) => {
+      if (reviewIdParam !== null) {
+        return thread.reviewId === reviewIdParam;
+      }
+      if (leadIdParam !== null) {
+        return thread.leadId === leadIdParam;
+      }
+      return false;
+    });
+
+    if (deepLinkedThread !== undefined && deepLinkedThread.id !== selectedId) {
+      setSelectedId(deepLinkedThread.id);
+      return;
+    }
+
+    if (selectedId.length > 0 && threads.some((thread) => thread.id === selectedId)) {
+      return;
+    }
+
+    setSelectedId(filteredThreads[0]?.id ?? threads[0]?.id ?? "");
+  }, [filteredThreads, leadIdParam, reviewIdParam, selectedId, threads]);
+
+  const selectedThread = threads.find((thread) => thread.id === selectedId) ?? null;
+
+  useEffect(() => {
+    if (selectedThread === null) {
+      setReply("");
+      setSandboxLeadMessage("");
+      return;
+    }
+
+    setReply(getThreadDraft(selectedThread));
+    setSandboxLeadMessage("");
+    setActionStatus(null);
+  }, [selectedThread?.id]);
+
+  function updateThreadLocally(threadId: string, updater: (thread: ConversationInboxThread) => ConversationInboxThread) {
+    setThreads((current) => current.map((thread) => (thread.id === threadId ? updater(thread) : thread)));
+  }
+
+  function applySandboxSuggestion(threadId: string, draft: string) {
+    setReply(draft);
+    updateThreadLocally(threadId, (thread) => applyLocalDraft(thread, draft));
+  }
+
+  async function handleQueueAction(action: "send" | "dismiss", draftOverride?: string) {
+    if (selectedThread === null) {
+      return;
+    }
+
+    const draft = (draftOverride ?? reply).trim();
+    if (action === "send" && draft.length === 0) {
+      setActionStatus("Generate or edit an AI action before sending it.");
+      return;
+    }
+
+    if (selectedThread.reviewId === null) {
+      if (action === "send") {
+        updateThreadLocally(selectedThread.id, (thread) => applyLocalSend(thread, draft));
+        setReply("");
+        setActionStatus("Sent locally for this development thread.");
+      } else {
+        updateThreadLocally(selectedThread.id, (thread) => applyLocalDismiss(thread));
+        setActionStatus("Dismissed locally for this development thread.");
+      }
+      return;
+    }
+
+    try {
+      setActionBusy(true);
+      setActionStatus("working...");
+      const response = await fetch(`/api/workspaces/${selectedThread.workspaceId}/social-queue/${selectedThread.reviewId}/action`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(
+          action === "dismiss"
+            ? { action: "dismiss", reason: "operator dismissed from conversations" }
+            : { action: "send", reply: draft },
+        ),
+      });
+
+      if (response.status === 403) {
+        setActionStatus("Auth is required to commit this action. The endpoint is real and protected.");
+        return;
+      }
+
+      if (response.status === 404) {
+        updateThreadLocally(selectedThread.id, (thread) => (
+          action === "dismiss" ? applyLocalDismiss(thread) : applyLocalSend(thread, draft)
+        ));
+        if (action === "send") {
+          setReply("");
+        }
+        setActionStatus("Handled locally because this development thread does not have a live queue row.");
+        return;
+      }
+
+      if (!response.ok) {
+        setActionStatus("The backend rejected this action. Check queue state or credentials.");
+        return;
+      }
+
+      if (action === "send") {
+        setReply("");
+      }
+      setActionStatus(action === "send" ? "Reply sent through the social queue." : "AI action dismissed.");
+      await refreshThreads();
+    } catch {
+      setActionStatus("Could not reach the queue endpoint.");
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
+  async function handleAutomationAction(mode: ConversationAutomationMode) {
+    if (selectedThread === null) {
+      return;
+    }
+
+    const reason = mode === "human_takeover"
+      ? "Operator took over from the conversations screen."
+      : "Operator resumed Harwick AI from the conversations screen.";
+
+    if (selectedThread.reviewId === null) {
+      updateThreadLocally(selectedThread.id, (thread) => applyLocalAutomation(thread, mode, reason));
+      setActionStatus("Automation updated locally for this development thread.");
+      return;
+    }
+
+    try {
+      setActionBusy(true);
+      setActionStatus("working...");
+      const response = await fetch(`/api/workspaces/${selectedThread.workspaceId}/social-queue/${selectedThread.reviewId}/automation`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ mode, reason }),
+      });
+
+      if (response.status === 403) {
+        setActionStatus("Auth is required to change automation mode.");
+        return;
+      }
+
+      if (response.status === 404) {
+        updateThreadLocally(selectedThread.id, (thread) => applyLocalAutomation(thread, mode, reason));
+        setActionStatus("Automation updated locally because this thread is using development data.");
+        return;
+      }
+
+      if (!response.ok) {
+        setActionStatus("The backend rejected the automation change.");
+        return;
+      }
+
+      setActionStatus("Automation mode updated.");
+      await refreshThreads();
+    } catch {
+      setActionStatus("Could not reach the automation endpoint.");
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
+  async function handleGenerateAction(threadOverride?: ConversationInboxThread) {
+    const targetThread = threadOverride ?? selectedThread;
+    if (targetThread === null) {
+      return;
+    }
+
+    if (isConversationSandboxThread(targetThread)) {
+      const replySet = draftConversationSandboxReplySet(targetThread);
+      setSandboxReplySets((current) => ({
+        ...current,
+        [targetThread.id]: replySet,
+      }));
+      setReply(replySet.primary.reply);
+      updateThreadLocally(targetThread.id, (thread) => applyLocalDraft(thread, replySet.primary.reply));
+      setActionStatus(`Generated ${replySet.suggestions.length} sandbox suggestions.`);
+      return;
+    }
+
+    if (targetThread.source !== "instagram" && targetThread.source !== "facebook") {
+      setReply(buildLocalDraft(targetThread));
+      setActionStatus("Loaded a local action because this thread is not a social queue item.");
+      return;
+    }
+
+    try {
+      setActionBusy(true);
+      setActionStatus("working...");
+      const response = await fetch("/api/meta/reply/draft", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          mode: isConversationSandboxThread(targetThread) ? "local" : undefined,
+          channel: resolveDraftChannel(targetThread),
+          leadContext: buildLeadContext(targetThread),
+          leadText: getLatestLeadMessage(targetThread),
+          leadId: targetThread.leadId,
+          socialReplyReviewId: targetThread.reviewId,
+          providerThreadId: targetThread.sourceContext,
+          workspaceId: targetThread.workspaceId,
+          workspaceName: "Harwick",
+          listingContext: `${targetThread.listingTitle} • ${targetThread.listingDetails}`,
+          buyerBlueprintUrl: targetThread.intentType.toLowerCase().includes("blueprint")
+            ? "https://example.com/buyer-blueprint"
+            : undefined,
+        }),
+      });
+
+      if (!response.ok) {
+        if (isDevelopment) {
+          const fallbackDraft = buildLocalDraft(targetThread);
+          setReply(fallbackDraft);
+          updateThreadLocally(targetThread.id, (thread) => applyLocalDraft(thread, fallbackDraft));
+          setActionStatus("Loaded a local AI action because the draft endpoint is unavailable.");
+          return;
+        }
+
+        setActionStatus("The draft endpoint could not generate an AI action.");
+        return;
+      }
+
+      const body: unknown = await response.json();
+      const record = body && typeof body === "object" && !Array.isArray(body)
+        ? body as Record<string, unknown>
+        : null;
+      const rawReply = record?.["reply"];
+      const draft = typeof rawReply === "string" && rawReply.trim().length > 0
+        ? rawReply.trim()
+        : null;
+
+      if (draft === null) {
+        setActionStatus("The draft endpoint returned an invalid response.");
+        return;
+      }
+
+      setReply(draft);
+
+      if (targetThread.reviewId === null) {
+        updateThreadLocally(targetThread.id, (thread) => applyLocalDraft(thread, draft));
+        setActionStatus("AI action generated locally for this development thread.");
+        return;
+      }
+
+      const approveResponse = await fetch(
+        `/api/workspaces/${targetThread.workspaceId}/social-queue/${targetThread.reviewId}/action`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ action: "approve", reply: draft }),
+        },
+      );
+
+      if (approveResponse.status === 404) {
+        updateThreadLocally(targetThread.id, (thread) => applyLocalDraft(thread, draft));
+        setActionStatus("AI action generated locally because the review row is not present in development.");
+        return;
+      }
+
+      if (!approveResponse.ok) {
+        setActionStatus("The draft was generated, but the queue could not save it.");
+        return;
+      }
+
+      setActionStatus("AI action generated and saved to the live queue.");
+      await refreshThreads();
+    } catch {
+      if (isDevelopment) {
+        const fallbackDraft = buildLocalDraft(targetThread);
+        setReply(fallbackDraft);
+        updateThreadLocally(targetThread.id, (thread) => applyLocalDraft(thread, fallbackDraft));
+        setActionStatus("Loaded a local AI action because the live draft path is unavailable.");
+      } else {
+        setActionStatus("Could not reach the AI action endpoint.");
+      }
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
+  async function handleSandboxLeadTurn(messageOverride?: string) {
+    if (selectedThread === null || !isConversationSandboxThread(selectedThread)) {
+      return;
+    }
+
+    const inboundMessage = (messageOverride ?? sandboxLeadMessage).trim();
+    if (inboundMessage.length === 0) {
+      setActionStatus("Write the next inbound lead message first.");
+      return;
+    }
+
+    const updatedThread = appendConversationLeadMessage(selectedThread, inboundMessage);
+    updateThreadLocally(selectedThread.id, () => updatedThread);
+    setSandboxLeadMessage("");
+    setReply("");
+    setActionStatus("Sandbox lead message added. Generating the next Harwick action...");
+    await handleGenerateAction(updatedThread);
+  }
+
+  const automationAction = selectedThread?.automationMode === "ai_on" ? "human_takeover" : "ai_on";
+  const automationLabel = selectedThread?.automationMode === "ai_on" ? "Take over" : "Resume AI";
+  const sandboxMode = selectedThread !== null && isConversationSandboxThread(selectedThread);
+  const activeSandboxReplySet = selectedThread === null ? null : (sandboxReplySets[selectedThread.id] ?? null);
+  const selectedSandboxThreadId = sandboxMode ? selectedThread?.id ?? null : null;
+
+  return (
+    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-background">
+      <WorkspaceTopbar context={`conversations · ${filteredThreads.length} shown`} workspaceName={props.workspaceName}>
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            className="harwick-control flex h-9 w-9 items-center justify-center text-muted transition-all hover:-translate-y-px hover:border-border-strong hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={actionBusy}
+            onClick={() => void refreshThreads()}
+            type="button"
+          >
+            {actionBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+          </button>
+          <div className="harwick-control flex w-[180px] items-center gap-[7px] px-[11px] py-[5px] text-[12px] text-muted-subtle">
+            <SearchGlyph className="h-3 w-3 shrink-0" />
+            <input
+              className="w-full bg-transparent outline-none placeholder:text-muted-subtle"
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search..."
+              value={search}
+            />
+          </div>
+        </div>
+      </WorkspaceTopbar>
+
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        <div className="w-[252px] shrink-0 overflow-y-auto border-r border-border bg-surface">
+          <div className="flex gap-[5px] border-b border-border px-3 py-[10px]">
+            <FilterChip active={activeFilter === "all"} onClick={() => setActiveFilter("all")}>
+              All
+            </FilterChip>
+            <FilterChip active={activeFilter === "dms"} onClick={() => setActiveFilter("dms")}>
+              DMs
+            </FilterChip>
+            <FilterChip active={activeFilter === "comments"} onClick={() => setActiveFilter("comments")}>
+              Comments
+            </FilterChip>
+          </div>
+
+          {loadState === "loading" ? (
+            <ListEmptyState title="Loading live conversations" detail="Pulling workspace lead events and pending AI actions." />
+          ) : null}
+          {loadState === "error" ? (
+            <ListEmptyState title="Could not load conversations" detail="The conversations endpoint did not return a valid workspace response." />
+          ) : null}
+          {loadState === "ready" && filteredThreads.length === 0 ? (
+            <ListEmptyState title="No live conversations yet" detail="New lead events will appear here once the workspace starts receiving messages or calls." />
+          ) : null}
+
+          {loadState === "ready" && filteredThreads.map((thread) => {
+            const isSelected = selectedThread?.id === thread.id;
+
+            return (
+              <button
+                className={cn(
+                  "w-full border-b border-border px-[14px] py-[13px] text-left transition-colors",
+                  isSelected ? "bg-surface-muted" : "hover:bg-surface-muted",
+                )}
+                key={thread.id}
+                onClick={() => {
+                  setSelectedId(thread.id);
+                  replaceConversationQuery(thread);
+                }}
+                type="button"
+              >
+                <div className="mb-1 flex items-center gap-[7px]">
+                  <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-surface-muted text-[10px] font-medium text-muted">
+                    {thread.initials}
+                  </div>
+                  <div className="min-w-0 flex-1 text-[12.5px] font-medium">{thread.name}</div>
+                  {thread.unread ? <div className="h-[7px] w-[7px] shrink-0 rounded-full bg-harwick-brass" /> : null}
+                  <div className="shrink-0 text-[11px] text-muted-subtle">{thread.lastTouchLabel}</div>
+                </div>
+
+                <div className="truncate text-[11.5px] text-muted">
+                  {thread.preview}
+                </div>
+
+                <div className="mt-1">
+                  <span className={cn("inline-flex rounded-full px-[7px] py-0.5 text-[9px] font-medium", sourceBadgeStyles[thread.source])}>
+                    {thread.sourceLabel}
+                  </span>
+                </div>
+              </button>
+            );
+          })}
         </div>
 
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-          <div className="flex items-center gap-2 border-b border-border bg-surface px-3.5 py-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-[11px]">MT</div>
-            <div><div className="text-[13.5px] font-medium">Marcus Thompson</div><div className="text-[11px] text-muted">Instagram · Comment on "4BR Coral Gables"</div></div>
-            <div className="ml-auto flex gap-2"><button className="rounded-lg border px-2.5 py-1.5 text-[12px]">View Lead</button><button className="rounded-lg bg-harwick-ink px-2.5 py-1.5 text-[12px] text-white">Open in Meta</button></div>
-          </div>
-          <div className="flex-1 overflow-y-auto p-4">
-            <div className="mb-4 text-center text-[11px] text-muted">Today, April 29</div>
-            <div className="mb-3 flex gap-2"><div className="flex h-6 w-6 items-center justify-center rounded-full bg-muted text-[10px]">MT</div><div><div className="max-w-[72%] rounded-[4px_13px_13px_13px] bg-muted px-3 py-2 text-[12.5px]">Is this still available? We've been looking in this area for months 👀</div><div className="mt-0.5 text-[10px] text-muted">10:14 AM · Instagram Comment</div></div></div>
-            <div className="mb-3 flex gap-2"><div className="flex h-6 w-6 items-center justify-center rounded-full bg-[#F5EDD6] text-[10px] text-[#8B5E1A]">AI</div><div><div className="max-w-[72%] rounded-[4px_13px_13px_13px] border border-dashed border-[#E8D08A] bg-[#F5EDD6] px-3 py-2 text-[12.5px]"><div className="mb-1 text-[9px] uppercase tracking-[0.1em] text-[#8B5E1A]">AI Draft — Pending Approval</div>Hi Marcus — yes, still available! This one just had a price adjustment last week. Happy to send full details and schedule a walkthrough at your convenience. What's your timeline?</div><div className="mt-0.5 text-[10px] text-muted">Draft · Not sent yet</div></div></div>
-          </div>
-          <div className="border-t border-border bg-surface p-3">
-            <textarea value={reply} onChange={(e) => setReply(e.target.value)} className="min-h-[56px] w-full resize-none rounded-lg border border-border bg-muted px-3 py-2 text-[12.5px] outline-none" placeholder="Write a reply or note…" />
-            <div className="mt-2 flex items-center gap-2"><div className="flex-1 text-[11px] text-muted">Replying via Instagram Comment</div><button className="rounded-lg border px-3 py-1.5 text-[12px]">Generate Draft</button><button className="rounded-lg bg-harwick-ink px-3 py-1.5 text-[12px] text-white">Send</button></div>
-          </div>
+          {selectedThread ? (
+            <>
+              <div className="flex shrink-0 items-center gap-[9px] border-b border-border bg-surface px-[14px] py-[11px]">
+                <div className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full bg-surface-muted text-[11px] font-medium text-muted">
+                  {selectedThread.initials}
+                </div>
+                <div>
+                  <div className="text-[13.5px] font-medium">{selectedThread.name}</div>
+                  <div className="flex items-center gap-[5px] text-[11px] text-muted-subtle">
+                    <span className={cn("inline-flex rounded-full px-[7px] py-0.5 text-[9px] font-medium", sourceBadgeStyles[selectedThread.source])}>
+                      {selectedThread.sourceLabel}
+                    </span>
+                    {selectedThread.sourceContext}
+                  </div>
+                </div>
+                <div className="ml-auto flex gap-[7px]">
+                  <button
+                    className="rounded-[8px] border border-border bg-transparent px-[11px] py-[4px] text-[11px] font-medium text-muted transition-colors hover:border-border-strong hover:text-foreground"
+                    onClick={() => openLead(selectedThread)}
+                    type="button"
+                  >
+                    View Lead
+                  </button>
+                  <button
+                    className="rounded-[8px] bg-foreground px-[11px] py-[4px] text-[11px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
+                    disabled={actionBusy}
+                    onClick={() => void handleAutomationAction(automationAction)}
+                    type="button"
+                  >
+                    {automationLabel}
+                  </button>
+                </div>
+              </div>
+
+              <div className="min-h-0 flex-1 overflow-y-auto px-[18px] py-[18px]">
+                <div className="relative my-[14px] text-center text-[11px] text-muted-subtle">
+                  <span className="bg-background px-3">{threadTimelineLabel(selectedThread)}</span>
+                  <div className="absolute left-0 top-1/2 h-px w-[calc(50%-40px)] bg-border" />
+                  <div className="absolute right-0 top-1/2 h-px w-[calc(50%-40px)] bg-border" />
+                </div>
+
+                {selectedThread.messages.map((message) => (
+                  <MessageBubble
+                    avatar={selectedThread.initials}
+                    disabled={actionBusy}
+                    key={message.id}
+                    message={message}
+                    onDismissAction={() => void handleQueueAction("dismiss")}
+                    onEditAction={(draft) => setReply(draft)}
+                    onSendAction={(draft) => void handleQueueAction("send", draft)}
+                  />
+                ))}
+              </div>
+
+              <div className="shrink-0 border-t border-border bg-surface px-[14px] py-3">
+                {sandboxMode ? (
+                  <div className="mb-3 rounded-[10px] border border-border bg-surface-muted p-3">
+                    <div className="mb-2 text-[9.5px] font-medium uppercase tracking-[0.12em] text-muted-subtle">
+                      Sandbox lead simulator
+                    </div>
+                    <div className="mb-2 flex flex-wrap gap-2">
+                      {conversationSandboxPromptLibrary.map((prompt) => (
+                      <button
+                        className="harwick-pill px-[10px] py-[4px] text-[10.5px] font-medium text-muted transition-all hover:-translate-y-px hover:border-border-strong hover:text-foreground"
+                          key={prompt.id}
+                          onClick={() => setSandboxLeadMessage(prompt.message)}
+                          type="button"
+                        >
+                          {prompt.label}
+                        </button>
+                      ))}
+                    </div>
+                    <textarea
+                      className="harwick-control min-h-[52px] w-full resize-none px-[11px] py-[9px] text-[12px] placeholder:text-muted-subtle"
+                      onChange={(event) => setSandboxLeadMessage(event.target.value)}
+                      placeholder="Type the next inbound DM or comment you want Harwick to answer..."
+                      value={sandboxLeadMessage}
+                    />
+                    <div className="mt-2 flex items-center gap-3">
+                      <div className="flex-1 text-[11px] text-muted-subtle">
+                        This appends a local lead message and generates a full Harwick suggestion set for the next turn.
+                      </div>
+                      <button
+                        className="harwick-pill px-[11px] py-[4px] text-[11px] font-medium text-muted transition-all hover:-translate-y-px hover:border-border-strong hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+                        disabled={actionBusy}
+                        onClick={() => void handleSandboxLeadTurn()}
+                        type="button"
+                      >
+                        Simulate Lead Message
+                      </button>
+                    </div>
+                    {activeSandboxReplySet ? (
+                      <div className="mt-3 rounded-[9px] border border-border bg-surface p-3">
+                        <div className="text-[9.5px] font-medium uppercase tracking-[0.12em] text-muted-subtle">
+                          Harwick read
+                        </div>
+                        <div className="mt-1 text-[11.5px] leading-5 text-foreground">
+                          {activeSandboxReplySet.coachNote}
+                        </div>
+                        {activeSandboxReplySet.detectedSignals.length > 0 ? (
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {activeSandboxReplySet.detectedSignals.map((signal) => (
+                              <span
+                                className="rounded-full border border-border bg-surface-muted px-[8px] py-[3px] text-[10px] text-muted"
+                                key={signal}
+                              >
+                                {signal}
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
+                        <div className="mt-3 grid gap-2">
+                          {activeSandboxReplySet.suggestions.map((suggestion) => {
+                            const active = reply.trim() === suggestion.reply.trim();
+                            return (
+                              <button
+                                className={cn(
+                                  "rounded-[9px] border px-3 py-2 text-left transition-colors",
+                                  active
+                                    ? "border-foreground bg-surface-muted"
+                                    : "border-border bg-white hover:border-border-strong hover:bg-surface-muted",
+                                )}
+                                key={suggestion.id}
+                                onClick={() => {
+                                  if (selectedSandboxThreadId !== null) {
+                                    applySandboxSuggestion(selectedSandboxThreadId, suggestion.reply);
+                                  }
+                                }}
+                                type="button"
+                              >
+                                <div className="mb-1 text-[10px] font-medium uppercase tracking-[0.08em] text-muted-subtle">
+                                  {suggestion.label}
+                                </div>
+                                <div className="text-[12px] leading-5 text-foreground">
+                                  {suggestion.reply}
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+                <textarea
+                  className="harwick-control min-h-[56px] w-full resize-none px-[11px] py-[9px] text-[12.5px] placeholder:text-muted-subtle"
+                  onChange={(event) => setReply(event.target.value)}
+                  placeholder={composerPlaceholder(selectedThread)}
+                  value={reply}
+                />
+                <div className="mt-2 flex items-center gap-[7px]">
+                  <div className="flex-1 text-[11px] text-muted-subtle">
+                    {composerContextLabel(selectedThread)}
+                  </div>
+                  <button
+                    className="harwick-pill px-[11px] py-[4px] text-[11px] font-medium text-muted transition-all hover:-translate-y-px hover:border-border-strong hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+                    disabled={actionBusy}
+                    onClick={() => void handleGenerateAction()}
+                    type="button"
+                  >
+                    Generate Action
+                  </button>
+                  <button
+                    className="rounded-full border border-harwick-ink bg-[linear-gradient(180deg,#233729_0%,#132218_100%)] px-[11px] py-[4px] text-[11px] font-medium text-white shadow-[0_8px_18px_rgba(19,34,24,0.18)] transition-all hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
+                    disabled={actionBusy}
+                    onClick={() => void handleQueueAction("send")}
+                    type="button"
+                  >
+                    Send
+                  </button>
+                </div>
+                {actionStatus ? (
+                  <div className="mt-2 flex items-center gap-2 text-[11px] text-muted">
+                    <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                    <span>{actionStatus}</span>
+                  </div>
+                ) : null}
+              </div>
+            </>
+          ) : (
+            <div className="flex min-h-0 flex-1 items-center justify-center bg-background px-8">
+              <div className="max-w-[320px] text-center">
+                <div className="text-[15px] font-medium text-foreground">Pick a live conversation</div>
+                <div className="mt-2 text-[12.5px] leading-6 text-muted">
+                  Search, filter, or wait for inbound lead events. The center thread stays tied to the live workspace backend.
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
-        <div className="w-[288px] overflow-y-auto border-l border-border bg-surface p-3.5">
-          <div className="mb-2 text-[9.5px] uppercase tracking-[0.12em] text-muted">Lead Info</div>
-          <div className="space-y-2 text-[12px]"><div><span className="text-muted">Name</span> <span className="font-medium">Marcus Thompson</span></div><div><span className="text-muted">Source</span> <span className="font-medium">Instagram</span></div><div><span className="text-muted">Stage</span> <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-700">New</span></div><div><span className="text-muted">Score</span> <span className="font-medium">87 / 100</span></div></div>
+        <div className="w-[288px] shrink-0 overflow-y-auto border-l border-border bg-surface">
+          {selectedThread ? (
+            <>
+              <div className="border-b border-border px-[14px] py-[14px]">
+                <div className="mb-[9px] text-[9.5px] font-medium uppercase tracking-[0.12em] text-muted-subtle">Lead Info</div>
+                <div className="space-y-[7px] text-[12.5px]">
+                  <div className="flex gap-2">
+                    <span className="w-[68px] shrink-0 text-muted-subtle">Name</span>
+                    <span className="font-medium">{selectedThread.name}</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <span className="w-[68px] shrink-0 text-muted-subtle">Source</span>
+                    <span className="font-medium">{selectedThread.sourceLabel}</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <span className="w-[68px] shrink-0 text-muted-subtle">Stage</span>
+                    <span className={cn("inline-flex rounded-full px-[7px] py-0.5 text-[10px] font-medium", stageBadgeStyles[selectedThread.stageTone])}>
+                      {selectedThread.stageLabel}
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <span className="w-[68px] shrink-0 text-muted-subtle">Score</span>
+                    <span className="font-medium">{selectedThread.scoreLabel}</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <span className="w-[68px] shrink-0 text-muted-subtle">Assigned</span>
+                    <span className="font-medium">{selectedThread.assignedTo}</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <span className="w-[68px] shrink-0 text-muted-subtle">FUB ID</span>
+                    <span className={cn(selectedThread.followUpBossContactId === null ? "text-muted-subtle" : "font-medium")}>
+                      {selectedThread.followUpBossContactId ?? "—"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-b border-border px-[14px] py-[14px]">
+                <div className="mb-[9px] text-[9.5px] font-medium uppercase tracking-[0.12em] text-muted-subtle">Intent Signals</div>
+                <div className="space-y-[7px] text-[12.5px]">
+                  <div className="flex gap-2">
+                    <span className="w-[68px] shrink-0 text-muted-subtle">Type</span>
+                    <span className="font-medium">{selectedThread.intentType}</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <span className="w-[68px] shrink-0 text-muted-subtle">Area</span>
+                    <span className="font-medium">{selectedThread.area}</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <span className="w-[68px] shrink-0 text-muted-subtle">Timeline</span>
+                    <span className={cn(selectedThread.timeline === "Unknown" ? "text-muted-subtle" : "font-medium")}>
+                      {selectedThread.timeline}
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <span className="w-[68px] shrink-0 text-muted-subtle">Budget</span>
+                    <span className={cn(selectedThread.budget === "Unknown" ? "text-muted-subtle" : "font-medium")}>
+                      {selectedThread.budget}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-b border-border px-[14px] py-[14px]">
+                <div className="mb-[9px] text-[9.5px] font-medium uppercase tracking-[0.12em] text-muted-subtle">Listing Context</div>
+                <div className="rounded-[8px] bg-surface-muted p-[10px] text-[12px] text-muted">
+                  <div className="mb-0.5 font-medium text-foreground">{selectedThread.listingTitle}</div>
+                  <div>{selectedThread.listingDetails}</div>
+                  <div
+                    className={cn(
+                      "mt-1 text-[11px]",
+                      selectedThread.listingStatus === "AI action ready" || selectedThread.listingStatus === "FUB synced"
+                        ? "text-qualified"
+                        : "text-warm",
+                    )}
+                  >
+                    {selectedThread.listingStatus}
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-b border-border px-[14px] py-[14px]">
+                <div className="mb-[9px] text-[9.5px] font-medium uppercase tracking-[0.12em] text-muted-subtle">Automation</div>
+                <div className="rounded-[8px] bg-surface-muted p-[10px] text-[12px] text-muted">
+                  <div className="flex items-center gap-2 text-foreground">
+                    <Bot className="h-3.5 w-3.5" />
+                    <span className="font-medium">{selectedThread.automationMode ?? "manual only"}</span>
+                  </div>
+                  <div className="mt-1 leading-5">
+                    {selectedThread.automationReason ?? "No live automation review is attached to this thread yet."}
+                  </div>
+                </div>
+              </div>
+
+              <div className="px-[14px] py-[14px]">
+                <button
+                  className="mb-[7px] flex h-10 w-full items-center justify-center gap-2 rounded-[8px] bg-foreground text-[12px] font-medium text-white"
+                  onClick={() => openLead(selectedThread)}
+                  type="button"
+                >
+                  Open Full Lead
+                  <ArrowUpRight className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  className="flex h-10 w-full items-center justify-center gap-2 rounded-[8px] border border-border bg-transparent text-[12px] font-medium text-muted transition-colors hover:border-border-strong hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={actionBusy}
+                  onClick={() => (
+                    selectedThread.reviewId === null
+                      ? openLead(selectedThread)
+                      : void handleQueueAction("dismiss")
+                  )}
+                  type="button"
+                >
+                  {selectedThread.reviewId === null ? (
+                    <>
+                      <ArrowUpRight className="h-3.5 w-3.5" />
+                      Continue in Leads
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-3.5 w-3.5" />
+                      Dismiss Action
+                    </>
+                  )}
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="px-[14px] py-[18px] text-[12px] leading-5 text-muted">
+              Lead context will appear here once you select a live thread.
+            </div>
+          )}
         </div>
       </div>
     </div>

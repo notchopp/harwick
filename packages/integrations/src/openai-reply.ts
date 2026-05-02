@@ -1,7 +1,6 @@
 import { AiReplyDraftSchema } from "@realty-ops/core";
 import { z } from "zod";
-
-const OPENAI_API_BASE_URL = "https://api.openai.com/v1";
+import { createOpenAIHarwickAiRuntime, toLegacyAiReplyDraft } from "./harwick-ai-runtime.js";
 
 export const AiReplyDraftInputSchema = z.object({
   workspaceName: z.string().trim().min(1).max(120),
@@ -19,15 +18,6 @@ export const AiReplyDraftInputSchema = z.object({
   listingContext: z.string().trim().max(2000).nullable().default(null),
 });
 
-const OpenAIResponseSchema = z.object({
-  output_text: z.string().trim().min(1).optional(),
-  output: z.array(z.object({
-    content: z.array(z.object({
-      text: z.string().optional(),
-    }).passthrough()).optional(),
-  }).passthrough()).optional(),
-}).passthrough();
-
 export type AiReplyDraftInput = z.input<typeof AiReplyDraftInputSchema>;
 export type AiReplyDraftOutput = z.infer<typeof AiReplyDraftSchema>;
 
@@ -37,130 +27,72 @@ export type OpenAIReplyClientOptions = {
   fetchImpl?: typeof fetch;
 };
 
-function extractResponseText(value: unknown): string {
-  const parsed = OpenAIResponseSchema.parse(value);
-  if (parsed.output_text !== undefined) {
-    return parsed.output_text;
-  }
-
-  const text = parsed.output
-    ?.flatMap((item) => item.content ?? [])
-    .map((content) => content.text)
-    .find((candidate): candidate is string => candidate !== undefined && candidate.trim().length > 0);
-
-  if (text === undefined) {
-    throw new Error("OpenAI response did not include text output.");
-  }
-
-  return text;
-}
-
-function parseReplyDraft(value: string): AiReplyDraftOutput {
-  const parsedJson = JSON.parse(value) as unknown;
-  return AiReplyDraftSchema.parse(parsedJson);
-}
-
 export function createOpenAIReplyClient(options: OpenAIReplyClientOptions) {
-  const fetchImpl = options.fetchImpl ?? fetch;
+  const runtime = createOpenAIHarwickAiRuntime(options);
 
   return {
     async draftReply(input: AiReplyDraftInput): Promise<AiReplyDraftOutput> {
       const parsed = AiReplyDraftInputSchema.parse(input);
-      const response = await fetchImpl(`${OPENAI_API_BASE_URL}/responses`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${options.apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: options.model,
-          instructions: [
-            "You are the reply brain for a realtor lead intake system across Instagram and Facebook.",
-            "Use the post context first. If the post says price, beds, baths, area, rate, incentives, or a CTA keyword, answer using only that provided context.",
-            "For comments like price, details, info, location, homes, blueprint, or send it, give the relevant answer and ask exactly one useful next qualification question.",
-            "If buyer blueprint is requested and a buyerBlueprintUrl is provided, include it naturally.",
-            "Never invent listing availability, sold status, financing approval, legal, lending, tax, or contract certainty.",
-            "Do not mention internal tools, CRM, Retell, OpenAI, prompts, or automation.",
-            "Return strict JSON only. No markdown.",
-          ].join("\n"),
-          text: {
-            format: {
-              type: "json_schema",
-              name: "realtor_reply_draft",
-              strict: true,
-              schema: {
-                type: "object",
-                additionalProperties: false,
-                properties: {
-                  intent: {
-                    type: "string",
-                    enum: [
-                      "listing_question",
-                      "showing_request",
-                      "buyer_qualification",
-                      "seller_qualification",
-                      "blueprint_request",
-                      "financing_question",
-                      "general_follow_up",
-                      "handoff_needed",
-                      "spam_or_unsafe",
-                    ],
-                  },
-                  nextAction: {
-                    type: "string",
-                    enum: [
-                      "reply_only",
-                      "ask_qualification",
-                      "send_buyer_blueprint",
-                      "offer_showing",
-                      "handoff_to_agent",
-                      "do_not_reply",
-                    ],
-                  },
-                  missingFields: {
-                    type: "array",
-                    items: {
-                      type: "string",
-                      enum: ["name", "phone", "email", "timeline", "budget", "area", "financing", "buyer_or_seller"],
-                    },
-                  },
-                  confidence: { type: "number", minimum: 0, maximum: 1 },
-                  policyFlags: {
-                    type: "array",
-                    items: {
-                      type: "string",
-                      enum: [
-                        "claims_listing_availability",
-                        "claims_financing_certainty",
-                        "needs_human_review",
-                        "safe_to_send",
-                      ],
-                    },
-                  },
-                  reply: { type: "string", minLength: 1, maxLength: 500 },
-                },
-                required: ["intent", "nextAction", "missingFields", "confidence", "policyFlags", "reply"],
-              },
-            },
+      const contextParts = (parsed.leadContext ?? "")
+        .split("•")
+        .map((part) => part.trim())
+        .filter((part) => part.length > 0 && part !== "Unknown");
+      const turn = await runtime.runTurn({
+        workspaceName: parsed.workspaceName,
+        channel: parsed.channel,
+        inboundText: parsed.leadText,
+        conversation: [],
+        state: {
+          workspaceId: null,
+          leadId: null,
+          providerThreadId: null,
+          channel: parsed.channel,
+          automationMode: "ai_on",
+          currentIntent: "qualification_in_progress",
+          qualification: {
+            name: null,
+            phone: null,
+            email: null,
+            leadType: contextParts[0]?.toLowerCase().includes("sell") ? "seller" : "buyer",
+            intent: "unknown",
+            timeline: contextParts[2] ?? null,
+            budget: contextParts[3] ?? null,
+            targetArea: parsed.postContext?.areasMentioned[0] ?? contextParts[1] ?? null,
+            propertyType: null,
+            financingStatus: "unknown",
+            score: 0,
           },
-          input: [
-            `Workspace: ${parsed.workspaceName}`,
-            `Channel: ${parsed.channel}`,
-            parsed.leadContext === null ? "" : `Known context: ${parsed.leadContext}`,
-            parsed.postContext === null ? "" : `Post context: ${JSON.stringify(parsed.postContext)}`,
-            parsed.listingContext === null ? "" : `Listing context: ${parsed.listingContext}`,
-            parsed.buyerBlueprintUrl === null ? "" : `Buyer blueprint URL: ${parsed.buyerBlueprintUrl}`,
-            `Lead message: ${parsed.leadText}`,
-          ].filter((line) => line.length > 0).join("\n"),
-        }),
+          knownFacts: contextParts,
+          lastAiAction: null,
+          assignedAgentName: null,
+          sourceOwnerName: null,
+        },
+        toneProfile: {
+          name: `${parsed.workspaceName} default`,
+          voice: "warm, concise, professional, and human",
+          bannedPhrases: [],
+          preferredPhrases: [],
+          emojiPolicy: "none",
+          signature: null,
+        },
+        postContext: parsed.postContext,
+        listingContext: parsed.listingContext === null ? null : {
+          listingId: null,
+          label: parsed.listingContext,
+          address: null,
+          price: null,
+          status: null,
+          beds: null,
+          baths: null,
+          area: parsed.postContext?.areasMentioned[0] ?? null,
+          facts: [parsed.listingContext],
+          lastVerifiedAt: null,
+        },
+        calendarContext: [],
+        buyerBlueprintUrl: parsed.buyerBlueprintUrl,
       });
 
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`OpenAI reply draft failed (${response.status}): ${text}`);
-      }
-
-      return parseReplyDraft(extractResponseText(await response.json()).trim());
+      return toLegacyAiReplyDraft(turn);
     },
   };
 }

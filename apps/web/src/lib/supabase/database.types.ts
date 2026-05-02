@@ -6,6 +6,63 @@ import type { SocialPostInsertRow, SocialPostRow } from "./social-posts";
 import type { VoiceLeadHandoffInsertRow, VoiceLeadHandoffRow } from "./voice-handoffs";
 import type { WorkflowJobInsertRow, WorkflowJobRow } from "./workflow-jobs";
 
+export type WorkspaceSubscriptionRow = {
+  id: string;
+  workspace_id: string;
+  plan_tier: "solo" | "team" | "brokerage";
+  billing_interval: "month" | "year";
+  status: "active" | "trialing" | "past_due" | "canceled" | "unpaid" | "incomplete" | "incomplete_expired" | "paused";
+  provider_subscription_id: string | null;
+  provider_customer_id: string | null;
+  current_period_start: string;
+  current_period_end: string;
+  canceled_at: string | null;
+  cancel_at_period_end: boolean;
+  trial_start: string | null;
+  trial_end: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type WorkspaceUsageEventRow = {
+  id: string;
+  workspace_id: string;
+  event_type: "lead_event" | "ai_turn" | "ai_message_sent" | "social_message_sent" | "voice_call_minute" | "listing_created";
+  event_count: number;
+  resource_id: string | null;
+  event_metadata: Record<string, unknown> | null;
+  billing_period_start: string;
+  billing_period_end: string;
+  created_at: string;
+};
+
+export type WorkspaceUsageEventInsertRow = Omit<WorkspaceUsageEventRow, "id" | "created_at"> & {
+  id?: string;
+  created_at?: string;
+};
+
+export type WorkspaceUsageSummaryRow = {
+  workspace_id: string;
+  plan_tier: "solo" | "team" | "brokerage";
+  billing_period_start: string;
+  billing_period_end: string;
+  lead_event_count: number;
+  ai_turn_count: number;
+  ai_message_sent_count: number;
+  social_message_sent_count: number;
+  voice_call_minutes: number;
+  listing_count: number;
+  active_seat_count: number;
+  active_integration_account_count: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type WorkspaceUsageSummaryInsertRow = Omit<WorkspaceUsageSummaryRow, "created_at" | "updated_at"> & {
+  created_at?: string;
+  updated_at?: string;
+};
+
 export type WorkspaceRow = {
   id: string;
   name: string;
@@ -18,7 +75,7 @@ export type WorkspaceMemberRow = {
   id: string;
   workspace_id: string;
   user_id: string;
-  role: "owner" | "admin" | "lead_manager" | "agent";
+  role: "owner" | "admin" | "team_lead" | "lead_manager" | "operator" | "agent" | "viewer";
   display_name: string;
   email: string | null;
   avatar_url: string | null;
@@ -29,6 +86,31 @@ export type WorkspaceMemberRow = {
   created_at: string;
   updated_at: string;
 };
+
+export type MemberRoutingProfileRow = {
+  id: string;
+  workspace_id: string;
+  member_id: string;
+  role_label: string;
+  areas: string[];
+  property_types: string[];
+  lead_types: string[];
+  budget_min: number | null;
+  budget_max: number | null;
+  max_active_leads: number;
+  accepts_new_leads: boolean;
+  notification_preference: "sms" | "email" | "app";
+  created_at: string;
+  updated_at: string;
+};
+
+export type MemberRoutingProfileInsertRow = Omit<MemberRoutingProfileRow, "id" | "created_at" | "updated_at"> & {
+  id?: string;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type MemberRoutingProfileUpdateRow = Partial<Omit<MemberRoutingProfileRow, "id" | "workspace_id" | "member_id" | "created_at">>;
 
 export type IntegrationAccountRow = {
   id: string;
@@ -302,6 +384,108 @@ export type SocialReplyReviewInsertRow = Omit<
   updated_at?: string;
 };
 
+export type ConversationAutomationStateRow = {
+  id: string;
+  workspace_id: string;
+  lead_id: string | null;
+  provider_account_id: string;
+  recipient_user_id: string | null;
+  channel: "instagram_dm" | "instagram_comment" | "facebook_dm" | "facebook_comment";
+  automation_mode: "ai_on" | "human_takeover" | "paused_by_rule";
+  automation_reason: string | null;
+  changed_by_member_id: string | null;
+  changed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ConversationAutomationStateInsertRow = Omit<
+  ConversationAutomationStateRow,
+  "id" | "created_at" | "updated_at" | "automation_mode" | "automation_reason" | "changed_by_member_id" | "changed_at"
+> & {
+  id?: string;
+  automation_mode?: ConversationAutomationStateRow["automation_mode"];
+  automation_reason?: string | null;
+  changed_by_member_id?: string | null;
+  changed_at?: string | null;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type HarwickAiTurnRow = {
+  id: string;
+  workspace_id: string;
+  lead_id: string | null;
+  social_reply_review_id: string | null;
+  provider_thread_id: string | null;
+  channel: "instagram_dm" | "instagram_comment" | "facebook_dm" | "facebook_comment" | "sms" | "call" | "manual" | "csv_import";
+  runtime_input: Record<string, unknown>;
+  turn: Record<string, unknown>;
+  automation_policy: Record<string, unknown>;
+  automation_decision: Record<string, unknown>;
+  status: "drafted" | "auto_executed" | "queued_for_approval" | "blocked" | "failed";
+  confidence: number;
+  next_action: string;
+  reply: string;
+  safety_flags: string[];
+  missing_fields: string[];
+  state_patch: Record<string, unknown>;
+  handoff_brief: string | null;
+  created_at: string;
+};
+
+export type HarwickAiTurnInsertRow = Omit<HarwickAiTurnRow, "id" | "created_at"> & {
+  id?: string;
+  created_at?: string;
+};
+
+export type HarwickAiToolCallRow = {
+  id: string;
+  workspace_id: string;
+  turn_id: string;
+  lead_id: string | null;
+  tool: "send_meta_reply" | "send_meta_dm" | "check_calendar" | "request_showing_approval" | "register_open_house" | "route_lead" | "sync_follow_up_boss" | "pause_automation";
+  requires_approval: boolean;
+  reason: string;
+  payload: Record<string, unknown>;
+  policy_status: "approved" | "approval_required" | "blocked";
+  execution_status: "pending" | "executed" | "queued_for_approval" | "missing_handler" | "failed" | "blocked";
+  execution_output: Record<string, unknown>;
+  error_code: string | null;
+  error_message: string | null;
+  executed_at: string | null;
+  created_at: string;
+};
+
+export type HarwickAiToolCallInsertRow = Omit<HarwickAiToolCallRow, "id" | "created_at"> & {
+  id?: string;
+  created_at?: string;
+};
+
+export type HarwickAiAutomationPolicyRow = {
+  id: string;
+  workspace_id: string;
+  member_id: string | null;
+  lead_id: string | null;
+  scope: "workspace" | "member" | "conversation";
+  automation_mode: "ai_on" | "human_takeover" | "paused_by_rule";
+  auto_send_enabled: boolean;
+  confidence_threshold: number;
+  allowed_auto_actions: string[];
+  allowed_auto_tools: string[];
+  requires_approval_actions: string[];
+  requires_approval_tools: string[];
+  blocked_safety_flags: string[];
+  created_at: string;
+  updated_at: string;
+};
+
+export type HarwickAiAutomationPolicyInsertRow = Omit<HarwickAiAutomationPolicyRow, "id" | "created_at" | "updated_at"> & {
+  id?: string;
+  created_at?: string;
+  updated_at?: string;
+};
+
 export type CrmSyncLogRow = {
   id: string;
   workspace_id: string;
@@ -339,9 +523,34 @@ export type WorkerHeartbeatRow = {
   updated_at: string;
 };
 
+export type AuditLogRow = {
+  id: string;
+  workspace_id: string;
+  user_id: string | null;
+  actor_type: "user" | "ai" | "system";
+  action: string;
+  resource_type: string;
+  resource_id: string | null;
+  metadata: Record<string, unknown>;
+  ip_address: string | null;
+  user_agent: string | null;
+  created_at: string;
+};
+
+export type AuditLogInsertRow = Omit<AuditLogRow, "id" | "created_at"> & {
+  id?: string;
+  created_at?: string;
+};
+
 export type RealtyOpsDatabase = {
   public: {
     Tables: {
+      audit_logs: {
+        Row: AuditLogRow;
+        Insert: AuditLogInsertRow;
+        Update: Partial<AuditLogRow>;
+        Relationships: [];
+      };
       workspaces: {
         Row: WorkspaceRow;
         Insert: Omit<WorkspaceRow, "id" | "created_at" | "updated_at"> & {
@@ -364,6 +573,12 @@ export type RealtyOpsDatabase = {
           updated_at?: string;
         };
         Update: Partial<WorkspaceMemberRow>;
+        Relationships: [];
+      };
+      member_routing_profiles: {
+        Row: MemberRoutingProfileRow;
+        Insert: MemberRoutingProfileInsertRow;
+        Update: MemberRoutingProfileUpdateRow;
         Relationships: [];
       };
       integration_accounts: {
@@ -488,6 +703,30 @@ export type RealtyOpsDatabase = {
         Update: Partial<SocialReplyReviewRow>;
         Relationships: [];
       };
+      conversation_automation_states: {
+        Row: ConversationAutomationStateRow;
+        Insert: ConversationAutomationStateInsertRow;
+        Update: Partial<ConversationAutomationStateRow>;
+        Relationships: [];
+      };
+      harwick_ai_turns: {
+        Row: HarwickAiTurnRow;
+        Insert: HarwickAiTurnInsertRow;
+        Update: Partial<HarwickAiTurnRow>;
+        Relationships: [];
+      };
+      harwick_ai_tool_calls: {
+        Row: HarwickAiToolCallRow;
+        Insert: HarwickAiToolCallInsertRow;
+        Update: Partial<HarwickAiToolCallRow>;
+        Relationships: [];
+      };
+      harwick_ai_automation_policies: {
+        Row: HarwickAiAutomationPolicyRow;
+        Insert: HarwickAiAutomationPolicyInsertRow;
+        Update: Partial<HarwickAiAutomationPolicyRow>;
+        Relationships: [];
+      };
       provider_error_logs: {
         Row: ProviderErrorLogRow;
         Insert: Omit<ProviderErrorLogRow, "id" | "created_at"> & {
@@ -501,6 +740,28 @@ export type RealtyOpsDatabase = {
         Row: WorkerHeartbeatRow;
         Insert: WorkerHeartbeatRow;
         Update: Partial<WorkerHeartbeatRow>;
+        Relationships: [];
+      };
+      workspace_subscriptions: {
+        Row: WorkspaceSubscriptionRow;
+        Insert: Omit<WorkspaceSubscriptionRow, "id" | "created_at" | "updated_at"> & {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<WorkspaceSubscriptionRow>;
+        Relationships: [];
+      };
+      workspace_usage_events: {
+        Row: WorkspaceUsageEventRow;
+        Insert: WorkspaceUsageEventInsertRow;
+        Update: Partial<WorkspaceUsageEventRow>;
+        Relationships: [];
+      };
+      workspace_usage_summaries: {
+        Row: WorkspaceUsageSummaryRow;
+        Insert: WorkspaceUsageSummaryInsertRow;
+        Update: Partial<WorkspaceUsageSummaryRow>;
         Relationships: [];
       };
     };

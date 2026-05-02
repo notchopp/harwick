@@ -53,11 +53,17 @@ describe("upsertManualListingFact", () => {
       workspaceId: "workspace-1",
       request: {
         address: "123 Main St, Houston, TX 77001",
+        neighborhood: "River Oaks",
+        propertyType: "single family",
         status: "Available",
         price: 339990,
         beds: 5,
         baths: 3,
+        squareFeet: 2820,
         hasPool: false,
+        photoUrl: "https://example.com/listing.jpg",
+        videoUrl: "https://example.com/tour.mp4",
+        mediaUrls: ["https://example.com/listing.jpg", "https://example.com/detail.webp"],
         notes: "4.99% interest rate and closing cost assistance.",
         incentives: ["4.99% interest rate", "closing cost assistance"],
       },
@@ -72,6 +78,12 @@ describe("upsertManualListingFact", () => {
     expect(payload.workspaceId).toBe("workspace-1");
     expect(payload.listing.source).toBe("manual");
     expect(payload.listing.rawFacts).toMatchObject({
+      neighborhood: "River Oaks",
+      propertyType: "single family",
+      squareFeet: 2820,
+      photoUrl: "https://example.com/listing.jpg",
+      videoUrl: "https://example.com/tour.mp4",
+      mediaUrls: ["https://example.com/listing.jpg", "https://example.com/detail.webp"],
       notes: "4.99% interest rate and closing cost assistance.",
       incentives: ["4.99% interest rate", "closing cost assistance"],
     });
@@ -91,7 +103,9 @@ describe("upsertManualListingFact", () => {
       request: {
         status: "Sold",
         price: 349990,
+        squareFeet: 2910,
         hasPool: false,
+        neighborhood: "River Oaks",
       },
       repository: buildRepository({
         findListingById: vi.fn().mockResolvedValue(buildListingRow()),
@@ -112,6 +126,10 @@ describe("upsertManualListingFact", () => {
       verification_status: "verified",
       verified_by_member_id: "member-1",
       verified_at: "2026-04-29T13:00:00.000Z",
+      raw_facts: expect.objectContaining({
+        neighborhood: "River Oaks",
+        squareFeet: 2910,
+      }) as Record<string, unknown>,
     });
   });
 
@@ -185,8 +203,8 @@ describe("upsertManualListingFact", () => {
       memberId: "member-1",
       request: {
         csv: [
-          "address,price,beds,baths,pool,notes,incentives",
-          "\"123 Main St, Houston, TX\",339990,5,3,no,\"closing cost help\",\"4.99%;builder credits\"",
+          "address,price,beds,baths,sqft,property_type,neighborhood,pool,photo_url,notes,incentives",
+          "\"123 Main St, Houston, TX\",\"$339,990\",5,3,\"2,820\",single family,River Oaks,no,https://example.com/photo.jpg,\"closing cost help\",\"4.99%;builder credits\"",
           ",450000,4,2,yes,missing address,",
         ].join("\n"),
       },
@@ -212,6 +230,10 @@ describe("upsertManualListingFact", () => {
       hasPool: false,
     });
     expect(savedPayload.listing.rawFacts).toMatchObject({
+      neighborhood: "River Oaks",
+      propertyType: "single family",
+      squareFeet: 2820,
+      photoUrl: "https://example.com/photo.jpg",
       notes: "closing cost help",
       incentives: ["4.99%", "builder credits"],
     });

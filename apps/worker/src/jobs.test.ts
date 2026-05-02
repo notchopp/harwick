@@ -127,6 +127,51 @@ describe("handleWorkflowJob", () => {
     });
   });
 
+  it("dispatches Harwick AI reply jobs through the worker service", async () => {
+    const turnId = "123e4567-e89b-12d3-a456-426614174004";
+    const reviewId = "123e4567-e89b-12d3-a456-426614174005";
+    const [job] = parseWorkerJobRows([createRow({
+      job_type: "harwick_ai_reply",
+      payload: {
+        jobType: "harwick_ai_reply",
+        workspaceId,
+        leadId,
+        turnId,
+        socialReplyReviewId: reviewId,
+        channel: "instagram_dm",
+        providerAccountId: "ig-business-1",
+        recipientUserId: "ig-user-1",
+        sourceCommentId: null,
+        sourcePostId: "post-1",
+      },
+      idempotency_key: `harwick_ai_reply:${turnId}`,
+    })]);
+    const services: Pick<WorkflowJobServices, "processHarwickAiReply"> = {
+      processHarwickAiReply(params) {
+        expect(params).toEqual({
+          workspaceId,
+          leadId,
+          turnId,
+          socialReplyReviewId: reviewId,
+          channel: "instagram_dm",
+          providerAccountId: "ig-business-1",
+          recipientUserId: "ig-user-1",
+          sourceCommentId: null,
+          sourcePostId: "post-1",
+        });
+        return Promise.resolve({
+          status: "completed",
+          message: "executed Harwick AI turn",
+        });
+      },
+    };
+
+    await expect(handleWorkflowJob(job!, services as WorkflowJobServices)).resolves.toEqual({
+      status: "completed",
+      message: "executed Harwick AI turn",
+    });
+  });
+
   it("processes listing recheck jobs through the worker service", async () => {
     const listingId = "123e4567-e89b-12d3-a456-426614174004";
     const [job] = parseWorkerJobRows([createRow({

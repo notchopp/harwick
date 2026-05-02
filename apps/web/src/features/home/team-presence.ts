@@ -37,8 +37,11 @@ function initialsForName(name: string): string {
 
 function roleLabelFor(role: WorkspaceRole): string {
   if (role === "owner") return "owner";
-  if (role === "admin") return "team ops";
+  if (role === "admin") return "admin";
+  if (role === "team_lead") return "team lead";
   if (role === "lead_manager") return "lead manager";
+  if (role === "operator") return "operator";
+  if (role === "viewer") return "viewer";
   return "agent";
 }
 

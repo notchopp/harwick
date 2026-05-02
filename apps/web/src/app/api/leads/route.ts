@@ -1,26 +1,41 @@
 import { UuidSchema } from "@realty-ops/core";
 import { NextResponse, type NextRequest } from "next/server";
 import { loadLeadsPageData } from "../../../features/leads/leads-data";
+import { authorizeWorkspaceRequest } from "../../../lib/api/workspace-auth";
 import { createSupabaseLeadsPageRepository } from "../../../lib/supabase/leads-page";
 import { createServerSupabaseClient } from "../../../lib/supabase/server-client";
 
 export const runtime = "nodejs";
 
-const demoWorkspaceId = "123e4567-e89b-12d3-a456-426614174000";
-
 export async function GET(request: NextRequest) {
-  const requestedWorkspaceId = UuidSchema.safeParse(request.nextUrl.searchParams.get("workspaceId"));
-  const workspaceId = requestedWorkspaceId.success ? requestedWorkspaceId.data : demoWorkspaceId;
+  const requestedWorkspaceId = request.nextUrl.searchParams.get("workspaceId");
+  const parsedWorkspaceId = UuidSchema.safeParse(requestedWorkspaceId);
+  if (!parsedWorkspaceId.success) {
+    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+  }
+
   const limitParam = request.nextUrl.searchParams.get("limit");
   const limit = limitParam === null ? undefined : Number(limitParam);
+  if (limitParam !== null && (!Number.isInteger(limit) || (limit ?? 0) <= 0)) {
+    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+  }
 
-  if (process.env["NODE_ENV"] !== "development") {
-    return NextResponse.json({ workspaceId, items: [] }, { status: 200 });
+  const workspaceId = parsedWorkspaceId.data;
+  const membership = await authorizeWorkspaceRequest({
+    request,
+    workspaceId,
+  });
+  if (membership === null) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
   try {
     const data = await loadLeadsPageData({
       workspaceId,
+      viewer: {
+        memberId: membership.memberId,
+        role: membership.role,
+      },
       repository: createSupabaseLeadsPageRepository(createServerSupabaseClient()),
       ...(limit !== undefined && Number.isInteger(limit) && limit > 0 ? { limit } : {}),
     });
@@ -28,6 +43,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(data, { status: 200 });
   } catch (error) {
     console.error("GET /api/leads error:", error);
-    return NextResponse.json({ workspaceId, items: [] }, { status: 200 });
+    return NextResponse.json({ error: "internal_error" }, { status: 500 });
   }
 }

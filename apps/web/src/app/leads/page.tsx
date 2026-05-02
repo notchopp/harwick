@@ -1,12 +1,13 @@
 import { LeadsPageContent } from "../../features/leads/leads-page";
 import { AppShell } from "../../components/app-shell";
-import { requireWorkspaceSession } from "../../features/auth/session";
+import { requireActiveWorkspace } from "../../features/auth/session";
 
 export default async function Page() {
-  await requireWorkspaceSession("/leads");
+  const { membership } = await requireActiveWorkspace({ nextPath: "/leads" });
+
   return (
-    <AppShell activeItem="Leads" title="Leads">
-      <LeadsPageContent />
+    <AppShell activeItem="Leads" title="Leads" workspaceName={membership.workspaceName}>
+      <LeadsPageContent workspaceId={membership.workspaceId} workspaceName={membership.workspaceName} />
     </AppShell>
   );
 }

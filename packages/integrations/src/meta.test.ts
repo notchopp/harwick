@@ -5,6 +5,7 @@ import {
   normalizeMetaSocialPostContexts,
   normalizeMetaWebhookPayload,
   verifyMetaWebhookChallenge,
+  verifyMetaWebhookSignature,
 } from "./meta.js";
 
 const workspaceId = "123e4567-e89b-12d3-a456-426614174000";
@@ -234,6 +235,32 @@ describe("verifyMetaWebhookChallenge", () => {
       status: 400,
       reason: "malformed_query",
     });
+  });
+});
+
+describe("verifyMetaWebhookSignature", () => {
+  it("accepts a valid Meta SHA-256 signature", () => {
+    expect(verifyMetaWebhookSignature({
+      rawBody: JSON.stringify({ object: "instagram", entry: [{ id: "ig-1" }] }),
+      appSecret: "meta-secret",
+      signatureHeader: "sha256=125f9a2ad65004607e207fc443c508835cb8dd127dc0c0e49593c2c6992a49ee",
+    })).toBe(true);
+  });
+
+  it("rejects invalid signatures", () => {
+    expect(verifyMetaWebhookSignature({
+      rawBody: JSON.stringify({ object: "instagram", entry: [{ id: "ig-1" }] }),
+      appSecret: "meta-secret",
+      signatureHeader: "sha256=deadbeef",
+    })).toBe(false);
+  });
+
+  it("rejects missing signatures", () => {
+    expect(verifyMetaWebhookSignature({
+      rawBody: JSON.stringify({ object: "instagram", entry: [{ id: "ig-1" }] }),
+      appSecret: "meta-secret",
+      signatureHeader: null,
+    })).toBe(false);
   });
 });
 

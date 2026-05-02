@@ -28,6 +28,10 @@ export async function GET(request: NextRequest, context: RouteContext) {
   const limit = limitParam === null ? undefined : Number(limitParam);
   const data = await loadLeadsPageData({
     workspaceId,
+    viewer: {
+      memberId: membership.memberId,
+      role: membership.role,
+    },
     repository: createSupabaseLeadsPageRepository(createServerSupabaseClient()),
     ...(limit !== undefined && Number.isInteger(limit) && limit > 0 ? { limit } : {}),
   });

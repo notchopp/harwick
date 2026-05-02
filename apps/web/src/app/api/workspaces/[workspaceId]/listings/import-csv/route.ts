@@ -1,12 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { ZodError } from "zod";
 import { importManualListingCsv } from "../../../../../../features/listings/manual-listings";
-import { getAuthSessionSummary } from "../../../../../../lib/supabase/auth";
+import { authorizeWorkspaceRequest } from "../../../../../../lib/api/workspace-auth";
 import { createSupabaseListingFactsRepository } from "../../../../../../lib/supabase/listings";
-import {
-  createServerSupabaseClient,
-  createUserSupabaseClient,
-} from "../../../../../../lib/supabase/server-client";
+import { createServerSupabaseClient } from "../../../../../../lib/supabase/server-client";
 
 export const runtime = "nodejs";
 
@@ -16,44 +13,15 @@ type RouteContext = {
   }>;
 };
 
-const listingImportAllowedRoles = new Set(["owner", "admin", "lead_manager"]);
-
-function readBearerToken(request: NextRequest): string | null {
-  const authorization = request.headers.get("authorization");
-  if (authorization === null) {
-    return null;
-  }
-
-  const [scheme, token] = authorization.split(/\s+/, 2);
-  if (scheme?.toLowerCase() !== "bearer" || token === undefined || token.trim().length === 0) {
-    return null;
-  }
-
-  return token.trim();
-}
-
-async function authorizeWorkspaceImport(request: NextRequest, workspaceId: string) {
-  const accessToken = readBearerToken(request);
-  if (accessToken === null) {
-    return null;
-  }
-
-  const userSupabase = createUserSupabaseClient(accessToken);
-  const session = await getAuthSessionSummary({
-    supabase: userSupabase,
-    accessToken,
-  });
-  const membership = session?.memberships.find((candidate) => candidate.workspaceId === workspaceId) ?? null;
-  if (membership === null || !listingImportAllowedRoles.has(membership.role)) {
-    return null;
-  }
-
-  return membership;
-}
+const listingImportAllowedRoles = new Set(["owner", "admin", "team_lead", "lead_manager", "operator", "agent"] as const);
 
 export async function POST(request: NextRequest, context: RouteContext) {
   const { workspaceId } = await context.params;
-  const membership = await authorizeWorkspaceImport(request, workspaceId);
+  const membership = await authorizeWorkspaceRequest({
+    request,
+    workspaceId,
+    allowedRoles: listingImportAllowedRoles,
+  });
   if (membership === null) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }

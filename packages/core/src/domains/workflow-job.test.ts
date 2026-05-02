@@ -48,6 +48,22 @@ describe("WorkflowJobPayloadSchema", () => {
       jobType: "nurture_delivery",
       enrollmentId,
     });
+    expect(WorkflowJobPayloadSchema.parse({
+      jobType: "harwick_ai_reply",
+      workspaceId,
+      leadId,
+      turnId: "123e4567-e89b-12d3-a456-426614174004",
+      socialReplyReviewId: "123e4567-e89b-12d3-a456-426614174005",
+      channel: "instagram_dm",
+      providerAccountId: "ig-business-1",
+      recipientUserId: "ig-user-1",
+      sourceCommentId: null,
+      sourcePostId: "post-1",
+    })).toMatchObject({
+      jobType: "harwick_ai_reply",
+      turnId: "123e4567-e89b-12d3-a456-426614174004",
+      providerAccountId: "ig-business-1",
+    });
   });
 
   it("requires FUB jobs to be explicitly qualified-only", () => {
@@ -79,6 +95,33 @@ describe("EnqueueWorkflowJobInputSchema", () => {
       leadEventId: null,
       jobType: "fub_sync",
       idempotencyKey: `fub_sync:${leadId}`,
+    });
+  });
+
+  it("accepts Harwick AI reply jobs with explicit send context", () => {
+    expect(EnqueueWorkflowJobInputSchema.parse({
+      workspaceId,
+      leadId,
+      jobType: "harwick_ai_reply",
+      idempotencyKey: "harwick_ai_reply:123e4567-e89b-12d3-a456-426614174004",
+      payload: {
+        jobType: "harwick_ai_reply",
+        workspaceId,
+        leadId,
+        turnId: "123e4567-e89b-12d3-a456-426614174004",
+        socialReplyReviewId: "123e4567-e89b-12d3-a456-426614174005",
+        channel: "instagram_comment",
+        providerAccountId: "ig-business-1",
+        recipientUserId: null,
+        sourceCommentId: "comment-1",
+        sourcePostId: "post-1",
+      },
+    })).toMatchObject({
+      jobType: "harwick_ai_reply",
+      payload: {
+        jobType: "harwick_ai_reply",
+        sourceCommentId: "comment-1",
+      },
     });
   });
 });

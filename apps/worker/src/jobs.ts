@@ -94,6 +94,17 @@ export type WorkflowJobServices = {
     workspaceId: string;
     listingId: string;
   }): Promise<string>;
+  processHarwickAiReply?(params: {
+    workspaceId: string;
+    leadId: string | null;
+    turnId: string;
+    socialReplyReviewId: string | null;
+    providerAccountId: string;
+    channel: "instagram_dm" | "instagram_comment" | "facebook_dm" | "facebook_comment";
+    recipientUserId: string | null;
+    sourceCommentId: string | null;
+    sourcePostId: string | null;
+  }): Promise<WorkerJobResult>;
 };
 
 function toWorkflowJob(row: WorkerJobRow): WorkflowJob {
@@ -274,5 +285,24 @@ export async function handleWorkflowJob(
           enrollmentId: job.payload.enrollmentId,
         }),
       };
+    case "harwick_ai_reply":
+      if (services?.processHarwickAiReply === undefined) {
+        return {
+          status: "skipped",
+          message: "Harwick AI reply execution is not configured in the worker yet",
+        };
+      }
+
+      return services.processHarwickAiReply({
+        workspaceId: job.payload.workspaceId,
+        leadId: job.payload.leadId ?? null,
+        turnId: job.payload.turnId,
+        socialReplyReviewId: job.payload.socialReplyReviewId,
+        providerAccountId: job.payload.providerAccountId,
+        channel: job.payload.channel,
+        recipientUserId: job.payload.recipientUserId,
+        sourceCommentId: job.payload.sourceCommentId,
+        sourcePostId: job.payload.sourcePostId,
+      });
   }
 }

@@ -21,7 +21,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   }
 
-  const allowedRoles = new Set(["owner", "admin", "lead_manager"] as const);
+  const allowedRoles = new Set(["owner", "admin", "team_lead", "lead_manager", "operator"] as const);
   const membership = await authorizeWorkspaceRequest({ request, workspaceId, allowedRoles });
   if (membership === null) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });

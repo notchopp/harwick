@@ -56,6 +56,11 @@ export const FollowUpBossWebhookSubscriptionStatusSchema = z.enum([
   "disabled",
 ]);
 
+export const ConnectFollowUpBossIntegrationRequestSchema = z.object({
+  apiKey: z.string().trim().min(1),
+  providerAccountName: z.string().trim().min(1).max(160).nullable().optional(),
+});
+
 export const CrmBacksyncStatusSchema = z.enum([
   "queued",
   "processing",
@@ -128,3 +133,4 @@ export type FollowUpBossWebhookSubscription = z.infer<typeof FollowUpBossWebhook
 export type CrmBacksyncStatus = z.infer<typeof CrmBacksyncStatusSchema>;
 export type CrmBacksyncEvent = z.infer<typeof CrmBacksyncEventSchema>;
 export type CrmSyncLog = z.infer<typeof CrmSyncLogSchema>;
+export type ConnectFollowUpBossIntegrationRequest = z.infer<typeof ConnectFollowUpBossIntegrationRequestSchema>;

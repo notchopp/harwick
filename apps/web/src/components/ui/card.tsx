@@ -6,7 +6,7 @@ function Card({ className, ...props }: ComponentPropsWithoutRef<"div">) {
   return (
     <div
       className={cn(
-        "rounded-[14px] border border-border bg-[linear-gradient(180deg,#fffefa_0%,#faf9f6_100%)] text-card-foreground",
+        "rounded-[18px] border border-border bg-[linear-gradient(180deg,#fffefa_0%,#f8f5ef_100%)] text-card-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.78),0_16px_45px_rgba(31,42,34,0.055)]",
         className,
       )}
       data-slot="card"

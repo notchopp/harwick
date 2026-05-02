@@ -1,5 +1,6 @@
+import { workspaceRoleHasCapability } from "@realty-ops/core";
 import type { LeadsPageRepository } from "../../features/leads/leads-data";
-import type { LeadEventRow, WorkspaceMemberRow } from "./database.types";
+import type { LeadEventRow, SocialReplyReviewRow, WorkspaceMemberRow } from "./database.types";
 import type { LeadRow } from "./leads";
 import type { ListingFactRow } from "./listings";
 import type { RealtyOpsSupabaseClient } from "./server-client";
@@ -8,14 +9,19 @@ export function createSupabaseLeadsPageRepository(
   supabase: RealtyOpsSupabaseClient,
 ): LeadsPageRepository {
   return {
-    async listLeads(workspaceId, limit) {
-      const { data, error } = await supabase
+    async listLeads(workspaceId, limit, viewer) {
+      let query = supabase
         .from("leads")
         .select("*")
         .eq("workspace_id", workspaceId)
         .order("last_message_at", { ascending: false })
-        .limit(limit)
-        .returns<LeadRow[]>();
+        .limit(limit);
+
+      if (!workspaceRoleHasCapability(viewer.role, "leads.read_all")) {
+        query = query.eq("assigned_agent_id", viewer.memberId);
+      }
+
+      const { data, error } = await query.returns<LeadRow[]>();
       if (error !== null) throw error;
       return data ?? [];
     },
@@ -55,6 +61,25 @@ export function createSupabaseLeadsPageRepository(
         .maybeSingle<Pick<LeadEventRow, "text">>();
       if (error !== null) throw error;
       return data?.text ?? null;
+    },
+
+    async findLatestSocialReviewForLead(params) {
+      const { data, error } = await supabase
+        .from("social_reply_reviews")
+        .select("id,automation_mode,automation_reason")
+        .eq("workspace_id", params.workspaceId)
+        .eq("lead_id", params.leadId)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle<Pick<SocialReplyReviewRow, "id" | "automation_mode" | "automation_reason">>();
+      if (error !== null) throw error;
+      return data === null
+        ? null
+        : {
+            id: data.id,
+            automationMode: data.automation_mode,
+            automationReason: data.automation_reason,
+          };
     },
   };
 }

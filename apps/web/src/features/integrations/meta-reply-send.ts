@@ -3,6 +3,7 @@ import {
   MetaConnectedCredentialSchema,
   SendMetaReplyRequestSchema,
   SendMetaReplyResponseSchema,
+  type ConversationAutomationMode,
   type SendMetaReplyResponse,
 } from "@realty-ops/core";
 import { decryptCredential } from "../../lib/credentials";
@@ -57,6 +58,7 @@ export async function sendMetaReply(params: {
   credentialRepository: MetaReplyCredentialRepository;
   leadEventRepository: Pick<LeadEventPersistenceRepository, "insertLeadEventRows">;
   metaClient: MetaReplyClient;
+  automationMode?: ConversationAutomationMode;
   now?: Date;
 }): Promise<
   | { status: 200; body: SendMetaReplyResponse }
@@ -69,7 +71,8 @@ export async function sendMetaReply(params: {
       body: { error: "invalid_request" },
     };
   }
-  if (!canAutomationSend(parsed.data.automationMode)) {
+  const automationMode = params.automationMode ?? parsed.data.automationMode;
+  if (!canAutomationSend(automationMode)) {
     return {
       status: 400,
       body: { error: "invalid_request" },

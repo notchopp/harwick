@@ -5,6 +5,7 @@ import {
   type SocialPostContext,
 } from "@realty-ops/core";
 import { normalizeFreeformText, normalizeInstagramUsername } from "@realty-ops/core";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 
 export const MetaWebhookChallengeQuerySchema = z.object({
@@ -190,6 +191,33 @@ export function verifyMetaWebhookChallenge(params: {
     ok: true,
     challenge: parsed.data["hub.challenge"],
   };
+}
+
+export function verifyMetaWebhookSignature(params: {
+  rawBody: string;
+  appSecret: string;
+  signatureHeader: string | null;
+}): boolean {
+  if (params.signatureHeader === null) {
+    return false;
+  }
+
+  const [scheme, providedSignature] = params.signatureHeader.split("=", 2);
+  if (scheme !== "sha256" || providedSignature === undefined || providedSignature.length === 0) {
+    return false;
+  }
+
+  const expectedSignature = createHmac("sha256", params.appSecret)
+    .update(params.rawBody, "utf8")
+    .digest("hex");
+
+  const providedBuffer = Buffer.from(providedSignature, "hex");
+  const expectedBuffer = Buffer.from(expectedSignature, "hex");
+  if (providedBuffer.length === 0 || providedBuffer.length !== expectedBuffer.length) {
+    return false;
+  }
+
+  return timingSafeEqual(providedBuffer, expectedBuffer);
 }
 
 export function extractMetaProviderAccountIds(payload: unknown): string[] {

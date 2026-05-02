@@ -1,13 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { ZodError } from "zod";
 import { connectWorkspaceRepliersIntegration } from "../../../../../../features/listings/repliers-connection";
+import { authorizeWorkspaceRequest } from "../../../../../../lib/api/workspace-auth";
 import { getServerEnvironment } from "../../../../../../lib/server-env";
-import { getAuthSessionSummary } from "../../../../../../lib/supabase/auth";
 import { createSupabaseRepliersCredentialRepository } from "../../../../../../lib/supabase/integration-accounts";
-import {
-  createServerSupabaseClient,
-  createUserSupabaseClient,
-} from "../../../../../../lib/supabase/server-client";
+import { createServerSupabaseClient } from "../../../../../../lib/supabase/server-client";
 
 export const runtime = "nodejs";
 
@@ -17,46 +14,21 @@ type RouteContext = {
   }>;
 };
 
-const repliersConnectAllowedRoles = new Set(["owner", "admin", "lead_manager"]);
-
-function readBearerToken(request: NextRequest): string | null {
-  const authorization = request.headers.get("authorization");
-  if (authorization === null) {
-    return null;
-  }
-
-  const [scheme, token] = authorization.split(/\s+/, 2);
-  if (scheme?.toLowerCase() !== "bearer" || token === undefined || token.trim().length === 0) {
-    return null;
-  }
-
-  return token.trim();
-}
+const repliersConnectAllowedRoles = new Set(["owner", "admin", "team_lead", "lead_manager"] as const);
 
 export async function POST(request: NextRequest, context: RouteContext) {
-  const accessToken = readBearerToken(request);
-  if (accessToken === null) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
-
   const environment = getServerEnvironment();
   if (environment.CREDENTIAL_ENCRYPTION_KEY === undefined) {
     return NextResponse.json({ error: "credential_encryption_not_configured" }, { status: 500 });
   }
 
   const { workspaceId } = await context.params;
-  const userSupabase = createUserSupabaseClient(accessToken);
-  const session = await getAuthSessionSummary({
-    supabase: userSupabase,
-    accessToken,
+  const membership = await authorizeWorkspaceRequest({
+    request,
+    workspaceId,
+    allowedRoles: repliersConnectAllowedRoles,
   });
-
-  if (session === null) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
-
-  const membership = session.memberships.find((candidate) => candidate.workspaceId === workspaceId);
-  if (membership === undefined || !repliersConnectAllowedRoles.has(membership.role)) {
+  if (membership === null) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 

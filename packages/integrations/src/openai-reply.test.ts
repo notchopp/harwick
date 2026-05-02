@@ -12,8 +12,26 @@ describe("createOpenAIReplyClient", () => {
           nextAction: "ask_qualification",
           missingFields: ["timeline"],
           confidence: 0.82,
-          policyFlags: ["safe_to_send"],
+          safetyFlags: ["safe_to_send"],
           reply: "That one is listed at $339,990 with 5 beds, 3 baths, a 3-car garage, game room, and office. Are you looking to move soon or just browsing?",
+          statePatch: {
+            currentIntent: "listing_question",
+            leadType: "buyer",
+            intent: "medium",
+            timeline: null,
+            budget: "$339,990",
+            targetArea: "Houston",
+            propertyType: null,
+            financingStatus: null,
+            knownFacts: ["$339,990"],
+          },
+          handoffBrief: null,
+          toolCalls: [{
+            tool: "send_meta_reply",
+            reason: "answer the public comment",
+            requiresApproval: false,
+            payload: { reply: "That one is listed at $339,990." },
+          }],
         }),
       }),
       text: vi.fn().mockResolvedValue(""),
@@ -48,6 +66,7 @@ describe("createOpenAIReplyClient", () => {
     }));
     const [, requestInit] = fetchImpl.mock.calls[0] as [string, RequestInit];
     const requestBody = JSON.parse(requestInit.body as string) as Record<string, unknown>;
-    expect(JSON.stringify(requestBody)).toContain("Post context");
+    expect(JSON.stringify(requestBody)).toContain("Harwick AI");
+    expect(JSON.stringify(requestBody)).toContain("postContext");
   });
 });

@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { verifyMetaWebhookSignature } from "@realty-ops/integrations";
 import { checkRateLimit, rateLimitKeyFromRequest } from "../../../../lib/rate-limit";
+import { getServerEnvironment } from "../../../../lib/server-env";
 import { getMetaWebhook, postMetaWebhook } from "../webhook";
 
 export const runtime = "nodejs";
@@ -49,10 +51,48 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  let body: unknown;
+  const environment = getServerEnvironment();
+  let rawBody: string;
 
   try {
-    body = await request.json();
+    rawBody = await request.text();
+  } catch {
+    return NextResponse.json(
+      {
+        accepted: false,
+        normalizedEventCount: 0,
+        persistedEventCount: 0,
+        duplicateEventCount: 0,
+        leadUpsertCount: 0,
+        unmatchedProviderAccountIds: [],
+        reason: "malformed_payload",
+      },
+      { status: 400 },
+    );
+  }
+
+  if (!verifyMetaWebhookSignature({
+    rawBody,
+    appSecret: environment.META_APP_SECRET,
+    signatureHeader: request.headers.get("x-hub-signature-256"),
+  })) {
+    return NextResponse.json(
+      {
+        accepted: false,
+        normalizedEventCount: 0,
+        persistedEventCount: 0,
+        duplicateEventCount: 0,
+        leadUpsertCount: 0,
+        unmatchedProviderAccountIds: [],
+        reason: "invalid_signature",
+      },
+      { status: 403 },
+    );
+  }
+
+  let body: unknown;
+  try {
+    body = JSON.parse(rawBody) as unknown;
   } catch {
     return NextResponse.json(
       {

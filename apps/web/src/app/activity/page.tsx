@@ -1,12 +1,13 @@
 import { AppShell } from "../../components/app-shell";
 import { ActivityPageContent } from "../../features/activity/activity-page";
-import { requireWorkspaceSession } from "../../features/auth/session";
+import { requireActiveWorkspace } from "../../features/auth/session";
 
 export default async function Page() {
-  await requireWorkspaceSession("/activity");
+  const { membership } = await requireActiveWorkspace({ nextPath: "/activity" });
+
   return (
-    <AppShell activeItem="Activity Log" title="Activity Log">
-      <ActivityPageContent />
+    <AppShell activeItem="Activity Log" title="Activity Log" workspaceName={membership.workspaceName}>
+      <ActivityPageContent workspaceName={membership.workspaceName} />
     </AppShell>
   );
 }

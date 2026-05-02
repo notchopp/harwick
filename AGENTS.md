@@ -8,9 +8,12 @@ Before changing code in this repo, read and follow:
 - `docs/environment-model.md`
 - `docs/integration-model.md`
 - `docs/realty-ops-design-guide.md`
+- `docs/paid-launch-map.md`
 - `docs/codex-agent-constraints.json`
 
 Use `docs/codex-agent-constraints.json` as the compact rule index. Read it every coding turn, apply the matching rule groups for the files being touched, and do not paste it into chat unless asked.
+
+Use `docs/paid-launch-map.md` as the execution spine from current state to paid launch. At the start of each coding turn, pick the highest-priority incomplete launch item from that map unless the user explicitly redirects. When a slice moves from partial to done, update the map in the same turn.
 
 Non-negotiables:
 

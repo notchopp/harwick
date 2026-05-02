@@ -8,6 +8,7 @@ import {
   type ConversationAutomationMode,
   type LeadRoutingQualification,
   type TeamPresenceMember,
+  type WorkspaceRole,
 } from "@realty-ops/core";
 import { Bot, CalendarClock, CheckCircle2, ClipboardCheck, Code2, GitBranch, Home, ListChecks, MessageSquare, PauseCircle, Phone, UsersRound } from "lucide-react";
 import { type KeyboardEvent, type ReactNode, useEffect, useMemo, useState } from "react";
@@ -18,11 +19,11 @@ import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "../../components/ui/sheet";
 import { ToggleGroup, ToggleGroupItem } from "../../components/ui/toggle-group";
+import { WorkspaceTopbar } from "../../components/workspace-topbar";
 import { cn } from "../../lib/utils";
 
 type Source = "instagram" | "facebook";
 type Tone = "green" | "red" | "amber" | "stone";
-type WorkspaceRole = "owner" | "admin" | "lead_manager" | "agent";
 type QueueFilter = "all" | "instagram" | "facebook" | "calls" | "verify" | "crm";
 type WorkItem = { kind: "reply"; item: Reply } | { kind: "task"; item: Task };
 
@@ -376,13 +377,25 @@ const roleViews: Record<WorkspaceRole, { label: string; scope: string }> = {
     label: "admin",
     scope: "integrations, listings, routing",
   },
+  team_lead: {
+    label: "team lead",
+    scope: "team routing, approvals, capacity",
+  },
   lead_manager: {
     label: "lead manager",
     scope: "queue triage, approvals, callbacks",
   },
+  operator: {
+    label: "operator",
+    scope: "queue triage, callbacks, handoffs",
+  },
   agent: {
     label: "agent",
     scope: "assigned leads, calls, follow-ups",
+  },
+  viewer: {
+    label: "viewer",
+    scope: "read-only workspace context",
   },
 };
 
@@ -509,15 +522,6 @@ function mapHomePayloadToWorkItems(payload: Record<string, unknown>): WorkItem[]
 
   return mappedSocial.length > 0 || mappedVoice.length > 0 ? [...mappedSocial, ...mappedVoice] : null;
 }
-
-const queueFilters: Array<{ value: QueueFilter; label: string; count: number }> = [
-  { value: "all", label: "all", count: workItems.length },
-  { value: "instagram", label: "instagram", count: replies.filter((reply) => reply.source === "instagram").length },
-  { value: "facebook", label: "facebook", count: replies.filter((reply) => reply.source === "facebook").length },
-  { value: "calls", label: "callbacks", count: tasks.filter((task) => task.type === "callback").length },
-  { value: "verify", label: "verify", count: tasks.filter((task) => task.type === "listing").length },
-  { value: "crm", label: "crm", count: tasks.filter((task) => task.type === "crm").length },
-];
 
 const primaryPillClass =
   "h-[25px] rounded-full bg-[#2e6b4f] px-[12px] text-[10.75px] font-medium text-white shadow-none hover:bg-[#285e45]";
@@ -887,8 +891,18 @@ function matchesQueueFilter(
 
 function QueueSwitch(props: {
   activeFilter: QueueFilter;
+  items: WorkItem[];
   onFilterChange: (filter: QueueFilter) => void;
 }) {
+  const queueFilters: Array<{ value: QueueFilter; label: string; count: number }> = [
+    { value: "all", label: "all", count: props.items.length },
+    { value: "instagram", label: "instagram", count: props.items.filter((entry) => entry.kind === "reply" && entry.item.source === "instagram").length },
+    { value: "facebook", label: "facebook", count: props.items.filter((entry) => entry.kind === "reply" && entry.item.source === "facebook").length },
+    { value: "calls", label: "callbacks", count: props.items.filter((entry) => entry.kind === "task" && entry.item.type === "callback").length },
+    { value: "verify", label: "verify", count: props.items.filter((entry) => entry.kind === "task" && entry.item.type === "listing").length },
+    { value: "crm", label: "crm", count: props.items.filter((entry) => entry.kind === "task" && entry.item.type === "crm").length },
+  ];
+
   return (
     <ToggleGroup
       aria-label="filter work queue"
@@ -906,7 +920,7 @@ function QueueSwitch(props: {
       {queueFilters.map((filter) => (
         <ToggleGroupItem
           aria-label={`show ${filter.label} work`}
-          className="h-[28px] !rounded-full border border-transparent px-3 text-[11px] font-semibold text-muted-subtle shadow-none transition hover:bg-surface-muted hover:text-foreground data-[state=on]:border-harwick-ink data-[state=on]:bg-harwick-ink data-[state=on]:text-white data-[state=on]:shadow-[0_4px_12px_rgba(31,42,34,0.12)]"
+          className="harwick-toggle-item h-[28px] !rounded-full border border-transparent px-3 text-[11px] font-semibold text-muted-subtle shadow-none transition hover:bg-surface-muted hover:text-foreground"
           key={filter.value}
           value={filter.value}
         >
@@ -1460,7 +1474,7 @@ function RecentLeadsPanel(props: { leads: Lead[] }) {
   );
 }
 
-export function HomePage() {
+export function HomePage(props: { workspaceId: string; workspaceName: string }) {
   const [activeFilter, setActiveFilter] = useState<QueueFilter>("all");
   const [dashboardMetrics, setDashboardMetrics] = useState(metrics);
   const [dashboardHealth, setDashboardHealth] = useState(health);
@@ -1474,7 +1488,7 @@ export function HomePage() {
   );
 
   async function refreshHomeData() {
-    const response = await fetch(`/api/home?workspaceId=${demoWorkspaceId}`, {
+    const response = await fetch(`/api/home?workspaceId=${props.workspaceId}`, {
       cache: "no-store",
     });
     if (!response.ok) {
@@ -1602,66 +1616,88 @@ export function HomePage() {
   }, []);
 
   return (
-    <AppShell activeItem="Work Queue" title="Prestige Realty">
-      <OperatorBrief members={presenceMembers} />
-      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_330px]">
-        <section className="min-w-0">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-baseline gap-2.5">
-              <h2 className="font-display text-[19px] font-medium leading-none text-foreground">
-                Needs Attention
-              </h2>
-              <div className="text-xs text-muted-subtle">
-                {filteredWorkItems.length} open {filteredWorkItems.length === 1 ? "task" : "tasks"}
-              </div>
+    <AppShell activeItem="Work Queue" title={props.workspaceName} workspaceName={props.workspaceName}>
+      <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-background">
+        <WorkspaceTopbar context={`work queue · ${filteredWorkItems.length} open`} workspaceName={props.workspaceName}>
+          <div className="ml-auto flex items-center gap-[10px]">
+            <div className="flex items-center gap-[5px] rounded-full border border-border bg-surface-muted px-[9px] py-1 text-[11px] text-muted">
+              <span className="h-1.5 w-1.5 rounded-full bg-qualified" />
+              Meta Live
             </div>
-            <QueueSwitch activeFilter={activeFilter} onFilterChange={setActiveFilter} />
+            <div className="flex items-center gap-[5px] rounded-full border border-border bg-surface-muted px-[9px] py-1 text-[11px] text-muted">
+              <span className="h-1.5 w-1.5 rounded-full bg-qualified" />
+              Voice Active
+            </div>
+            <div className="flex items-center gap-[5px] rounded-full border border-border bg-surface-muted px-[9px] py-1 text-[11px] text-muted">
+              <span className="h-1.5 w-1.5 rounded-full bg-warm" />
+              FUB Syncing
+            </div>
           </div>
-          {filteredWorkItems.length === 0 ? (
-            <div className="rounded-[14px] border border-dashed border-border bg-surface/45 px-5 py-8 text-center text-[12.5px] text-muted">
-              nothing is waiting in this lane.
-            </div>
-          ) : (
-            filteredWorkItems.map((entry) =>
-              entry.kind === "reply" ? (
-                <ReplyCard
-                  key={getWorkItemKey(entry)}
-                  onOpen={() => setSelectedWorkItem(entry)}
-                  reply={entry.item}
-                />
+        </WorkspaceTopbar>
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-7 py-6">
+          <OperatorBrief members={presenceMembers} />
+          <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_330px]">
+            <section className="min-w-0">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-baseline gap-2.5">
+                  <h2 className="font-display text-[19px] font-medium leading-none text-foreground">
+                    Needs Attention
+                  </h2>
+                  <div className="text-xs text-muted-subtle">
+                    {filteredWorkItems.length} open {filteredWorkItems.length === 1 ? "task" : "tasks"}
+                  </div>
+                </div>
+            <QueueSwitch activeFilter={activeFilter} items={dashboardWorkItems} onFilterChange={setActiveFilter} />
+              </div>
+              {filteredWorkItems.length === 0 ? (
+                <div className="rounded-[14px] border border-dashed border-border bg-surface/45 px-5 py-8 text-center text-[12.5px] text-muted">
+                  nothing is waiting in this lane.
+                </div>
               ) : (
-                <TaskCard
-                  key={getWorkItemKey(entry)}
-                  onOpen={() => setSelectedWorkItem(entry)}
-                  task={entry.item}
-                />
-              ),
-            )
-          )}
-        </section>
-        <aside>
-          <MetricPanel metrics={dashboardMetrics} />
-          <RoutingDecisionPanel />
-          <HealthPanel health={dashboardHealth} />
-          <RecentLeadsPanel leads={leads} />
-        </aside>
+                filteredWorkItems.map((entry) =>
+                  entry.kind === "reply" ? (
+                    <ReplyCard
+                      key={getWorkItemKey(entry)}
+                      onOpen={() => setSelectedWorkItem(entry)}
+                      reply={entry.item}
+                    />
+                  ) : (
+                    <TaskCard
+                      key={getWorkItemKey(entry)}
+                      onOpen={() => setSelectedWorkItem(entry)}
+                      task={entry.item}
+                    />
+                  ),
+                )
+              )}
+            </section>
+            <aside>
+              <MetricPanel metrics={dashboardMetrics} />
+              <RoutingDecisionPanel />
+              <HealthPanel health={dashboardHealth} />
+              <RecentLeadsPanel leads={leads} />
+            </aside>
+          </div>
+        </div>
+
+        <WorkItemDetailSheet
+          actionStatus={actionStatus}
+          entry={selectedWorkItem}
+          onReplyAction={(action, reply) => {
+            void handleReplyAction(action, reply);
+          }}
+          onOpenChange={(open) => {
+            if (!open) {
+              setSelectedWorkItem(null);
+              setActionStatus(null);
+            }
+          }}
+          onTaskAction={(action, task) => {
+            void handleTaskAction(action, task);
+          }}
+        />
       </div>
-      <WorkItemDetailSheet
-        actionStatus={actionStatus}
-        entry={selectedWorkItem}
-        onReplyAction={(action, reply) => {
-          void handleReplyAction(action, reply);
-        }}
-        onOpenChange={(open) => {
-          if (!open) {
-            setSelectedWorkItem(null);
-            setActionStatus(null);
-          }
-        }}
-        onTaskAction={(action, task) => {
-          void handleTaskAction(action, task);
-        }}
-      />
     </AppShell>
   );
 }

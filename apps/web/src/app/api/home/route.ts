@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { loadTeamPresence } from "../../../features/home/team-presence";
 import { loadOperationsQueueSummary, loadWorkspaceReadiness } from "../../../features/operations/workspace-operations";
 import { loadSocialReplyQueue, loadVoiceHandoffQueue } from "../../../features/operator-queues/operator-queues";
+import { authorizeWorkspaceRequest } from "../../../lib/api/workspace-auth";
 import { createServerSupabaseClient } from "../../../lib/supabase/server-client";
 import { createSupabaseWorkspaceOperationsRepository } from "../../../lib/supabase/operations";
 import { createSupabaseSocialReplyQueueRepository, createSupabaseVoiceHandoffQueueRepository } from "../../../lib/supabase/operator-queues";
@@ -111,22 +112,18 @@ async function getTeamPresence(workspaceId: string) {
 
 export async function GET(request: NextRequest) {
   try {
-    const requestedWorkspaceId = UuidSchema.safeParse(request.nextUrl.searchParams.get("workspaceId"));
-    const workspaceId = requestedWorkspaceId.success ? requestedWorkspaceId.data : demoWorkspaceId;
-    const canUseDevelopmentDataBridge = process.env["NODE_ENV"] === "development";
+    const requestedWorkspaceId = request.nextUrl.searchParams.get("workspaceId");
+    const parsedWorkspaceId = UuidSchema.safeParse(requestedWorkspaceId);
+    if (!parsedWorkspaceId.success) {
+      return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+    }
 
-    if (!canUseDevelopmentDataBridge) {
-      return NextResponse.json({
-        teamPresence: {
-          ...fallbackTeamPresence,
-          workspaceId,
-          members: fallbackTeamPresence.members.map((member) => ({ ...member, workspaceId })),
-        },
-        operations: null,
-        readiness: null,
-        socialQueue: null,
-        voiceQueue: null,
-      });
+    const workspaceId = parsedWorkspaceId.data;
+    if ((await authorizeWorkspaceRequest({
+      request,
+      workspaceId,
+    })) === null) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
 
     const supabase = createServerSupabaseClient();

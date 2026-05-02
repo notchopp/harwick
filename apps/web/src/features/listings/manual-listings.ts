@@ -20,12 +20,24 @@ export type ManualListingFactsRepository = ListingFactsRepository & {
 };
 
 function buildManualRawFacts(params: {
+  neighborhood?: string | null;
+  propertyType?: string | null;
+  squareFeet?: number | null;
+  photoUrl?: string | null;
+  videoUrl?: string | null;
+  mediaUrls?: string[];
   notes?: string | null;
   publicUrl?: string | null;
   incentives?: string[];
 }): Record<string, unknown> {
   return {
     entryMode: "manual",
+    ...(params.neighborhood === undefined || params.neighborhood === null ? {} : { neighborhood: params.neighborhood }),
+    ...(params.propertyType === undefined || params.propertyType === null ? {} : { propertyType: params.propertyType }),
+    ...(params.squareFeet === undefined || params.squareFeet === null ? {} : { squareFeet: params.squareFeet }),
+    ...(params.photoUrl === undefined || params.photoUrl === null ? {} : { photoUrl: params.photoUrl }),
+    ...(params.videoUrl === undefined || params.videoUrl === null ? {} : { videoUrl: params.videoUrl }),
+    ...(params.mediaUrls === undefined ? {} : { mediaUrls: params.mediaUrls }),
     ...(params.notes === undefined || params.notes === null ? {} : { notes: params.notes }),
     ...(params.publicUrl === undefined || params.publicUrl === null ? {} : { publicUrl: params.publicUrl }),
     ...(params.incentives === undefined ? {} : { incentives: params.incentives }),
@@ -34,6 +46,12 @@ function buildManualRawFacts(params: {
 
 function mergeManualRawFacts(params: {
   existing: Record<string, unknown>;
+  neighborhood?: string | null;
+  propertyType?: string | null;
+  squareFeet?: number | null;
+  photoUrl?: string | null;
+  videoUrl?: string | null;
+  mediaUrls?: string[];
   notes?: string | null;
   publicUrl?: string | null;
   incentives?: string[];
@@ -45,6 +63,12 @@ function mergeManualRawFacts(params: {
     entryMode: "manual",
     lastManualRefreshSource: params.refreshSource,
     lastManualRefreshAt: params.refreshedAt,
+    ...(params.neighborhood === undefined ? {} : { neighborhood: params.neighborhood }),
+    ...(params.propertyType === undefined ? {} : { propertyType: params.propertyType }),
+    ...(params.squareFeet === undefined ? {} : { squareFeet: params.squareFeet }),
+    ...(params.photoUrl === undefined ? {} : { photoUrl: params.photoUrl }),
+    ...(params.videoUrl === undefined ? {} : { videoUrl: params.videoUrl }),
+    ...(params.mediaUrls === undefined ? {} : { mediaUrls: params.mediaUrls }),
     ...(params.notes === undefined ? {} : { notes: params.notes }),
     ...(params.publicUrl === undefined ? {} : { publicUrl: params.publicUrl }),
     ...(params.incentives === undefined ? {} : { incentives: params.incentives }),
@@ -60,8 +84,8 @@ function hasFactFieldUpdate(values: ListingFactUpdateValues): boolean {
     "price",
     "beds",
     "baths",
-    "has_pool",
     "raw_facts",
+    "has_pool",
   ].some((key) => key in values);
 }
 
@@ -136,7 +160,20 @@ function parseNullableNumber(value: string | null): number | null {
     return null;
   }
 
-  const parsed = Number(value.replace(/[$,]/g, ""));
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/,/g, "")
+    .replace(/\s+/g, "")
+    .replace(/sq\.?ft\.?$/g, "")
+    .replace(/sqft$/g, "");
+  const multiplier = normalized.endsWith("m")
+    ? 1_000_000
+    : normalized.endsWith("k")
+      ? 1_000
+      : 1;
+  const baseValue = multiplier === 1 ? normalized : normalized.slice(0, -1);
+  const parsed = Number(baseValue.replace(/[$]/g, ""));
   return Number.isFinite(parsed) ? parsed : null;
 }
 
@@ -166,11 +203,20 @@ function mapCsvRowToManualRequest(row: Record<string, string>) {
     externalListingId: readCsvValue(row, ["externallistingid", "listingid", "id"]),
     mlsNumber: readCsvValue(row, ["mlsnumber", "mls", "mlsid"]),
     address,
+    neighborhood: readCsvValue(row, ["neighborhood", "subdivision", "community", "area"]),
+    propertyType: readCsvValue(row, ["propertytype", "listingtype", "type", "hometype"]),
     status: readCsvValue(row, ["status", "listingstatus"]),
     price: parseNullableNumber(readCsvValue(row, ["price", "listprice", "currentprice"])),
     beds: parseNullableNumber(readCsvValue(row, ["beds", "bedrooms"])),
     baths: parseNullableNumber(readCsvValue(row, ["baths", "bathrooms"])),
+    squareFeet: parseNullableNumber(readCsvValue(row, ["sqft", "squarefeet", "livingarea", "buildingarea"])),
     hasPool: parseNullableBoolean(readCsvValue(row, ["haspool", "pool"])),
+    photoUrl: readCsvValue(row, ["photourl", "imageurl", "coverimage", "image", "photo"]),
+    videoUrl: readCsvValue(row, ["videourl", "toururl", "virtualtour", "video"]),
+    mediaUrls: readCsvValue(row, ["mediaurls", "galleryurls", "photos", "images"])
+      ?.split(/[;|]/)
+      .map((value) => value.trim())
+      .filter((value) => value.length > 0),
     notes: readCsvValue(row, ["notes", "remarks", "description"]),
     publicUrl: readCsvValue(row, ["publicurl", "url", "link", "listinglink"]),
     incentives: incentives === null
@@ -198,6 +244,12 @@ export async function upsertManualListingFact(params: {
     baths: parsed.baths ?? null,
     hasPool: parsed.hasPool ?? null,
     rawFacts: buildManualRawFacts({
+      neighborhood: parsed.neighborhood ?? null,
+      propertyType: parsed.propertyType ?? null,
+      squareFeet: parsed.squareFeet ?? null,
+      photoUrl: parsed.photoUrl ?? null,
+      videoUrl: parsed.videoUrl ?? null,
+      mediaUrls: parsed.mediaUrls ?? [],
       notes: parsed.notes ?? null,
       publicUrl: parsed.publicUrl ?? null,
       incentives: parsed.incentives ?? [],
@@ -284,11 +336,27 @@ export async function quickUpdateManualListingFact(params: {
   if (parsed.hasPool !== undefined) {
     values.has_pool = parsed.hasPool;
   }
-  if (parsed.notes !== undefined || parsed.publicUrl !== undefined || parsed.incentives !== undefined) {
+  if (
+    parsed.neighborhood !== undefined
+    || parsed.propertyType !== undefined
+    || parsed.squareFeet !== undefined
+    || parsed.photoUrl !== undefined
+    || parsed.videoUrl !== undefined
+    || parsed.mediaUrls !== undefined
+    || parsed.notes !== undefined
+    || parsed.publicUrl !== undefined
+    || parsed.incentives !== undefined
+  ) {
     values.raw_facts = mergeManualRawFacts({
       existing: existing.raw_facts,
       refreshSource: "quick_update",
       refreshedAt,
+      ...(parsed.neighborhood === undefined ? {} : { neighborhood: parsed.neighborhood }),
+      ...(parsed.propertyType === undefined ? {} : { propertyType: parsed.propertyType }),
+      ...(parsed.squareFeet === undefined ? {} : { squareFeet: parsed.squareFeet }),
+      ...(parsed.photoUrl === undefined ? {} : { photoUrl: parsed.photoUrl }),
+      ...(parsed.videoUrl === undefined ? {} : { videoUrl: parsed.videoUrl }),
+      ...(parsed.mediaUrls === undefined ? {} : { mediaUrls: parsed.mediaUrls }),
       ...(parsed.notes === undefined ? {} : { notes: parsed.notes }),
       ...(parsed.publicUrl === undefined ? {} : { publicUrl: parsed.publicUrl }),
       ...(parsed.incentives === undefined ? {} : { incentives: parsed.incentives }),

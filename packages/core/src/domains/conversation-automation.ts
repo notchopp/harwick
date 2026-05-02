@@ -17,6 +17,16 @@ export const ConversationAutomationControlSchema = z.object({
 
 export type ConversationAutomationControl = z.infer<typeof ConversationAutomationControlSchema>;
 
+export const ConversationAutomationScopeSchema = z.object({
+  workspaceId: z.string().uuid(),
+  leadId: z.string().uuid().nullable(),
+  providerAccountId: z.string().trim().min(1),
+  recipientUserId: z.string().trim().min(1).nullable(),
+  channel: z.enum(["instagram_dm", "instagram_comment", "facebook_dm", "facebook_comment"]),
+});
+
+export type ConversationAutomationScope = z.infer<typeof ConversationAutomationScopeSchema>;
+
 export const ConversationAutomationControlRequestSchema = z.object({
   mode: ConversationAutomationModeSchema,
   reason: z.string().trim().min(1).max(240).nullable().optional(),

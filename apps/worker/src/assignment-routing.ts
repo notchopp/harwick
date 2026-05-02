@@ -1,6 +1,6 @@
 export type AssignmentRoutingCandidate = {
   memberId: string;
-  role: "owner" | "admin" | "lead_manager" | "agent";
+  role: "owner" | "admin" | "team_lead" | "lead_manager" | "agent";
   activeLeadCount: number;
   openTaskCount: number;
   urgentTaskCount: number;
@@ -17,6 +17,7 @@ function rolePriority(role: AssignmentRoutingCandidate["role"]): number {
     case "agent":
       return 0;
     case "lead_manager":
+    case "team_lead":
       return 1;
     case "admin":
       return 2;

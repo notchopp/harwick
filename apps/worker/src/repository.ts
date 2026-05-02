@@ -1,12 +1,22 @@
 import { z } from "zod";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import {
+  canAutomationSend,
   decideNurtureAction,
+  HarwickAiAutomationDecisionSchema,
+  deriveHarwickAiTurnPersistenceStatus,
+  HarwickAiTurnSchema,
+  MetaConnectedCredentialSchema,
   NurtureEnrollmentSchema,
   NurtureLeadContactSchema,
   type WorkflowJob,
 } from "@realty-ops/core";
-import { createFollowUpBossClient, type FollowUpBossLeadEventInput } from "@realty-ops/integrations";
+import {
+  createFollowUpBossClient,
+  createMetaMessagingClient,
+  executeHarwickAiToolCalls,
+  type FollowUpBossLeadEventInput,
+} from "@realty-ops/integrations";
 import { chooseAssignmentCandidate, type AssignmentRoutingCandidate } from "./assignment-routing.js";
 import { decryptCredential } from "./credentials.js";
 import {
@@ -114,7 +124,7 @@ type RealtyOpsWorkerDatabase = {
         Row: {
           id: string;
           workspace_id: string;
-          role: "owner" | "admin" | "lead_manager" | "agent";
+          role: "owner" | "admin" | "team_lead" | "lead_manager" | "operator" | "agent" | "viewer";
           is_active: boolean;
           created_at: string;
         };
@@ -191,6 +201,100 @@ type RealtyOpsWorkerDatabase = {
           assigned_member_id: string | null;
         };
         Update: Record<string, never>;
+        Relationships: [];
+      };
+      social_reply_reviews: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          lead_id: string | null;
+          lead_event_id: string;
+          provider_account_id: string;
+          recipient_user_id: string | null;
+          channel: "instagram_dm" | "instagram_comment" | "facebook_dm" | "facebook_comment";
+          source_post_id: string | null;
+          source_comment_id: string | null;
+          suggested_reply: string | null;
+          status: "pending" | "approved" | "sent" | "dismissed" | "failed";
+          provider_event_id: string | null;
+          last_error_code: string | null;
+          last_error_message: string | null;
+          reviewed_by_member_id: string | null;
+          reviewed_at: string | null;
+          updated_at: string;
+        };
+        Insert: Record<string, never>;
+        Update: {
+          suggested_reply?: string | null;
+          status?: "pending" | "approved" | "sent" | "dismissed" | "failed";
+          provider_event_id?: string | null;
+          last_error_code?: string | null;
+          last_error_message?: string | null;
+          reviewed_by_member_id?: string | null;
+          reviewed_at?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      conversation_automation_states: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          lead_id: string | null;
+          provider_account_id: string;
+          recipient_user_id: string | null;
+          channel: "instagram_dm" | "instagram_comment" | "facebook_dm" | "facebook_comment";
+          automation_mode: "ai_on" | "human_takeover" | "paused_by_rule";
+        };
+        Insert: Record<string, never>;
+        Update: Record<string, never>;
+        Relationships: [];
+      };
+      harwick_ai_turns: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          lead_id: string | null;
+          social_reply_review_id: string | null;
+          provider_thread_id: string | null;
+          channel: "instagram_dm" | "instagram_comment" | "facebook_dm" | "facebook_comment" | "sms" | "call" | "manual" | "csv_import";
+          turn: Record<string, unknown>;
+          automation_decision: Record<string, unknown>;
+          status: "drafted" | "auto_executed" | "queued_for_approval" | "blocked" | "failed";
+          reply: string;
+        };
+        Insert: Record<string, never>;
+        Update: {
+          status?: "drafted" | "auto_executed" | "queued_for_approval" | "blocked" | "failed";
+        };
+        Relationships: [];
+      };
+      harwick_ai_tool_calls: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          turn_id: string;
+          lead_id: string | null;
+          tool: "send_meta_reply" | "send_meta_dm" | "check_calendar" | "request_showing_approval" | "register_open_house" | "route_lead" | "sync_follow_up_boss" | "pause_automation";
+          requires_approval: boolean;
+          reason: string;
+          payload: Record<string, unknown>;
+          policy_status: "approved" | "approval_required" | "blocked";
+          execution_status: "pending" | "executed" | "queued_for_approval" | "missing_handler" | "failed" | "blocked";
+          execution_output: Record<string, unknown>;
+          error_code: string | null;
+          error_message: string | null;
+          executed_at: string | null;
+          created_at: string;
+        };
+        Insert: Record<string, never>;
+        Update: {
+          execution_status?: "pending" | "executed" | "queued_for_approval" | "missing_handler" | "failed" | "blocked";
+          execution_output?: Record<string, unknown>;
+          error_code?: string | null;
+          error_message?: string | null;
+          executed_at?: string | null;
+        };
         Relationships: [];
       };
       nurture_enrollments: {
@@ -539,6 +643,113 @@ export function createSupabaseWorkflowJobServices(
     return options.followUpBossApiKey ?? null;
   }
 
+  async function findConnectedMetaCredential(params: {
+    workspaceId: string;
+    providerAccountId: string;
+  }): Promise<{
+    providerAccountId: string;
+    encryptedCredentialRef: string;
+  } | null> {
+    const selectColumns = "provider_account_id,provider_account_ids,encrypted_credential_ref";
+
+    const { data, error } = await supabase
+      .from("integration_accounts")
+      .select(selectColumns)
+      .eq("workspace_id", params.workspaceId)
+      .eq("provider", "meta")
+      .eq("status", "connected")
+      .eq("provider_account_id", params.providerAccountId)
+      .maybeSingle();
+
+    if (error !== null) {
+      throw error;
+    }
+
+    if (
+      data?.encrypted_credential_ref !== null
+      && data?.encrypted_credential_ref !== undefined
+      && data.provider_account_id !== null
+    ) {
+      return {
+        providerAccountId: data.provider_account_id,
+        encryptedCredentialRef: data.encrypted_credential_ref,
+      };
+    }
+
+    const { data: aliasData, error: aliasError } = await supabase
+      .from("integration_accounts")
+      .select(selectColumns)
+      .eq("workspace_id", params.workspaceId)
+      .eq("provider", "meta")
+      .eq("status", "connected")
+      .contains("provider_account_ids", [params.providerAccountId])
+      .maybeSingle();
+
+    if (aliasError !== null) {
+      throw aliasError;
+    }
+
+    if (
+      aliasData?.encrypted_credential_ref === null
+      || aliasData === null
+      || aliasData.provider_account_id === null
+    ) {
+      return null;
+    }
+
+    return {
+      providerAccountId: aliasData.provider_account_id,
+      encryptedCredentialRef: aliasData.encrypted_credential_ref,
+    };
+  }
+
+  async function resolveConversationAutomationMode(params: {
+    workspaceId: string;
+    leadId: string | null;
+    providerAccountId: string;
+    recipientUserId: string | null;
+    channel: "instagram_dm" | "instagram_comment" | "facebook_dm" | "facebook_comment";
+  }): Promise<"ai_on" | "human_takeover" | "paused_by_rule"> {
+    let query = supabase
+      .from("conversation_automation_states")
+      .select("automation_mode")
+      .eq("workspace_id", params.workspaceId);
+
+    if (params.leadId !== null) {
+      query = query.eq("lead_id", params.leadId);
+    } else {
+      query = query
+        .is("lead_id", null)
+        .eq("provider_account_id", params.providerAccountId)
+        .eq("channel", params.channel);
+
+      query = params.recipientUserId === null
+        ? query.is("recipient_user_id", null)
+        : query.eq("recipient_user_id", params.recipientUserId);
+    }
+
+    const { data, error } = await query.maybeSingle();
+    if (error !== null) {
+      throw error;
+    }
+
+    return data?.automation_mode ?? "ai_on";
+  }
+
+  function readMetaToolReply(payload: Record<string, unknown>): string | null {
+    const directReply = payload["reply"];
+    if (typeof directReply === "string" && directReply.trim().length > 0) {
+      return directReply.trim();
+    }
+
+    const buyerBlueprintUrl = payload["buyerBlueprintUrl"];
+    if (typeof buyerBlueprintUrl === "string" && buyerBlueprintUrl.trim().length > 0) {
+      return buyerBlueprintUrl.trim();
+    }
+
+    return null;
+  }
+
   async function findLeadIdByFollowUpBossContactId(params: {
     workspaceId: string;
     providerContactId: string;
@@ -638,7 +849,7 @@ export function createSupabaseWorkflowJobServices(
         .select("id,role,is_active,workspace_id,created_at")
         .eq("workspace_id", params.workspaceId)
         .eq("is_active", true)
-        .in("role", ["agent", "lead_manager", "owner", "admin"])
+        .in("role", ["agent", "lead_manager", "team_lead", "owner", "admin"])
         .order("created_at", { ascending: true });
 
       if (error !== null) {
@@ -698,7 +909,15 @@ export function createSupabaseWorkflowJobServices(
         }
       }
 
-      const routingCandidates: AssignmentRoutingCandidate[] = eligibleMembers.map((member) => ({
+      const routingCandidates: AssignmentRoutingCandidate[] = eligibleMembers
+        .filter((member): member is typeof member & { role: AssignmentRoutingCandidate["role"] } => {
+          return member.role === "agent"
+            || member.role === "lead_manager"
+            || member.role === "team_lead"
+            || member.role === "owner"
+            || member.role === "admin";
+        })
+        .map((member) => ({
         memberId: member.id,
         role: member.role,
         activeLeadCount: activeLeadCounts.get(member.id) ?? 0,
@@ -1096,6 +1315,366 @@ export function createSupabaseWorkflowJobServices(
       }
 
       return `nurture drafted step ${decision.step.index}`;
+    },
+
+    async processHarwickAiReply(params) {
+      const now = new Date().toISOString();
+      const { data: turnRow, error: turnError } = await supabase
+        .from("harwick_ai_turns")
+        .select("id,workspace_id,lead_id,social_reply_review_id,provider_thread_id,channel,turn,automation_decision,status,reply")
+        .eq("id", params.turnId)
+        .eq("workspace_id", params.workspaceId)
+        .maybeSingle();
+
+      if (turnError !== null) {
+        throw turnError;
+      }
+      if (turnRow === null) {
+        return {
+          status: "skipped",
+          message: "Harwick AI reply skipped because the persisted turn was not found",
+        };
+      }
+
+      const automationDecision = HarwickAiAutomationDecisionSchema.parse(turnRow.automation_decision);
+      const { data: toolRows, error: toolError } = await supabase
+        .from("harwick_ai_tool_calls")
+        .select("*")
+        .eq("turn_id", params.turnId)
+        .order("created_at", { ascending: true });
+
+      if (toolError !== null) {
+        throw toolError;
+      }
+
+      const approvedToolRows = (toolRows ?? []).filter((row) => row.policy_status === "approved");
+      if (approvedToolRows.length === 0) {
+        await supabase
+          .from("harwick_ai_turns")
+          .update({ status: "blocked" })
+          .eq("id", params.turnId);
+        return {
+          status: "skipped",
+          message: "Harwick AI reply skipped because no approved tool calls were available",
+        };
+      }
+
+      if (turnRow.status === "auto_executed" && approvedToolRows.every((row) => row.execution_status === "executed")) {
+        return {
+          status: "skipped",
+          message: "Harwick AI reply skipped because the turn already executed",
+        };
+      }
+
+      const currentAutomationMode = await resolveConversationAutomationMode({
+        workspaceId: params.workspaceId,
+        leadId: params.leadId,
+        providerAccountId: params.providerAccountId,
+        recipientUserId: params.recipientUserId,
+        channel: params.channel,
+      });
+      if (!canAutomationSend(currentAutomationMode)) {
+        for (const toolRow of approvedToolRows.filter((row) => row.execution_status === "pending")) {
+          const { error } = await supabase
+            .from("harwick_ai_tool_calls")
+            .update({
+              execution_status: "blocked",
+              error_code: "automation_paused",
+              error_message: "Harwick AI is not allowed to send while this conversation is paused or in human takeover.",
+            })
+            .eq("id", toolRow.id);
+          if (error !== null) {
+            throw error;
+          }
+        }
+
+        const { error } = await supabase
+          .from("harwick_ai_turns")
+          .update({ status: "blocked" })
+          .eq("id", params.turnId);
+        if (error !== null) {
+          throw error;
+        }
+
+        return {
+          status: "skipped",
+          message: "Harwick AI reply skipped because the conversation is paused or in human takeover",
+        };
+      }
+
+      if (options.credentialSecret === undefined) {
+        return {
+          status: "skipped",
+          message: "Harwick AI reply skipped because credential encryption is not configured in the worker",
+        };
+      }
+
+      const connectedCredential = await findConnectedMetaCredential({
+        workspaceId: params.workspaceId,
+        providerAccountId: params.providerAccountId,
+      });
+      if (connectedCredential === null) {
+        const failureMessage = "Meta credentials are not connected for this provider account.";
+        for (const toolRow of approvedToolRows.filter((row) => row.execution_status === "pending")) {
+          const { error } = await supabase
+            .from("harwick_ai_tool_calls")
+            .update({
+              execution_status: "failed",
+              error_code: "integration_not_found",
+              error_message: failureMessage,
+            })
+            .eq("id", toolRow.id);
+          if (error !== null) {
+            throw error;
+          }
+        }
+        const { error: turnUpdateError } = await supabase
+          .from("harwick_ai_turns")
+          .update({ status: "failed" })
+          .eq("id", params.turnId);
+        if (turnUpdateError !== null) {
+          throw turnUpdateError;
+        }
+        if (params.socialReplyReviewId !== null) {
+          const { error: reviewError } = await supabase
+            .from("social_reply_reviews")
+            .update({
+              status: "failed",
+              suggested_reply: turnRow.reply,
+              last_error_code: "integration_not_found",
+              last_error_message: failureMessage,
+              updated_at: now,
+            })
+            .eq("id", params.socialReplyReviewId)
+            .eq("workspace_id", params.workspaceId);
+          if (reviewError !== null) {
+            throw reviewError;
+          }
+        }
+        return {
+          status: "skipped",
+          message: failureMessage,
+        };
+      }
+
+      const metaCredential = MetaConnectedCredentialSchema.parse(
+        decryptCredential<unknown>(connectedCredential.encryptedCredentialRef, options.credentialSecret),
+      );
+      const executableRows = approvedToolRows.filter((row) => row.execution_status !== "executed");
+      if (executableRows.length === 0) {
+        const { error } = await supabase
+          .from("harwick_ai_turns")
+          .update({ status: "auto_executed" })
+          .eq("id", params.turnId);
+        if (error !== null) {
+          throw error;
+        }
+        return {
+          status: "skipped",
+          message: "Harwick AI reply skipped because the approved tool calls already executed",
+        };
+      }
+
+      HarwickAiTurnSchema.parse(turnRow.turn);
+      const metaClient = createMetaMessagingClient(
+        options.fetchImpl === undefined ? {} : { fetchImpl: options.fetchImpl },
+      );
+      const results = await executeHarwickAiToolCalls({
+        toolCalls: executableRows.map((row) => ({
+          tool: row.tool,
+          reason: row.reason,
+          requiresApproval: row.requires_approval,
+          payload: row.payload,
+        })),
+        handlers: {
+          send_meta_reply: async (toolCall) => {
+            const reply = readMetaToolReply(toolCall.payload);
+            if (reply === null || params.sourceCommentId === null) {
+              throw new Error("Harwick AI reply payload is missing a comment target or reply body.");
+            }
+            const occurredAt = new Date().toISOString();
+            const providerEvent = await metaClient.replyToComment({
+              commentId: params.sourceCommentId,
+              accessToken: metaCredential.pageAccessToken,
+              reply,
+            });
+            const { error } = await supabase
+              .from("lead_events")
+              .insert({
+                workspace_id: params.workspaceId,
+                lead_id: params.leadId,
+                provider: "meta",
+                event_type: "reply_sent",
+                source_channel: params.channel,
+                provider_event_id: providerEvent.providerEventId,
+                provider_account_id: params.providerAccountId,
+                provider_user_id: params.recipientUserId,
+                source_post_id: params.sourcePostId,
+                source_comment_id: params.sourceCommentId,
+                text: reply,
+                occurred_at: occurredAt,
+              });
+            if (error !== null) {
+              throw error;
+            }
+            return {
+              providerEventId: providerEvent.providerEventId,
+              occurredAt,
+            };
+          },
+          send_meta_dm: async (toolCall) => {
+            const reply = readMetaToolReply(toolCall.payload);
+            if (reply === null || params.recipientUserId === null) {
+              throw new Error("Harwick AI reply payload is missing a recipient or reply body.");
+            }
+            const occurredAt = new Date().toISOString();
+            const providerEvent = await metaClient.sendDirectMessage({
+              pageId: metaCredential.pageId,
+              recipientUserId: params.recipientUserId,
+              accessToken: metaCredential.pageAccessToken,
+              reply,
+            });
+            const { error } = await supabase
+              .from("lead_events")
+              .insert({
+                workspace_id: params.workspaceId,
+                lead_id: params.leadId,
+                provider: "meta",
+                event_type: "reply_sent",
+                source_channel: params.channel,
+                provider_event_id: providerEvent.providerEventId,
+                provider_account_id: params.providerAccountId,
+                provider_user_id: params.recipientUserId,
+                source_post_id: params.sourcePostId,
+                source_comment_id: params.sourceCommentId,
+                text: reply,
+                occurred_at: occurredAt,
+              });
+            if (error !== null) {
+              throw error;
+            }
+            return {
+              providerEventId: providerEvent.providerEventId,
+              occurredAt,
+            };
+          },
+        },
+        approvedTools: automationDecision.approvedTools,
+      });
+
+      const executionStatusByToolId = new Map(
+        approvedToolRows.map((row) => [row.id, row.execution_status] as const),
+      );
+      let firstExecutedProviderEventId: string | null = null;
+      let firstFailure: { code: string; message: string } | null = null;
+
+      for (const [index, result] of results.entries()) {
+        const toolRow = executableRows[index];
+        if (toolRow === undefined) {
+          continue;
+        }
+
+        const nextExecutionStatus = result.status === "failed"
+          ? "failed"
+          : result.status === "missing_handler"
+            ? "missing_handler"
+            : result.status;
+        executionStatusByToolId.set(toolRow.id, nextExecutionStatus);
+
+        if (firstExecutedProviderEventId === null && typeof result.output["providerEventId"] === "string") {
+          firstExecutedProviderEventId = result.output["providerEventId"];
+        }
+        if (
+          firstFailure === null
+          && (result.status === "failed" || result.status === "missing_handler")
+        ) {
+          firstFailure = {
+            code: result.status === "missing_handler" ? "missing_handler" : (result.errorCode ?? "handler_execution_failed"),
+            message: result.status === "missing_handler"
+              ? `No handler is configured for ${result.tool}.`
+              : (result.errorMessage ?? "Harwick AI tool execution failed."),
+          };
+        }
+
+        const { error } = await supabase
+          .from("harwick_ai_tool_calls")
+          .update({
+            execution_status: nextExecutionStatus,
+            execution_output: result.output,
+            error_code: result.status === "failed"
+              ? (result.errorCode ?? "handler_execution_failed")
+              : result.status === "missing_handler"
+                ? "missing_handler"
+                : null,
+            error_message: result.status === "failed"
+              ? (result.errorMessage ?? "Harwick AI tool execution failed.")
+              : result.status === "missing_handler"
+                ? `No handler is configured for ${result.tool}.`
+                : null,
+            executed_at: result.status === "executed" ? new Date().toISOString() : null,
+          })
+          .eq("id", toolRow.id);
+        if (error !== null) {
+          throw error;
+        }
+      }
+
+      const hasExecutionFailure = [...executionStatusByToolId.values()].some((status) => {
+        return status === "failed" || status === "missing_handler";
+      });
+      const allApprovedExecuted = approvedToolRows.every((row) => executionStatusByToolId.get(row.id) === "executed");
+      const turnStatus = deriveHarwickAiTurnPersistenceStatus({
+        automationDecision,
+        isExecuted: allApprovedExecuted,
+        hasExecutionFailure,
+      });
+
+      const { error: turnStatusError } = await supabase
+        .from("harwick_ai_turns")
+        .update({ status: turnStatus })
+        .eq("id", params.turnId);
+      if (turnStatusError !== null) {
+        throw turnStatusError;
+      }
+
+      if (params.socialReplyReviewId !== null) {
+        const { error: reviewError } = await supabase
+          .from("social_reply_reviews")
+          .update(allApprovedExecuted
+            ? {
+                status: "sent",
+                suggested_reply: turnRow.reply,
+                provider_event_id: firstExecutedProviderEventId,
+                last_error_code: null,
+                last_error_message: null,
+                updated_at: now,
+              }
+            : hasExecutionFailure
+              ? {
+                  status: "failed",
+                  suggested_reply: turnRow.reply,
+                  last_error_code: firstFailure?.code ?? "harwick_ai_reply_failed",
+                  last_error_message: firstFailure?.message ?? "Harwick AI reply execution failed.",
+                  updated_at: now,
+                }
+              : {
+                  updated_at: now,
+                })
+          .eq("id", params.socialReplyReviewId)
+          .eq("workspace_id", params.workspaceId);
+        if (reviewError !== null) {
+          throw reviewError;
+        }
+      }
+
+      if (hasExecutionFailure) {
+        throw new Error(firstFailure?.message ?? "Harwick AI reply execution failed.");
+      }
+
+      return {
+        status: "completed",
+        message: `executed ${results.filter((result) => result.status === "executed").length} Harwick AI tool call(s)`,
+      };
     },
 
     async syncLeadToFub(params) {

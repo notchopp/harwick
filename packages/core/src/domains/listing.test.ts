@@ -67,17 +67,28 @@ describe("ManualListingFactRequestSchema", () => {
   it("accepts manually entered workspace listing facts", () => {
     expect(ManualListingFactRequestSchema.parse({
       address: "123 Main St, Houston, TX 77001",
+      neighborhood: "River Oaks",
+      propertyType: "single family",
       status: "Available",
       price: 339990,
       beds: 5,
       baths: 3,
+      squareFeet: 2820,
       hasPool: false,
+      photoUrl: "https://example.com/listing.jpg",
+      videoUrl: "https://example.com/tour.mp4",
+      mediaUrls: ["https://example.com/listing.jpg", "https://example.com/detail.webp"],
       notes: "4.99% interest rate and closing cost assistance.",
       incentives: ["4.99% interest rate", "closing cost assistance"],
     })).toMatchObject({
       address: "123 Main St, Houston, TX 77001",
+      neighborhood: "River Oaks",
+      propertyType: "single family",
       price: 339990,
+      squareFeet: 2820,
       hasPool: false,
+      videoUrl: "https://example.com/tour.mp4",
+      mediaUrls: ["https://example.com/listing.jpg", "https://example.com/detail.webp"],
     });
   });
 });
@@ -87,10 +98,12 @@ describe("ManualListingQuickUpdateRequestSchema", () => {
     expect(ManualListingQuickUpdateRequestSchema.parse({
       status: "Sold",
       price: 349990,
+      squareFeet: 2910,
       hasPool: false,
       verificationStatus: "verified",
     })).toMatchObject({
       status: "Sold",
+      squareFeet: 2910,
       verificationStatus: "verified",
     });
   });

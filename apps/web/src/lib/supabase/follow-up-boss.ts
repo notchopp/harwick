@@ -17,6 +17,13 @@ export type ConnectedFollowUpBossCredentialRecord = {
   encryptedCredentialRef: string;
 };
 
+export type ConnectedFollowUpBossIntegrationRecord = {
+  integrationAccountId: string;
+  workspaceId: string;
+  providerAccountId: string | null;
+  providerAccountName: string | null;
+};
+
 type FollowUpBossWebhookSubscriptionRecordRow = Pick<
   FollowUpBossWebhookSubscriptionRow,
   | "id"
@@ -82,6 +89,46 @@ export function createSupabaseFollowUpBossCredentialRepository(
         integrationAccountId: data.id,
         workspaceId: data.workspace_id,
         encryptedCredentialRef: data.encrypted_credential_ref,
+      };
+    },
+
+    async upsertWorkspaceCredential(params: {
+      workspaceId: string;
+      providerAccountId: string;
+      providerAccountName: string | null;
+      encryptedCredentialRef: string;
+    }): Promise<ConnectedFollowUpBossIntegrationRecord> {
+      const { data, error } = await supabase
+        .from("integration_accounts")
+        .upsert({
+          workspace_id: params.workspaceId,
+          account_scope: "workspace",
+          owner_member_id: null,
+          provider: "follow_up_boss",
+          status: "connected",
+          provider_account_id: params.providerAccountId,
+          provider_account_ids: [],
+          provider_account_name: params.providerAccountName,
+          encrypted_credential_ref: params.encryptedCredentialRef,
+          oauth_state: null,
+          connected_at: new Date().toISOString(),
+          last_health_check_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }, {
+          onConflict: "workspace_id,provider,provider_account_id",
+        })
+        .select("id,workspace_id,provider_account_id,provider_account_name")
+        .single<Pick<IntegrationAccountRow, "id" | "workspace_id" | "provider_account_id" | "provider_account_name">>();
+
+      if (error !== null) {
+        throw error;
+      }
+
+      return {
+        integrationAccountId: data.id,
+        workspaceId: data.workspace_id,
+        providerAccountId: data.provider_account_id,
+        providerAccountName: data.provider_account_name,
       };
     },
   };

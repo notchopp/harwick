@@ -1,10 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getServerEnvironment } from "../../../../../../lib/server-env";
-import {
-  createServerSupabaseClient,
-  createUserSupabaseClient,
-} from "../../../../../../lib/supabase/server-client";
-import { getAuthSessionSummary } from "../../../../../../lib/supabase/auth";
+import { authorizeWorkspaceRequest } from "../../../../../../lib/api/workspace-auth";
+import { createServerSupabaseClient } from "../../../../../../lib/supabase/server-client";
 import { createSupabaseVoiceAgentRepository } from "../../../../../../lib/supabase/voice-agents";
 import { provisionWorkspaceVoiceAgent } from "../../../../../../features/voice-agent/provision-workspace-voice-agent";
 
@@ -16,37 +13,16 @@ type RouteContext = {
   }>;
 };
 
-const workspaceProvisionAllowedRoles = new Set(["owner", "admin", "lead_manager"]);
-
-function readBearerToken(request: NextRequest): string | null {
-  const authorization = request.headers.get("authorization");
-  if (authorization === null) {
-    return null;
-  }
-
-  const [scheme, token] = authorization.split(/\s+/, 2);
-  if (scheme?.toLowerCase() !== "bearer" || token === undefined || token.trim().length === 0) {
-    return null;
-  }
-
-  return token.trim();
-}
+const workspaceProvisionAllowedRoles = new Set(["owner", "admin", "team_lead", "lead_manager"]);
 
 export async function POST(request: NextRequest, context: RouteContext) {
-  const accessToken = readBearerToken(request);
-  if (accessToken === null) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
-
   const { workspaceId } = await context.params;
-  const userSupabase = createUserSupabaseClient(accessToken);
-  const session = await getAuthSessionSummary({
-    supabase: userSupabase,
-    accessToken,
+  const membership = await authorizeWorkspaceRequest({
+    request,
+    workspaceId,
   });
-
-  if (session === null) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (membership === null) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
   let body: unknown;
@@ -54,11 +30,6 @@ export async function POST(request: NextRequest, context: RouteContext) {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
-  }
-
-  const membership = session.memberships.find((candidate) => candidate.workspaceId === workspaceId);
-  if (membership === undefined) {
-    return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
   const bodyRecord = body && typeof body === "object" && !Array.isArray(body)

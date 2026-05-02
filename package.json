@@ -18,6 +18,7 @@
     "build": "npm run build --workspace @realty-ops/web",
     "supabase:migrate": "node scripts/apply-supabase-migration.mjs",
     "supabase:seed": "node scripts/seed-customer-zero.mjs",
+    "supabase:test:rls": "node scripts/test-rls.mjs",
     "release:check": "npm run constraints:check && npm run typecheck && npm run lint && npm test"
   },
   "dependencies": {

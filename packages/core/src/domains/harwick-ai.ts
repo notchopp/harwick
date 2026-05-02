@@ -97,8 +97,12 @@ function roleLensFor(role: HarwickAiDecisionInput["viewerRole"]): string {
     return "show the assigned agent the conversation context, missing qualification, and the next safe action.";
   }
 
-  if (role === "lead_manager") {
+  if (role === "team_lead" || role === "lead_manager" || role === "operator") {
     return "surface triage, approval, routing, callback, and stuck-work decisions across the operator queue.";
+  }
+
+  if (role === "viewer") {
+    return "show read-only context, current lead status, and why Harwick chose the next action.";
   }
 
   return "show ownership, source credit, assignment quality, routing exceptions, and system risk before CRM handoff.";

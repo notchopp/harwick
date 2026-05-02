@@ -4,12 +4,10 @@ import {
   listManualListingFacts,
   upsertManualListingFact,
 } from "../../../../../features/listings/manual-listings";
-import { getAuthSessionSummary } from "../../../../../lib/supabase/auth";
+import { authorizeWorkspaceRequest } from "../../../../../lib/api/workspace-auth";
+import { checkListingLimit } from "../../../../../lib/supabase/billing";
 import { createSupabaseListingFactsRepository } from "../../../../../lib/supabase/listings";
-import {
-  createServerSupabaseClient,
-  createUserSupabaseClient,
-} from "../../../../../lib/supabase/server-client";
+import { createServerSupabaseClient } from "../../../../../lib/supabase/server-client";
 
 export const runtime = "nodejs";
 
@@ -19,40 +17,14 @@ type RouteContext = {
   }>;
 };
 
-const listingWriteAllowedRoles = new Set(["owner", "admin", "lead_manager"]);
-
-function readBearerToken(request: NextRequest): string | null {
-  const authorization = request.headers.get("authorization");
-  if (authorization === null) {
-    return null;
-  }
-
-  const [scheme, token] = authorization.split(/\s+/, 2);
-  if (scheme?.toLowerCase() !== "bearer" || token === undefined || token.trim().length === 0) {
-    return null;
-  }
-
-  return token.trim();
-}
-
-async function authorizeWorkspaceRequest(request: NextRequest, workspaceId: string) {
-  const accessToken = readBearerToken(request);
-  if (accessToken === null) {
-    return null;
-  }
-
-  const userSupabase = createUserSupabaseClient(accessToken);
-  const session = await getAuthSessionSummary({
-    supabase: userSupabase,
-    accessToken,
-  });
-
-  return session?.memberships.find((candidate) => candidate.workspaceId === workspaceId) ?? null;
-}
+const listingWriteAllowedRoles = new Set(["owner", "admin", "team_lead", "lead_manager", "operator", "agent"] as const);
 
 export async function GET(request: NextRequest, context: RouteContext) {
   const { workspaceId } = await context.params;
-  const membership = await authorizeWorkspaceRequest(request, workspaceId);
+  const membership = await authorizeWorkspaceRequest({
+    request,
+    workspaceId,
+  });
   if (membership === null) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
@@ -74,11 +46,12 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
 export async function POST(request: NextRequest, context: RouteContext) {
   const { workspaceId } = await context.params;
-  const membership = await authorizeWorkspaceRequest(request, workspaceId);
+  const membership = await authorizeWorkspaceRequest({
+    request,
+    workspaceId,
+    allowedRoles: listingWriteAllowedRoles,
+  });
   if (membership === null) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
-  if (!listingWriteAllowedRoles.has(membership.role)) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
@@ -89,11 +62,26 @@ export async function POST(request: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   }
 
+  const supabase = createServerSupabaseClient();
+
+  const listingLimitCheck = await checkListingLimit(supabase, workspaceId);
+  if (!listingLimitCheck.allowed) {
+    return NextResponse.json(
+      {
+        error: "plan_limit_reached",
+        message: listingLimitCheck.reason,
+        currentCount: listingLimitCheck.currentCount,
+        maxCount: listingLimitCheck.maxCount,
+      },
+      { status: 402 }
+    );
+  }
+
   try {
     const listing = await upsertManualListingFact({
       workspaceId,
       request: body,
-      repository: createSupabaseListingFactsRepository(createServerSupabaseClient()),
+      repository: createSupabaseListingFactsRepository(supabase),
     });
 
     return NextResponse.json({ listing }, { status: 200 });
