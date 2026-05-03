@@ -1,18 +1,25 @@
 import {
   HarwickAiAutomationPolicySchema,
   HarwickAiPersistedTurnSchema,
+  HarwickAiTurnSchema,
+  HarwickAiAutomationDecisionSchema,
   type HarwickAiAutomationPolicy,
   type HarwickAiPersistedTurn,
+  type HarwickAiTurn,
+  type HarwickAiAutomationDecision,
 } from "@realty-ops/core";
 import type {
   HarwickAiAutomationPolicyRow,
   HarwickAiToolCallInsertRow,
   HarwickAiTurnInsertRow,
+  Json,
 } from "./database.types";
 import type { RealtyOpsSupabaseClient } from "./server-client";
 
 export type HarwickAiTurnPersistenceRepository = {
   insertTurn(params: HarwickAiPersistedTurn): Promise<{ turnId: string }>;
+  getTurnById(turnId: string): Promise<{ turn: HarwickAiTurn; automationDecision: HarwickAiAutomationDecision } | null>;
+  updateTurnStatus(turnId: string, status: string): Promise<void>;
 };
 
 export type HarwickAiAutomationPolicyRepository = {
@@ -41,17 +48,17 @@ export function createSupabaseHarwickAiTurnRepository(
         social_reply_review_id: parsed.socialReplyReviewId,
         provider_thread_id: parsed.providerThreadId,
         channel: parsed.channel,
-        runtime_input: toJsonObject(parsed.runtimeInput),
-        turn: toJsonObject(parsed.turn),
-        automation_policy: toJsonObject(parsed.automationPolicy),
-        automation_decision: toJsonObject(parsed.automationDecision),
+        runtime_input: toJsonObject(parsed.runtimeInput) as Json,
+        turn: toJsonObject(parsed.turn) as Json,
+        automation_policy: toJsonObject(parsed.automationPolicy) as Json,
+        automation_decision: toJsonObject(parsed.automationDecision) as Json,
         status: parsed.status,
         confidence: parsed.turn.confidence,
         next_action: parsed.turn.nextAction,
         reply: parsed.turn.reply,
         safety_flags: parsed.turn.safetyFlags,
         missing_fields: parsed.turn.missingFields,
-        state_patch: toJsonObject(parsed.turn.statePatch),
+        state_patch: toJsonObject(parsed.turn.statePatch) as Json,
         handoff_brief: parsed.turn.handoffBrief,
       };
 
@@ -72,10 +79,10 @@ export function createSupabaseHarwickAiTurnRepository(
         tool: toolCall.tool,
         requires_approval: toolCall.requiresApproval,
         reason: toolCall.reason,
-        payload: toJsonObject(toolCall.payload),
+        payload: toJsonObject(toolCall.payload) as Json,
         policy_status: toolCall.policyStatus,
         execution_status: toolCall.executionStatus,
-        execution_output: toJsonObject(toolCall.executionOutput),
+        execution_output: toJsonObject(toolCall.executionOutput) as Json,
         error_code: toolCall.errorCode,
         error_message: toolCall.errorMessage,
         executed_at: toolCall.executionStatus === "executed" ? new Date().toISOString() : null,
@@ -92,6 +99,39 @@ export function createSupabaseHarwickAiTurnRepository(
       }
 
       return { turnId: data.id };
+    },
+    async getTurnById(turnId: string) {
+      const { data, error } = await supabase
+        .from("harwick_ai_turns")
+        .select("turn, automation_decision")
+        .eq("id", turnId)
+        .single<{ turn: unknown; automation_decision: unknown }>();
+
+      if (error !== null || !data) {
+        return null;
+      }
+
+      const turn = HarwickAiTurnSchema.parse(data.turn);
+      const automationDecision = HarwickAiAutomationDecisionSchema.parse(data.automation_decision);
+
+      return {
+        turn,
+        automationDecision,
+      };
+    },
+    async updateTurnStatus(turnId: string, status: string) {
+      const validStatuses = ["failed", "blocked", "drafted", "auto_executed", "queued_for_approval"] as const;
+      if (!validStatuses.includes(status as typeof validStatuses[number])) {
+        throw new Error(`Invalid status: ${status}`);
+      }
+      const { error } = await supabase
+        .from("harwick_ai_turns")
+        .update({ status: status as typeof validStatuses[number] })
+        .eq("id", turnId);
+
+      if (error !== null) {
+        throw error;
+      }
     },
   };
 }

@@ -43,7 +43,7 @@ export function mapRowToAgentRoutingProfile(params: {
     roleLabel: params.profile.role_label,
     areas: params.profile.areas,
     propertyTypes: params.profile.property_types as RoutingPropertyType[],
-    leadTypes: params.profile.lead_types.filter((lt): lt is "buyer" | "seller" | "renter" | "investor" =>
+    leadTypes: params.profile.lead_types.filter((lt: string): lt is "buyer" | "seller" | "renter" | "investor" =>
       lt !== "unknown"
     ),
     budgetMin: params.profile.budget_min,

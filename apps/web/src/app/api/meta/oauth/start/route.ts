@@ -14,7 +14,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   }
 
-  const environment = getServerEnvironment();
+  let environment;
+  try {
+    environment = getServerEnvironment();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    console.error("Environment validation failed:", message);
+    return NextResponse.json(
+      { error: "server_config_error", details: message },
+      { status: 500 }
+    );
+  }
+
   const redirectUri = environment.META_OAUTH_REDIRECT_URI
     ?? `${environment.NEXT_PUBLIC_APP_URL.replace(/\/+$/, "")}/api/meta/oauth/callback`;
   const result = await startMetaOAuth({

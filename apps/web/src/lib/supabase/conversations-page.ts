@@ -26,6 +26,17 @@ export function createSupabaseConversationsInboxRepository(
         throw error;
       }
 
+      console.log("[CONVERSATIONS DEBUG]", {
+        workspaceId: params.workspaceId,
+        foundCount: (data ?? []).length,
+        leads: data?.map(d => ({
+          id: d.id,
+          last_message_at: d.last_message_at,
+          status: d.status,
+          instagram_user_id: d.instagram_user_id,
+        })),
+      });
+
       return data ?? [];
     },
 
@@ -83,6 +94,29 @@ export function createSupabaseConversationsInboxRepository(
       }
 
       return data ?? [];
+    },
+
+    async listConversationAutomationStates(params) {
+      if (params.leadIds.length === 0) {
+        return [];
+      }
+
+      const { data, error } = await supabase
+        .from("conversation_automation_states")
+        .select("lead_id, automation_mode")
+        .eq("workspace_id", params.workspaceId)
+        .in("lead_id", params.leadIds)
+        .not("lead_id", "is", null)
+        .returns<Array<{ lead_id: string | null; automation_mode: string }>>();
+
+      if (error !== null) {
+        throw error;
+      }
+
+      return (data ?? []).map((row) => ({
+        leadId: row.lead_id,
+        automationMode: row.automation_mode,
+      }));
     },
   };
 }

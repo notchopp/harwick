@@ -495,11 +495,11 @@ describe("billing service", () => {
 
   describe("recordUsageEvent", () => {
     it("should insert usage event successfully", async () => {
-      let insertedData: Record<string, unknown> | null = null;
+      let insertedData: Record<string, unknown>[] | null = null;
 
       const mockSupabase = {
         from: () => ({
-          insert: (data: Record<string, unknown>) =>
+          insert: (data: Record<string, unknown>[]) =>
             Promise.resolve({ error: null }).then(() => {
               insertedData = data;
               return { error: null };
@@ -518,7 +518,7 @@ describe("billing service", () => {
         { source: "instagram_dm" }
       );
 
-      expect(insertedData).toEqual({
+      expect(insertedData).toEqual([{
         workspace_id: "workspace-123",
         event_type: "lead_event",
         event_count: 5,
@@ -526,7 +526,7 @@ describe("billing service", () => {
         event_metadata: { source: "instagram_dm" },
         billing_period_start: "2026-05-01T00:00:00Z",
         billing_period_end: "2026-06-01T00:00:00Z",
-      });
+      }]);
     });
 
     it("should throw on database error", async () => {

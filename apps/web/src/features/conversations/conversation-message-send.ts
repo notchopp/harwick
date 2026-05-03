@@ -14,6 +14,12 @@ export type ConversationMessageRepository = {
     workspaceId: string;
     leadId: string;
   }): Promise<ConversationAutomationStateRow | null>;
+  recordManualOutboundMessage(params: {
+    workspaceId: string;
+    leadId: string;
+    sourceChannel: LeadRow["source_channel"];
+    reply: string;
+  }): Promise<{ status: 200; body: ConversationMessageSendResponse }>;
 };
 
 export type ConversationMessageSender = (
@@ -58,13 +64,22 @@ export async function sendConversationMessage(params: {
     workspaceId: lead.workspace_id,
     leadId: lead.id,
   });
-  const automationMode: ConversationAutomationMode = automationState?.automation_mode ?? "ai_on";
+  const automationMode: ConversationAutomationMode = (automationState?.automation_mode as ConversationAutomationMode) ?? "ai_on";
 
   if (!canAutomationSend(automationMode)) {
     return {
       status: 403,
       body: { error: "automation_paused" },
     };
+  }
+
+  if (lead.source_channel === "manual" || lead.source_channel === "csv_import") {
+    return params.repository.recordManualOutboundMessage({
+      workspaceId: lead.workspace_id,
+      leadId: lead.id,
+      sourceChannel: lead.source_channel,
+      reply: parsed.data.reply,
+    });
   }
 
   if (

@@ -3,7 +3,13 @@ import tseslint from "typescript-eslint";
 
 export default tseslint.config(
   {
-    ignores: ["**/.next/**", "**/dist/**", "**/node_modules/**", "**/*.tsbuildinfo"],
+    ignores: [
+      "**/.next/**",
+      "**/dist/**",
+      "**/node_modules/**",
+      "**/*.tsbuildinfo",
+      "*.js",
+    ],
   },
   js.configs.recommended,
   {
@@ -14,6 +20,13 @@ export default tseslint.config(
         fetch: "readonly",
         process: "readonly",
         URL: "readonly",
+        setTimeout: "readonly",
+        setInterval: "readonly",
+        clearTimeout: "readonly",
+        clearInterval: "readonly",
+        require: "readonly",
+        __dirname: "readonly",
+        __filename: "readonly",
       },
     },
   },

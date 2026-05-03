@@ -30,7 +30,7 @@ type ConnectedMetaIntegrationRow = Pick<
 export type ConnectedMetaIntegrationRecord = {
   integrationAccountId: string;
   workspaceId: string;
-  accountScope: IntegrationAccountRow["account_scope"];
+  accountScope: "workspace" | "member";
   ownerMemberId: string | null;
   providerAccountId: string;
   providerAccountIds: string[];
@@ -95,7 +95,7 @@ export function createSupabaseMetaOAuthRepository(
       return {
         integrationAccountId: row.id,
         workspaceId: row.workspace_id,
-        accountScope: row.account_scope,
+        accountScope: row.account_scope as "workspace" | "member",
         ownerMemberId: row.owner_member_id,
         providerAccountId: row.provider_account_id,
         providerAccountIds: row.provider_account_ids,

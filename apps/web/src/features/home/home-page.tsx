@@ -2,15 +2,16 @@
 
 import {
   automationModeLabel,
-  decideLeadRouting,
+  RecentLeadsResponseSchema,
+  RoutingDeskResponseSchema,
   TeamPresenceResponseSchema,
-  type AgentRoutingProfile,
   type ConversationAutomationMode,
-  type LeadRoutingQualification,
+  type RecentLeadItem,
+  type RoutingDeskItem,
   type TeamPresenceMember,
   type WorkspaceRole,
 } from "@realty-ops/core";
-import { Bot, CalendarClock, CheckCircle2, ClipboardCheck, Code2, GitBranch, Home, ListChecks, MessageSquare, PauseCircle, Phone, UsersRound } from "lucide-react";
+import { Bot, CalendarClock, CheckCircle2, ClipboardCheck, GitBranch, Home, ListChecks, MessageSquare, PauseCircle, Phone, UsersRound } from "lucide-react";
 import { type KeyboardEvent, type ReactNode, useEffect, useMemo, useState } from "react";
 
 import { AppShell } from "../../components/app-shell";
@@ -56,13 +57,7 @@ type Task = {
   icon: typeof Phone;
 };
 
-type Lead = {
-  initials: string;
-  name: string;
-  detail: string;
-  stage: string;
-  tone: "new" | "qualified" | "nurture";
-};
+type CoAgentPresence = TeamPresenceMember;
 
 type OperatorContext = {
   name: string;
@@ -71,302 +66,9 @@ type OperatorContext = {
   summary: string;
 };
 
-type RoutingScenario = {
-  leadName: string;
-  summary: string;
-  source: string;
-  sourceOwner: string;
-  qualification: LeadRoutingQualification;
-};
+type DashboardMetric = { value: string; label: string; delta: string; tone: "green" | "amber" | "red" };
 
-type CoAgentPresence = TeamPresenceMember;
-
-const replies: Reply[] = [
-  {
-    automationMode: "ai_on",
-    helper: "Harwick is waiting for timeline. If Marcus answers under 90 days, route to Sarah and offer showing windows.",
-    source: "instagram",
-    lead: 'Marcus T. - Comment on "4BR Coral Gables"',
-    time: "2m ago",
-    message: "Is this still available? We've been looking in this area for months",
-    draft:
-      "Hi Marcus - yes, still available. This one just had a price adjustment last week. Happy to send the full details and schedule a walkthrough at your convenience. What's your timeline?",
-    primaryAction: "Ask timeline",
-    secondaryAction: "Take over",
-  },
-  {
-    automationMode: "ai_on",
-    helper: "Open house details are verified, so Harwick can register her and send the event reminder without a route decision.",
-    source: "facebook",
-    lead: 'Keisha Brown - DM on "Coconut Grove Open House"',
-    time: "41m ago",
-    message: "What time does the open house start this Sunday? Can I bring my husband?",
-    draft:
-      "Hi Keisha! The open house is Sunday 1-4 PM - and absolutely, bring your husband. Let me know if you'd like a private showing beforehand too.",
-    primaryAction: "Register attendee",
-    secondaryAction: "Take over",
-  },
-];
-
-const tasks: Task[] = [
-  {
-    type: "callback",
-    label: "Callback Required",
-    title: "Diana Reyes - Missed call, requested agent",
-    detail: "Called 18 min ago - Interested in 3BR rentals, budget $3,500/mo",
-    time: "Urgent",
-    action: "Call Back",
-    tone: "red",
-    icon: Phone,
-  },
-  {
-    type: "listing",
-    label: "Verify Listing",
-    title: "1847 Brickell Ave - Status needs recheck",
-    detail: "Price stated: $1.2M - Voice referenced this listing on last call",
-    time: "Today",
-    action: "Verify",
-    tone: "amber",
-    icon: Home,
-  },
-  {
-    type: "crm",
-    label: "CRM Review",
-    title: "Jordan Mills - Ownership mismatch with CRM",
-    detail: "Harwick: Sarah K. - CRM shows: Unassigned",
-    time: "2h ago",
-    action: "Resolve",
-    tone: "green",
-    icon: Code2,
-  },
-];
-
-const metrics = [
-  { value: "14", label: "Inbound leads", delta: "+ 3 from yesterday", tone: "green" },
-  { value: "9", label: "Qualified", delta: "64% rate", tone: "green" },
-  { value: "6", label: "Voice calls", delta: "2 missed", tone: "amber" },
-  { value: "11", label: "CRM synced", delta: "All clear", tone: "green" },
-];
-
-const health = [
-  { label: "Meta Webhooks", value: "Live", tone: "green" },
-  { label: "Voice", value: "Active", tone: "green" },
-  { label: "CRM Sync", value: "1 retry pending", tone: "amber" },
-  { label: "Worker Jobs", value: "Running", tone: "green" },
-  { label: "Listings", value: "12 verified", tone: "green" },
-];
-
-const leads: Lead[] = [
-  { initials: "MT", name: "Marcus T.", detail: "Instagram - 2m ago", stage: "New", tone: "new" },
-  { initials: "DR", name: "Diana Reyes", detail: "Voice - 18m ago", stage: "New", tone: "new" },
-  { initials: "KB", name: "Keisha Brown", detail: "Facebook - 41m ago", stage: "Qualified", tone: "qualified" },
-  { initials: "JM", name: "Jordan Mills", detail: "Voice - 2h ago", stage: "Qualified", tone: "qualified" },
-  { initials: "TW", name: "Tonya W.", detail: "Instagram - 3h ago", stage: "Nurture", tone: "nurture" },
-];
-
-const operatorContext: OperatorContext = {
-  name: "Maya",
-  role: "lead_manager",
-  workspace: "Prestige Realty",
-  summary: "2 replies need approval, 1 callback is urgent, and 2 qualified leads are ready for routing.",
-};
-
-const demoWorkspaceId = "123e4567-e89b-12d3-a456-426614174000";
-
-const coAgentPresence: CoAgentPresence[] = [
-  {
-    id: "123e4567-e89b-12d3-a456-426614174010",
-    workspaceId: demoWorkspaceId,
-    activeLeadCount: 12,
-    avatarUrl: null,
-    initials: "AD",
-    lastSeen: "active now",
-    lastSeenAt: "2026-04-30T12:00:00.000Z",
-    name: "Ademola",
-    openWork: 3,
-    role: "owner",
-    roleLabel: "rainmaker",
-    status: "online",
-  },
-  {
-    id: "123e4567-e89b-12d3-a456-426614174011",
-    workspaceId: demoWorkspaceId,
-    activeLeadCount: 4,
-    avatarUrl: null,
-    initials: "SK",
-    lastSeen: "active now",
-    lastSeenAt: "2026-04-30T12:00:00.000Z",
-    name: "Sarah K.",
-    openWork: 2,
-    role: "agent",
-    roleLabel: "new construction",
-    status: "online",
-  },
-  {
-    id: "123e4567-e89b-12d3-a456-426614174012",
-    workspaceId: demoWorkspaceId,
-    activeLeadCount: 7,
-    avatarUrl: null,
-    initials: "AM",
-    lastSeen: "on a call",
-    lastSeenAt: "2026-04-30T12:00:00.000Z",
-    name: "Ari M.",
-    openWork: 1,
-    role: "agent",
-    roleLabel: "luxury buyers",
-    status: "in_call",
-  },
-  {
-    id: "123e4567-e89b-12d3-a456-426614174013",
-    workspaceId: demoWorkspaceId,
-    activeLeadCount: 10,
-    avatarUrl: null,
-    initials: "DR",
-    lastSeen: "away 8m",
-    lastSeenAt: "2026-04-30T11:52:00.000Z",
-    name: "Demi R.",
-    openWork: 4,
-    role: "agent",
-    roleLabel: "lease desk",
-    status: "away",
-  },
-  {
-    id: "123e4567-e89b-12d3-a456-426614174014",
-    workspaceId: demoWorkspaceId,
-    activeLeadCount: 5,
-    avatarUrl: null,
-    initials: "MT",
-    lastSeen: "active now",
-    lastSeenAt: "2026-04-30T12:00:00.000Z",
-    name: "Marcus T.",
-    openWork: 1,
-    role: "admin",
-    roleLabel: "team ops",
-    status: "online",
-  },
-];
-
-const memberIds = {
-  ademola: "123e4567-e89b-12d3-a456-426614174010",
-  sarah: "123e4567-e89b-12d3-a456-426614174011",
-  ari: "123e4567-e89b-12d3-a456-426614174012",
-  demi: "123e4567-e89b-12d3-a456-426614174013",
-} as const;
-
-const routingAgents: AgentRoutingProfile[] = [
-  {
-    memberId: memberIds.sarah,
-    displayName: "Sarah K.",
-    roleLabel: "new construction specialist",
-    areas: ["Katy", "Cypress", "Energy Corridor"],
-    propertyTypes: ["new_construction", "single_family"],
-    leadTypes: ["buyer"],
-    budgetMin: 300_000,
-    budgetMax: 750_000,
-    activeLeadCount: 4,
-    maxActiveLeads: 12,
-    acceptsNewLeads: true,
-    notificationPreference: "sms",
-  },
-  {
-    memberId: memberIds.ari,
-    displayName: "Ari M.",
-    roleLabel: "luxury buyer agent",
-    areas: ["River Oaks", "Memorial", "West University"],
-    propertyTypes: ["luxury", "single_family"],
-    leadTypes: ["buyer", "seller"],
-    budgetMin: 900_000,
-    budgetMax: null,
-    activeLeadCount: 7,
-    maxActiveLeads: 10,
-    acceptsNewLeads: true,
-    notificationPreference: "app",
-  },
-  {
-    memberId: memberIds.demi,
-    displayName: "Demi R.",
-    roleLabel: "lease and condo desk",
-    areas: ["Midtown", "Downtown", "Montrose"],
-    propertyTypes: ["lease", "condo", "townhome"],
-    leadTypes: ["renter", "buyer"],
-    budgetMin: null,
-    budgetMax: 650_000,
-    activeLeadCount: 10,
-    maxActiveLeads: 10,
-    acceptsNewLeads: true,
-    notificationPreference: "email",
-  },
-];
-
-const routingScenarios: RoutingScenario[] = [
-  {
-    leadName: "Marcus T.",
-    summary: "buyer, Katy, new construction, $450k-$520k, 60 day timeline",
-    source: "Ademola Instagram",
-    sourceOwner: "Ademola",
-    qualification: {
-      leadId: "123e4567-e89b-12d3-a456-426614174101",
-      workspaceId: "123e4567-e89b-12d3-a456-426614174000",
-      leadType: "buyer",
-      targetArea: "Katy",
-      propertyType: "new_construction",
-      budgetMin: 450_000,
-      budgetMax: 520_000,
-      timeline: "60 days",
-      financingStatus: "preapproved",
-      score: 82,
-      sourceOwnerMemberId: memberIds.ademola,
-    },
-  },
-  {
-    leadName: "Diana Reyes",
-    summary: "renter, Midtown, lease, $2k-$3k, wants a call now",
-    source: "voice call",
-    sourceOwner: "workspace",
-    qualification: {
-      leadId: "123e4567-e89b-12d3-a456-426614174102",
-      workspaceId: "123e4567-e89b-12d3-a456-426614174000",
-      leadType: "renter",
-      targetArea: "Midtown",
-      propertyType: "lease",
-      budgetMin: 2_000,
-      budgetMax: 3_000,
-      timeline: "now",
-      financingStatus: "unknown",
-      score: 74,
-      sourceOwnerMemberId: memberIds.ademola,
-    },
-  },
-  {
-    leadName: "Tonya W.",
-    summary: "comment lead, browsing condos, missing area and budget",
-    source: "Instagram comment",
-    sourceOwner: "Tonya's agent page",
-    qualification: {
-      leadId: "123e4567-e89b-12d3-a456-426614174103",
-      workspaceId: "123e4567-e89b-12d3-a456-426614174000",
-      leadType: "unknown",
-      targetArea: null,
-      propertyType: "condo",
-      budgetMin: null,
-      budgetMax: null,
-      timeline: null,
-      financingStatus: "unknown",
-      score: 31,
-      sourceOwnerMemberId: null,
-    },
-  },
-];
-
-const routingDecisions = routingScenarios.map((scenario) => ({
-  scenario,
-  decision: decideLeadRouting({
-    qualification: scenario.qualification,
-    agents: routingAgents,
-    escalationMemberId: memberIds.ademola,
-    roundRobinCursorMemberId: memberIds.sarah,
-  }),
-}));
+type DashboardHealthRow = { label: string; value: string; tone: "green" | "amber" | "red"; detail?: string | null };
 
 const roleViews: Record<WorkspaceRole, { label: string; scope: string }> = {
   owner: {
@@ -399,13 +101,28 @@ const roleViews: Record<WorkspaceRole, { label: string; scope: string }> = {
   },
 };
 
-const workItems: WorkItem[] = [
-  { kind: "reply", item: replies[0] as Reply },
-  { kind: "task", item: tasks[0] as Task },
-  { kind: "task", item: tasks[1] as Task },
-  { kind: "reply", item: replies[1] as Reply },
-  { kind: "task", item: tasks[2] as Task },
-];
+function buildOperatorSummary(params: {
+  urgentReplies: number;
+  callbacks: number;
+  recentLeadCount: number;
+}): string {
+  const parts: string[] = [];
+  if (params.urgentReplies > 0) {
+    parts.push(`${params.urgentReplies} ${params.urgentReplies === 1 ? "reply" : "replies"} need approval`);
+  }
+  if (params.callbacks > 0) {
+    parts.push(`${params.callbacks} ${params.callbacks === 1 ? "callback" : "callbacks"} pending`);
+  }
+  if (params.recentLeadCount > 0 && parts.length === 0) {
+    parts.push(`${params.recentLeadCount} recent ${params.recentLeadCount === 1 ? "lead" : "leads"} on the desk`);
+  }
+
+  if (parts.length === 0) {
+    return "";
+  }
+
+  return parts.join(", ") + ".";
+}
 
 function readObject(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === "object" && !Array.isArray(value)
@@ -423,7 +140,7 @@ function readNumber(record: Record<string, unknown>, key: string): number | null
   return typeof value === "number" ? value : null;
 }
 
-function mapHomePayloadToMetrics(payload: Record<string, unknown>) {
+function mapHomePayloadToMetrics(payload: Record<string, unknown>): DashboardMetric[] | null {
   const operations = readObject(payload["operations"]);
   if (operations === null) return null;
 
@@ -432,15 +149,16 @@ function mapHomePayloadToMetrics(payload: Record<string, unknown>) {
   const failedCrmSyncs = readNumber(operations, "failedCrmSyncs") ?? 0;
   const providerErrors24h = readNumber(operations, "providerErrors24h") ?? 0;
 
-  return [
+  const metrics: DashboardMetric[] = [
     { value: String(openTasks), label: "Open tasks", delta: `${urgentTasks} urgent`, tone: urgentTasks > 0 ? "amber" : "green" },
     { value: String(Math.max(openTasks - urgentTasks, 0)), label: "Ready", delta: "operator queue", tone: "green" },
     { value: String(providerErrors24h), label: "Provider errors", delta: "24h", tone: providerErrors24h > 0 ? "amber" : "green" },
     { value: String(failedCrmSyncs), label: "CRM failed", delta: failedCrmSyncs > 0 ? "needs review" : "All clear", tone: failedCrmSyncs > 0 ? "amber" : "green" },
   ];
+  return metrics;
 }
 
-function mapHomePayloadToHealth(payload: Record<string, unknown>) {
+function mapHomePayloadToHealth(payload: Record<string, unknown>): DashboardHealthRow[] | null {
   const readiness = readObject(payload["readiness"]);
   const items = Array.isArray(readiness?.["items"]) ? readiness["items"] : null;
   if (items === null) return null;
@@ -452,10 +170,11 @@ function mapHomePayloadToHealth(payload: Record<string, unknown>) {
     const status = readString(row, "status");
     const detail = readString(row, "detail");
     if (label === null || status === null) return [];
+    const tone: "green" | "amber" = status === "ready" ? "green" : "amber";
     return [{
       label,
       value: status === "ready" ? "Live" : status === "degraded" ? "Review" : "Setup",
-      tone: status === "ready" ? "green" : "amber",
+      tone,
       detail,
     }];
   });
@@ -723,24 +442,29 @@ function CoAgentPresenceStrip(props: { members: CoAgentPresence[] }) {
   );
 }
 
-function OperatorBrief(props: { members: CoAgentPresence[] }) {
-  const currentRole = roleViews[operatorContext.role];
+function OperatorBrief(props: {
+  members: CoAgentPresence[];
+  operator: OperatorContext;
+}) {
+  const currentRole = roleViews[props.operator.role];
 
   return (
     <section className="mb-5 px-0 py-1">
       <div className="flex flex-wrap items-end gap-4">
         <div className="min-w-[280px] flex-1">
           <div className="font-display text-[23px] font-medium leading-none text-foreground">
-            hey {operatorContext.name.toLowerCase()}
+            hey {props.operator.name.toLowerCase()}
           </div>
-          <div className="mt-2 max-w-[680px] text-[12.5px] leading-5 text-muted">
-            {operatorContext.summary}
-          </div>
+          {props.operator.summary.length === 0 ? null : (
+            <div className="mt-2 max-w-[680px] text-[12.5px] leading-5 text-muted">
+              {props.operator.summary}
+            </div>
+          )}
         </div>
         <CoAgentPresenceStrip members={props.members} />
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-muted-subtle">
-        <span>{operatorContext.workspace}</span>
+        <span>{props.operator.workspace}</span>
         <span aria-hidden="true">/</span>
         <span>{currentRole.scope}</span>
       </div>
@@ -1140,49 +864,43 @@ function TaskDetail(props: {
 
 function DetailSideRail(props: { entry: WorkItem }) {
   const leadName = getWorkItemLeadName(props.entry);
-  const route = routingDecisions.find(({ scenario }) => scenario.leadName === leadName);
-  const score = leadName === "Marcus T." ? "82 / 100" : leadName === "Diana Reyes" ? "74 / 100" : "needs data";
-  const assigned = route?.decision.assignedDisplayName ?? (route?.decision.status === "unrouted" ? "Ademola" : "Harwick intake");
   const status = props.entry.kind === "reply" ? "reply approval" : props.entry.item.label.toLowerCase();
   const nextAction = props.entry.kind === "reply"
     ? "Approve the draft or edit it before Harwick replies in-channel."
     : props.entry.item.type === "callback"
-      ? "Call back within 15 minutes and attach the outcome to the timeline."
+      ? "Call this lead back and attach the outcome to the timeline."
       : props.entry.item.type === "listing"
         ? "Verify listing status before the AI references it again."
         : "Resolve assignment mismatch before the next FUB sync.";
+  const leadId = props.entry.kind === "reply" ? props.entry.item.leadId : props.entry.item.leadId;
+  const initials = leadName.split(/\s+/).filter(Boolean).map((part) => part[0]).join("").slice(0, 2).toUpperCase() || "LD";
 
   return (
     <div className="space-y-3">
       <DetailSection title="lead context">
         <div className="mb-3 flex items-center gap-3">
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-surface-muted font-semibold text-muted">
-            {leadName.split(" ").map((part) => part[0]).join("").slice(0, 2)}
+            {initials}
           </div>
           <div>
             <div className="text-[14px] font-semibold text-foreground">{leadName}</div>
             <div className="text-[11px] text-muted-subtle">{getWorkItemChannel(props.entry)}</div>
           </div>
         </div>
-        <KvRow label="score" tone={score === "needs data" ? "amber" : "green"} value={score} />
         <KvRow label="status" value={status} />
-        <KvRow label="assigned" value={assigned} />
-        <KvRow label="source credit" value={route?.scenario.sourceOwner ?? "workspace"} />
-      </DetailSection>
-
-      <DetailSection title="qualification">
-        <KvRow label="intent" value={leadName === "Diana Reyes" ? "renter" : leadName === "Marcus T." ? "buyer" : "buyer inquiry"} />
-        <KvRow label="area" value={leadName === "Marcus T." ? "Katy" : leadName === "Diana Reyes" ? "Midtown" : "Coconut Grove"} />
-        <KvRow label="budget" value={leadName === "Marcus T." ? "$450k-$520k" : leadName === "Diana Reyes" ? "$2k-$3k/mo" : "unknown"} />
-        <KvRow label="timeline" value={leadName === "Marcus T." ? "60 days" : leadName === "Diana Reyes" ? "now" : "open house"} />
+        {leadId === undefined ? null : (
+          <div className="mt-2 text-[11px]">
+            <a className="text-qualified underline-offset-2 hover:underline" href={`/leads?leadId=${leadId}`}>
+              open full lead context
+            </a>
+          </div>
+        )}
       </DetailSection>
 
       <DetailSection title="next action">
         <div className="flex items-start gap-2 text-[12px] leading-5 text-muted">
-          <CheckCircle2 aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-qualified" />
-          <span>
-            {nextAction}
-          </span>
+          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-qualified" aria-hidden="true" />
+          <span>{nextAction}</span>
         </div>
       </DetailSection>
     </div>
@@ -1195,6 +913,7 @@ function WorkItemDetailSheet(props: {
   onReplyAction: (action: "send" | "takeover" | "resume" | "dismiss", reply: Reply) => void;
   onOpenChange: (open: boolean) => void;
   onTaskAction: (action: "callback" | "reviewed" | "dismiss", task: Task) => void;
+  workspaceName: string;
 }) {
   const entry = props.entry;
   const leadName = entry === null ? "" : getWorkItemLeadName(entry);
@@ -1246,7 +965,7 @@ function WorkItemDetailSheet(props: {
                   </div>
                   <div className="rounded-[13px] border border-border bg-surface px-3 py-3">
                     <div className="text-[10px] uppercase tracking-[0.12em] text-muted-subtle">workspace</div>
-                    <div className="mt-1.5 text-[13px] font-semibold text-foreground">Prestige Realty</div>
+                    <div className="mt-1.5 text-[13px] font-semibold text-foreground">{props.workspaceName}</div>
                   </div>
                   <div className="rounded-[13px] border border-border bg-surface px-3 py-3">
                     <div className="text-[10px] uppercase tracking-[0.12em] text-muted-subtle">system state</div>
@@ -1282,20 +1001,67 @@ function Dot(props: { tone?: "green" | "amber" | "red" }) {
   );
 }
 
-function RoutingDecisionPanel() {
+function StatusPillsDisplay(props: { pills: StatusPill[] }) {
+  return (
+    <div className="ml-auto flex items-center gap-[10px]">
+      {props.pills.map((pill) => (
+        <div
+          className={cn(
+            "flex items-center gap-[5px] rounded-full border px-[9px] py-1 text-[11px]",
+            pill.status === "ready"
+              ? "border-border bg-surface-muted text-muted"
+              : "border-warm/30 bg-warm-soft text-warm",
+          )}
+          key={pill.key}
+        >
+          <span
+            className={cn(
+              "h-1.5 w-1.5 rounded-full",
+              pill.status === "ready" ? "bg-qualified" : "bg-warm",
+            )}
+          />
+          {pill.label}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function RoutingDecisionPanel(props: { items: RoutingDeskItem[] }) {
   const [activeDecisionIndex, setActiveDecisionIndex] = useState(0);
   const statusCopy = {
     assigned: "assigned",
     unrouted: "owner review",
     hold_for_qualification: "qualify first",
   } as const;
-  const normalizedIndex = Math.min(activeDecisionIndex, routingDecisions.length - 1);
-  const activeDecision = routingDecisions[normalizedIndex] ?? routingDecisions[0];
-  const stackedDecisions = routingDecisions.filter((_, index) => index !== normalizedIndex);
 
+  if (props.items.length === 0) {
+    return (
+      <Card className="mb-4 p-5">
+        <div className="mb-[15px] flex items-start gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-sage-soft text-qualified">
+            <GitBranch aria-hidden="true" className="h-[17px] w-[17px]" strokeWidth={2} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <CardTitle className="font-display text-[15px]">Routing Desk</CardTitle>
+            <div className="mt-1 text-[11.5px] leading-5 text-muted">
+              Area, specialty, price, capacity, then round-robin only when tied.
+            </div>
+          </div>
+        </div>
+        <div className="rounded-[12px] border border-dashed border-border bg-surface/45 px-3 py-6 text-center text-[12px] text-muted">
+          No leads in routing yet. Routing decisions appear here once leads have qualification data and the workspace has agent routing profiles.
+        </div>
+      </Card>
+    );
+  }
+
+  const normalizedIndex = Math.min(activeDecisionIndex, props.items.length - 1);
+  const activeDecision = props.items[normalizedIndex] ?? props.items[0];
   if (activeDecision === undefined) {
     return null;
   }
+  const stackedDecisions = props.items.filter((_, index) => index !== normalizedIndex);
 
   const isAssigned = activeDecision.decision.status === "assigned";
   const isUnrouted = activeDecision.decision.status === "unrouted";
@@ -1324,10 +1090,10 @@ function RoutingDecisionPanel() {
           <div className="mb-2 flex items-start gap-2">
             <div className="min-w-0 flex-1">
               <div className="truncate text-[12.5px] font-semibold text-foreground">
-                {activeDecision.scenario.leadName}
+                {activeDecision.leadName}
               </div>
               <div className="mt-0.5 text-[11px] leading-4 text-muted">
-                {activeDecision.scenario.summary}
+                {activeDecision.summary}
               </div>
             </div>
             <Badge className={cn("rounded-full border-0 px-2 py-[3px] text-[10px]", statusClass)} tone="neutral">
@@ -1339,16 +1105,16 @@ function RoutingDecisionPanel() {
             <div className="flex items-center justify-between gap-3">
               <span className="text-muted-subtle">route</span>
               <span className="truncate text-right font-semibold text-foreground">
-                {activeDecision.decision.assignedDisplayName ?? (isUnrouted ? "Ademola" : "Harwick intake")}
+                {activeDecision.decision.assignedDisplayName ?? "owner review"}
               </span>
             </div>
             <div className="flex items-center justify-between gap-3">
               <span className="text-muted-subtle">source credit</span>
-              <span className="truncate text-right font-medium text-foreground">{activeDecision.scenario.sourceOwner}</span>
+              <span className="truncate text-right font-medium text-foreground">{activeDecision.sourceOwnerLabel}</span>
             </div>
             <div className="flex items-center justify-between gap-3">
               <span className="text-muted-subtle">source</span>
-              <span className="truncate text-right font-medium text-foreground">{activeDecision.scenario.source}</span>
+              <span className="truncate text-right font-medium text-foreground">{activeDecision.source}</span>
             </div>
           </div>
 
@@ -1357,27 +1123,27 @@ function RoutingDecisionPanel() {
           </div>
         </div>
 
-        {stackedDecisions.slice(0, 2).map(({ scenario, decision }, stackIndex) => {
-          const originalIndex = routingDecisions.findIndex((entry) => entry.scenario.leadName === scenario.leadName);
+        {stackedDecisions.slice(0, 2).map((entry, stackIndex) => {
+          const originalIndex = props.items.findIndex((candidate) => candidate.leadId === entry.leadId);
           return (
             <button
-              aria-label={`show routing card for ${scenario.leadName}`}
+              aria-label={`show routing card for ${entry.leadName}`}
               className={cn(
                 "absolute left-2 right-2 z-10 flex items-center justify-between gap-3 rounded-[12px] border border-border bg-surface px-3 py-3 text-left shadow-[0_10px_26px_rgba(31,42,34,0.05)] transition hover:-translate-y-0.5 hover:border-border-strong",
                 stackIndex === 0 ? "bottom-5 opacity-90" : "bottom-0 opacity-75",
               )}
-              key={scenario.leadName}
+              key={entry.leadId}
               onClick={() => setActiveDecisionIndex(originalIndex)}
               type="button"
             >
               <span className="min-w-0">
-                <span className="block truncate text-[11.5px] font-semibold text-foreground">{scenario.leadName}</span>
+                <span className="block truncate text-[11.5px] font-semibold text-foreground">{entry.leadName}</span>
                 <span className="block truncate text-[10.5px] text-muted-subtle">
-                  {decision.assignedDisplayName ?? statusCopy[decision.status]}
+                  {entry.decision.assignedDisplayName ?? statusCopy[entry.decision.status]}
                 </span>
               </span>
               <span className="rounded-full bg-surface-muted px-2 py-1 text-[10px] font-semibold text-muted">
-                {stackIndex + 2}/{routingDecisions.length}
+                {stackIndex + 2}/{props.items.length}
               </span>
             </button>
           );
@@ -1387,7 +1153,7 @@ function RoutingDecisionPanel() {
   );
 }
 
-function MetricPanel(props: { metrics: typeof metrics }) {
+function MetricPanel(props: { metrics: DashboardMetric[] }) {
   return (
     <Card className="mb-4 p-5">
       <CardTitle className="mb-[15px] font-display text-[15px]">Today</CardTitle>
@@ -1413,7 +1179,7 @@ function MetricPanel(props: { metrics: typeof metrics }) {
   );
 }
 
-function HealthPanel(props: { health: typeof health }) {
+function HealthPanel(props: { health: DashboardHealthRow[] }) {
   return (
     <Card className="mb-4 p-5">
       <CardTitle className="mb-[15px] font-display text-[15px]">System Health</CardTitle>
@@ -1437,54 +1203,97 @@ function HealthPanel(props: { health: typeof health }) {
   );
 }
 
-function LeadStage(props: { lead: Lead }) {
+function LeadStage(props: { lead: RecentLeadItem }) {
   const className =
-    props.lead.tone === "qualified"
+    props.lead.stage === "qualified"
       ? "bg-sage-soft text-qualified"
-      : props.lead.tone === "nurture"
+      : props.lead.stage === "nurture"
         ? "bg-surface-muted text-muted-subtle"
-        : "bg-brass-soft text-warm";
+        : props.lead.stage === "lost"
+          ? "bg-oxblood-soft text-hot"
+          : "bg-brass-soft text-warm";
 
   return (
     <Badge className={cn("shrink-0 rounded-full border-0 px-2 py-[3px] text-[10px]", className)} tone="neutral">
-      {props.lead.stage}
+      {props.lead.stageLabel}
     </Badge>
   );
 }
 
-function RecentLeadsPanel(props: { leads: Lead[] }) {
+function RecentLeadsPanel(props: { leads: RecentLeadItem[] }) {
   return (
     <Card className="p-5">
       <CardTitle className="mb-[15px] font-display text-[15px]">Recent Leads</CardTitle>
-      <div>
-        {props.leads.map((lead) => (
-          <div className="flex items-center gap-[11px] border-b border-border py-[9px] last:border-b-0 last:pb-0" key={lead.name}>
-            <div className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full bg-surface-muted text-[11px] font-semibold text-muted">
-              {lead.initials}
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-[12.5px] font-semibold text-foreground">{lead.name}</div>
-              <div className="truncate text-[11px] text-muted-subtle">{lead.detail}</div>
-            </div>
-            <LeadStage lead={lead} />
-          </div>
-        ))}
-      </div>
+      {props.leads.length === 0 ? (
+        <div className="rounded-[10px] border border-dashed border-border bg-surface/45 px-3 py-5 text-center text-[11.5px] text-muted">
+          New leads will appear here once the workspace starts receiving messages or calls.
+        </div>
+      ) : (
+        <div>
+          {props.leads.map((lead) => (
+            <a
+              className="flex items-center gap-[11px] border-b border-border py-[9px] last:border-b-0 last:pb-0 hover:bg-surface-muted/45"
+              href={`/leads?leadId=${lead.id}`}
+              key={lead.id}
+            >
+              <div className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full bg-surface-muted text-[11px] font-semibold text-muted">
+                {lead.initials}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[12.5px] font-semibold text-foreground">{lead.name}</div>
+                <div className="truncate text-[11px] text-muted-subtle">
+                  {lead.sourceLabel} {lead.channelLabel} - {lead.lastTouchLabel}
+                </div>
+              </div>
+              <LeadStage lead={lead} />
+            </a>
+          ))}
+        </div>
+      )}
     </Card>
   );
 }
 
-export function HomePage(props: { workspaceId: string; workspaceName: string }) {
+export type HomePageProps = {
+  workspaceId: string;
+  workspaceName: string;
+  operatorName: string;
+  operatorRole: WorkspaceRole;
+};
+
+type StatusPill = {
+  key: string;
+  label: string;
+  status: "ready" | "degraded" | "needs_setup";
+};
+
+export function HomePage(props: HomePageProps) {
   const [activeFilter, setActiveFilter] = useState<QueueFilter>("all");
-  const [dashboardMetrics, setDashboardMetrics] = useState(metrics);
-  const [dashboardHealth, setDashboardHealth] = useState(health);
-  const [dashboardWorkItems, setDashboardWorkItems] = useState<WorkItem[]>(workItems);
+  const [dashboardMetrics, setDashboardMetrics] = useState<DashboardMetric[]>([]);
+  const [dashboardHealth, setDashboardHealth] = useState<DashboardHealthRow[]>([]);
+  const [dashboardWorkItems, setDashboardWorkItems] = useState<WorkItem[]>([]);
+  const [recentLeads, setRecentLeads] = useState<RecentLeadItem[]>([]);
+  const [routingDeskItems, setRoutingDeskItems] = useState<RoutingDeskItem[]>([]);
   const [selectedWorkItem, setSelectedWorkItem] = useState<WorkItem | null>(null);
   const [actionStatus, setActionStatus] = useState<string | null>(null);
-  const [presenceMembers, setPresenceMembers] = useState<CoAgentPresence[]>(coAgentPresence);
+  const [presenceMembers, setPresenceMembers] = useState<CoAgentPresence[]>([]);
+  const [statusPills, setStatusPills] = useState<StatusPill[]>([]);
   const filteredWorkItems = useMemo(
     () => dashboardWorkItems.filter((entry) => matchesQueueFilter(entry, activeFilter)),
     [activeFilter, dashboardWorkItems],
+  );
+  const operator: OperatorContext = useMemo(
+    () => ({
+      name: props.operatorName,
+      role: props.operatorRole,
+      workspace: props.workspaceName,
+      summary: buildOperatorSummary({
+        urgentReplies: dashboardWorkItems.filter((entry) => entry.kind === "reply").length,
+        callbacks: dashboardWorkItems.filter((entry) => entry.kind === "task" && entry.item.type === "callback").length,
+        recentLeadCount: recentLeads.length,
+      }),
+    }),
+    [dashboardWorkItems, props.operatorName, props.operatorRole, props.workspaceName, recentLeads.length],
   );
 
   async function refreshHomeData() {
@@ -1504,18 +1313,41 @@ export function HomePage(props: { workspaceId: string; workspaceName: string }) 
     const nextMetrics = mapHomePayloadToMetrics(payload);
     const nextHealth = mapHomePayloadToHealth(payload);
     const nextWorkItems = mapHomePayloadToWorkItems(payload);
-    if (nextMetrics !== null) setDashboardMetrics(nextMetrics);
-    if (nextHealth !== null && nextHealth.length > 0) setDashboardHealth(nextHealth);
-    if (nextWorkItems !== null) setDashboardWorkItems(nextWorkItems);
+    setDashboardMetrics(nextMetrics ?? []);
+    setDashboardHealth(nextHealth ?? []);
+    setDashboardWorkItems(nextWorkItems ?? []);
 
-    const parsed = TeamPresenceResponseSchema.safeParse("teamPresence" in payload ? payload["teamPresence"] : body);
-    if (parsed.success && parsed.data.members.length > 0) {
-      setPresenceMembers(parsed.data.members);
-    }
+    const presenceParsed = TeamPresenceResponseSchema.safeParse(payload["teamPresence"]);
+    setPresenceMembers(presenceParsed.success ? presenceParsed.data.members : []);
+
+    const recentLeadsParsed = RecentLeadsResponseSchema.safeParse(payload["recentLeads"]);
+    setRecentLeads(recentLeadsParsed.success ? recentLeadsParsed.data.items : []);
+
+    const routingDeskParsed = RoutingDeskResponseSchema.safeParse(payload["routingDesk"]);
+    setRoutingDeskItems(routingDeskParsed.success ? routingDeskParsed.data.items : []);
+
+    // Parse readiness items into status pills
+    const readiness = readObject(payload["readiness"]);
+    const readinessItems = Array.isArray(readiness?.["items"]) ? readiness["items"] : [];
+    const pills = readinessItems.flatMap((item) => {
+      const row = readObject(item);
+      if (row === null) return [];
+      const key = readString(row, "key");
+      const label = readString(row, "label");
+      const status = readString(row, "status");
+      if (key === null || label === null || status === null) return [];
+      const pillStatus: StatusPill["status"] = status === "ready" ? "ready" : status === "degraded" ? "degraded" : "needs_setup";
+      return [{
+        key,
+        label,
+        status: pillStatus,
+      }];
+    });
+    setStatusPills(pills);
   }
 
   async function handleReplyAction(action: "send" | "takeover" | "resume" | "dismiss", reply: Reply) {
-    if (reply.workspaceId === undefined || reply.reviewId === undefined) {
+    if (reply.workspaceId === undefined || reply.leadId === undefined) {
       setActionStatus("this demo item is not connected to a backend queue row yet.");
       return;
     }
@@ -1523,37 +1355,62 @@ export function HomePage(props: { workspaceId: string; workspaceName: string }) 
     try {
       setActionStatus("working...");
       const isAutomationAction = action === "takeover" || action === "resume";
-      const response = await fetch(
-        isAutomationAction
-          ? `/api/workspaces/${reply.workspaceId}/social-queue/${reply.reviewId}/automation`
-          : `/api/workspaces/${reply.workspaceId}/social-queue/${reply.reviewId}/action`,
-        {
-          method: isAutomationAction ? "PATCH" : "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(
-            action === "takeover"
-              ? { mode: "human_takeover", reason: "operator took over from the work queue" }
-              : action === "resume"
-                ? { mode: "ai_on", reason: "operator resumed Harwick AI from the work queue" }
-                : action === "dismiss"
-                  ? { action: "dismiss", reason: "operator dismissed from the work queue" }
-                  : { action: "send", reply: reply.draft },
-          ),
-        },
-      );
+      
+      if (isAutomationAction) {
+        // Use social-queue automation endpoint for takeover/resume
+        const response = await fetch(
+          `/api/workspaces/${reply.workspaceId}/social-queue/${reply.reviewId}/automation`,
+          {
+            method: "PATCH",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(
+              action === "takeover"
+                ? { mode: "human_takeover", reason: "operator took over from the work queue" }
+                : { mode: "ai_on", reason: "operator resumed Harwick AI from the work queue" },
+            ),
+          },
+        );
 
-      if (response.status === 403) {
-        setActionStatus("auth is required to commit this action. the endpoint is real and protected.");
-        return;
+        if (response.status === 403) {
+          setActionStatus("auth is required to commit this action. the endpoint is real and protected.");
+          return;
+        }
+
+        if (!response.ok) {
+          setActionStatus("the backend rejected this action. check queue state or credentials.");
+          return;
+        }
+
+        setActionStatus("queue state updated.");
+        await refreshHomeData();
+      } else {
+        // Send and dismiss actions still use old endpoint (for now)
+        const response = await fetch(
+          `/api/workspaces/${reply.workspaceId}/social-queue/${reply.reviewId}/action`,
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(
+              action === "dismiss"
+                ? { action: "dismiss", reason: "operator dismissed from the work queue" }
+                : { action: "send", reply: reply.draft },
+            ),
+          },
+        );
+
+        if (response.status === 403) {
+          setActionStatus("auth is required to commit this action. the endpoint is real and protected.");
+          return;
+        }
+
+        if (!response.ok) {
+          setActionStatus("the backend rejected this action. check queue state or credentials.");
+          return;
+        }
+
+        setActionStatus(action === "send" ? "reply sent through the social queue." : "queue state updated.");
+        await refreshHomeData();
       }
-
-      if (!response.ok) {
-        setActionStatus("the backend rejected this action. check queue state or credentials.");
-        return;
-      }
-
-      setActionStatus(action === "send" ? "reply sent through the social queue." : "queue state updated.");
-      await refreshHomeData();
     } catch {
       setActionStatus("could not reach the queue endpoint.");
     }
@@ -1619,24 +1476,11 @@ export function HomePage(props: { workspaceId: string; workspaceName: string }) 
     <AppShell activeItem="Work Queue" title={props.workspaceName} workspaceName={props.workspaceName}>
       <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-background">
         <WorkspaceTopbar context={`work queue · ${filteredWorkItems.length} open`} workspaceName={props.workspaceName}>
-          <div className="ml-auto flex items-center gap-[10px]">
-            <div className="flex items-center gap-[5px] rounded-full border border-border bg-surface-muted px-[9px] py-1 text-[11px] text-muted">
-              <span className="h-1.5 w-1.5 rounded-full bg-qualified" />
-              Meta Live
-            </div>
-            <div className="flex items-center gap-[5px] rounded-full border border-border bg-surface-muted px-[9px] py-1 text-[11px] text-muted">
-              <span className="h-1.5 w-1.5 rounded-full bg-qualified" />
-              Voice Active
-            </div>
-            <div className="flex items-center gap-[5px] rounded-full border border-border bg-surface-muted px-[9px] py-1 text-[11px] text-muted">
-              <span className="h-1.5 w-1.5 rounded-full bg-warm" />
-              FUB Syncing
-            </div>
-          </div>
+          <StatusPillsDisplay pills={statusPills} />
         </WorkspaceTopbar>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-7 py-6">
-          <OperatorBrief members={presenceMembers} />
+          <OperatorBrief members={presenceMembers} operator={operator} />
           <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_330px]">
             <section className="min-w-0">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
@@ -1674,9 +1518,9 @@ export function HomePage(props: { workspaceId: string; workspaceName: string }) 
             </section>
             <aside>
               <MetricPanel metrics={dashboardMetrics} />
-              <RoutingDecisionPanel />
+              <RoutingDecisionPanel items={routingDeskItems} />
               <HealthPanel health={dashboardHealth} />
-              <RecentLeadsPanel leads={leads} />
+              <RecentLeadsPanel leads={recentLeads} />
             </aside>
           </div>
         </div>
@@ -1696,6 +1540,7 @@ export function HomePage(props: { workspaceId: string; workspaceName: string }) 
           onTaskAction={(action, task) => {
             void handleTaskAction(action, task);
           }}
+          workspaceName={props.workspaceName}
         />
       </div>
     </AppShell>

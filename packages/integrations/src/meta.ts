@@ -271,7 +271,7 @@ export function normalizeMetaWebhookPayload(params: {
         instagramUsername: null,
         phone: null,
         text,
-        occurredAt: new Date(messagingEvent.timestamp).toISOString(),
+        occurredAt: new Date(messagingEvent.timestamp * 1000).toISOString(),
         rawPayload: messagingEvent,
       }));
     }

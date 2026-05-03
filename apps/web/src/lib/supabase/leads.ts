@@ -95,9 +95,11 @@ function scoreFromExtractedLead(extractedLead: ExtractedLeadFields | null): numb
     case "low":
       return 25;
     case "spam":
+      return 0;
     case "unknown":
     case undefined:
-      return 0;
+      // New leads without extracted intent still need to be visible
+      return 50;
   }
 }
 

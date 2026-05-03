@@ -37,7 +37,7 @@ describe("createSupabaseAuditLogRepository", () => {
     await repository.insertAuditLog(entry);
 
     expect(supabase.from).toHaveBeenCalledWith("audit_logs");
-    expect(supabase.insert).toHaveBeenCalledWith({
+    expect(supabase.insert).toHaveBeenCalledWith([{
       workspace_id: "00000000-0000-0000-0000-000000000001",
       user_id: "00000000-0000-0000-0000-000000000002",
       actor_type: "user",
@@ -47,7 +47,7 @@ describe("createSupabaseAuditLogRepository", () => {
       metadata: { assignedTo: "agent-123" },
       ip_address: "192.0.2.1",
       user_agent: "Mozilla/5.0",
-    });
+    }]);
   });
 
   it("inserts audit log for AI action without user", async () => {
@@ -67,13 +67,15 @@ describe("createSupabaseAuditLogRepository", () => {
     await repository.insertAuditLog(entry);
 
     expect(supabase.insert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        user_id: null,
-        actor_type: "ai",
-        action: "reply.ai_approved",
-        ip_address: null,
-        user_agent: null,
-      }),
+      expect.arrayContaining([
+        expect.objectContaining({
+          user_id: null,
+          actor_type: "ai",
+          action: "reply.ai_approved",
+          ip_address: null,
+          user_agent: null,
+        }),
+      ]),
     );
   });
 

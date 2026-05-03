@@ -8,7 +8,7 @@ export type AuditLogInsertRow = {
   action: AuditLogEntry["action"];
   resource_type: AuditLogEntry["resourceType"];
   resource_id: string | null;
-  metadata: Record<string, unknown>;
+  metadata: Record<string, unknown> | null;
   ip_address: string | null;
   user_agent: string | null;
 };
@@ -29,12 +29,13 @@ export function createSupabaseAuditLogRepository(
         action: entry.action,
         resource_type: entry.resourceType,
         resource_id: entry.resourceId,
-        metadata: entry.metadata,
+        metadata: entry.metadata ?? null,
         ip_address: entry.ipAddress ?? null,
         user_agent: entry.userAgent ?? null,
       };
 
-      const { error } = await supabase.from("audit_logs").insert(row);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await supabase.from("audit_logs").insert([row] as any);
 
       if (error !== null) {
         throw error;

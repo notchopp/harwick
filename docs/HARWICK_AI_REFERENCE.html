@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Harwick AI — Lead Automation for Real Estate</title>
+<style>
+  *, *::before, *::after { 
+    box-sizing: border-box; 
+    margin: 0; 
+    padding: 0; 
+  }
+  
+  :root {
+    --font-sans: "Instrument Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-display: "Newsreader", serif;
+    
+    --color-harwick-ink: #1a2a20;
+    --color-harwick-ink-soft: #2d3a30;
+    --color-harwick-parchment: #f5f3ef;
+    --color-harwick-paper: #fafaf8;
+    --color-harwick-linen: #efede9;
+    --color-harwick-border: #ddd7cc;
+    --color-harwick-border-strong: #c9c0b1;
+    --color-harwick-brass: #c9a84c;
+    --color-harwick-brass-soft: #f5edd6;
+    --color-sage: #2e6b4f;
+    --color-sage-soft: #e0ede7;
+    --color-clay: #8b5e1a;
+    --color-clay-soft: #f5ead6;
+    --color-oxblood: #9b3a3a;
+    --color-oxblood-soft: #f5e5e5;
+    --color-stone: #6b6860;
+    --color-stone-soft: #efede9;
+    --color-muted: #6b6860;
+    --color-muted-subtle: #a8a59f;
+  }
+  
+  html { 
+    scroll-behavior: smooth; 
+  }
+  
+  body {
+    background: linear-gradient(180deg, rgba(255, 254, 250, 0.62) 0%, rgba(245, 243, 239, 0) 34rem),
+                var(--color-harwick-parchment);
+    color: var(--color-harwick-ink);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  
+  .doc {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 80px 48px 120px;
+  }
+  
+  /* COVER */
+  .cover {
+    padding-bottom: 48px;
+    border-bottom: 1px solid var(--color-harwick-border);
+    margin-bottom: 64px;
+  }
+  
+  .eyebrow {
+    font-family: var(--font-sans);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  
+  .eyebrow::before {
+    content: '';
+    display: inline-block;
+    width: 12px; 
+    height: 1px;
+    background: var(--color-harwick-border-strong);
+  }
+  
+  .harwick-wordmark {
+    font-family: var(--font-display);
+    font-weight: 400;
+    letter-spacing: 0.01em;
+    font-size: 48px;
+    line-height: 1;
+    color: var(--color-harwick-ink);
+    margin-bottom: 24px;
+  }
+  
+  .harwick-wordmark em { 
+    font-style: normal; 
+    color: var(--color-harwick-brass);
+  }
+  
+  .cover-sub {
+    font-size: 15px;
+    color: var(--color-muted);
+    font-weight: 400;
+    max-width: 620px;
+    line-height: 1.7;
+    margin-bottom: 32px;
+  }
+  
+  .cover-sub strong { 
+    color: var(--color-harwick-ink); 
+    font-weight: 500; 
+  }
+  
+  .cover-pills {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  
+  .cpill {
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 6px 12px;
+    border: 1px solid var(--color-harwick-border);
+    color: var(--color-muted);
+    border-radius: 6px;
+    background: var(--color-harwick-paper);
+  }
+  
+  /* BLOCKS */
+  .block { 
+    margin-bottom: 64px; 
+  }
+  
+  .block-eyebrow {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+    margin-bottom: 12px;
+  }
+  
+  h2 {
+    font-family: var(--font-display);
+    font-size: 40px;
+    font-weight: 400;
+    line-height: 1.15;
+    color: var(--color-harwick-ink);
+    margin-bottom: 24px;
+  }
+  
+  h2 em {
+    font-style: italic;
+    color: var(--color-harwick-ink);
+  }
+  
+  h3 {
+    font-family: var(--font-display);
+    font-size: 24px;
+    font-weight: 400;
+    line-height: 1.3;
+    color: var(--color-harwick-ink);
+    margin-top: 32px;
+    margin-bottom: 16px;
+  }
+  
+  .block-text {
+    color: var(--color-muted);
+    line-height: 1.75;
+    margin-bottom: 20px;
+    font-size: 14px;
+  }
+  
+  .block-text strong { 
+    color: var(--color-harwick-ink); 
+    font-weight: 500; 
+  }
+  
+  .block-text em { 
+    font-style: italic; 
+    color: var(--color-harwick-ink); 
+  }
+  
+  /* WORKFLOW STEPS */
+  .workflow-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin: 36px 0;
+    border: 1px solid var(--color-harwick-border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  
+  .workflow-step {
+    display: grid;
+    grid-template-columns: 140px 1fr;
+    gap: 0;
+    padding: 20px 24px;
+    background: var(--color-harwick-paper);
+    border-bottom: 1px solid var(--color-harwick-border);
+    align-items: stretch;
+  }
+  
+  .workflow-step:last-child {
+    border-bottom: none;
+  }
+  
+  .step-phase {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    border-right: 1px solid var(--color-harwick-border);
+    padding-right: 24px;
+  }
+  
+  .step-details {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-left: 24px;
+  }
+  
+  .step-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-muted-subtle);
+  }
+  
+  .step-title {
+    font-family: var(--font-display);
+    font-size: 18px;
+    font-weight: 400;
+    color: var(--color-harwick-ink);
+  }
+  
+  .step-note {
+    font-size: 13px;
+    color: var(--color-muted);
+    line-height: 1.6;
+  }
+  
+  .step-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--color-harwick-brass);
+    width: fit-content;
+    color: var(--color-harwick-brass);
+    background: var(--color-harwick-brass-soft);
+  }
+  
+  /* PAIN-TO-BENEFIT TABLE */
+  .benefits-table {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin: 36px 0;
+    border: 1px solid var(--color-harwick-border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  
+  .benefits-header {
+    display: grid;
+    grid-template-columns: 1.2fr 1.5fr 0.8fr;
+    gap: 0;
+    padding: 16px 24px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-muted-subtle);
+    background: var(--color-harwick-linen);
+    border-bottom: 1px solid var(--color-harwick-border);
+  }
+  
+  .benefits-row {
+    display: grid;
+    grid-template-columns: 1.2fr 1.5fr 0.8fr;
+    gap: 0;
+    padding: 20px 24px;
+    background: var(--color-harwick-paper);
+    border-bottom: 1px solid var(--color-harwick-border);
+  }
+  
+  .benefits-row:last-child {
+    border-bottom: none;
+  }
+  
+  .benefit-pain {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    border-right: 1px solid var(--color-harwick-border);
+    padding-right: 24px;
+  }
+  
+  .benefit-pain-title {
+    font-weight: 500;
+    color: var(--color-harwick-ink);
+    font-size: 13px;
+  }
+  
+  .benefit-pain-sub {
+    font-size: 12px;
+    color: var(--color-muted);
+  }
+  
+  .benefit-solution {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    border-right: 1px solid var(--color-harwick-border);
+    padding: 0 24px;
+  }
+  
+  .benefit-solution-text {
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--color-harwick-ink);
+  }
+  
+  .benefit-outcome {
+    display: flex;
+    align-items: center;
+    padding-left: 24px;
+  }
+  
+  .outcome-tag {
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--color-sage);
+    color: var(--color-sage);
+    background: var(--color-sage-soft);
+    width: fit-content;
+  }
+  
+  /* ROLE MATRIX */
+  .roles-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+    margin: 36px 0;
+  }
+  
+  .role-card {
+    background: var(--color-harwick-paper);
+    border: 1px solid var(--color-harwick-border);
+    padding: 28px;
+    border-radius: 12px;
+  }
+  
+  .role-name {
+    font-family: var(--font-display);
+    font-size: 20px;
+    font-weight: 400;
+    color: var(--color-harwick-ink);
+    margin-bottom: 12px;
+  }
+  
+  .role-desc {
+    font-size: 13px;
+    color: var(--color-muted);
+    line-height: 1.7;
+    margin-bottom: 18px;
+  }
+  
+  .role-responsibilities {
+    list-style: none;
+  }
+  
+  .role-responsibilities li {
+    font-size: 13px;
+    color: var(--color-harwick-ink);
+    margin-bottom: 8px;
+    padding-left: 14px;
+    position: relative;
+    line-height: 1.5;
+  }
+  
+  .role-responsibilities li::before {
+    content: '→';
+    position: absolute;
+    left: 0;
+    color: var(--color-harwick-brass);
+    font-weight: 500;
+  }
+  
+  /* FOOTER */
+  .footer {
+    padding-top: 48px;
+    border-top: 1px solid var(--color-harwick-border);
+    margin-top: 80px;
+    text-align: center;
+    font-size: 12px;
+    color: var(--color-muted);
+  }
+</style>
+</head>
+<body>
+<div class="doc">
+
+<!-- COVER -->
+<div class="cover">
+  <div class="eyebrow">Lead automation for real estate</div>
+  <div class="harwick-wordmark">Harwick <em>AI</em></div>
+  <div class="cover-sub">
+    Every inbound lead gets answered, qualified, scored, assigned, and synced <strong>without manual handoffs</strong>. Harwick AI automates the intake-to-route workflow so agents focus on closing deals while the system handles qualification, triage, and CRM sync.
+  </div>
+  <div class="cover-pills">
+    <span class="cpill">Instagram DM</span>
+    <span class="cpill">Instagram Comments</span>
+    <span class="cpill">Voice Calls</span>
+    <span class="cpill">SMS</span>
+    <span class="cpill">Follow Up Boss Sync</span>
+  </div>
+</div>
+
+<!-- THE PROBLEM -->
+<div class="block">
+  <div class="block-eyebrow">The Problem</div>
+  <h2>Every unanswered lead is lost revenue</h2>
+  <div class="block-text">
+    Real estate teams juggle multiple channels but lack automation. Leads sit in shared inboxes, qualification takes forever, assignments are guesses, and sync to Follow Up Boss happens manually or never. By the time someone qualifies the lead, the buyer has already called a competing agent.
+  </div>
+  <div class="block-text">
+    The industry standard is chaos: <strong>no unified inbox</strong>, <strong>no automatic qualification</strong>, <strong>no intelligent routing</strong>, and <strong>no audit trail</strong>. Teams answer with generic replies, lose context between channels, and treat each lead as a support ticket instead of a sales opportunity.
+  </div>
+</div>
+
+<!-- THE SOLUTION -->
+<div class="block">
+  <div class="block-eyebrow">The Solution</div>
+  <h2>Automation that knows when to <em>pause</em></h2>
+  <div class="block-text">
+    Harwick AI works like a highly trained ISA: it qualifies leads in real time, suggests next actions, routes to the right agent, and keeps everything in sync. When confidence is high and context is clear, the system acts. When doubt emerges—or when a human needs control—the system pauses and surfaces the decision to an operator.
+  </div>
+  <div class="block-text">
+    The result is <strong>faster first response</strong>, <strong>better lead quality at assignment</strong>, <strong>clear audit trails</strong>, and <strong>agents who stay in control</strong>. No surprises. No lost context.
+  </div>
+</div>
+
+<!-- WORKFLOW -->
+<div class="block">
+  <div class="block-eyebrow">The Workflow</div>
+  <h2>From lead arrival to agent assignment</h2>
+  <div class="workflow-container">
+    <div class="workflow-step">
+      <div class="step-phase">
+        <div class="step-label">Phase 1</div>
+        <div class="step-title">Lead Arrives</div>
+      </div>
+      <div class="step-details">
+        <div class="step-note">A prospect texts an Instagram DM, comments on a listing post, or calls a routed phone number. Harwick captures the channel, sender info, and initial message.</div>
+        <div class="step-pill">instant capture</div>
+      </div>
+    </div>
+    <div class="workflow-step">
+      <div class="step-phase">
+        <div class="step-label">Phase 2</div>
+        <div class="step-title">AI Responds Naturally</div>
+      </div>
+      <div class="step-details">
+        <div class="step-note">AI generates a human-sounding reply, asking clarifying questions or offering next steps. If confidence is high, the reply is auto-sent. If not, it appears in the operator queue for review.</div>
+        <div class="step-pill">context-aware</div>
+      </div>
+    </div>
+    <div class="workflow-step">
+      <div class="step-phase">
+        <div class="step-label">Phase 3</div>
+        <div class="step-title">AI Qualifies</div>
+      </div>
+      <div class="step-details">
+        <div class="step-note">Harwick asks one question at a time: intent, timeline, price range, area, property type, financing status. Each answer refines the lead score and routing logic.</div>
+        <div class="step-pill">sequential</div>
+      </div>
+    </div>
+    <div class="workflow-step">
+      <div class="step-phase">
+        <div class="step-label">Phase 4</div>
+        <div class="step-title">Operator May Take Over</div>
+      </div>
+      <div class="step-details">
+        <div class="step-note">At any point, a human can pause AI and take control of the conversation. They see full context, suggested next actions, and score breakdown. AI stops sending replies until the operator resumes.</div>
+        <div class="step-pill">human override</div>
+      </div>
+    </div>
+    <div class="workflow-step">
+      <div class="step-phase">
+        <div class="step-label">Phase 5</div>
+        <div class="step-title">Intelligent Routing</div>
+      </div>
+      <div class="step-details">
+        <div class="step-note">Once qualified, Harwick routes the lead to the best agent match: area coverage, property type expertise, price range, availability, and capacity. If no clean match, it escalates to the operator queue.</div>
+        <div class="step-pill">explainable</div>
+      </div>
+    </div>
+    <div class="workflow-step">
+      <div class="step-phase">
+        <div class="step-label">Phase 6</div>
+        <div class="step-title">Beautiful Handoff</div>
+      </div>
+      <div class="step-details">
+        <div class="step-note">Lead + full conversation history + qualification summary + next action → Follow Up Boss. Agent wakes up to a lead they're ready to close, not a support ticket they have to re-qualify.</div>
+        <div class="step-pill">context preserved</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PAIN TO BENEFIT -->
+<div class="block">
+  <div class="block-eyebrow">Pain Points and Solutions</div>
+  <h2>What Harwick fixes</h2>
+  <div class="benefits-table">
+    <div class="benefits-header">
+      <div>Pain Point</div>
+      <div>Harwick Solution</div>
+      <div>Outcome</div>
+    </div>
+    <div class="benefits-row">
+      <div class="benefit-pain">
+        <div class="benefit-pain-title">Missed leads after hours</div>
+        <div class="benefit-pain-sub">No one answers, buyer calls competitor</div>
+      </div>
+      <div class="benefit-solution">
+        <div class="benefit-solution-text">AI answers instantly on all channels 24/7. Captures intent and qualifies overnight.</div>
+      </div>
+      <div class="benefit-outcome">
+        <div class="outcome-tag">Direct Fix</div>
+      </div>
+    </div>
+    <div class="benefits-row">
+      <div class="benefit-pain">
+        <div class="benefit-pain-title">Manual qualification is slow</div>
+        <div class="benefit-pain-sub">Agents spend hours asking the same questions</div>
+      </div>
+      <div class="benefit-solution">
+        <div class="benefit-solution-text">AI asks one question at a time in natural language. Qualification completes while agent works other tasks.</div>
+      </div>
+      <div class="benefit-outcome">
+        <div class="outcome-tag">Strong Fix</div>
+      </div>
+    </div>
+    <div class="benefits-row">
+      <div class="benefit-pain">
+        <div class="benefit-pain-title">No unified inbox</div>
+        <div class="benefit-pain-sub">Leads scattered across Instagram, texts, voice, email</div>
+      </div>
+      <div class="benefit-solution">
+        <div class="benefit-solution-text">All inbound channels feed one operator queue. Full conversation history visible regardless of channel. Live DM, call notes, SMS thread all on one screen.</div>
+      </div>
+      <div class="benefit-outcome">
+        <div class="outcome-tag">Direct Fix</div>
+      </div>
+    </div>
+    <div class="benefits-row">
+      <div class="benefit-pain">
+        <div class="benefit-pain-title">Routing is guesswork</div>
+        <div class="benefit-pain-sub">Leads assigned to wrong agents, reassignments waste time</div>
+      </div>
+      <div class="benefit-solution">
+        <div class="benefit-solution-text">Harwick routes by area, property type, price range, and agent capacity. Shows reasoning. Operators can override. Everything is auditable.</div>
+      </div>
+      <div class="benefit-outcome">
+        <div class="outcome-tag">Direct Fix</div>
+      </div>
+    </div>
+    <div class="benefits-row">
+      <div class="benefit-pain">
+        <div class="benefit-pain-title">Context gets lost in CRM</div>
+        <div class="benefit-pain-sub">Agent sees contact info but misses qualification, channel, intent</div>
+      </div>
+      <div class="benefit-solution">
+        <div class="benefit-solution-text">Lead + full DM/comment/SMS thread + qualification summary + suggested next action syncs to Follow Up Boss. Agent always has full context.</div>
+      </div>
+      <div class="benefit-outcome">
+        <div class="outcome-tag">Strong Fix</div>
+      </div>
+    </div>
+    <div class="benefits-row">
+      <div class="benefit-pain">
+        <div class="benefit-pain-title">No audit trail for compliance</div>
+        <div class="benefit-pain-sub">Can't prove what was said, when, or by whom</div>
+      </div>
+      <div class="benefit-solution">
+        <div class="benefit-solution-text">Every message, decision, and action is logged with timestamp, author, and reasoning. Full audit trail available for any lead.</div>
+      </div>
+      <div class="benefit-outcome">
+        <div class="outcome-tag">Direct Fix</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ROLES -->
+<div class="block">
+  <div class="block-eyebrow">Team Roles</div>
+  <h2>Who does what</h2>
+  <div class="roles-grid">
+    <div class="role-card">
+      <div class="role-name">Agent</div>
+      <div class="role-desc">Receives qualified leads ready to close. Can pause AI, resume AI, or sync to FUB with full context.</div>
+      <ul class="role-responsibilities">
+        <li>View their assigned leads queue</li>
+        <li>Control live conversations (pause/resume/takeover)</li>
+        <li>Set their own routing profile (area, type, price range)</li>
+        <li>See showing requests and callbacks</li>
+      </ul>
+    </div>
+    <div class="role-card">
+      <div class="role-name">Operator / ISA</div>
+      <div class="role-desc">Triages the shared work queue. Approves AI replies, escalates edge cases, assigns leads when needed.</div>
+      <ul class="role-responsibilities">
+        <li>Review AI-suggested replies before sending</li>
+        <li>Manually take over conversations</li>
+        <li>Reassign leads between agents</li>
+        <li>Manage unrouted / high-touch leads</li>
+      </ul>
+    </div>
+    <div class="role-card">
+      <div class="role-name">Team Lead</div>
+      <div class="role-desc">Manages routing rules, team capacity, and operator queue. Owns agent assignment and oversight.</div>
+      <ul class="role-responsibilities">
+        <li>Configure routing rules and priorities</li>
+        <li>View team performance and lead metrics</li>
+        <li>Override assignments and escalations</li>
+        <li>Manage member profiles and capacity</li>
+      </ul>
+    </div>
+    <div class="role-card">
+      <div class="role-name">Owner</div>
+      <div class="role-desc">Owns the workspace and channel integrations. Receives unrouted high-touch leads and can control anything.</div>
+      <ul class="role-responsibilities">
+        <li>Connect Instagram, Facebook, Retell voice</li>
+        <li>Set billing and plan features</li>
+        <li>Access full audit logs</li>
+        <li>Override any assignment or routing rule</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- KEY PRINCIPLES -->
+<div class="block">
+  <div class="block-eyebrow">Design Principles</div>
+  <h2>How Harwick thinks</h2>
+  <h3>Automation that pauses for humans</h3>
+  <div class="block-text">
+    AI handles routine qualification. Humans handle exceptions, edge cases, and high-touch decisions. The system always tells you why it paused.
+  </div>
+  <h3>Context preserved everywhere</h3>
+  <div class="block-text">
+    Every action—from first reply to final sync—carries full context. No re-qualification. No lost history. No "who was this person again?"
+  </div>
+  <h3>Routing is explainable</h3>
+  <div class="block-text">
+    Why did this lead go to this agent? Show the work. Score breakdown. Match criteria. Operators can always see and override the reasoning.
+  </div>
+  <h3>One source of truth</h3>
+  <div class="block-text">
+    Instagram DMs, comments, SMS, voice calls—they're all one lead with one conversation history. No channel silos. No context jumps.
+  </div>
+</div>
+
+<!-- FOOTER -->
+<div class="footer">
+  <p>Harwick AI — Lead automation for real estate teams. Built for owners, agents, and operators who want to stay in control.</p>
+</div>
+
+</div>
+</body>
+</html>

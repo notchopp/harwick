@@ -1,0 +1,34 @@
+
+> harwick@0.1.0 build
+> npm run build --workspace @realty-ops/web
+
+
+> @realty-ops/web@0.1.0 build
+> next build
+
+Γû▓ Next.js 16.2.4 (Turbopack)
+
+  Creating an optimized production build ...
+Γ£ô Compiled successfully in 2.8s
+  Running TypeScript ...
+ΓÜá TypeScript project references are not fully supported. Attempting to build in incremental mode.
+Failed to type check.
+
+./src/app/api/workspaces/[workspaceId]/routing-profiles/[memberId]/route.ts:62:43
+Type error: Parameter 'lt' implicitly has an 'any' type.
+
+  60 |     areas: profile.areas,
+  61 |     propertyTypes: profile.property_types as MemberRoutingProfileResponse["propertyTypes"],
+> 62 |     leadTypes: profile.lead_types.filter((lt): lt is "buyer" | "seller" | "renter" | "inve...
+     |                                           ^
+  63 |       lt !== "unknown"
+  64 |     ),
+  65 |     budgetMin: profile.budget_min,
+Next.js build worker exited with code: 1 and signal: null
+npm error Lifecycle script `build` failed with error:
+npm error code 1
+npm error path C:\Users\whoch\realty-ops\apps\web
+npm error workspace @realty-ops/web@0.1.0
+npm error location C:\Users\whoch\realty-ops\apps\web
+npm error command failed
+npm error command C:\Windows\system32\cmd.exe /d /s /c next build

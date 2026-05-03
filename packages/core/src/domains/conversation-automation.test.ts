@@ -5,6 +5,7 @@ import {
   automationModeLabel,
   canAutomationSend,
   ConversationAutomationControlSchema,
+  ConversationAutomationControlResponseSchema,
   ConversationAutomationScopeSchema,
 } from "./conversation-automation.js";
 
@@ -41,5 +42,16 @@ describe("conversation automation", () => {
   it("keeps labels and descriptions operator-facing", () => {
     expect(automationModeLabel("ai_on")).toBe("ai on");
     expect(automationModeDescription("human_takeover")).toContain("will not send");
+  });
+
+  it("validates automation control responses", () => {
+    const parsed = ConversationAutomationControlResponseSchema.parse({
+      conversationId: "123e4567-e89b-12d3-a456-426614174111",
+      mode: "ai_on",
+      reason: "operator resumed Harwick AI",
+      changedAt: "2026-05-02T20:00:00.000Z",
+    });
+
+    expect(parsed.mode).toBe("ai_on");
   });
 });

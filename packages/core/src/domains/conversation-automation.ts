@@ -20,9 +20,9 @@ export type ConversationAutomationControl = z.infer<typeof ConversationAutomatio
 export const ConversationAutomationScopeSchema = z.object({
   workspaceId: z.string().uuid(),
   leadId: z.string().uuid().nullable(),
-  providerAccountId: z.string().trim().min(1),
+  providerAccountId: z.string().trim().min(1).nullable(),
   recipientUserId: z.string().trim().min(1).nullable(),
-  channel: z.enum(["instagram_dm", "instagram_comment", "facebook_dm", "facebook_comment"]),
+  channel: z.enum(["instagram_dm", "instagram_comment", "facebook_dm", "facebook_comment"]).nullable(),
 });
 
 export type ConversationAutomationScope = z.infer<typeof ConversationAutomationScopeSchema>;
@@ -33,6 +33,15 @@ export const ConversationAutomationControlRequestSchema = z.object({
 });
 
 export type ConversationAutomationControlRequest = z.infer<typeof ConversationAutomationControlRequestSchema>;
+
+export const ConversationAutomationControlResponseSchema = z.object({
+  conversationId: z.string().uuid(),
+  mode: ConversationAutomationModeSchema,
+  reason: z.string().trim().min(1).max(240).nullable(),
+  changedAt: z.string().datetime({ offset: true }),
+});
+
+export type ConversationAutomationControlResponse = z.infer<typeof ConversationAutomationControlResponseSchema>;
 
 export function canAutomationSend(mode: ConversationAutomationMode): boolean {
   return mode === "ai_on";

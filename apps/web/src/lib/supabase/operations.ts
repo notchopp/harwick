@@ -1,5 +1,6 @@
 import type { WorkspaceOperationsRepository } from "../../features/operations/workspace-operations";
 import type { RealtyOpsSupabaseClient } from "./server-client";
+import type { VoiceLeadHandoffRow } from "./voice-handoffs";
 
 async function countQuery(query: PromiseLike<{ count: number | null; error: unknown }>): Promise<number> {
   const { count, error } = await query;
@@ -158,7 +159,8 @@ export function createSupabaseWorkspaceOperationsRepository(
         .eq("workspace_id", params.workspaceId)
         .eq("lead_id", params.leadId)
         .order("created_at", { ascending: false })
-        .limit(params.limit);
+        .limit(params.limit)
+        .returns<VoiceLeadHandoffRow[]>();
       if (error !== null) throw error;
       return data ?? [];
     },
@@ -172,7 +174,11 @@ export function createSupabaseWorkspaceOperationsRepository(
         .order("updated_at", { ascending: false })
         .limit(params.limit);
       if (error !== null) throw error;
-      return data ?? [];
+      return (data ?? []).map((row) => ({
+        ...row,
+        provider: row.provider as "follow_up_boss",
+        status: row.status as "queued" | "failed" | "skipped" | "synced",
+      }));
     },
 
     async listCrmBacksyncEvents(params) {

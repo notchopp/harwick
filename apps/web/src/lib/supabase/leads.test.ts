@@ -105,7 +105,7 @@ describe("lead mapping", () => {
       lead_type: "unknown",
       intent: "unknown",
       financing_status: "unknown",
-      score: 0,
+      score: 50,
       last_message_at: "2026-04-24T15:00:00.000Z",
     } satisfies Partial<LeadRow>);
   });

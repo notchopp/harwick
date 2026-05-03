@@ -1,773 +1,2544 @@
-import type { LeadEventInsertRow } from "./lead-events";
-import type { LeadInsertRow, LeadRow, LeadUpdateRow } from "./leads";
-import type { ListingFactRow } from "./listings";
-import type { MetaAccountFoundationInsertRow, MetaAccountFoundationRow } from "./meta-foundations";
-import type { SocialPostInsertRow, SocialPostRow } from "./social-posts";
-import type { VoiceLeadHandoffInsertRow, VoiceLeadHandoffRow } from "./voice-handoffs";
-import type { WorkflowJobInsertRow, WorkflowJobRow } from "./workflow-jobs";
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
 
-export type WorkspaceSubscriptionRow = {
-  id: string;
-  workspace_id: string;
-  plan_tier: "solo" | "team" | "brokerage";
-  billing_interval: "month" | "year";
-  status: "active" | "trialing" | "past_due" | "canceled" | "unpaid" | "incomplete" | "incomplete_expired" | "paused";
-  provider_subscription_id: string | null;
-  provider_customer_id: string | null;
-  current_period_start: string;
-  current_period_end: string;
-  canceled_at: string | null;
-  cancel_at_period_end: boolean;
-  trial_start: string | null;
-  trial_end: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
-export type WorkspaceUsageEventRow = {
-  id: string;
-  workspace_id: string;
-  event_type: "lead_event" | "ai_turn" | "ai_message_sent" | "social_message_sent" | "voice_call_minute" | "listing_created";
-  event_count: number;
-  resource_id: string | null;
-  event_metadata: Record<string, unknown> | null;
-  billing_period_start: string;
-  billing_period_end: string;
-  created_at: string;
-};
-
-export type WorkspaceUsageEventInsertRow = Omit<WorkspaceUsageEventRow, "id" | "created_at"> & {
-  id?: string;
-  created_at?: string;
-};
-
-export type WorkspaceUsageSummaryRow = {
-  workspace_id: string;
-  plan_tier: "solo" | "team" | "brokerage";
-  billing_period_start: string;
-  billing_period_end: string;
-  lead_event_count: number;
-  ai_turn_count: number;
-  ai_message_sent_count: number;
-  social_message_sent_count: number;
-  voice_call_minutes: number;
-  listing_count: number;
-  active_seat_count: number;
-  active_integration_account_count: number;
-  created_at: string;
-  updated_at: string;
-};
-
-export type WorkspaceUsageSummaryInsertRow = Omit<WorkspaceUsageSummaryRow, "created_at" | "updated_at"> & {
-  created_at?: string;
-  updated_at?: string;
-};
-
-export type WorkspaceRow = {
-  id: string;
-  name: string;
-  slug: string;
-  created_at: string;
-  updated_at: string;
-};
-
-export type WorkspaceMemberRow = {
-  id: string;
-  workspace_id: string;
-  user_id: string;
-  role: "owner" | "admin" | "team_lead" | "lead_manager" | "operator" | "agent" | "viewer";
-  display_name: string;
-  email: string | null;
-  avatar_url: string | null;
-  role_label: string | null;
-  presence_status: "online" | "in_call" | "away" | null;
-  presence_last_seen_at: string | null;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-};
-
-export type MemberRoutingProfileRow = {
-  id: string;
-  workspace_id: string;
-  member_id: string;
-  role_label: string;
-  areas: string[];
-  property_types: string[];
-  lead_types: string[];
-  budget_min: number | null;
-  budget_max: number | null;
-  max_active_leads: number;
-  accepts_new_leads: boolean;
-  notification_preference: "sms" | "email" | "app";
-  created_at: string;
-  updated_at: string;
-};
-
-export type MemberRoutingProfileInsertRow = Omit<MemberRoutingProfileRow, "id" | "created_at" | "updated_at"> & {
-  id?: string;
-  created_at?: string;
-  updated_at?: string;
-};
-
-export type MemberRoutingProfileUpdateRow = Partial<Omit<MemberRoutingProfileRow, "id" | "workspace_id" | "member_id" | "created_at">>;
-
-export type IntegrationAccountRow = {
-  id: string;
-  workspace_id: string;
-  account_scope: "workspace" | "member";
-  owner_member_id: string | null;
-  provider: "meta" | "twilio" | "retell" | "follow_up_boss" | "repliers";
-  status: "pending" | "connected" | "needs_reauth" | "disabled" | "error";
-  provider_account_id: string | null;
-  provider_account_ids: string[];
-  provider_account_name: string | null;
-  encrypted_credential_ref: string | null;
-  oauth_state: string | null;
-  connected_at: string | null;
-  last_health_check_at: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
-export type IntegrationAccountInsertRow = Omit<
-  IntegrationAccountRow,
-  "id" | "created_at" | "updated_at" | "account_scope" | "owner_member_id"
-> & {
-  id?: string;
-  account_scope?: IntegrationAccountRow["account_scope"];
-  owner_member_id?: string | null;
-  created_at?: string;
-  updated_at?: string;
-};
-
-export type FollowUpBossWebhookSubscriptionRow = {
-  id: string;
-  workspace_id: string;
-  integration_account_id: string;
-  event_type: "peopleUpdated" | "peopleStageUpdated" | "notesCreated" | "tasksCreated" | "textMessagesCreated" | "callsCreated";
-  status: "pending" | "active" | "error" | "disabled";
-  provider_webhook_id: string | null;
-  callback_token: string;
-  system_name: string;
-  encrypted_system_key_ref: string;
-  last_registered_at: string | null;
-  last_error_code: string | null;
-  last_error_message: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
-export type FollowUpBossWebhookSubscriptionInsertRow = {
-  workspace_id: string;
-  integration_account_id: string;
-  event_type: FollowUpBossWebhookSubscriptionRow["event_type"];
-  status?: FollowUpBossWebhookSubscriptionRow["status"];
-  provider_webhook_id?: string | null;
-  callback_token: string;
-  system_name: string;
-  encrypted_system_key_ref: string;
-  last_registered_at?: string | null;
-  last_error_code?: string | null;
-  last_error_message?: string | null;
-  id?: string;
-  created_at?: string;
-  updated_at?: string;
-};
-
-export type CrmBacksyncEventRow = {
-  id: string;
-  workspace_id: string;
-  provider: "follow_up_boss";
-  subscription_id: string;
-  provider_event_id: string;
-  event_type: FollowUpBossWebhookSubscriptionRow["event_type"];
-  resource_ids: number[];
-  resource_uri: string | null;
-  event_created_at: string;
-  payload: Record<string, unknown>;
-  status: "queued" | "processing" | "completed" | "failed" | "ignored";
-  correlated_sync_log_id: string | null;
-  processed_at: string | null;
-  last_error_code: string | null;
-  last_error_message: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
-export type CrmBacksyncEventInsertRow = {
-  workspace_id: string;
-  provider: "follow_up_boss";
-  subscription_id: string;
-  provider_event_id: string;
-  event_type: CrmBacksyncEventRow["event_type"];
-  resource_ids?: number[];
-  resource_uri?: string | null;
-  event_created_at: string;
-  payload?: Record<string, unknown>;
-  status?: CrmBacksyncEventRow["status"];
-  correlated_sync_log_id?: string | null;
-  processed_at?: string | null;
-  last_error_code?: string | null;
-  last_error_message?: string | null;
-  id?: string;
-  created_at?: string;
-  updated_at?: string;
-};
-
-export type MetaAccountFoundationRecentPostJson = {
-  source_post_id: string;
-  caption: string | null;
-  permalink: string | null;
-  media_type: string | null;
-  published_at: string | null;
-};
-
-export type WorkspaceVoiceAgentRow = {
-  id: string;
-  workspace_id: string;
-  account_scope: "workspace" | "member";
-  owner_member_id: string | null;
-  provider: "retell";
-  status: "draft" | "provisioning" | "active" | "needs_sync" | "error" | "disabled";
-  retell_agent_id: string | null;
-  retell_conversation_flow_id: string | null;
-  retell_phone_number_id: string | null;
-  phone_number: string | null;
-  service_areas: string[];
-  transfer_number: string | null;
-  template_version: string;
-  published_config_hash: string | null;
-  webhook_url: string | null;
-  dynamic_variables_webhook_url: string | null;
-  last_synced_at: string | null;
-  last_error_code: string | null;
-  last_error_message: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
-export type WorkspaceVoiceAgentInsertRow = {
-  workspace_id: string;
-  account_scope?: WorkspaceVoiceAgentRow["account_scope"];
-  owner_member_id?: string | null;
-  provider: "retell";
-  status?: WorkspaceVoiceAgentRow["status"];
-  retell_agent_id?: string | null;
-  retell_conversation_flow_id?: string | null;
-  retell_phone_number_id?: string | null;
-  phone_number?: string | null;
-  service_areas?: string[];
-  transfer_number?: string | null;
-  template_version?: string;
-  published_config_hash?: string | null;
-  webhook_url?: string | null;
-  dynamic_variables_webhook_url?: string | null;
-  last_synced_at?: string | null;
-  last_error_code?: string | null;
-  last_error_message?: string | null;
-  id?: string;
-  created_at?: string;
-  updated_at?: string;
-};
-
-export type LeadTaskRow = {
-  id: string;
-  workspace_id: string;
-  lead_id: string | null;
-  listing_id: string | null;
-  task_type: "call_back" | "verify_listing" | "assign_lead" | "fub_retry" | "nurture_review";
-  status: "open" | "in_progress" | "completed" | "dismissed";
-  priority: "low" | "normal" | "high" | "urgent";
-  title: string;
-  description: string | null;
-  due_at: string | null;
-  assigned_member_id: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
-export type LeadTaskInsertRow = {
-  workspace_id: string;
-  lead_id?: string | null;
-  listing_id?: string | null;
-  task_type: LeadTaskRow["task_type"];
-  status?: LeadTaskRow["status"];
-  priority?: LeadTaskRow["priority"];
-  title: string;
-  description?: string | null;
-  due_at?: string | null;
-  assigned_member_id?: string | null;
-  id?: string;
-  created_at?: string;
-  updated_at?: string;
-};
-
-export type LeadEventRow = LeadEventInsertRow & {
-  id: string;
-  created_at: string;
-};
-
-export type NurtureEnrollmentRow = {
-  id: string;
-  workspace_id: string;
-  lead_id: string;
-  status: "active" | "paused" | "completed" | "opted_out";
-  sequence_key: string;
-  next_action_at: string | null;
-  quiet_hours_timezone: string;
-  last_step_index: number;
-  opted_out_at: string | null;
-  opt_out_reason: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
-export type NurtureMessageRow = {
-  id: string;
-  workspace_id: string;
-  lead_id: string;
-  enrollment_id: string;
-  channel: "sms" | "instagram_dm" | "facebook_dm";
-  status: "queued" | "blocked" | "drafted" | "sent" | "failed";
-  step_index: number;
-  body: string | null;
-  block_reason: "opted_out" | "quiet_hours" | "missing_contact" | "sequence_complete" | null;
-  provider_message_id: string | null;
-  scheduled_for: string | null;
-  sent_at: string | null;
-  last_error_code: string | null;
-  last_error_message: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
-export type SocialReplyReviewRow = {
-  id: string;
-  workspace_id: string;
-  lead_id: string | null;
-  lead_event_id: string;
-  provider_account_id: string;
-  recipient_user_id: string | null;
-  channel: "instagram_dm" | "instagram_comment" | "facebook_dm" | "facebook_comment";
-  source_post_id: string | null;
-  source_comment_id: string | null;
-  inbound_text: string | null;
-  suggested_reply: string | null;
-  status: "pending" | "approved" | "sent" | "dismissed" | "failed";
-  automation_mode: "ai_on" | "human_takeover" | "paused_by_rule";
-  automation_reason: string | null;
-  automation_changed_by_member_id: string | null;
-  automation_changed_at: string | null;
-  ai_decision: Record<string, unknown> | null;
-  reviewed_by_member_id: string | null;
-  reviewed_at: string | null;
-  provider_event_id: string | null;
-  dismissal_reason: string | null;
-  last_error_code: string | null;
-  last_error_message: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
-export type SocialReplyReviewInsertRow = Omit<
-  SocialReplyReviewRow,
-  "id" | "created_at" | "updated_at" | "automation_mode" | "automation_reason" | "automation_changed_by_member_id" | "automation_changed_at" | "ai_decision"
-> & {
-  id?: string;
-  automation_mode?: SocialReplyReviewRow["automation_mode"];
-  automation_reason?: string | null;
-  automation_changed_by_member_id?: string | null;
-  automation_changed_at?: string | null;
-  ai_decision?: Record<string, unknown> | null;
-  created_at?: string;
-  updated_at?: string;
-};
-
-export type ConversationAutomationStateRow = {
-  id: string;
-  workspace_id: string;
-  lead_id: string | null;
-  provider_account_id: string;
-  recipient_user_id: string | null;
-  channel: "instagram_dm" | "instagram_comment" | "facebook_dm" | "facebook_comment";
-  automation_mode: "ai_on" | "human_takeover" | "paused_by_rule";
-  automation_reason: string | null;
-  changed_by_member_id: string | null;
-  changed_at: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
-export type ConversationAutomationStateInsertRow = Omit<
-  ConversationAutomationStateRow,
-  "id" | "created_at" | "updated_at" | "automation_mode" | "automation_reason" | "changed_by_member_id" | "changed_at"
-> & {
-  id?: string;
-  automation_mode?: ConversationAutomationStateRow["automation_mode"];
-  automation_reason?: string | null;
-  changed_by_member_id?: string | null;
-  changed_at?: string | null;
-  created_at?: string;
-  updated_at?: string;
-};
-
-export type HarwickAiTurnRow = {
-  id: string;
-  workspace_id: string;
-  lead_id: string | null;
-  social_reply_review_id: string | null;
-  provider_thread_id: string | null;
-  channel: "instagram_dm" | "instagram_comment" | "facebook_dm" | "facebook_comment" | "sms" | "call" | "manual" | "csv_import";
-  runtime_input: Record<string, unknown>;
-  turn: Record<string, unknown>;
-  automation_policy: Record<string, unknown>;
-  automation_decision: Record<string, unknown>;
-  status: "drafted" | "auto_executed" | "queued_for_approval" | "blocked" | "failed";
-  confidence: number;
-  next_action: string;
-  reply: string;
-  safety_flags: string[];
-  missing_fields: string[];
-  state_patch: Record<string, unknown>;
-  handoff_brief: string | null;
-  created_at: string;
-};
-
-export type HarwickAiTurnInsertRow = Omit<HarwickAiTurnRow, "id" | "created_at"> & {
-  id?: string;
-  created_at?: string;
-};
-
-export type HarwickAiToolCallRow = {
-  id: string;
-  workspace_id: string;
-  turn_id: string;
-  lead_id: string | null;
-  tool: "send_meta_reply" | "send_meta_dm" | "check_calendar" | "request_showing_approval" | "register_open_house" | "route_lead" | "sync_follow_up_boss" | "pause_automation";
-  requires_approval: boolean;
-  reason: string;
-  payload: Record<string, unknown>;
-  policy_status: "approved" | "approval_required" | "blocked";
-  execution_status: "pending" | "executed" | "queued_for_approval" | "missing_handler" | "failed" | "blocked";
-  execution_output: Record<string, unknown>;
-  error_code: string | null;
-  error_message: string | null;
-  executed_at: string | null;
-  created_at: string;
-};
-
-export type HarwickAiToolCallInsertRow = Omit<HarwickAiToolCallRow, "id" | "created_at"> & {
-  id?: string;
-  created_at?: string;
-};
-
-export type HarwickAiAutomationPolicyRow = {
-  id: string;
-  workspace_id: string;
-  member_id: string | null;
-  lead_id: string | null;
-  scope: "workspace" | "member" | "conversation";
-  automation_mode: "ai_on" | "human_takeover" | "paused_by_rule";
-  auto_send_enabled: boolean;
-  confidence_threshold: number;
-  allowed_auto_actions: string[];
-  allowed_auto_tools: string[];
-  requires_approval_actions: string[];
-  requires_approval_tools: string[];
-  blocked_safety_flags: string[];
-  created_at: string;
-  updated_at: string;
-};
-
-export type HarwickAiAutomationPolicyInsertRow = Omit<HarwickAiAutomationPolicyRow, "id" | "created_at" | "updated_at"> & {
-  id?: string;
-  created_at?: string;
-  updated_at?: string;
-};
-
-export type CrmSyncLogRow = {
-  id: string;
-  workspace_id: string;
-  lead_id: string;
-  provider: "follow_up_boss";
-  status: "queued" | "synced" | "failed" | "skipped";
-  provider_contact_id: string | null;
-  attempt_count: number;
-  last_error_code: string | null;
-  last_error_message: string | null;
-  next_retry_at: string | null;
-  last_outbound_at: string | null;
-  backsync_suppressed_until: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
-export type ProviderErrorLogRow = {
-  id: string;
-  workspace_id: string | null;
-  provider: "meta" | "twilio" | "retell" | "follow_up_boss" | "worker";
-  operation: string;
-  error_code: string;
-  error_message: string | null;
-  retryable: boolean;
-  metadata: Record<string, unknown>;
-  created_at: string;
-};
-
-export type WorkerHeartbeatRow = {
-  worker_id: string;
-  app_env: string;
-  last_seen_at: string;
-  last_batch: Record<string, unknown>;
-  updated_at: string;
-};
-
-export type AuditLogRow = {
-  id: string;
-  workspace_id: string;
-  user_id: string | null;
-  actor_type: "user" | "ai" | "system";
-  action: string;
-  resource_type: string;
-  resource_id: string | null;
-  metadata: Record<string, unknown>;
-  ip_address: string | null;
-  user_agent: string | null;
-  created_at: string;
-};
-
-export type AuditLogInsertRow = Omit<AuditLogRow, "id" | "created_at"> & {
-  id?: string;
-  created_at?: string;
-};
-
-export type RealtyOpsDatabase = {
+export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.5"
+  }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       audit_logs: {
-        Row: AuditLogRow;
-        Insert: AuditLogInsertRow;
-        Update: Partial<AuditLogRow>;
-        Relationships: [];
-      };
-      workspaces: {
-        Row: WorkspaceRow;
-        Insert: Omit<WorkspaceRow, "id" | "created_at" | "updated_at"> & {
-          id?: string;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: Partial<WorkspaceRow>;
-        Relationships: [];
-      };
-      workspace_members: {
-        Row: WorkspaceMemberRow;
-        Insert: Omit<WorkspaceMemberRow, "id" | "created_at" | "updated_at" | "avatar_url" | "role_label" | "presence_status" | "presence_last_seen_at"> & {
-          id?: string;
-          avatar_url?: string | null;
-          role_label?: string | null;
-          presence_status?: WorkspaceMemberRow["presence_status"];
-          presence_last_seen_at?: string | null;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: Partial<WorkspaceMemberRow>;
-        Relationships: [];
-      };
-      member_routing_profiles: {
-        Row: MemberRoutingProfileRow;
-        Insert: MemberRoutingProfileInsertRow;
-        Update: MemberRoutingProfileUpdateRow;
-        Relationships: [];
-      };
-      integration_accounts: {
-        Row: IntegrationAccountRow;
-        Insert: IntegrationAccountInsertRow;
-        Update: Partial<IntegrationAccountRow>;
-        Relationships: [];
-      };
-      workspace_voice_agents: {
-        Row: WorkspaceVoiceAgentRow;
-        Insert: WorkspaceVoiceAgentInsertRow;
-        Update: Partial<WorkspaceVoiceAgentRow>;
-        Relationships: [];
-      };
-      leads: {
-        Row: LeadRow;
-        Insert: LeadInsertRow;
-        Update: LeadUpdateRow;
-        Relationships: [];
-      };
-      lead_tasks: {
-        Row: LeadTaskRow;
-        Insert: LeadTaskInsertRow;
-        Update: Partial<LeadTaskRow>;
-        Relationships: [];
-      };
-      lead_events: {
-        Row: LeadEventRow;
-        Insert: LeadEventInsertRow;
-        Update: Partial<LeadEventRow>;
-        Relationships: [];
-      };
-      voice_lead_handoffs: {
-        Row: VoiceLeadHandoffRow;
-        Insert: VoiceLeadHandoffInsertRow;
-        Update: Partial<VoiceLeadHandoffRow>;
-        Relationships: [];
-      };
-      workflow_jobs: {
-        Row: WorkflowJobRow;
-        Insert: WorkflowJobInsertRow;
-        Update: Partial<WorkflowJobRow>;
-        Relationships: [];
-      };
-      crm_sync_logs: {
-        Row: CrmSyncLogRow;
-        Insert: Omit<CrmSyncLogRow, "id" | "created_at" | "updated_at" | "attempt_count" | "provider_contact_id" | "last_error_code" | "last_error_message" | "next_retry_at" | "last_outbound_at" | "backsync_suppressed_until"> & {
-          id?: string;
-          attempt_count?: number;
-          provider_contact_id?: string | null;
-          last_error_code?: string | null;
-          last_error_message?: string | null;
-          next_retry_at?: string | null;
-          last_outbound_at?: string | null;
-          backsync_suppressed_until?: string | null;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: Partial<CrmSyncLogRow>;
-        Relationships: [];
-      };
-      listing_facts: {
-        Row: ListingFactRow;
-        Insert: Omit<ListingFactRow, "id" | "created_at" | "updated_at"> & {
-          id?: string;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: Partial<ListingFactRow>;
-        Relationships: [];
-      };
-      social_posts: {
-        Row: SocialPostRow;
-        Insert: SocialPostInsertRow;
-        Update: Partial<SocialPostRow>;
-        Relationships: [];
-      };
-      meta_account_foundations: {
-        Row: MetaAccountFoundationRow;
-        Insert: MetaAccountFoundationInsertRow;
-        Update: Partial<MetaAccountFoundationRow>;
-        Relationships: [];
-      };
-      follow_up_boss_webhook_subscriptions: {
-        Row: FollowUpBossWebhookSubscriptionRow;
-        Insert: FollowUpBossWebhookSubscriptionInsertRow;
-        Update: Partial<FollowUpBossWebhookSubscriptionRow>;
-        Relationships: [];
-      };
-      crm_backsync_events: {
-        Row: CrmBacksyncEventRow;
-        Insert: CrmBacksyncEventInsertRow;
-        Update: Partial<CrmBacksyncEventRow>;
-        Relationships: [];
-      };
-      nurture_enrollments: {
-        Row: NurtureEnrollmentRow;
-        Insert: Omit<NurtureEnrollmentRow, "id" | "created_at" | "updated_at"> & {
-          id?: string;
-          last_step_index?: number;
-          opted_out_at?: string | null;
-          opt_out_reason?: string | null;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: Partial<NurtureEnrollmentRow>;
-        Relationships: [];
-      };
-      nurture_messages: {
-        Row: NurtureMessageRow;
-        Insert: Omit<NurtureMessageRow, "id" | "created_at" | "updated_at"> & {
-          id?: string;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: Partial<NurtureMessageRow>;
-        Relationships: [];
-      };
-      social_reply_reviews: {
-        Row: SocialReplyReviewRow;
-        Insert: SocialReplyReviewInsertRow;
-        Update: Partial<SocialReplyReviewRow>;
-        Relationships: [];
-      };
+        Row: {
+          action: string
+          actor_type: string
+          created_at: string
+          id: string
+          ip_address: string | null
+          metadata: Json
+          resource_id: string | null
+          resource_type: string
+          user_agent: string | null
+          user_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          action: string
+          actor_type: string
+          created_at?: string
+          id?: string
+          ip_address?: string | null
+          metadata?: Json
+          resource_id?: string | null
+          resource_type: string
+          user_agent?: string | null
+          user_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          action?: string
+          actor_type?: string
+          created_at?: string
+          id?: string
+          ip_address?: string | null
+          metadata?: Json
+          resource_id?: string | null
+          resource_type?: string
+          user_agent?: string | null
+          user_id?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_logs_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_routing_settings: {
+        Row: {
+          auto_assign_enabled: boolean
+          auto_reply_enabled: boolean
+          created_at: string
+          id: string
+          max_active_leads: number
+          max_budget: number | null
+          member_id: string
+          min_budget: number | null
+          specializations: string[]
+          territories: string[]
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          auto_assign_enabled?: boolean
+          auto_reply_enabled?: boolean
+          created_at?: string
+          id?: string
+          max_active_leads?: number
+          max_budget?: number | null
+          member_id: string
+          min_budget?: number | null
+          specializations?: string[]
+          territories?: string[]
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          auto_assign_enabled?: boolean
+          auto_reply_enabled?: boolean
+          created_at?: string
+          id?: string
+          max_active_leads?: number
+          max_budget?: number | null
+          member_id?: string
+          min_budget?: number | null
+          specializations?: string[]
+          territories?: string[]
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_routing_settings_fk_member"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "workspace_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_routing_settings_fk_workspace"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      conversation_activity_log: {
+        Row: {
+          actor_id: string | null
+          actor_type: string
+          conversation_id: string
+          created_at: string
+          data: Json | null
+          event_type: string
+          id: string
+        }
+        Insert: {
+          actor_id?: string | null
+          actor_type: string
+          conversation_id: string
+          created_at?: string
+          data?: Json | null
+          event_type: string
+          id?: string
+        }
+        Update: {
+          actor_id?: string | null
+          actor_type?: string
+          conversation_id?: string
+          created_at?: string
+          data?: Json | null
+          event_type?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_activity_log_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversation_automation_states: {
-        Row: ConversationAutomationStateRow;
-        Insert: ConversationAutomationStateInsertRow;
-        Update: Partial<ConversationAutomationStateRow>;
-        Relationships: [];
-      };
-      harwick_ai_turns: {
-        Row: HarwickAiTurnRow;
-        Insert: HarwickAiTurnInsertRow;
-        Update: Partial<HarwickAiTurnRow>;
-        Relationships: [];
-      };
-      harwick_ai_tool_calls: {
-        Row: HarwickAiToolCallRow;
-        Insert: HarwickAiToolCallInsertRow;
-        Update: Partial<HarwickAiToolCallRow>;
-        Relationships: [];
-      };
+        Row: {
+          automation_mode: string
+          automation_reason: string | null
+          changed_at: string | null
+          changed_by_member_id: string | null
+          channel: string
+          created_at: string
+          id: string
+          lead_id: string | null
+          provider_account_id: string
+          recipient_user_id: string | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          automation_mode?: string
+          automation_reason?: string | null
+          changed_at?: string | null
+          changed_by_member_id?: string | null
+          channel: string
+          created_at?: string
+          id?: string
+          lead_id?: string | null
+          provider_account_id: string
+          recipient_user_id?: string | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          automation_mode?: string
+          automation_reason?: string | null
+          changed_at?: string | null
+          changed_by_member_id?: string | null
+          channel?: string
+          created_at?: string
+          id?: string
+          lead_id?: string | null
+          provider_account_id?: string
+          recipient_user_id?: string | null
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_automation_states_changed_by_member_id_fkey"
+            columns: ["changed_by_member_id"]
+            isOneToOne: false
+            referencedRelation: "workspace_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversation_automation_states_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversation_automation_states_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      conversations: {
+        Row: {
+          automation_changed_at: string | null
+          automation_changed_by_member_id: string | null
+          automation_mode: string
+          automation_reason: string | null
+          channel: string
+          created_at: string
+          dismissal_reason: string | null
+          id: string
+          lead_id: string
+          provider_account_id: string | null
+          recipient_user_id: string | null
+          source_comment_id: string | null
+          source_post_id: string | null
+          status: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          automation_changed_at?: string | null
+          automation_changed_by_member_id?: string | null
+          automation_mode?: string
+          automation_reason?: string | null
+          channel: string
+          created_at?: string
+          dismissal_reason?: string | null
+          id?: string
+          lead_id: string
+          provider_account_id?: string | null
+          recipient_user_id?: string | null
+          source_comment_id?: string | null
+          source_post_id?: string | null
+          status?: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          automation_changed_at?: string | null
+          automation_changed_by_member_id?: string | null
+          automation_mode?: string
+          automation_reason?: string | null
+          channel?: string
+          created_at?: string
+          dismissal_reason?: string | null
+          id?: string
+          lead_id?: string
+          provider_account_id?: string | null
+          recipient_user_id?: string | null
+          source_comment_id?: string | null
+          source_post_id?: string | null
+          status?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversations_automation_changed_by_member_id_fkey"
+            columns: ["automation_changed_by_member_id"]
+            isOneToOne: false
+            referencedRelation: "workspace_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversations_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversations_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      conversation_messages: {
+        Row: {
+          body: string
+          created_at: string
+          error_code: string | null
+          error_message: string | null
+          id: string
+          lead_id: string
+          provider_message_id: string | null
+          sender_id: string | null
+          sender_type: string
+          source_channel: string | null
+          status: string | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          error_code?: string | null
+          error_message?: string | null
+          id?: string
+          lead_id: string
+          provider_message_id?: string | null
+          sender_id?: string | null
+          sender_type: string
+          source_channel?: string | null
+          status?: string | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          error_code?: string | null
+          error_message?: string | null
+          id?: string
+          lead_id?: string
+          provider_message_id?: string | null
+          sender_id?: string | null
+          sender_type?: string
+          source_channel?: string | null
+          status?: string | null
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_lead"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_workspace"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      crm_backsync_events: {
+        Row: {
+          correlated_sync_log_id: string | null
+          created_at: string
+          event_created_at: string
+          event_type: string
+          id: string
+          last_error_code: string | null
+          last_error_message: string | null
+          payload: Json
+          processed_at: string | null
+          provider: string
+          provider_event_id: string
+          resource_ids: number[]
+          resource_uri: string | null
+          status: string
+          subscription_id: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          correlated_sync_log_id?: string | null
+          created_at?: string
+          event_created_at: string
+          event_type: string
+          id?: string
+          last_error_code?: string | null
+          last_error_message?: string | null
+          payload?: Json
+          processed_at?: string | null
+          provider: string
+          provider_event_id: string
+          resource_ids?: number[]
+          resource_uri?: string | null
+          status?: string
+          subscription_id: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          correlated_sync_log_id?: string | null
+          created_at?: string
+          event_created_at?: string
+          event_type?: string
+          id?: string
+          last_error_code?: string | null
+          last_error_message?: string | null
+          payload?: Json
+          processed_at?: string | null
+          provider?: string
+          provider_event_id?: string
+          resource_ids?: number[]
+          resource_uri?: string | null
+          status?: string
+          subscription_id?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_backsync_events_correlated_sync_log_id_fkey"
+            columns: ["correlated_sync_log_id"]
+            isOneToOne: false
+            referencedRelation: "crm_sync_logs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_backsync_events_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "follow_up_boss_webhook_subscriptions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_backsync_events_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      crm_sync_logs: {
+        Row: {
+          attempt_count: number
+          backsync_suppressed_until: string | null
+          created_at: string
+          id: string
+          last_error_code: string | null
+          last_error_message: string | null
+          last_outbound_at: string | null
+          lead_id: string
+          next_retry_at: string | null
+          provider: string
+          provider_contact_id: string | null
+          status: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          attempt_count?: number
+          backsync_suppressed_until?: string | null
+          created_at?: string
+          id?: string
+          last_error_code?: string | null
+          last_error_message?: string | null
+          last_outbound_at?: string | null
+          lead_id: string
+          next_retry_at?: string | null
+          provider: string
+          provider_contact_id?: string | null
+          status: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          attempt_count?: number
+          backsync_suppressed_until?: string | null
+          created_at?: string
+          id?: string
+          last_error_code?: string | null
+          last_error_message?: string | null
+          last_outbound_at?: string | null
+          lead_id?: string
+          next_retry_at?: string | null
+          provider?: string
+          provider_contact_id?: string | null
+          status?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_sync_logs_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_sync_logs_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      follow_up_boss_webhook_subscriptions: {
+        Row: {
+          callback_token: string
+          created_at: string
+          encrypted_system_key_ref: string
+          event_type: string
+          id: string
+          integration_account_id: string
+          last_error_code: string | null
+          last_error_message: string | null
+          last_registered_at: string | null
+          provider_webhook_id: string | null
+          status: string
+          system_name: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          callback_token: string
+          created_at?: string
+          encrypted_system_key_ref: string
+          event_type: string
+          id?: string
+          integration_account_id: string
+          last_error_code?: string | null
+          last_error_message?: string | null
+          last_registered_at?: string | null
+          provider_webhook_id?: string | null
+          status?: string
+          system_name: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          callback_token?: string
+          created_at?: string
+          encrypted_system_key_ref?: string
+          event_type?: string
+          id?: string
+          integration_account_id?: string
+          last_error_code?: string | null
+          last_error_message?: string | null
+          last_registered_at?: string | null
+          provider_webhook_id?: string | null
+          status?: string
+          system_name?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "follow_up_boss_webhook_subscription_integration_account_id_fkey"
+            columns: ["integration_account_id"]
+            isOneToOne: false
+            referencedRelation: "integration_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "follow_up_boss_webhook_subscriptions_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       harwick_ai_automation_policies: {
-        Row: HarwickAiAutomationPolicyRow;
-        Insert: HarwickAiAutomationPolicyInsertRow;
-        Update: Partial<HarwickAiAutomationPolicyRow>;
-        Relationships: [];
-      };
+        Row: {
+          allowed_auto_actions: string[]
+          allowed_auto_tools: string[]
+          auto_send_enabled: boolean
+          automation_mode: string
+          blocked_safety_flags: string[]
+          confidence_threshold: number
+          created_at: string
+          id: string
+          lead_id: string | null
+          member_id: string | null
+          requires_approval_actions: string[]
+          requires_approval_tools: string[]
+          scope: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          allowed_auto_actions?: string[]
+          allowed_auto_tools?: string[]
+          auto_send_enabled?: boolean
+          automation_mode?: string
+          blocked_safety_flags?: string[]
+          confidence_threshold?: number
+          created_at?: string
+          id?: string
+          lead_id?: string | null
+          member_id?: string | null
+          requires_approval_actions?: string[]
+          requires_approval_tools?: string[]
+          scope?: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          allowed_auto_actions?: string[]
+          allowed_auto_tools?: string[]
+          auto_send_enabled?: boolean
+          automation_mode?: string
+          blocked_safety_flags?: string[]
+          confidence_threshold?: number
+          created_at?: string
+          id?: string
+          lead_id?: string | null
+          member_id?: string | null
+          requires_approval_actions?: string[]
+          requires_approval_tools?: string[]
+          scope?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "harwick_ai_automation_policies_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "harwick_ai_automation_policies_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "workspace_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "harwick_ai_automation_policies_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      harwick_ai_tool_calls: {
+        Row: {
+          created_at: string
+          error_code: string | null
+          error_message: string | null
+          executed_at: string | null
+          execution_output: Json
+          execution_status: string
+          id: string
+          lead_id: string | null
+          payload: Json
+          policy_status: string
+          reason: string
+          requires_approval: boolean
+          tool: string
+          turn_id: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          error_code?: string | null
+          error_message?: string | null
+          executed_at?: string | null
+          execution_output?: Json
+          execution_status?: string
+          id?: string
+          lead_id?: string | null
+          payload?: Json
+          policy_status?: string
+          reason: string
+          requires_approval?: boolean
+          tool: string
+          turn_id: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          error_code?: string | null
+          error_message?: string | null
+          executed_at?: string | null
+          execution_output?: Json
+          execution_status?: string
+          id?: string
+          lead_id?: string | null
+          payload?: Json
+          policy_status?: string
+          reason?: string
+          requires_approval?: boolean
+          tool?: string
+          turn_id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "harwick_ai_tool_calls_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "harwick_ai_tool_calls_turn_id_fkey"
+            columns: ["turn_id"]
+            isOneToOne: false
+            referencedRelation: "harwick_ai_turns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "harwick_ai_tool_calls_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      harwick_ai_turns: {
+        Row: {
+          automation_decision: Json
+          automation_policy: Json
+          channel: string
+          confidence: number
+          created_at: string
+          handoff_brief: string | null
+          id: string
+          lead_id: string | null
+          missing_fields: string[]
+          next_action: string
+          provider_thread_id: string | null
+          reply: string
+          runtime_input: Json
+          safety_flags: string[]
+          social_reply_review_id: string | null
+          state_patch: Json
+          status: string
+          turn: Json
+          workspace_id: string
+        }
+        Insert: {
+          automation_decision?: Json
+          automation_policy?: Json
+          channel: string
+          confidence?: number
+          created_at?: string
+          handoff_brief?: string | null
+          id?: string
+          lead_id?: string | null
+          missing_fields?: string[]
+          next_action: string
+          provider_thread_id?: string | null
+          reply: string
+          runtime_input?: Json
+          safety_flags?: string[]
+          social_reply_review_id?: string | null
+          state_patch?: Json
+          status?: string
+          turn: Json
+          workspace_id: string
+        }
+        Update: {
+          automation_decision?: Json
+          automation_policy?: Json
+          channel?: string
+          confidence?: number
+          created_at?: string
+          handoff_brief?: string | null
+          id?: string
+          lead_id?: string | null
+          missing_fields?: string[]
+          next_action?: string
+          provider_thread_id?: string | null
+          reply?: string
+          runtime_input?: Json
+          safety_flags?: string[]
+          social_reply_review_id?: string | null
+          state_patch?: Json
+          status?: string
+          turn?: Json
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "harwick_ai_turns_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "harwick_ai_turns_social_reply_review_id_fkey"
+            columns: ["social_reply_review_id"]
+            isOneToOne: false
+            referencedRelation: "social_reply_reviews"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "harwick_ai_turns_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      integration_accounts: {
+        Row: {
+          account_scope: string
+          connected_at: string | null
+          created_at: string
+          encrypted_credential_ref: string | null
+          id: string
+          last_health_check_at: string | null
+          oauth_state: string | null
+          owner_member_id: string | null
+          provider: string
+          provider_account_id: string | null
+          provider_account_ids: string[]
+          provider_account_name: string | null
+          status: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          account_scope?: string
+          connected_at?: string | null
+          created_at?: string
+          encrypted_credential_ref?: string | null
+          id?: string
+          last_health_check_at?: string | null
+          oauth_state?: string | null
+          owner_member_id?: string | null
+          provider: string
+          provider_account_id?: string | null
+          provider_account_ids?: string[]
+          provider_account_name?: string | null
+          status: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          account_scope?: string
+          connected_at?: string | null
+          created_at?: string
+          encrypted_credential_ref?: string | null
+          id?: string
+          last_health_check_at?: string | null
+          oauth_state?: string | null
+          owner_member_id?: string | null
+          provider?: string
+          provider_account_id?: string | null
+          provider_account_ids?: string[]
+          provider_account_name?: string | null
+          status?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "integration_accounts_owner_member_id_fkey"
+            columns: ["owner_member_id"]
+            isOneToOne: false
+            referencedRelation: "workspace_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "integration_accounts_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_events: {
+        Row: {
+          created_at: string
+          event_type: string
+          id: string
+          lead_id: string | null
+          occurred_at: string
+          provider: string
+          provider_account_id: string | null
+          provider_event_id: string
+          provider_user_id: string | null
+          source_channel: string
+          source_comment_id: string | null
+          source_post_id: string | null
+          text: string | null
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_type: string
+          id?: string
+          lead_id?: string | null
+          occurred_at: string
+          provider: string
+          provider_account_id?: string | null
+          provider_event_id: string
+          provider_user_id?: string | null
+          source_channel: string
+          source_comment_id?: string | null
+          source_post_id?: string | null
+          text?: string | null
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          event_type?: string
+          id?: string
+          lead_id?: string | null
+          occurred_at?: string
+          provider?: string
+          provider_account_id?: string | null
+          provider_event_id?: string
+          provider_user_id?: string | null
+          source_channel?: string
+          source_comment_id?: string | null
+          source_post_id?: string | null
+          text?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_events_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_events_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_tasks: {
+        Row: {
+          assigned_member_id: string | null
+          created_at: string
+          description: string | null
+          due_at: string | null
+          id: string
+          lead_id: string | null
+          listing_id: string | null
+          priority: string
+          status: string
+          task_type: string
+          title: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          assigned_member_id?: string | null
+          created_at?: string
+          description?: string | null
+          due_at?: string | null
+          id?: string
+          lead_id?: string | null
+          listing_id?: string | null
+          priority?: string
+          status?: string
+          task_type: string
+          title: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          assigned_member_id?: string | null
+          created_at?: string
+          description?: string | null
+          due_at?: string | null
+          id?: string
+          lead_id?: string | null
+          listing_id?: string | null
+          priority?: string
+          status?: string
+          task_type?: string
+          title?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_tasks_assigned_member_id_fkey"
+            columns: ["assigned_member_id"]
+            isOneToOne: false
+            referencedRelation: "workspace_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_tasks_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_tasks_listing_id_fkey"
+            columns: ["listing_id"]
+            isOneToOne: false
+            referencedRelation: "listing_facts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_tasks_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      leads: {
+        Row: {
+          assigned_agent_id: string | null
+          budget_max: number | null
+          budget_min: number | null
+          created_at: string
+          email: string | null
+          financing_status: string
+          follow_up_boss_contact_id: string | null
+          full_name: string | null
+          id: string
+          instagram_user_id: string | null
+          instagram_username: string | null
+          intent: string
+          last_message_at: string | null
+          lead_type: string
+          next_followup_at: string | null
+          phone: string | null
+          score: number
+          source_channel: string
+          source_comment_id: string | null
+          source_post_id: string | null
+          source_provider_id: string | null
+          status: string
+          target_area: string | null
+          timeline: string | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          assigned_agent_id?: string | null
+          budget_max?: number | null
+          budget_min?: number | null
+          created_at?: string
+          email?: string | null
+          financing_status: string
+          follow_up_boss_contact_id?: string | null
+          full_name?: string | null
+          id?: string
+          instagram_user_id?: string | null
+          instagram_username?: string | null
+          intent: string
+          last_message_at?: string | null
+          lead_type: string
+          next_followup_at?: string | null
+          phone?: string | null
+          score?: number
+          source_channel: string
+          source_comment_id?: string | null
+          source_post_id?: string | null
+          source_provider_id?: string | null
+          status: string
+          target_area?: string | null
+          timeline?: string | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          assigned_agent_id?: string | null
+          budget_max?: number | null
+          budget_min?: number | null
+          created_at?: string
+          email?: string | null
+          financing_status?: string
+          follow_up_boss_contact_id?: string | null
+          full_name?: string | null
+          id?: string
+          instagram_user_id?: string | null
+          instagram_username?: string | null
+          intent?: string
+          last_message_at?: string | null
+          lead_type?: string
+          next_followup_at?: string | null
+          phone?: string | null
+          score?: number
+          source_channel?: string
+          source_comment_id?: string | null
+          source_post_id?: string | null
+          source_provider_id?: string | null
+          status?: string
+          target_area?: string | null
+          timeline?: string | null
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leads_assigned_agent_id_fkey"
+            columns: ["assigned_agent_id"]
+            isOneToOne: false
+            referencedRelation: "workspace_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      listing_facts: {
+        Row: {
+          address: string
+          baths: number | null
+          beds: number | null
+          created_at: string
+          external_listing_id: string | null
+          has_pool: boolean | null
+          id: string
+          mls_number: string | null
+          needs_recheck_at: string | null
+          price: number | null
+          raw_facts: Json
+          source: string
+          status: string | null
+          updated_at: string
+          verification_status: string
+          verified_at: string | null
+          verified_by_member_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          address: string
+          baths?: number | null
+          beds?: number | null
+          created_at?: string
+          external_listing_id?: string | null
+          has_pool?: boolean | null
+          id?: string
+          mls_number?: string | null
+          needs_recheck_at?: string | null
+          price?: number | null
+          raw_facts?: Json
+          source: string
+          status?: string | null
+          updated_at?: string
+          verification_status?: string
+          verified_at?: string | null
+          verified_by_member_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          address?: string
+          baths?: number | null
+          beds?: number | null
+          created_at?: string
+          external_listing_id?: string | null
+          has_pool?: boolean | null
+          id?: string
+          mls_number?: string | null
+          needs_recheck_at?: string | null
+          price?: number | null
+          raw_facts?: Json
+          source?: string
+          status?: string | null
+          updated_at?: string
+          verification_status?: string
+          verified_at?: string | null
+          verified_by_member_id?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "listing_facts_verified_by_member_id_fkey"
+            columns: ["verified_by_member_id"]
+            isOneToOne: false
+            referencedRelation: "workspace_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "listing_facts_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      member_routing_profiles: {
+        Row: {
+          accepts_new_leads: boolean
+          areas: string[]
+          budget_max: number | null
+          budget_min: number | null
+          created_at: string
+          id: string
+          lead_types: string[]
+          max_active_leads: number
+          member_id: string
+          notification_preference: string
+          property_types: string[]
+          role_label: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          accepts_new_leads?: boolean
+          areas: string[]
+          budget_max?: number | null
+          budget_min?: number | null
+          created_at?: string
+          id?: string
+          lead_types: string[]
+          max_active_leads: number
+          member_id: string
+          notification_preference?: string
+          property_types: string[]
+          role_label: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          accepts_new_leads?: boolean
+          areas?: Json
+          budget_max?: number | null
+          budget_min?: number | null
+          created_at?: string
+          id?: string
+          lead_types?: Json
+          max_active_leads?: number
+          member_id?: string
+          notification_preference?: string
+          property_types?: Json
+          role_label?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_routing_profiles_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "workspace_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "member_routing_profiles_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meta_account_foundations: {
+        Row: {
+          account_scope: string
+          areas_mentioned: string[]
+          biography: string | null
+          created_at: string
+          follower_count: number | null
+          follows_count: number | null
+          id: string
+          instagram_business_account_id: string
+          instagram_display_name: string | null
+          instagram_username: string | null
+          integration_account_id: string
+          last_fetched_at: string
+          listing_hints: string[]
+          media_count: number | null
+          owner_member_id: string | null
+          page_category: string | null
+          page_id: string
+          page_link_url: string | null
+          page_name: string
+          profile_photo_url: string | null
+          provider: string
+          provider_account_id: string
+          recent_posts: Json
+          updated_at: string
+          website_url: string | null
+          workspace_id: string
+        }
+        Insert: {
+          account_scope: string
+          areas_mentioned?: string[]
+          biography?: string | null
+          created_at?: string
+          follower_count?: number | null
+          follows_count?: number | null
+          id?: string
+          instagram_business_account_id: string
+          instagram_display_name?: string | null
+          instagram_username?: string | null
+          integration_account_id: string
+          last_fetched_at: string
+          listing_hints?: string[]
+          media_count?: number | null
+          owner_member_id?: string | null
+          page_category?: string | null
+          page_id: string
+          page_link_url?: string | null
+          page_name: string
+          profile_photo_url?: string | null
+          provider: string
+          provider_account_id: string
+          recent_posts?: Json
+          updated_at?: string
+          website_url?: string | null
+          workspace_id: string
+        }
+        Update: {
+          account_scope?: string
+          areas_mentioned?: string[]
+          biography?: string | null
+          created_at?: string
+          follower_count?: number | null
+          follows_count?: number | null
+          id?: string
+          instagram_business_account_id?: string
+          instagram_display_name?: string | null
+          instagram_username?: string | null
+          integration_account_id?: string
+          last_fetched_at?: string
+          listing_hints?: string[]
+          media_count?: number | null
+          owner_member_id?: string | null
+          page_category?: string | null
+          page_id?: string
+          page_link_url?: string | null
+          page_name?: string
+          profile_photo_url?: string | null
+          provider?: string
+          provider_account_id?: string
+          recent_posts?: Json
+          updated_at?: string
+          website_url?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_account_foundations_integration_account_id_fkey"
+            columns: ["integration_account_id"]
+            isOneToOne: false
+            referencedRelation: "integration_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meta_account_foundations_owner_member_id_fkey"
+            columns: ["owner_member_id"]
+            isOneToOne: false
+            referencedRelation: "workspace_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meta_account_foundations_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      nurture_enrollments: {
+        Row: {
+          created_at: string
+          id: string
+          last_step_index: number
+          lead_id: string
+          next_action_at: string | null
+          opt_out_reason: string | null
+          opted_out_at: string | null
+          quiet_hours_timezone: string
+          sequence_key: string
+          status: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_step_index?: number
+          lead_id: string
+          next_action_at?: string | null
+          opt_out_reason?: string | null
+          opted_out_at?: string | null
+          quiet_hours_timezone?: string
+          sequence_key: string
+          status?: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_step_index?: number
+          lead_id?: string
+          next_action_at?: string | null
+          opt_out_reason?: string | null
+          opted_out_at?: string | null
+          quiet_hours_timezone?: string
+          sequence_key?: string
+          status?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nurture_enrollments_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nurture_enrollments_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      nurture_messages: {
+        Row: {
+          block_reason: string | null
+          body: string | null
+          channel: string
+          created_at: string
+          enrollment_id: string
+          id: string
+          last_error_code: string | null
+          last_error_message: string | null
+          lead_id: string
+          provider_message_id: string | null
+          scheduled_for: string | null
+          sent_at: string | null
+          status: string
+          step_index: number
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          block_reason?: string | null
+          body?: string | null
+          channel: string
+          created_at?: string
+          enrollment_id: string
+          id?: string
+          last_error_code?: string | null
+          last_error_message?: string | null
+          lead_id: string
+          provider_message_id?: string | null
+          scheduled_for?: string | null
+          sent_at?: string | null
+          status?: string
+          step_index: number
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          block_reason?: string | null
+          body?: string | null
+          channel?: string
+          created_at?: string
+          enrollment_id?: string
+          id?: string
+          last_error_code?: string | null
+          last_error_message?: string | null
+          lead_id?: string
+          provider_message_id?: string | null
+          scheduled_for?: string | null
+          sent_at?: string | null
+          status?: string
+          step_index?: number
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nurture_messages_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "nurture_enrollments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nurture_messages_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nurture_messages_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       provider_error_logs: {
-        Row: ProviderErrorLogRow;
-        Insert: Omit<ProviderErrorLogRow, "id" | "created_at"> & {
-          id?: string;
-          created_at?: string;
-        };
-        Update: Partial<ProviderErrorLogRow>;
-        Relationships: [];
-      };
+        Row: {
+          created_at: string
+          error_code: string
+          error_message: string | null
+          id: string
+          metadata: Json
+          operation: string
+          provider: string
+          retryable: boolean
+          workspace_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          error_code: string
+          error_message?: string | null
+          id?: string
+          metadata?: Json
+          operation: string
+          provider: string
+          retryable?: boolean
+          workspace_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          error_code?: string
+          error_message?: string | null
+          id?: string
+          metadata?: Json
+          operation?: string
+          provider?: string
+          retryable?: boolean
+          workspace_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "provider_error_logs_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_posts: {
+        Row: {
+          areas_mentioned: string[]
+          caption: string | null
+          created_at: string
+          cta_label: string | null
+          fetched_at: string
+          id: string
+          listing_hints: string[]
+          media_type: string | null
+          permalink: string | null
+          provider: string
+          provider_account_id: string
+          source_channel: string
+          source_post_id: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          areas_mentioned?: string[]
+          caption?: string | null
+          created_at?: string
+          cta_label?: string | null
+          fetched_at: string
+          id?: string
+          listing_hints?: string[]
+          media_type?: string | null
+          permalink?: string | null
+          provider: string
+          provider_account_id: string
+          source_channel: string
+          source_post_id: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          areas_mentioned?: string[]
+          caption?: string | null
+          created_at?: string
+          cta_label?: string | null
+          fetched_at?: string
+          id?: string
+          listing_hints?: string[]
+          media_type?: string | null
+          permalink?: string | null
+          provider?: string
+          provider_account_id?: string
+          source_channel?: string
+          source_post_id?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_posts_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_reply_reviews: {
+        Row: {
+          ai_decision: Json | null
+          automation_changed_at: string | null
+          automation_changed_by_member_id: string | null
+          automation_mode: string
+          automation_reason: string | null
+          channel: string
+          created_at: string
+          dismissal_reason: string | null
+          id: string
+          inbound_text: string | null
+          last_error_code: string | null
+          last_error_message: string | null
+          lead_event_id: string
+          lead_id: string | null
+          provider_account_id: string
+          provider_event_id: string | null
+          recipient_user_id: string | null
+          reviewed_at: string | null
+          reviewed_by_member_id: string | null
+          source_comment_id: string | null
+          source_post_id: string | null
+          status: string
+          suggested_reply: string | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          ai_decision?: Json | null
+          automation_changed_at?: string | null
+          automation_changed_by_member_id?: string | null
+          automation_mode?: string
+          automation_reason?: string | null
+          channel: string
+          created_at?: string
+          dismissal_reason?: string | null
+          id?: string
+          inbound_text?: string | null
+          last_error_code?: string | null
+          last_error_message?: string | null
+          lead_event_id: string
+          lead_id?: string | null
+          provider_account_id: string
+          provider_event_id?: string | null
+          recipient_user_id?: string | null
+          reviewed_at?: string | null
+          reviewed_by_member_id?: string | null
+          source_comment_id?: string | null
+          source_post_id?: string | null
+          status?: string
+          suggested_reply?: string | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          ai_decision?: Json | null
+          automation_changed_at?: string | null
+          automation_changed_by_member_id?: string | null
+          automation_mode?: string
+          automation_reason?: string | null
+          channel?: string
+          created_at?: string
+          dismissal_reason?: string | null
+          id?: string
+          inbound_text?: string | null
+          last_error_code?: string | null
+          last_error_message?: string | null
+          lead_event_id?: string
+          lead_id?: string | null
+          provider_account_id?: string
+          provider_event_id?: string | null
+          recipient_user_id?: string | null
+          reviewed_at?: string | null
+          reviewed_by_member_id?: string | null
+          source_comment_id?: string | null
+          source_post_id?: string | null
+          status?: string
+          suggested_reply?: string | null
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_reply_reviews_automation_changed_by_member_id_fkey"
+            columns: ["automation_changed_by_member_id"]
+            isOneToOne: false
+            referencedRelation: "workspace_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_reply_reviews_lead_event_id_fkey"
+            columns: ["lead_event_id"]
+            isOneToOne: false
+            referencedRelation: "lead_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_reply_reviews_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_reply_reviews_reviewed_by_member_id_fkey"
+            columns: ["reviewed_by_member_id"]
+            isOneToOne: false
+            referencedRelation: "workspace_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_reply_reviews_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      voice_lead_handoffs: {
+        Row: {
+          budget: string | null
+          call_id: string | null
+          callback_task_id: string | null
+          caller_name: string | null
+          created_at: string
+          dismissal_reason: string | null
+          financing_status: string
+          id: string
+          lead_id: string | null
+          lead_type: string
+          phone: string | null
+          retell_agent_id: string | null
+          review_status: string
+          reviewed_at: string | null
+          reviewed_by_member_id: string | null
+          status: string
+          summary: string
+          target_area: string | null
+          timeline: string | null
+          updated_at: string
+          urgency: string
+          workspace_id: string
+        }
+        Insert: {
+          budget?: string | null
+          call_id?: string | null
+          callback_task_id?: string | null
+          caller_name?: string | null
+          created_at?: string
+          dismissal_reason?: string | null
+          financing_status: string
+          id?: string
+          lead_id?: string | null
+          lead_type: string
+          phone?: string | null
+          retell_agent_id?: string | null
+          review_status?: string
+          reviewed_at?: string | null
+          reviewed_by_member_id?: string | null
+          status?: string
+          summary: string
+          target_area?: string | null
+          timeline?: string | null
+          updated_at?: string
+          urgency: string
+          workspace_id: string
+        }
+        Update: {
+          budget?: string | null
+          call_id?: string | null
+          callback_task_id?: string | null
+          caller_name?: string | null
+          created_at?: string
+          dismissal_reason?: string | null
+          financing_status?: string
+          id?: string
+          lead_id?: string | null
+          lead_type?: string
+          phone?: string | null
+          retell_agent_id?: string | null
+          review_status?: string
+          reviewed_at?: string | null
+          reviewed_by_member_id?: string | null
+          status?: string
+          summary?: string
+          target_area?: string | null
+          timeline?: string | null
+          updated_at?: string
+          urgency?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "voice_lead_handoffs_callback_task_id_fkey"
+            columns: ["callback_task_id"]
+            isOneToOne: false
+            referencedRelation: "lead_tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "voice_lead_handoffs_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "voice_lead_handoffs_reviewed_by_member_id_fkey"
+            columns: ["reviewed_by_member_id"]
+            isOneToOne: false
+            referencedRelation: "workspace_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "voice_lead_handoffs_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       worker_heartbeats: {
-        Row: WorkerHeartbeatRow;
-        Insert: WorkerHeartbeatRow;
-        Update: Partial<WorkerHeartbeatRow>;
-        Relationships: [];
-      };
+        Row: {
+          app_env: string
+          last_batch: Json
+          last_seen_at: string
+          updated_at: string
+          worker_id: string
+        }
+        Insert: {
+          app_env: string
+          last_batch?: Json
+          last_seen_at?: string
+          updated_at?: string
+          worker_id: string
+        }
+        Update: {
+          app_env?: string
+          last_batch?: Json
+          last_seen_at?: string
+          updated_at?: string
+          worker_id?: string
+        }
+        Relationships: []
+      }
+      workflow_jobs: {
+        Row: {
+          attempt_count: number
+          created_at: string
+          id: string
+          idempotency_key: string
+          job_type: string
+          last_error_code: string | null
+          last_error_message: string | null
+          lead_event_id: string | null
+          lead_id: string | null
+          locked_at: string | null
+          locked_by: string | null
+          max_attempts: number
+          payload: Json
+          run_after: string
+          status: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          attempt_count?: number
+          created_at?: string
+          id?: string
+          idempotency_key: string
+          job_type: string
+          last_error_code?: string | null
+          last_error_message?: string | null
+          lead_event_id?: string | null
+          lead_id?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
+          max_attempts?: number
+          payload?: Json
+          run_after?: string
+          status?: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          attempt_count?: number
+          created_at?: string
+          id?: string
+          idempotency_key?: string
+          job_type?: string
+          last_error_code?: string | null
+          last_error_message?: string | null
+          lead_event_id?: string | null
+          lead_id?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
+          max_attempts?: number
+          payload?: Json
+          run_after?: string
+          status?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflow_jobs_lead_event_id_fkey"
+            columns: ["lead_event_id"]
+            isOneToOne: false
+            referencedRelation: "lead_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_jobs_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_jobs_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workspace_members: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          display_name: string
+          email: string | null
+          id: string
+          is_active: boolean
+          presence_last_seen_at: string | null
+          presence_status: string | null
+          role: string
+          role_label: string | null
+          updated_at: string
+          user_id: string
+          workspace_id: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name: string
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          presence_last_seen_at?: string | null
+          presence_status?: string | null
+          role: string
+          role_label?: string | null
+          updated_at?: string
+          user_id: string
+          workspace_id: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          presence_last_seen_at?: string | null
+          presence_status?: string | null
+          role?: string
+          role_label?: string | null
+          updated_at?: string
+          user_id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_members_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workspace_voice_agents: {
+        Row: {
+          account_scope: string
+          created_at: string
+          dynamic_variables_webhook_url: string | null
+          id: string
+          last_error_code: string | null
+          last_error_message: string | null
+          last_synced_at: string | null
+          owner_member_id: string | null
+          phone_number: string | null
+          provider: string
+          published_config_hash: string | null
+          retell_agent_id: string | null
+          retell_conversation_flow_id: string | null
+          retell_phone_number_id: string | null
+          service_areas: string[]
+          status: string
+          template_version: string
+          transfer_number: string | null
+          updated_at: string
+          webhook_url: string | null
+          workspace_id: string
+        }
+        Insert: {
+          account_scope?: string
+          created_at?: string
+          dynamic_variables_webhook_url?: string | null
+          id?: string
+          last_error_code?: string | null
+          last_error_message?: string | null
+          last_synced_at?: string | null
+          owner_member_id?: string | null
+          phone_number?: string | null
+          provider: string
+          published_config_hash?: string | null
+          retell_agent_id?: string | null
+          retell_conversation_flow_id?: string | null
+          retell_phone_number_id?: string | null
+          service_areas?: string[]
+          status?: string
+          template_version?: string
+          transfer_number?: string | null
+          updated_at?: string
+          webhook_url?: string | null
+          workspace_id: string
+        }
+        Update: {
+          account_scope?: string
+          created_at?: string
+          dynamic_variables_webhook_url?: string | null
+          id?: string
+          last_error_code?: string | null
+          last_error_message?: string | null
+          last_synced_at?: string | null
+          owner_member_id?: string | null
+          phone_number?: string | null
+          provider?: string
+          published_config_hash?: string | null
+          retell_agent_id?: string | null
+          retell_conversation_flow_id?: string | null
+          retell_phone_number_id?: string | null
+          service_areas?: string[]
+          status?: string
+          template_version?: string
+          transfer_number?: string | null
+          updated_at?: string
+          webhook_url?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_voice_agents_owner_member_id_fkey"
+            columns: ["owner_member_id"]
+            isOneToOne: false
+            referencedRelation: "workspace_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workspace_voice_agents_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workspaces: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          slug?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       workspace_subscriptions: {
-        Row: WorkspaceSubscriptionRow;
-        Insert: Omit<WorkspaceSubscriptionRow, "id" | "created_at" | "updated_at"> & {
-          id?: string;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: Partial<WorkspaceSubscriptionRow>;
-        Relationships: [];
-      };
+        Row: {
+          billing_interval: string
+          cancel_at_period_end: boolean
+          canceled_at: string | null
+          created_at: string
+          current_period_end: string
+          current_period_start: string
+          id: string
+          plan_tier: string
+          provider_customer_id: string | null
+          provider_subscription_id: string | null
+          status: string
+          trial_end: string | null
+          trial_start: string | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          billing_interval: string
+          cancel_at_period_end?: boolean
+          canceled_at?: string | null
+          created_at?: string
+          current_period_end: string
+          current_period_start: string
+          id?: string
+          plan_tier: string
+          provider_customer_id?: string | null
+          provider_subscription_id?: string | null
+          status: string
+          trial_end?: string | null
+          trial_start?: string | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          billing_interval?: string
+          cancel_at_period_end?: boolean
+          canceled_at?: string | null
+          created_at?: string
+          current_period_end?: string
+          current_period_start?: string
+          id?: string
+          plan_tier?: string
+          provider_customer_id?: string | null
+          provider_subscription_id?: string | null
+          status?: string
+          trial_end?: string | null
+          trial_start?: string | null
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_subscriptions_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: true
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workspace_usage_events: {
-        Row: WorkspaceUsageEventRow;
-        Insert: WorkspaceUsageEventInsertRow;
-        Update: Partial<WorkspaceUsageEventRow>;
-        Relationships: [];
-      };
+        Row: {
+          billing_period_end: string
+          billing_period_start: string
+          created_at: string
+          event_count: number
+          event_metadata: Json | null
+          event_type: string
+          id: string
+          resource_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          billing_period_end: string
+          billing_period_start: string
+          created_at?: string
+          event_count: number
+          event_metadata?: Json | null
+          event_type: string
+          id?: string
+          resource_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          billing_period_end?: string
+          billing_period_start?: string
+          created_at?: string
+          event_count?: number
+          event_metadata?: Json | null
+          event_type?: string
+          id?: string
+          resource_id?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_usage_events_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workspace_usage_summaries: {
-        Row: WorkspaceUsageSummaryRow;
-        Insert: WorkspaceUsageSummaryInsertRow;
-        Update: Partial<WorkspaceUsageSummaryRow>;
-        Relationships: [];
-      };
-    };
-    Views: Record<string, never>;
-    Functions: Record<string, never>;
-    Enums: Record<string, never>;
-    CompositeTypes: Record<string, never>;
-  };
-};
+        Row: {
+          active_integration_account_count: number
+          active_seat_count: number
+          ai_message_sent_count: number
+          ai_turn_count: number
+          billing_period_end: string
+          billing_period_start: string
+          created_at: string
+          lead_event_count: number
+          listing_count: number
+          plan_tier: string
+          social_message_sent_count: number
+          updated_at: string
+          voice_call_minutes: number
+          workspace_id: string
+        }
+        Insert: {
+          active_integration_account_count?: number
+          active_seat_count?: number
+          ai_message_sent_count?: number
+          ai_turn_count?: number
+          billing_period_end: string
+          billing_period_start: string
+          created_at?: string
+          lead_event_count?: number
+          listing_count?: number
+          plan_tier: string
+          social_message_sent_count?: number
+          updated_at?: string
+          voice_call_minutes?: number
+          workspace_id: string
+        }
+        Update: {
+          active_integration_account_count?: number
+          active_seat_count?: number
+          ai_message_sent_count?: number
+          ai_turn_count?: number
+          billing_period_end?: string
+          billing_period_start?: string
+          created_at?: string
+          lead_event_count?: number
+          listing_count?: number
+          plan_tier?: string
+          social_message_sent_count?: number
+          updated_at?: string
+          voice_call_minutes?: number
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_usage_summaries_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      can_manage_workspace_operations: {
+        Args: { target_workspace_id: string }
+        Returns: boolean
+      }
+      can_manage_workspace_routing: {
+        Args: { target_workspace_id: string }
+        Returns: boolean
+      }
+      claim_workflow_jobs: {
+        Args: { batch_size?: number; lock_timeout?: string; worker_id: string }
+        Returns: {
+          attempt_count: number
+          created_at: string
+          id: string
+          idempotency_key: string
+          job_type: string
+          last_error_code: string | null
+          last_error_message: string | null
+          lead_event_id: string | null
+          lead_id: string | null
+          locked_at: string | null
+          locked_by: string | null
+          max_attempts: number
+          payload: Json
+          run_after: string
+          status: string
+          updated_at: string
+          workspace_id: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "workflow_jobs"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      is_assigned_agent: {
+        Args: { target_agent_id: string; target_workspace_id: string }
+        Returns: boolean
+      }
+      is_workspace_admin: {
+        Args: { target_workspace_id: string }
+        Returns: boolean
+      }
+      is_workspace_member: {
+        Args: { target_workspace_id: string }
+        Returns: boolean
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
+}
+
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+
+export type Tables<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      Row: infer R
+    }
+    ? R
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
+
+export type TablesInsert<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Insert: infer I
+    }
+    ? I
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
+
+export type TablesUpdate<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Update: infer U
+    }
+    ? U
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
+
+export type Enums<
+  DefaultSchemaEnumNameOrOptions extends
+    // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never = never,
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
+
+export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
+  public: {
+    Enums: {},
+  },
+} as const
+
+// Type aliases for backward compatibility
+export type RealtyOpsDatabase = Database;
+export type WorkspaceMemberRow = Tables<"workspace_members">;
+export type WorkspaceRow = Tables<"workspaces">;
+export type LeadRow = Tables<"leads">;
+export type LeadEventRow = Tables<"lead_events">;
+export type SocialReplyReviewRow = Tables<"social_reply_reviews">;
+export type ConversationAutomationStateRow = Tables<"conversation_automation_states">;
+export type ConversationMessageRow = Tables<"conversation_messages">;
+export type ConversationRow = Tables<"conversations">;
+export type ConversationActivityLogRow = Tables<"conversation_activity_log">;
+export type IntegrationAccountRow = Tables<"integration_accounts">;
+export type CrmSyncLogRow = Tables<"crm_sync_logs">;
+export type CrmBacksyncEventRow = Tables<"crm_backsync_events">;
+export type FollowUpBossWebhookSubscriptionRow = Tables<"follow_up_boss_webhook_subscriptions">;
+export type HarwickAiTurnInsertRow = TablesInsert<"harwick_ai_turns">;
+export type HarwickAiToolCallInsertRow = TablesInsert<"harwick_ai_tool_calls">;
+export type HarwickAiAutomationPolicyRow = Tables<"harwick_ai_automation_policies">;
+export type MemberRoutingProfileRow = Tables<"member_routing_profiles">;
+export type MemberRoutingProfileInsertRow = TablesInsert<"member_routing_profiles">;
+export type MemberRoutingProfileUpdateRow = TablesUpdate<"member_routing_profiles">;
+export type LeadTaskRow = Tables<"lead_tasks">;
+export type NurtureMessageRow = Tables<"nurture_messages">;
+export type ProviderErrorLogRow = Tables<"provider_error_logs">;
+export type WorkspaceSubscriptionRow = Tables<"workspace_subscriptions">;
+export type WorkspaceUsageSummaryRow = Tables<"workspace_usage_summaries">;
+export type WorkerHeartbeatRow = Tables<"worker_heartbeats">;

@@ -31,21 +31,67 @@ export type IntegrationAccountLookup = {
   providerAccountId: string;
 };
 
+type LeadEventRow = {
+  id: string;
+  workspace_id: string;
+  lead_id: string | null;
+  provider: string;
+  event_type: string;
+  source_channel: string;
+  provider_event_id: string;
+  provider_account_id: string | null;
+  provider_user_id: string | null;
+  source_post_id: string | null;
+  source_comment_id: string | null;
+  text: string | null;
+  occurred_at: string;
+};
+
 export type LeadEventPersistenceRepository = {
   findWorkspaceIdByIntegrationAccount(lookup: IntegrationAccountLookup): Promise<string | null>;
   findWorkspaceIdByVoiceAgent?(retellAgentId: string): Promise<string | null>;
   findExistingLeadEventIdentities(identities: LeadEventIdentity[]): Promise<Set<string>>;
   insertLeadEventRows(rows: LeadEventInsertRow[]): Promise<number>;
+  updateLeadsLastMessageAt?(params: {
+    workspaceId: string;
+    leadIds: string[];
+  }): Promise<void>;
   markLeadNurtureOptedOut?(params: {
     workspaceId: string;
     leadId: string;
     reason: string;
   }): Promise<void>;
+  getLeadEventById(eventId: string): Promise<{
+    id: string;
+    workspaceId: string;
+    leadId: string | null;
+    provider: string;
+    eventType: string;
+    sourceChannel: string;
+    providerEventId: string;
+    providerAccountId: string | null;
+    providerUserId: string | null;
+    sourcePostId: string | null;
+    sourceCommentId: string | null;
+    text: string | null;
+    occurredAt: string;
+  } | null>;
 };
 
 export type LeadEventWriterOptions = {
   leadUpsertRepository?: LeadUpsertRepository;
   enqueueWorkflowJob?: WorkflowJobEnqueuer;
+  generateAndExecuteHarwickAiTurn?: (params: {
+    workspaceId: string;
+    leadId: string;
+    leadEventId: string;
+    event: NormalizedLeadEvent;
+  }) => Promise<void>;
+  createConversationMessage?: (params: {
+    workspaceId: string;
+    leadId: string;
+    event: NormalizedLeadEvent;
+  }) => Promise<void>;
 };
 
 type IntegrationAccountWorkspaceRow = {
@@ -203,9 +249,41 @@ export function createLeadEventWriter(
           },
         });
       }
+
+      // Generate Harwick AI turn if callback provided
+      if (options.generateAndExecuteHarwickAiTurn !== undefined && leadId !== null) {
+        await options.generateAndExecuteHarwickAiTurn({
+          workspaceId: event.workspaceId,
+          leadId,
+          leadEventId: event.providerEventId,
+          event,
+        });
+      }
+
+      // Create conversation message for inbound events if callback provided
+      if (options.createConversationMessage !== undefined && leadId !== null && event.text !== null) {
+        await options.createConversationMessage({
+          workspaceId: event.workspaceId,
+          leadId,
+          event,
+        });
+      }
     }
 
     const insertedCount = await repository.insertLeadEventRows(rows);
+
+    // Update last_message_at on leads that received events
+    const leadIds = rows
+      .map((row) => row.lead_id)
+      .filter((id): id is string => id !== null && id !== undefined);
+    
+    if (leadIds.length > 0 && repository.updateLeadsLastMessageAt) {
+      const uniqueLeadIds = Array.from(new Set(leadIds));
+      await repository.updateLeadsLastMessageAt({
+        workspaceId: newEvents[0]?.workspaceId || "",
+        leadIds: uniqueLeadIds,
+      });
+    }
 
     return {
       persistedCount: insertedCount,
@@ -314,6 +392,26 @@ export function createSupabaseLeadEventRepository(
       return data?.length ?? rows.length;
     },
 
+    async updateLeadsLastMessageAt(params) {
+      if (params.leadIds.length === 0) {
+        return;
+      }
+
+      const now = new Date().toISOString();
+      const { error } = await supabase
+        .from("leads")
+        .update({
+          last_message_at: now,
+          updated_at: now,
+        })
+        .eq("workspace_id", params.workspaceId)
+        .in("id", params.leadIds);
+
+      if (error !== null) {
+        throw error;
+      }
+    },
+
     async markLeadNurtureOptedOut(params) {
       const { error } = await supabase
         .from("nurture_enrollments")
@@ -331,6 +429,38 @@ export function createSupabaseLeadEventRepository(
       if (error !== null) {
         throw error;
       }
+    },
+
+    async getLeadEventById(eventId) {
+      const { data, error } = await supabase
+        .from("lead_events")
+        .select("id, workspace_id, lead_id, provider, event_type, source_channel, provider_event_id, provider_account_id, provider_user_id, source_post_id, source_comment_id, text, occurred_at")
+        .eq("id", eventId)
+        .maybeSingle<LeadEventRow>();
+
+      if (error !== null) {
+        throw error;
+      }
+
+      if (!data) {
+        return null;
+      }
+
+      return {
+        id: data.id,
+        workspaceId: data.workspace_id,
+        leadId: data.lead_id,
+        provider: data.provider,
+        eventType: data.event_type,
+        sourceChannel: data.source_channel,
+        providerEventId: data.provider_event_id,
+        providerAccountId: data.provider_account_id,
+        providerUserId: data.provider_user_id,
+        sourcePostId: data.source_post_id,
+        sourceCommentId: data.source_comment_id,
+        text: data.text,
+        occurredAt: data.occurred_at,
+      };
     },
   };
 }

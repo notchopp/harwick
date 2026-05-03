@@ -12,6 +12,11 @@ import { z } from "zod";
 const OPENAI_API_BASE_URL = "https://api.openai.com/v1";
 
 const OpenAIResponseSchema = z.object({
+  choices: z.array(z.object({
+    message: z.object({
+      content: z.string().optional(),
+    }).passthrough(),
+  }).passthrough()).optional(),
   output_text: z.string().trim().min(1).optional(),
   output: z.array(z.object({
     content: z.array(z.object({
@@ -387,13 +392,32 @@ export function createLocalHarwickAiRuntime(): HarwickAiRuntimeClient {
 
 function extractResponseText(value: unknown): string {
   const parsed = OpenAIResponseSchema.parse(value);
+  
+  // Try standard OpenAI format first
+  if (parsed.choices !== undefined && parsed.choices.length > 0) {
+    const content = parsed.choices[0]?.message?.content;
+    if (content !== undefined && typeof content === 'string' && content.trim().length > 0) {
+      return content;
+    }
+  }
+  
   if (parsed.output_text !== undefined) {
     return parsed.output_text;
   }
 
+  // Handle extended output format (with type: "output_text")
   const text = parsed.output
-    ?.flatMap((item) => item.content ?? [])
-    .map((content) => content.text)
+    ?.flatMap((item) => {
+      if (!Array.isArray(item.content)) return [];
+      return item.content.map((content) => {
+        // Handle new format: type: "output_text"
+        if ((content as { type?: string; text?: string }).type === 'output_text' && typeof content.text === 'string') {
+          return content.text;
+        }
+        // Handle legacy format: just text property
+        return content.text;
+      });
+    })
     .find((candidate): candidate is string => candidate !== undefined && candidate.trim().length > 0);
 
   if (text === undefined) {
@@ -404,9 +428,62 @@ function extractResponseText(value: unknown): string {
 }
 
 function parseHarwickAiTurn(value: string): HarwickAiTurn {
-  return HarwickAiTurnSchema.parse(JSON.parse(value) as unknown);
+  const data = JSON.parse(value) as Record<string, unknown>;
+  
+  // Parse stringified payloads back to objects
+  const toolCalls = data["toolCalls"];
+  if (toolCalls && Array.isArray(toolCalls)) {
+    data["toolCalls"] = toolCalls.map((call: Record<string, unknown>) => ({
+      ...call,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      payload: typeof call["payload"] === 'string' ? JSON.parse(call["payload"]) : call["payload"],
+    }));
+  }
+  
+  // Fix statePatch normalization
+  const statePatch = data["statePatch"];
+  if (statePatch && typeof statePatch === 'object' && !Array.isArray(statePatch)) {
+    const statePatchObj = statePatch as Record<string, unknown>;
+    
+    // 1. Fix invalid intent values (from HarwickAiTurnSchema.intent instead of LeadIntentSchema)
+    const intentValue = statePatchObj["intent"];
+    const validIntents: Set<unknown> = new Set(["high", "medium", "low", "spam", "unknown", null]);
+    if (intentValue !== undefined && intentValue !== null && !validIntents.has(intentValue)) {
+      const intentMapping: Record<string, string> = {
+        "buyer_qualification": "medium",
+        "seller_qualification": "medium",
+        "showing_request": "high",
+        "listing_question": "medium",
+        "blueprint_request": "medium",
+        "financing_question": "medium",
+        "general_follow_up": "low",
+        "handoff_needed": "high",
+        "spam_or_unsafe": "spam",
+      };
+      let mappedIntent: string | null = null;
+      if (typeof intentValue === 'string' && Object.prototype.hasOwnProperty.call(intentMapping, intentValue)) {
+        mappedIntent = intentMapping[intentValue] ?? null;
+      }
+      statePatchObj["intent"] = mappedIntent;
+    }
+    
+    // 2. Convert empty strings to null for optional string fields
+    for (const field of ["timeline", "targetArea", "propertyType", "currentIntent"]) {
+      if (statePatchObj[field] === "") {
+        statePatchObj[field] = null;
+      }
+    }
+    
+    // 3. Convert empty string to "unknown" for financingStatus enum
+    if (statePatchObj["financingStatus"] === "") {
+      statePatchObj["financingStatus"] = "unknown";
+    }
+  }
+  
+  return HarwickAiTurnSchema.parse(data);
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const HarwickAiTurnJsonSchema = {
   type: "object",
   additionalProperties: false,
@@ -481,7 +558,6 @@ const HarwickAiTurnJsonSchema = {
     reply: { type: "string", minLength: 1, maxLength: 800 },
     statePatch: {
       type: "object",
-      additionalProperties: false,
       properties: {
         currentIntent: { type: ["string", "null"] },
         leadType: { type: ["string", "null"], enum: ["buyer", "seller", "renter", "investor", "unknown", null] },
@@ -493,24 +569,12 @@ const HarwickAiTurnJsonSchema = {
         financingStatus: { type: ["string", "null"], enum: ["preapproved", "cash", "needs_lender", "unknown", null] },
         knownFacts: { type: "array", items: { type: "string" } },
       },
-      required: [
-        "currentIntent",
-        "leadType",
-        "intent",
-        "timeline",
-        "budget",
-        "targetArea",
-        "propertyType",
-        "financingStatus",
-        "knownFacts",
-      ],
     },
     handoffBrief: { type: ["string", "null"], maxLength: 1000 },
     toolCalls: {
       type: "array",
       items: {
         type: "object",
-        additionalProperties: false,
         properties: {
           tool: {
             type: "string",
@@ -525,11 +589,11 @@ const HarwickAiTurnJsonSchema = {
               "pause_automation",
             ],
           },
-          reason: { type: "string", minLength: 1, maxLength: 240 },
+          reason: { type: "string" },
           requiresApproval: { type: "boolean" },
-          payload: { type: "object", additionalProperties: true },
+          payload: { type: "string", description: "JSON-encoded tool payload" },
         },
-        required: ["tool", "reason", "requiresApproval", "payload"],
+        required: ["tool", "payload"],
       },
     },
   },
@@ -562,34 +626,64 @@ export function createOpenAIHarwickAiRuntime(options: OpenAIHarwickAiRuntimeOpti
           model: options.model,
           instructions: [
             "You are Harwick AI, the always-on front desk and qualification runtime for a real estate workspace.",
-            "Your job is to handle everything before a human is needed: answer comments, move public interest into DMs when appropriate, qualify buyers, renters, and sellers, preserve state, and prepare clean handoffs.",
-            "Use only supplied workspace, conversation, listing, post, calendar, tone, and state context. Never invent price drops, availability, sold status, incentives, financing approval, legal certainty, tax certainty, or contract certainty.",
+            "Your CORE PURPOSE: Process real estate inquiries only. Recognize off-topic messages BEFORE generating a reply.",
+            "",
+            "RULE 1: INTENT CLASSIFICATION (CRITICAL)",
+            "Before responding, classify each message. Valid categories are:",
+            "  • Real estate inquiry (property, showing, pricing, buying/selling, agents, brokers, listings, neighborhoods, mortgages)",
+            "  • Greeting/identity question (hi, who are you, are you a bot)",
+            "  • Off-topic (gaming, sports, personal tasks, chitchat, memes, spam, harassment, non-real-estate services)",
+            "If CLEARLY off-topic (e.g., 'want to play valorant', 'getting a haircut', 'buy pizza'), set nextAction to 'do_not_reply' and confidence to 0.0. Reply field must be a simple one-line message.",
+            "",
+            "RULE 2: TOOL USAGE (CONDITIONAL LOGIC)",
+            "Only generate tool calls when responding to real estate inquiries. For off-topic messages:",
+            "  • nextAction = 'do_not_reply'",
+            "  • toolCalls = [] (empty array)",
+            "  • reply = 'Not related to real estate'",
+            "  • safetyFlags = ['low_confidence']",
+            "  • missingFields = [] (empty array)",
+            "  • intent = 'spam_or_unsafe'",
+            "",
+            "RULE 3: CONTEXT USAGE",
+            "Use ONLY supplied workspace, conversation, listing, post, calendar, tone, and state context.",
+            "Never invent: price drops, availability, sold status, incentives, financing approval, legal certainty, tax certainty, contract certainty.",
             "Keep each conversation isolated. Never mix facts from another lead or workspace.",
+            "",
+            "RULE 4: REAL ESTATE RESPONSE HANDLING",
             "Ask at most one useful missing qualification question per turn unless the lead is asking for a handoff.",
-            "For public comments, keep replies short and public-safe. If private qualification is needed, plan a move_comment_to_dm or send_meta_dm tool call.",
-            "For DMs, continue naturally in the workspace or agent tone, update qualification state, and decide whether to reply, ask a question, offer showing next steps, route, sync, or pause.",
-            "If calendar context is supplied, use it only according to showing mode. collect_only means do not offer confirmed times. request_approve means propose/request but require agent approval. auto_book can offer windows only when qualification is strong.",
-            "If automation mode is human_takeover, do not send a lead-facing reply; pause automation.",
-            "Return strict JSON only. No markdown.",
+            "For public comments: keep replies short and public-safe. If private qualification is needed, use move_comment_to_dm or send_meta_dm.",
+            "For DMs: continue naturally in workspace/agent tone, update qualification state, decide whether to reply, ask, offer showing, route, sync, or pause.",
+            "If calendar context supplied: use only per showing mode (collect_only=no times, request_approve=propose w/approval, auto_book=offer only when qualified).",
+            "If automation mode is human_takeover: do not send lead reply; pause automation.",
+            "",
+            "RULE 5: OUTPUT FORMAT & SCHEMA COMPLIANCE",
+            "Return ONLY valid JSON with NO markdown, comments, or extra text.",
+            "Required fields for ALL responses:",
+            "  • intent: choose from [listing_question, showing_request, buyer_qualification, seller_qualification, blueprint_request, financing_question, general_follow_up, handoff_needed, spam_or_unsafe]",
+            "  • nextAction: choose from [send_reply, ask_qualification, move_comment_to_dm, send_buyer_blueprint, offer_showing, request_showing_approval, register_open_house, route_lead, handoff_to_agent, pause_for_owner, do_not_reply]",
+            "  • missingFields: array of any of [name, phone, email, intent, timeline, budget, area, property_type, financing, buyer_or_seller]",
+            "  • confidence: number between 0.0 and 1.0",
+            "  • safetyFlags: array of any of [safe_to_send, needs_human_review, human_takeover, legal_advice, lending_advice, contract_advice, valuation_claim, claims_listing_availability, claims_financing_certainty, low_confidence]",
+            "  • reply: non-empty string (1-800 chars). For off-topic: use 'Not related to real estate' or similar",
+            "  • statePatch: object with fields currentIntent (string), leadType (buyer/seller/renter/investor/unknown), intent (qualification strength: high/medium/low/spam/unknown), timeline (string), budget (string), targetArea (string), propertyType (string), financingStatus (string), knownFacts (array). DO NOT put the turn intent values in statePatch.intent. Use null (not empty string) for any optional field with no value.",
+            "  • handoffBrief: null or a string explaining why handoff is needed",
+            "  • toolCalls: array of tool call objects (can be empty)",
+            "Off-topic messages: set confidence to 0.0-0.2, intent='spam_or_unsafe', nextAction='do_not_reply', toolCalls=[], safetyFlags=['low_confidence'].",
           ].join("\n"),
-          text: {
-            format: {
-              type: "json_schema",
-              name: "harwick_ai_turn",
-              strict: true,
-              schema: HarwickAiTurnJsonSchema,
-            },
-          },
           input: JSON.stringify(parsed),
         }),
       });
 
       if (!response.ok) {
         const text = await response.text();
-        throw new Error(`OpenAI Harwick AI turn failed (${response.status}): ${text}`);
+        const errorMsg = `OpenAI Harwick AI turn failed (${response.status}): ${text}`;
+        throw new Error(errorMsg);
       }
 
-      return parseHarwickAiTurn(extractResponseText(await response.json()).trim());
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      const json = await response.json();
+      const responseText = extractResponseText(json).trim();
+      return parseHarwickAiTurn(responseText);
     },
   };
 }

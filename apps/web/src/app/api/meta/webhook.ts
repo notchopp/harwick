@@ -16,7 +16,11 @@ import { createSupabaseLeadUpsertRepository } from "../../../lib/supabase/leads"
 import { createServerSupabaseClient } from "../../../lib/supabase/server-client";
 import { createSupabaseMetaCredentialRepository } from "../../../lib/supabase/integration-accounts";
 import { createSupabaseSocialPostRepository } from "../../../lib/supabase/social-posts";
-import { createWorkflowJobEnqueuer } from "../../../lib/supabase/workflow-jobs";
+import { createOpenAIHarwickAiRuntime } from "@realty-ops/integrations";
+import { createSupabaseHarwickAiAutomationPolicyRepository, createSupabaseHarwickAiTurnRepository } from "../../../lib/supabase/harwick-ai-turns";
+import { generateAndExecuteHarwickAiTurnSync } from "../../../features/lead-intake/harwick-ai-turn-executor";
+import { createSupabaseSocialReplyQueueRepository } from "../../../lib/supabase/operator-queues";
+import { createSupabaseConversationMessageRepository, createConversationMessageCreator } from "../../../lib/supabase/conversation-messages";
 
 export type MetaWebhookGetRequest = {
   query: Record<string, string | undefined>;
@@ -74,11 +78,34 @@ export function createMetaWebhookPostDependencies(): MetaWebhookPostDependencies
   const socialPostRepository = createSupabaseSocialPostRepository(supabase);
   const credentialRepository = createSupabaseMetaCredentialRepository(supabase);
 
+  // AI turn generation dependencies
+  const turnRepository = createSupabaseHarwickAiTurnRepository(supabase);
+  const policyRepository = createSupabaseHarwickAiAutomationPolicyRepository(supabase);
+  const queueRepository = createSupabaseSocialReplyQueueRepository(supabase);
+  const runtimeClient = createOpenAIHarwickAiRuntime({
+    apiKey: environment.OPENAI_API_KEY ?? "",
+    model: environment.OPENAI_REPLY_MODEL,
+  });
+
+  // Conversation message persistence
+  const conversationMessageRepository = createSupabaseConversationMessageRepository(supabase);
+  const createConversationMessage = createConversationMessageCreator(conversationMessageRepository);
+
   return {
     resolveWorkspaceIdByProviderAccountId: createMetaWorkspaceResolver(repository),
     writeLeadEvents: createLeadEventWriter(repository, {
       leadUpsertRepository,
-      enqueueWorkflowJob: createWorkflowJobEnqueuer(supabase),
+      createConversationMessage,
+      generateAndExecuteHarwickAiTurn: (params) =>
+        generateAndExecuteHarwickAiTurnSync(params, {
+          supabase,
+          turnRepository,
+          policyRepository,
+          leadEventRepository: repository,
+          queueRepository,
+          runtimeClient,
+          credentialSecret: environment.CREDENTIAL_ENCRYPTION_KEY,
+        }),
     }),
     writeSocialPostContexts: (contexts) => socialPostRepository.upsertPostContexts(contexts),
     ...(environment.CREDENTIAL_ENCRYPTION_KEY === undefined

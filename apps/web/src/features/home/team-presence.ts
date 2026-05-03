@@ -47,7 +47,7 @@ function roleLabelFor(role: WorkspaceRole): string {
 
 function statusFromLastSeen(row: WorkspaceMemberPresenceRow, now: Date): TeamPresenceStatus {
   if (row.presence_status !== null) {
-    return row.presence_status;
+    return row.presence_status as TeamPresenceStatus;
   }
 
   if (row.presence_last_seen_at === null) {
@@ -92,8 +92,8 @@ export async function loadTeamPresence(params: {
     lastSeenAt: member.presence_last_seen_at,
     name: member.display_name,
     openWork: openWorkCounts.get(member.id) ?? 0,
-    role: member.role,
-    roleLabel: member.role_label ?? roleLabelFor(member.role),
+    role: member.role as WorkspaceRole,
+    roleLabel: member.role_label ?? roleLabelFor(member.role as WorkspaceRole),
     status: statusFromLastSeen(member, now),
   }));
 

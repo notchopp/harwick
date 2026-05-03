@@ -65,6 +65,9 @@ function createRepository(params: {
       params.optedOutLeadIds?.push(input.leadId);
       return Promise.resolve();
     },
+    getLeadEventById() {
+      return Promise.resolve(null);
+    },
   };
 }
 

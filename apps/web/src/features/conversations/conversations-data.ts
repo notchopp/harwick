@@ -20,6 +20,7 @@ export type ConversationsInboxRepository = {
   listWorkspaceMembers(workspaceId: string): Promise<Array<Pick<WorkspaceMemberRow, "id" | "display_name">>>;
   listLeadEvents(params: { workspaceId: string; leadIds: string[]; limit: number }): Promise<LeadEventRow[]>;
   listSocialReplyReviews(params: { workspaceId: string; leadIds: string[] }): Promise<SocialReplyReviewRow[]>;
+  listConversationAutomationStates(params: { workspaceId: string; leadIds: string[] }): Promise<Array<{ leadId: string | null; automationMode: string }>>;
 };
 
 function initialsForName(name: string): string {
@@ -269,7 +270,7 @@ export async function loadConversationsInbox(params: {
   });
   const leadIds = leads.map((lead) => lead.id);
 
-  const [members, events, reviews] = await Promise.all([
+  const [members, events, reviews, automationStates] = await Promise.all([
     params.repository.listWorkspaceMembers(params.workspaceId),
     params.repository.listLeadEvents({
       workspaceId: params.workspaceId,
@@ -280,11 +281,16 @@ export async function loadConversationsInbox(params: {
       workspaceId: params.workspaceId,
       leadIds,
     }),
+    params.repository.listConversationAutomationStates({
+      workspaceId: params.workspaceId,
+      leadIds,
+    }),
   ]);
 
   const membersById = new Map(members.map((member) => [member.id, member.display_name]));
   const eventsByLeadId = new Map<string, LeadEventRow[]>();
   const latestReviewByLeadId = new Map<string, SocialReplyReviewRow>();
+  const automationModeByLeadId = new Map<string, string>();
 
   for (const event of events) {
     if (event.lead_id === null) continue;
@@ -296,6 +302,12 @@ export async function loadConversationsInbox(params: {
   for (const review of reviews) {
     if (review.lead_id === null || latestReviewByLeadId.has(review.lead_id)) continue;
     latestReviewByLeadId.set(review.lead_id, review);
+  }
+
+  for (const state of automationStates) {
+    if (state.leadId !== null) {
+      automationModeByLeadId.set(state.leadId, state.automationMode);
+    }
   }
 
   const actionableLeads = leads.filter((lead) => {
@@ -316,6 +328,14 @@ export async function loadConversationsInbox(params: {
     const review = latestReviewByLeadId.get(lead.id) ?? null;
     const lastTouchIso = lead.last_message_at ?? leadEvents[leadEvents.length - 1]?.occurred_at ?? lead.created_at;
     const lastTouchLabel = formatShortRelative(lastTouchIso);
+
+    // Use automation_mode from conversation_automation_states if available, fallback to review
+    const rawMode = automationModeByLeadId.get(lead.id) ?? review?.automation_mode ?? null;
+    const automationMode = (
+      rawMode === "ai_on" || rawMode === "human_takeover" || rawMode === "paused_by_rule"
+        ? rawMode
+        : null
+    );
 
     return {
       id: lead.id,
@@ -345,7 +365,7 @@ export async function loadConversationsInbox(params: {
       listingTitle: listingTitle(lead),
       listingDetails: listingDetails(lead, lastTouchLabel),
       listingStatus: listingStatus(lead, review),
-      automationMode: review?.automation_mode ?? null,
+      automationMode,
       automationReason: review?.automation_reason ?? null,
       messages: buildMessages({ lead, events: leadEvents, review }),
     };

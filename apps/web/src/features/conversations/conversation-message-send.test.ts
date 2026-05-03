@@ -51,6 +51,17 @@ function buildMockRepository(overrides?: {
     findAutomationState: async () => {
       return Promise.resolve(overrides?.automationState ?? null);
     },
+    recordManualOutboundMessage: async ({ sourceChannel }) => {
+      return Promise.resolve({
+        status: 200,
+        body: {
+          status: "sent",
+          providerEventId: "manual_event_123",
+          occurredAt: new Date().toISOString(),
+          channel: sourceChannel,
+        },
+      });
+    },
   };
 }
 
@@ -117,6 +128,17 @@ describe("sendConversationMessage", () => {
         findAutomationState: async () => {
           return Promise.resolve(null);
         },
+        recordManualOutboundMessage: async () => {
+          return Promise.resolve({
+            status: 200,
+            body: {
+              status: "sent",
+              providerEventId: "manual_event_123",
+              occurredAt: new Date().toISOString(),
+              channel: "manual",
+            },
+          });
+        },
       },
       sendMetaReply: buildMockSender(),
     });
@@ -141,6 +163,17 @@ describe("sendConversationMessage", () => {
         },
         findAutomationState: async () => {
           return Promise.resolve(null);
+        },
+        recordManualOutboundMessage: async () => {
+          return Promise.resolve({
+            status: 200,
+            body: {
+              status: "sent",
+              providerEventId: "manual_event_123",
+              occurredAt: new Date().toISOString(),
+              channel: "manual",
+            },
+          });
         },
       },
       sendMetaReply: buildMockSender(),
@@ -240,5 +273,27 @@ describe("sendConversationMessage", () => {
     });
 
     expect(result.status).toBe(200);
+  });
+
+  it("persists manual conversation replies without a provider send", async () => {
+    const result = await sendConversationMessage({
+      request: {
+        conversationId,
+        workspaceId,
+        reply: "Following up locally.",
+      },
+      repository: buildMockRepository({
+        lead: buildMockLead({
+          source_channel: "manual",
+          source_provider_id: null,
+        }),
+      }),
+      sendMetaReply: buildMockSender(),
+    });
+
+    expect(result.status).toBe(200);
+    if (result.status === 200) {
+      expect(result.body.channel).toBe("manual");
+    }
   });
 });

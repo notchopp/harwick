@@ -22,7 +22,7 @@ export function createSupabaseProviderErrorLogger(
     async recordProviderError(input) {
       const { error } = await supabase
         .from("provider_error_logs")
-        .insert({
+        .insert([{
           workspace_id: input.workspaceId,
           provider: input.provider,
           operation: input.operation,
@@ -30,7 +30,8 @@ export function createSupabaseProviderErrorLogger(
           error_message: input.errorMessage ?? null,
           retryable: input.retryable,
           metadata: input.metadata ?? {},
-        });
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        }] as any);
 
       if (error !== null) {
         throw error;

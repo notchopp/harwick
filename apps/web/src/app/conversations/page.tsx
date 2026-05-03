@@ -7,7 +7,11 @@ export default async function Page() {
 
   return (
     <AppShell activeItem="Conversations" title="Conversations" workspaceName={membership.workspaceName}>
-      <ConversationsPageContent workspaceId={membership.workspaceId} workspaceName={membership.workspaceName} />
+      <ConversationsPageContent
+        workspaceId={membership.workspaceId}
+        workspaceName={membership.workspaceName}
+        currentMemberId={membership.memberId}
+      />
     </AppShell>
   );
 }

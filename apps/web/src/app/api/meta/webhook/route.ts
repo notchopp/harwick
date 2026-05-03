@@ -71,11 +71,36 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (!verifyMetaWebhookSignature({
-    rawBody,
-    appSecret: environment.META_APP_SECRET,
-    signatureHeader: request.headers.get("x-hub-signature-256"),
-  })) {
+  const signatureHeader = request.headers.get("x-hub-signature-256");
+  console.log("[WEBHOOK SIGNATURE DEBUG]", {
+    signatureHeader: signatureHeader?.substring(0, 20) + "...",
+    appSecret: environment.META_APP_SECRET?.substring(0, 10) + "...",
+    rawBodyLength: rawBody.length,
+    rawBodyStart: rawBody.substring(0, 50),
+  });
+
+  try {
+    if (!verifyMetaWebhookSignature({
+      rawBody,
+      appSecret: environment.META_APP_SECRET,
+      signatureHeader,
+    })) {
+      console.log("[WEBHOOK SIGNATURE FAILED]");
+      return NextResponse.json(
+        {
+          accepted: false,
+          normalizedEventCount: 0,
+          persistedEventCount: 0,
+          duplicateEventCount: 0,
+          leadUpsertCount: 0,
+          unmatchedProviderAccountIds: [],
+          reason: "invalid_signature",
+        },
+        { status: 403 },
+      );
+    }
+  } catch (sigError) {
+    console.log("[WEBHOOK SIGNATURE ERROR]", sigError);
     return NextResponse.json(
       {
         accepted: false,
@@ -84,9 +109,9 @@ export async function POST(request: NextRequest) {
         duplicateEventCount: 0,
         leadUpsertCount: 0,
         unmatchedProviderAccountIds: [],
-        reason: "invalid_signature",
+        reason: "signature_check_failed",
       },
-      { status: 403 },
+      { status: 500 },
     );
   }
 

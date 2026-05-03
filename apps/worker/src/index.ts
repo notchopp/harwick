@@ -1,5 +1,5 @@
 import { createLogger } from "@realty-ops/core";
-import { parseWorkerEnvironment } from "./environment.js";
+import { parseWorkerEnvironment, mergeLocalEnvFallback } from "./environment.js";
 import {
   createSupabaseWorkflowJobServices,
   createSupabaseWorkflowJobRepository,
@@ -13,7 +13,7 @@ function wait(ms: number): Promise<void> {
   });
 }
 
-const environment = parseWorkerEnvironment();
+const environment = parseWorkerEnvironment(mergeLocalEnvFallback());
 const logger = createLogger({
   service: "worker",
   environment: environment.APP_ENV,

@@ -1,9 +1,10 @@
 import { UuidSchema } from "@realty-ops/core";
 import { NextResponse, type NextRequest } from "next/server";
 import { ZodError } from "zod";
-import { updateSocialReplyAutomation } from "../../../../../../../features/operator-queues/operator-queues";
+import { updateConversationAutomation } from "../../../../../../../features/conversations/conversation-automation-control";
 import { authorizeWorkspaceRequest } from "../../../../../../../lib/api/workspace-auth";
 import { createSupabaseSocialReplyQueueRepository } from "../../../../../../../lib/supabase/operator-queues";
+import { createSupabaseConversationAutomationRepository } from "../../../../../../../lib/supabase/conversation-automation";
 import { createServerSupabaseClient } from "../../../../../../../lib/supabase/server-client";
 
 export const runtime = "nodejs";
@@ -34,24 +35,45 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   }
 
   try {
-    const item = await updateSocialReplyAutomation({
+    // Look up the social reply review to get the leadId
+    const queueRepository = createSupabaseSocialReplyQueueRepository(createServerSupabaseClient());
+    const review = await queueRepository.findSocialReplyReview({
       workspaceId,
       reviewId,
-      memberId: membership.memberId,
-      request: body,
-      repository: createSupabaseSocialReplyQueueRepository(createServerSupabaseClient()),
     });
 
-    if (item === null) {
+    if (review === null || review.leadId === null) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
 
-    return NextResponse.json({ item }, { status: 200 });
+    // Update conversation_automation_states using the lead ID (unified endpoint)
+    const automationRepository = createSupabaseConversationAutomationRepository(createServerSupabaseClient());
+    const result = await updateConversationAutomation({
+      workspaceId,
+      conversationId: review.leadId, // leadId is the conversation ID
+      memberId: membership.memberId,
+      request: body,
+      repository: automationRepository,
+    });
+
+    if (result.status !== 200) {
+      return NextResponse.json(result.body, { status: result.status });
+    }
+
+    // Return the updated review for compatibility
+    const updatedReview = await queueRepository.findSocialReplyReview({
+      workspaceId,
+      reviewId,
+    });
+
+    return NextResponse.json({ item: updatedReview }, { status: 200 });
   } catch (error) {
     if (error instanceof ZodError) {
       return NextResponse.json({ error: "invalid_request" }, { status: 400 });
     }
 
-    throw error;
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("[SOCIAL QUEUE AUTOMATION PATCH] Error:", { errorMessage, error });
+    return NextResponse.json({ error: "internal_server_error", details: errorMessage }, { status: 500 });
   }
 }

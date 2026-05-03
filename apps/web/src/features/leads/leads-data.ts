@@ -1,4 +1,4 @@
-import { classifyHarwickLeadActionability, workspaceRoleHasCapability } from "@realty-ops/core";
+import { classifyHarwickLeadActionability, workspaceRoleHasCapability, type WorkspaceRole } from "@realty-ops/core";
 import type { ConversationAutomationMode } from "@realty-ops/core";
 import type { WorkspaceMemberRow } from "../../lib/supabase/database.types";
 import type { LeadRow } from "../../lib/supabase/leads";
@@ -146,7 +146,7 @@ export async function loadLeadsPageData(params: {
 
   const actionableLeads = leads.filter((lead) => {
     if (
-      !workspaceRoleHasCapability(params.viewer.role, "leads.read_all")
+      !workspaceRoleHasCapability(params.viewer.role as WorkspaceRole, "leads.read_all")
       && lead.assigned_agent_id !== params.viewer.memberId
     ) {
       return false;

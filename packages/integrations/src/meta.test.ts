@@ -23,7 +23,7 @@ describe("normalizeMetaWebhookPayload", () => {
               {
                 sender: { id: "ig-user-1" },
                 recipient: { id: "ig-business-1" },
-                timestamp: 1713900000000,
+                timestamp: 1713900000,
                 message: { mid: "message-1", text: "  I need a home in Houston  " },
               },
             ],
@@ -115,13 +115,13 @@ describe("normalizeMetaWebhookPayload", () => {
               {
                 sender: { id: "ig-user-1" },
                 recipient: { id: "ig-business-denied" },
-                timestamp: 1713900000000,
+                timestamp: 1713900000,
                 message: { mid: "message-denied", text: "Denied" },
               },
               {
                 sender: { id: "ig-user-2" },
                 recipient: { id: "ig-business-allowed" },
-                timestamp: 1713900000000,
+                timestamp: 1713900000,
                 message: { mid: "message-allowed", text: "Allowed" },
               },
             ],
@@ -275,7 +275,7 @@ describe("extractMetaProviderAccountIds", () => {
             {
               sender: { id: "ig-user-1" },
               recipient: { id: "recipient-account" },
-              timestamp: 1713900000000,
+              timestamp: 1713900000,
               message: { mid: "message-1", text: "Hello" },
             },
           ],

@@ -47,7 +47,7 @@ async function findServerAutomationMode(params: {
     throw error;
   }
 
-  return data?.automation_mode ?? "ai_on";
+  return (data?.automation_mode as ConversationAutomationMode) ?? "ai_on";
 }
 
 async function resolveAuditActorUserId(request: NextRequest): Promise<string | null> {

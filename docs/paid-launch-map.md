@@ -51,7 +51,7 @@ Status values:
 | Supabase auth UI | partial | minimal `/login` exists | Enforce auth in app routes, server APIs, workspace resolution, and role-aware redirects. |
 | Workspace membership and roles | partial | workspace/member concepts exist | Complete owner/admin/team lead/agent/operator access model and API enforcement. |
 | RLS and tenant boundaries | partial | migrations and workspace scoping exist | Audit all tenant tables, add missing policies, test owner/assigned/unassigned/outsider access. |
-| Meta intake | partial | webhook intake, normalization, post context, reply send, social queue exist | Finish production signature checks, OAuth connection, idempotent AI worker path, and real approval/send loop. |
+| Meta intake | done | webhook intake, normalization, post context, reply send, social queue exist, E2E flow verified with real IG DMs | Continue with production signature checks, OAuth connection, and real approval/send loop. |
 | Harwick AI runtime | partial | typed runtime, local/OpenAI adapters, tool contracts, automation policy, tool executor exist | Persist full turns, tool execution records, state patches, policy decisions, and production auto-send results. |
 | Conversation-scoped AI control | partial | `conversation_automation_states` migration and UI controls exist | Enforce before every send path and expose admin/agent-safe controls consistently. |
 | Conversations page | partial | conversation data contracts and sandbox/test utilities exist | Bind to live conversation records, realtime or polling updates, message send, takeover, resume, and transcript timeline. |
@@ -121,7 +121,7 @@ Build items:
 
 ### 3. Meta Intake End To End
 
-Status: `partial`
+Status: `done`
 
 Undeniables:
 

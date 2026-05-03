@@ -1,0 +1,70 @@
+
+> @realty-ops/web@0.1.0 dev
+> next dev
+
+Γû▓ Next.js 16.2.4 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.68.51:3000
+Γ£ô Ready in 419ms
+
+[browser] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <HotReload globalError={[...]} webSocket={WebSocket} staticIndicatorState={{pathname:null, ...}}>
+      <AppDevOverlayErrorBoundary globalError={[...]}>
+        <ReplaySsrOnlyErrors>
+        <DevRootHTTPAccessFallbackBoundary>
+          <HTTPAccessFallbackBoundary notFound={<NotAllowedRootHTTPFallbackError>}>
+            <HTTPAccessFallbackErrorBoundary pathname="/integrations" notFound={<NotAllowedRootHTTPFallbackError>} ...>
+              <RedirectBoundary>
+                <RedirectErrorBoundary router={{...}}>
+                  <Head>
+                  <__next_root_layout_boundary__>
+                    <SegmentViewNode type="layout" pagePath="layout.tsx">
+                      <SegmentTrieNode>
+                      <link>
+                      <script>
+                      <script>
+                      <RootLayout>
+                        <html
+                          lang="en"
+-                         webcrx=""
+                        >
+                  ...
+ 
+ GET /prestige-realty/listings 200 in 1024ms (next.js: 575ms, proxy.ts: 288ms, application-code: 162ms)
+ GET /prestige-realty/listings 200 in 1020ms (next.js: 569ms, proxy.ts: 289ms, application-code: 163ms)
+ GET /integrations 200 in 1457ms (next.js: 56ms, proxy.ts: 452ms, application-code: 948ms)
+ GET /sw.js 404 in 53ms (next.js: 18ms, proxy.ts: 6ms, application-code: 29ms)
+Γ¿» Error: OpenAI Harwick AI turn failed (400): {
+  "error": {
+    "message": "Invalid schema for response_format 'harwick_ai_turn': In context=('properties', 'toolCalls', 'items'), 'required' is required to be supplied and to be an array including every key in properties. Extra required key 'payload' supplied.",
+    "type": "invalid_request_error",
+    "param": "text.format.schema",
+    "code": "invalid_json_schema"
+  }
+}
+    at Object.runTurn (..\..\packages\integrations\src\harwick-ai-runtime.ts:611:15)
+    at async Object.generateAndPersistTurn (src\features\lead-intake\harwick-ai-turn-generator.ts:75:20)
+    at async generateAndEnqueueHarwickAiTurn (src\features\lead-intake\meta-to-harwick-ai-bridge.ts:45:16)
+    at async Object.writeLeadEvents (src\lib\supabase\lead-events.ts:214:9)
+    at async handleMetaWebhookDelivery (src\features\lead-intake\meta-webhook.ts:139:23)
+    at async POST (src\app\api\meta\webhook\route.ts:111:20)
+  609 |       });
+  610 |
+> 611 |       if (!response.ok) {
+      |               ^
+  612 |         const text = await response.text();
+  613 |         throw new Error(`OpenAI Harwick AI turn failed (${response.status}): ${text}`);
+  614 |       }
+ POST /api/meta/webhook 500 in 881ms (next.js: 141ms, proxy.ts: 7ms, application-code: 733ms)

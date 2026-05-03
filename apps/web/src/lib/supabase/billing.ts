@@ -37,10 +37,9 @@ export async function getWorkspaceSubscription(
   return {
     id: data.id,
     workspaceId: data.workspace_id,
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
     planTier: data.plan_tier as WorkspaceSubscription["planTier"],
-    billingInterval: data.billing_interval,
-    status: data.status,
+    billingInterval: data.billing_interval as WorkspaceSubscription["billingInterval"],
+    status: data.status as WorkspaceSubscription["status"],
     providerSubscriptionId: data.provider_subscription_id,
     providerCustomerId: data.provider_customer_id,
     currentPeriodStart: data.current_period_start,
@@ -76,7 +75,6 @@ export async function getCurrentUsageSummary(
 
   return {
     workspaceId: data.workspace_id,
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
     planTier: data.plan_tier as WorkspaceUsageSummary["planTier"],
     billingPeriodStart: data.billing_period_start,
     billingPeriodEnd: data.billing_period_end,
@@ -235,7 +233,7 @@ export async function recordUsageEvent(
   resourceId?: string,
   eventMetadata?: Record<string, unknown>
 ): Promise<void> {
-  const { error } = await supabase.from("workspace_usage_events").insert({
+  const { error } = await supabase.from("workspace_usage_events").insert([{
     workspace_id: workspaceId,
     event_type: eventType,
     event_count: eventCount,
@@ -243,7 +241,8 @@ export async function recordUsageEvent(
     event_metadata: eventMetadata ?? null,
     billing_period_start: billingPeriodStart,
     billing_period_end: billingPeriodEnd,
-  });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  }] as any);
 
   if (error) {
     throw new Error(`Failed to record usage event: ${error.message}`);

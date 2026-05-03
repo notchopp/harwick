@@ -1,4 +1,4 @@
-import { workspaceRoleHasCapability } from "@realty-ops/core";
+import { workspaceRoleHasCapability, type WorkspaceRole, type ConversationAutomationMode } from "@realty-ops/core";
 import type { LeadsPageRepository } from "../../features/leads/leads-data";
 import type { LeadEventRow, SocialReplyReviewRow, WorkspaceMemberRow } from "./database.types";
 import type { LeadRow } from "./leads";
@@ -17,7 +17,7 @@ export function createSupabaseLeadsPageRepository(
         .order("last_message_at", { ascending: false })
         .limit(limit);
 
-      if (!workspaceRoleHasCapability(viewer.role, "leads.read_all")) {
+      if (!workspaceRoleHasCapability(viewer.role as WorkspaceRole, "leads.read_all")) {
         query = query.eq("assigned_agent_id", viewer.memberId);
       }
 
@@ -77,7 +77,7 @@ export function createSupabaseLeadsPageRepository(
         ? null
         : {
             id: data.id,
-            automationMode: data.automation_mode,
+            automationMode: data.automation_mode as ConversationAutomationMode,
             automationReason: data.automation_reason,
           };
     },

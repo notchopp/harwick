@@ -18,16 +18,16 @@ import {
   appendConversationLeadMessage,
   conversationSandboxPromptLibrary,
   isConversationSandboxThread,
-  mergeConversationThreadsWithSandbox,
 } from "./conversation-sandbox";
 import {
   draftConversationSandboxReplySet,
   type SandboxReplySet,
 } from "./conversation-sandbox-reply";
+import { useRealtimeThreadSync } from "./use-realtime-thread-sync";
+import { ConversationControls } from "./conversation-controls";
 
 type ThreadFilter = "all" | "dms" | "comments";
 type LoadState = "loading" | "ready" | "error";
-const isDevelopment = process.env["NODE_ENV"] === "development";
 
 const sourceBadgeStyles: Record<ConversationInboxSource, string> = {
   instagram: "bg-[#F0E5F5] text-[#5B2D7B]",
@@ -74,28 +74,9 @@ function getThreadDraft(thread: ConversationInboxThread): string {
   return draftMessage?.body ?? "";
 }
 
-function getLatestLeadMessage(thread: ConversationInboxThread): string {
-  const leadMessage = [...thread.messages].reverse().find((message) => message.kind === "lead");
-  return leadMessage?.body ?? thread.preview;
-}
-
 function getPreviewFromMessages(thread: ConversationInboxThread): string {
   const previewMessage = [...thread.messages].reverse().find((message) => message.kind !== "ai_action");
   return previewMessage?.body ?? thread.preview;
-}
-
-function resolveDraftChannel(thread: ConversationInboxThread): "instagram_dm" | "instagram_comment" | "facebook_dm" | "facebook_comment" {
-  if (thread.source === "facebook") {
-    return thread.bucket === "comments" ? "facebook_comment" : "facebook_dm";
-  }
-
-  return thread.bucket === "comments" ? "instagram_comment" : "instagram_dm";
-}
-
-function buildLeadContext(thread: ConversationInboxThread): string {
-  return [thread.intentType, thread.area, thread.timeline, thread.budget]
-    .filter((value) => value.trim().length > 0 && value !== "Unknown")
-    .join(" • ");
 }
 
 function threadTimelineLabel(thread: ConversationInboxThread): string {
@@ -112,14 +93,6 @@ function composerContextLabel(thread: ConversationInboxThread): string {
   return thread.source === "voice"
     ? "Voice summary captured. Send the next follow-up message from here."
     : `Replying via ${thread.sourceLabel} ${thread.channelLabel}`;
-}
-
-function buildLocalDraft(thread: ConversationInboxThread): string {
-  const firstName = thread.name.split(" ")[0] ?? thread.name;
-  const context = buildLeadContext(thread);
-  return context.length > 0
-    ? `Thanks ${firstName} — I can help with ${context.toLowerCase()}. Want me to line up the best next step and a few options for you?`
-    : `Thanks ${firstName} — I can help. Want me to line up the best next step and a few options for you?`;
 }
 
 function applyLocalDraft(thread: ConversationInboxThread, draft: string): ConversationInboxThread {
@@ -172,18 +145,6 @@ function applyLocalDismiss(thread: ConversationInboxThread): ConversationInboxTh
     messages: nextMessages,
     preview: getPreviewFromMessages({ ...thread, messages: nextMessages }),
     listingStatus: "Action dismissed",
-  };
-}
-
-function applyLocalAutomation(
-  thread: ConversationInboxThread,
-  mode: ConversationAutomationMode,
-  reason: string,
-): ConversationInboxThread {
-  return {
-    ...thread,
-    automationMode: mode,
-    automationReason: reason,
   };
 }
 
@@ -282,7 +243,11 @@ function MessageBubble(props: {
   );
 }
 
-export function ConversationsPageContent(props: { workspaceId: string; workspaceName: string }) {
+export function ConversationsPageContent(props: {
+  workspaceId: string;
+  workspaceName: string;
+  currentMemberId: string;
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const leadIdParam = searchParams.get("leadId");
@@ -336,9 +301,7 @@ export function ConversationsPageContent(props: { workspaceId: string; workspace
         throw new Error("conversation_parse_failed");
       }
 
-      const nextThreads = isDevelopment
-        ? mergeConversationThreadsWithSandbox(parsed.data.threads, props.workspaceId)
-        : parsed.data.threads;
+      const nextThreads = parsed.data.threads;
 
       setThreads(nextThreads);
       setSelectedId((current) => {
@@ -368,6 +331,11 @@ export function ConversationsPageContent(props: { workspaceId: string; workspace
   useEffect(() => {
     void refreshThreads();
   }, [refreshThreads]);
+
+  // Wire realtime subscriptions for live updates
+  useRealtimeThreadSync(props.workspaceId, selectedId, threads, (updater) => {
+    setThreads((current) => updater(current));
+  });
 
   const filteredThreads = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
@@ -437,6 +405,18 @@ export function ConversationsPageContent(props: { workspaceId: string; workspace
     updateThreadLocally(threadId, (thread) => applyLocalDraft(thread, draft));
   }
 
+  async function sendLeadConversationMessage(thread: ConversationInboxThread, draft: string) {
+    return fetch(`/api/conversations/${thread.id}/messages`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        conversationId: thread.id,
+        workspaceId: thread.workspaceId,
+        reply: draft,
+      }),
+    });
+  }
+
   async function handleQueueAction(action: "send" | "dismiss", draftOverride?: string) {
     if (selectedThread === null) {
       return;
@@ -448,21 +428,42 @@ export function ConversationsPageContent(props: { workspaceId: string; workspace
       return;
     }
 
-    if (selectedThread.reviewId === null) {
-      if (action === "send") {
-        updateThreadLocally(selectedThread.id, (thread) => applyLocalSend(thread, draft));
-        setReply("");
-        setActionStatus("Sent locally for this development thread.");
-      } else {
-        updateThreadLocally(selectedThread.id, (thread) => applyLocalDismiss(thread));
-        setActionStatus("Dismissed locally for this development thread.");
-      }
+    if (selectedThread.reviewId === null && action === "dismiss") {
+      updateThreadLocally(selectedThread.id, (thread) => applyLocalDismiss(thread));
+      setActionStatus("Dismissed locally for this development thread.");
       return;
     }
 
     try {
       setActionBusy(true);
       setActionStatus("working...");
+
+      if (selectedThread.reviewId === null) {
+        const response = await sendLeadConversationMessage(selectedThread, draft);
+        if (response.status === 403) {
+          setActionStatus("AI sending is paused for this conversation.");
+          return;
+        }
+
+        if (!response.ok) {
+          const errorData = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+          const message = typeof errorData["error"] === "string"
+            ? errorData["error"]
+            : "unknown_error";
+          setActionStatus(message === "unsupported_channel"
+            ? "This conversation cannot send through a live provider yet."
+            : message === "missing_provider_account"
+              ? "This conversation is missing provider setup for live sending."
+              : "The backend rejected this action.");
+          return;
+        }
+
+        setReply("");
+        setActionStatus("Reply sent.");
+        await refreshThreads();
+        return;
+      }
+
       const response = await fetch(`/api/workspaces/${selectedThread.workspaceId}/social-queue/${selectedThread.reviewId}/action`, {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -500,7 +501,7 @@ export function ConversationsPageContent(props: { workspaceId: string; workspace
       setActionStatus(action === "send" ? "Reply sent through the social queue." : "AI action dismissed.");
       await refreshThreads();
     } catch {
-      setActionStatus("Could not reach the queue endpoint.");
+      setActionStatus("Could not reach the send endpoint.");
     } finally {
       setActionBusy(false);
     }
@@ -514,17 +515,19 @@ export function ConversationsPageContent(props: { workspaceId: string; workspace
     const reason = mode === "human_takeover"
       ? "Operator took over from the conversations screen."
       : "Operator resumed Harwick AI from the conversations screen.";
-
-    if (selectedThread.reviewId === null) {
-      updateThreadLocally(selectedThread.id, (thread) => applyLocalAutomation(thread, mode, reason));
-      setActionStatus("Automation updated locally for this development thread.");
-      return;
-    }
+    const draftToSend = getThreadDraft(selectedThread).trim();
 
     try {
       setActionBusy(true);
-      setActionStatus("working...");
-      const response = await fetch(`/api/workspaces/${selectedThread.workspaceId}/social-queue/${selectedThread.reviewId}/automation`, {
+
+      if (mode === "ai_on") {
+        setActionStatus("Resuming AI...");
+      } else {
+        setActionStatus("Taking over conversation...");
+      }
+
+      // Unified endpoint: uses leadId instead of reviewId or conversationId
+      const response = await fetch(`/api/workspaces/${selectedThread.workspaceId}/conversations/${selectedThread.id}/automation`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ mode, reason }),
@@ -536,20 +539,40 @@ export function ConversationsPageContent(props: { workspaceId: string; workspace
       }
 
       if (response.status === 404) {
-        updateThreadLocally(selectedThread.id, (thread) => applyLocalAutomation(thread, mode, reason));
-        setActionStatus("Automation updated locally because this thread is using development data.");
+        setActionStatus("Conversation automation state was not found.");
         return;
       }
 
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Automation change failed", { status: response.status, errorText });
         setActionStatus("The backend rejected the automation change.");
         return;
       }
 
-      setActionStatus("Automation mode updated.");
+      if (mode === "ai_on" && draftToSend.length > 0) {
+        try {
+          const sendResponse = await sendLeadConversationMessage(selectedThread, draftToSend);
+
+          if (sendResponse.ok) {
+            setReply("");
+            setActionStatus("AI resumed and reply sent automatically.");
+            await refreshThreads();
+            return;
+          }
+
+          const errorBody = (await sendResponse.json().catch(() => ({}))) as Record<string, unknown>;
+          console.error("Send failed:", errorBody);
+        } catch (err) {
+          console.error("Failed to auto-send reply:", err);
+        }
+      }
+
       await refreshThreads();
-    } catch {
-      setActionStatus("Could not reach the automation endpoint.");
+      setActionStatus(mode === "ai_on" ? "AI resumed. Conversation will continue automatically." : "Automation paused. You are now in control.");
+    } catch (error) {
+      console.error("Automation action error:", error);
+      setActionStatus("Could not change automation mode.");
     } finally {
       setActionBusy(false);
     }
@@ -573,101 +596,197 @@ export function ConversationsPageContent(props: { workspaceId: string; workspace
       return;
     }
 
-    if (targetThread.source !== "instagram" && targetThread.source !== "facebook") {
-      setReply(buildLocalDraft(targetThread));
-      setActionStatus("Loaded a local action because this thread is not a social queue item.");
-      return;
-    }
-
     try {
       setActionBusy(true);
-      setActionStatus("working...");
-      const response = await fetch("/api/meta/reply/draft", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          mode: isConversationSandboxThread(targetThread) ? "local" : undefined,
-          channel: resolveDraftChannel(targetThread),
-          leadContext: buildLeadContext(targetThread),
-          leadText: getLatestLeadMessage(targetThread),
-          leadId: targetThread.leadId,
-          socialReplyReviewId: targetThread.reviewId,
-          providerThreadId: targetThread.sourceContext,
-          workspaceId: targetThread.workspaceId,
-          workspaceName: "Harwick",
-          listingContext: `${targetThread.listingTitle} • ${targetThread.listingDetails}`,
-          buyerBlueprintUrl: targetThread.intentType.toLowerCase().includes("blueprint")
-            ? "https://example.com/buyer-blueprint"
-            : undefined,
-        }),
-      });
+      setActionStatus("Generating AI action...");
+
+      const response = await fetch(
+        `/api/workspaces/${targetThread.workspaceId}/harwick-ai/generate-action`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ leadId: targetThread.leadId }),
+        },
+      );
 
       if (!response.ok) {
-        if (isDevelopment) {
-          const fallbackDraft = buildLocalDraft(targetThread);
-          setReply(fallbackDraft);
-          updateThreadLocally(targetThread.id, (thread) => applyLocalDraft(thread, fallbackDraft));
-          setActionStatus("Loaded a local AI action because the draft endpoint is unavailable.");
-          return;
-        }
-
-        setActionStatus("The draft endpoint could not generate an AI action.");
+        const errorData = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+        const errorMessage = typeof errorData["error"] === "string" ? errorData["error"] : "unknown error";
+        setActionStatus(`Failed to generate action: ${errorMessage}`);
         return;
       }
 
       const body: unknown = await response.json();
       const record = body && typeof body === "object" && !Array.isArray(body)
-        ? body as Record<string, unknown>
+        ? (body as Record<string, unknown>)
         : null;
+
       const rawReply = record?.["reply"];
       const draft = typeof rawReply === "string" && rawReply.trim().length > 0
         ? rawReply.trim()
         : null;
 
       if (draft === null) {
-        setActionStatus("The draft endpoint returned an invalid response.");
+        setActionStatus("AI action generated but response was empty.");
         return;
       }
 
       setReply(draft);
+      updateThreadLocally(targetThread.id, (thread) => applyLocalDraft(thread, draft));
 
-      if (targetThread.reviewId === null) {
-        updateThreadLocally(targetThread.id, (thread) => applyLocalDraft(thread, draft));
-        setActionStatus("AI action generated locally for this development thread.");
-        return;
+      const sent = (record?.["sent"] as boolean | undefined) === true;
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+      const reviewId = typeof (record?.["reviewId"]) === "string" ? (record["reviewId"] as string) : null;
+      if (sent) {
+        setActionStatus("AI action generated and sent automatically.");
+      } else {
+        setActionStatus("AI action generated. Ready to send.");
       }
 
-      const approveResponse = await fetch(
-        `/api/workspaces/${targetThread.workspaceId}/social-queue/${targetThread.reviewId}/action`,
+      if (sent || reviewId !== null) {
+        await refreshThreads();
+      }
+    } catch (error) {
+      console.error("Generate action error:", error);
+      setActionStatus("Could not reach the AI action endpoint.");
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
+  async function handleClaimConversation() {
+    if (selectedThread === null) return;
+
+    try {
+      setActionBusy(true);
+      setActionStatus("Claiming conversation...");
+
+      const response = await fetch(
+        `/api/workspaces/${selectedThread.workspaceId}/conversations/${selectedThread.id}/automation`,
         {
-          method: "POST",
+          method: "PATCH",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ action: "approve", reply: draft }),
+          body: JSON.stringify({
+            mode: "human_takeover",
+            reason: "Operator claimed conversation from the conversations screen.",
+          }),
         },
       );
 
-      if (approveResponse.status === 404) {
-        updateThreadLocally(targetThread.id, (thread) => applyLocalDraft(thread, draft));
-        setActionStatus("AI action generated locally because the review row is not present in development.");
+      if (!response.ok) {
+        setActionStatus("Failed to claim conversation");
         return;
       }
 
-      if (!approveResponse.ok) {
-        setActionStatus("The draft was generated, but the queue could not save it.");
-        return;
-      }
-
-      setActionStatus("AI action generated and saved to the live queue.");
+      setActionStatus("Conversation claimed successfully.");
       await refreshThreads();
-    } catch {
-      if (isDevelopment) {
-        const fallbackDraft = buildLocalDraft(targetThread);
-        setReply(fallbackDraft);
-        updateThreadLocally(targetThread.id, (thread) => applyLocalDraft(thread, fallbackDraft));
-        setActionStatus("Loaded a local AI action because the live draft path is unavailable.");
-      } else {
-        setActionStatus("Could not reach the AI action endpoint.");
+    } catch (error) {
+      console.error("Claim error:", error);
+      setActionStatus("Could not claim conversation.");
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
+  async function handlePauseAI() {
+    if (selectedThread === null) return;
+
+    try {
+      setActionBusy(true);
+      setActionStatus("Pausing AI...");
+
+      // Unified endpoint: uses leadId
+      const response = await fetch(
+        `/api/workspaces/${selectedThread.workspaceId}/conversations/${selectedThread.id}/automation`,
+        {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            mode: "human_takeover",
+            reason: "Operator paused AI from the conversations screen.",
+          }),
+        },
+      );
+
+      if (!response.ok) {
+        setActionStatus("Failed to pause AI");
+        return;
       }
+
+      setActionStatus("AI paused.");
+      await refreshThreads();
+    } catch (error) {
+      console.error("Pause error:", error);
+      setActionStatus("Could not pause AI.");
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
+  async function handleResumeAI() {
+    if (selectedThread === null) return;
+
+    try {
+      setActionBusy(true);
+      setActionStatus("Resuming AI...");
+
+      // Unified endpoint: uses leadId
+      const response = await fetch(
+        `/api/workspaces/${selectedThread.workspaceId}/conversations/${selectedThread.id}/automation`,
+        {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            mode: "ai_on",
+            reason: "Operator resumed Harwick AI from the conversations screen.",
+          }),
+        },
+      );
+
+      if (!response.ok) {
+        setActionStatus("Failed to resume AI");
+        return;
+      }
+
+      setActionStatus("AI resumed.");
+      await refreshThreads();
+    } catch (error) {
+      console.error("Resume error:", error);
+      setActionStatus("Could not resume AI.");
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
+  async function handleReleaseConversation() {
+    if (selectedThread === null) return;
+
+    try {
+      setActionBusy(true);
+      setActionStatus("Releasing conversation...");
+
+      const response = await fetch(
+        `/api/workspaces/${selectedThread.workspaceId}/conversations/${selectedThread.id}/automation`,
+        {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            mode: "ai_on",
+            reason: "Operator released conversation back to Harwick AI.",
+          }),
+        },
+      );
+
+      if (!response.ok) {
+        setActionStatus("Failed to release conversation");
+        return;
+      }
+
+      setActionStatus("Conversation released.");
+      await refreshThreads();
+    } catch (error) {
+      console.error("Release error:", error);
+      setActionStatus("Could not release conversation.");
     } finally {
       setActionBusy(false);
     }
@@ -819,6 +938,50 @@ export function ConversationsPageContent(props: { workspaceId: string; workspace
                   </button>
                 </div>
               </div>
+
+              <div className="shrink-0 border-b border-border bg-surface px-[14px] py-[10px]">
+                <div className="grid grid-cols-4 gap-3 text-[11px]">
+                  <div className="flex flex-col gap-1">
+                    <span className="font-medium text-muted-subtle">Score</span>
+                    <div className="flex items-center gap-1.5">
+                      <div className="h-1.5 w-full rounded-full bg-gray-200">
+                        <div
+                          className="bg-gradient-to-r from-yellow-400 to-green-500 h-1.5 rounded-full"
+                          style={{ width: `${Math.min(selectedThread.score, 100)}%` }}
+                        />
+                      </div>
+                      <span className="w-5 text-right font-semibold">{selectedThread.score}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <span className="font-medium text-muted-subtle">Budget</span>
+                    <span className="text-foreground">{selectedThread.budget}</span>
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <span className="font-medium text-muted-subtle">Timeline</span>
+                    <span className="truncate text-foreground">{selectedThread.timeline}</span>
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <span className="font-medium text-muted-subtle">Intent</span>
+                    <span className="text-foreground">{selectedThread.intentType}</span>
+                  </div>
+                </div>
+              </div>
+
+              <ConversationControls
+                automationMode={selectedThread.automationMode}
+                isAssigned={selectedThread.assignedTo !== "Unassigned"}
+                operatorId={selectedThread.assignedTo}
+                currentOperatorId={props.currentMemberId}
+                onClaim={() => void handleClaimConversation()}
+                onPauseAI={() => void handlePauseAI()}
+                onResumeAI={() => void handleResumeAI()}
+                onRelease={() => void handleReleaseConversation()}
+                isLoading={actionBusy}
+              />
 
               <div className="min-h-0 flex-1 overflow-y-auto px-[18px] py-[18px]">
                 <div className="relative my-[14px] text-center text-[11px] text-muted-subtle">

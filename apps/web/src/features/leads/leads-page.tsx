@@ -440,7 +440,7 @@ function LeadConversationPanel(props: {
   lead: LeadRecord;
   mode: ConversationAutomationMode;
   onModeChange: (mode: ConversationAutomationMode) => void;
-  onOpenConversation: () => void;
+  onPrimaryAction: (lead: LeadRecord) => void;
 }) {
   const aiPaused = props.mode !== "ai_on";
   const modeTone = props.mode === "ai_on"
@@ -535,13 +535,13 @@ function LeadConversationPanel(props: {
           </Button>
         </div>
         <div className="mt-3 flex flex-wrap gap-2 border-t border-border pt-3">
-          <Button className="rounded-full bg-harwick-ink px-4 text-[12px]" onClick={props.onOpenConversation} size="sm" type="button">
+          <Button className="rounded-full bg-harwick-ink px-4 text-[12px]" onClick={() => props.onPrimaryAction(props.lead)} size="sm" type="button">
             <Send aria-hidden="true" />
             {props.lead.primaryAction}
           </Button>
           <Button
             className="rounded-full border-border bg-surface px-4 text-[12px] text-foreground hover:bg-surface hover:text-foreground"
-            onClick={props.onOpenConversation}
+            onClick={() => props.onPrimaryAction(props.lead)}
             size="sm"
             type="button"
             variant="outline"
@@ -550,7 +550,7 @@ function LeadConversationPanel(props: {
           </Button>
           <Button
             className="rounded-full border-border bg-surface px-4 text-[12px] text-foreground hover:bg-surface hover:text-foreground"
-            onClick={props.onOpenConversation}
+            onClick={() => props.onPrimaryAction(props.lead)}
             size="sm"
             type="button"
             variant="outline"
@@ -707,6 +707,7 @@ function LeadDetailSheet(props: {
   onAutomationModeChange: (leadId: string, mode: ConversationAutomationMode) => void;
   onOpenFullConversation: (leadId: string) => void;
   onOpenConversation: (leadId: string) => void;
+  onPrimaryAction: (lead: LeadRecord) => void;
   onOpenChange: (open: boolean) => void;
 }) {
   const lead = props.lead;
@@ -763,7 +764,7 @@ function LeadDetailSheet(props: {
                   lead={lead}
                   mode={props.automationMode ?? lead.automationMode}
                   onModeChange={(nextMode) => props.onAutomationModeChange(lead.id, nextMode)}
-                  onOpenConversation={() => props.onOpenConversation(lead.id)}
+                  onPrimaryAction={(selectedLead) => props.onPrimaryAction(selectedLead)}
                 />
                 <LeadActivityTimeline lead={lead} />
               </section>
@@ -850,20 +851,46 @@ export function LeadsPageContent(props: { workspaceId: string; workspaceName: st
     router.replace(query.length > 0 ? `/leads?${query}` : "/leads");
   }
 
-  function openConversation(leadId: string) {
-    router.push(`/conversations?leadId=${leadId}`);
+  async function handlePrimaryAction(lead: LeadRecord) {
+    if (!lead.reviewId) {
+      router.push(`/conversations?leadId=${lead.id}`);
+      return;
+    }
+
+    setActionStatus("Sending...");
+
+    try {
+      const response = await fetch(
+        `/api/workspaces/${lead.workspaceId}/social-queue/${lead.reviewId}/action`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            action: "send",
+            reply: lead.draft,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        setActionStatus("Send failed. Check backend logs.");
+        return;
+      }
+
+      setActionStatus("Reply sent successfully!");
+      router.push(`/conversations?leadId=${lead.id}`);
+    } catch (error) {
+      setActionStatus("Network error sending reply.");
+      console.error(error);
+    }
   }
 
   async function updateLeadConversationAutomation(lead: LeadRecord, mode: ConversationAutomationMode) {
     setAutomationModes((current) => ({ ...current, [lead.id]: mode }));
 
-    if (lead.reviewId === null) {
-      setActionStatus("This lead does not have a live social conversation review yet, so the mode changed locally only.");
-      return;
-    }
-
     try {
-      const response = await fetch(`/api/workspaces/${lead.workspaceId}/social-queue/${lead.reviewId}/automation`, {
+      // Unified endpoint: uses leadId instead of reviewId
+      const response = await fetch(`/api/workspaces/${lead.workspaceId}/conversations/${lead.id}`, {
         body: JSON.stringify({
           mode,
           reason: mode === "ai_on"
@@ -1002,7 +1029,7 @@ export function LeadsPageContent(props: { workspaceId: string; workspaceName: st
               setActionStatus("Select a lead first so the next action can open in conversations.");
               return;
             }
-            openConversation(targetLead.id);
+            void handlePrimaryAction(targetLead);
           }}
           size="sm"
           type="button"
@@ -1229,8 +1256,9 @@ export function LeadsPageContent(props: { workspaceId: string; workspaceName: st
             void updateLeadConversationAutomation(lead, mode);
           }
         }}
-        onOpenFullConversation={(leadId) => openConversation(leadId)}
-        onOpenConversation={(leadId) => openConversation(leadId)}
+        onOpenFullConversation={(leadId) => router.push(`/conversations?leadId=${leadId}`)}
+        onOpenConversation={(leadId) => router.push(`/conversations?leadId=${leadId}`)}
+        onPrimaryAction={(lead) => void handlePrimaryAction(lead)}
         onOpenChange={(open) => {
           if (!open) {
             setSelectedLead(null);

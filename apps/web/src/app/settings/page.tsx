@@ -7,7 +7,7 @@ export default async function Page() {
 
   return (
     <AppShell activeItem="Profile & Settings" title="Settings" workspaceName={membership.workspaceName}>
-      <SettingsPageContent workspaceName={membership.workspaceName} />
+      <SettingsPageContent workspaceId={membership.workspaceId} workspaceName={membership.workspaceName} />
     </AppShell>
   );
 }

@@ -72,7 +72,7 @@ export function createSupabaseFollowUpBossConflictRepository(
           assignedAgentId: lead.assigned_agent_id,
           eventType: event.event_type,
           status: event.status,
-          detail: readPayloadDetail(event.payload),
+          detail: event.payload ? readPayloadDetail(event.payload as Record<string, unknown>) : null,
           occurredAt: event.event_created_at,
         }];
       }).slice(0, params.limit);

@@ -169,12 +169,14 @@ export function createSupabaseListingFactsRepository(
       const response = existing === null
         ? await supabase
             .from("listing_facts")
-            .insert(row)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            .insert([row as any] as any)
             .select("*")
             .single<ListingFactRow>()
         : await supabase
             .from("listing_facts")
-            .update(row)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            .update(row as any)
             .eq("id", existing.id)
             .select("*")
             .single<ListingFactRow>();
@@ -223,7 +225,8 @@ export function createSupabaseListingFactsRepository(
         .update({
           ...params.values,
           updated_at: new Date().toISOString(),
-        })
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } as any)
         .eq("workspace_id", params.workspaceId)
         .eq("id", params.listingId)
         .select("*")

@@ -3,6 +3,7 @@ import type {
   CrmBacksyncEventRow,
   FollowUpBossWebhookSubscriptionRow,
   IntegrationAccountRow,
+  Json,
 } from "./database.types";
 import type { RealtyOpsSupabaseClient } from "./server-client";
 
@@ -154,7 +155,7 @@ export function createSupabaseFollowUpBossWebhookRepository(
       subscriptionId: row.id,
       workspaceId: row.workspace_id,
       integrationAccountId: row.integration_account_id,
-      eventType: row.event_type,
+      eventType: row.event_type as FollowUpBossWebhookEventType,
       status: row.status,
       providerWebhookId: row.provider_webhook_id,
       callbackToken: row.callback_token,
@@ -258,7 +259,7 @@ export function createSupabaseFollowUpBossWebhookRepository(
         subscriptionId: data.id,
         workspaceId: data.workspace_id,
         integrationAccountId: data.integration_account_id,
-        eventType: data.event_type,
+        eventType: data.event_type as FollowUpBossWebhookEventType,
         status: data.status,
         providerWebhookId: data.provider_webhook_id,
         callbackToken: data.callback_token,
@@ -281,7 +282,7 @@ export function createSupabaseFollowUpBossWebhookRepository(
         resource_ids: params.notification.resourceIds,
         resource_uri: params.notification.uri,
         event_created_at: params.notification.eventCreated,
-        payload: params.notification,
+        payload: params.notification as Json,
       };
 
       const { data, error } = await supabase

@@ -406,6 +406,43 @@ type RealtyOpsWorkerDatabase = {
         };
         Relationships: [];
       };
+      conversation_messages: {
+        Row: {
+          id: string;
+          lead_id: string;
+          workspace_id: string;
+          sender_type: "customer" | "ai" | "operator";
+          sender_id: string | null;
+          body: string;
+          created_at: string;
+          updated_at: string;
+          status: "sent" | "in_progress" | "failed";
+          source_channel: string | null;
+          provider_message_id: string | null;
+          error_code: string | null;
+          error_message: string | null;
+        };
+        Insert: {
+          lead_id: string;
+          workspace_id: string;
+          sender_type: "customer" | "ai" | "operator";
+          sender_id?: string | null;
+          body: string;
+          created_at?: string;
+          status?: "sent" | "in_progress" | "failed";
+          source_channel?: string | null;
+          provider_message_id?: string | null;
+          error_code?: string | null;
+          error_message?: string | null;
+        };
+        Update: {
+          status?: "sent" | "in_progress" | "failed";
+          error_code?: string | null;
+          error_message?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -1517,6 +1554,27 @@ export function createSupabaseWorkflowJobServices(
             if (error !== null) {
               throw error;
             }
+
+            if (params.leadId !== null) {
+              const { error: msgError } = await supabase
+                .from("conversation_messages")
+                .insert({
+                  lead_id: params.leadId,
+                  workspace_id: params.workspaceId,
+                  sender_type: "ai",
+                  sender_id: "harwick_ai",
+                  body: reply,
+                  source_channel: params.channel,
+                  provider_message_id: providerEvent.providerEventId,
+                  status: "sent",
+                  created_at: occurredAt,
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                } as any);
+              if (msgError !== null) {
+                throw msgError;
+              }
+            }
+
             return {
               providerEventId: providerEvent.providerEventId,
               occurredAt,
@@ -1553,6 +1611,27 @@ export function createSupabaseWorkflowJobServices(
             if (error !== null) {
               throw error;
             }
+
+            if (params.leadId !== null) {
+              const { error: msgError } = await supabase
+                .from("conversation_messages")
+                .insert({
+                  lead_id: params.leadId,
+                  workspace_id: params.workspaceId,
+                  sender_type: "ai",
+                  sender_id: "harwick_ai",
+                  body: reply,
+                  source_channel: params.channel,
+                  provider_message_id: providerEvent.providerEventId,
+                  status: "sent",
+                  created_at: occurredAt,
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                } as any);
+              if (msgError !== null) {
+                throw msgError;
+              }
+            }
+
             return {
               providerEventId: providerEvent.providerEventId,
               occurredAt,

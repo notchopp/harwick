@@ -102,6 +102,10 @@ function buildRepository(overrides: Partial<ConversationsInboxRepository> = {}):
       created_at: "2026-04-30T12:15:00.000Z",
       updated_at: "2026-04-30T12:15:00.000Z",
     }]),
+    listConversationAutomationStates: vi.fn().mockResolvedValue([{
+      leadId: leadId,
+      automationMode: "ai_on",
+    }]),
     ...overrides,
   };
 }

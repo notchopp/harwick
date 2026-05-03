@@ -98,7 +98,10 @@ export async function loadWorkspaceReadiness(params: {
     params.repository.findLatestWorkerHeartbeat(),
     params.repository.listFubSubscriptions(params.workspaceId),
   ]);
-  const activeFubSubscriptions = fubSubscriptions.filter((subscription) => subscription.status === "active").length;
+  const activeFubSubscriptions = fubSubscriptions.filter(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access
+    (subscription: any) => subscription.status === "active"
+  ).length;
   const workerSeenAt = workerHeartbeat?.last_seen_at ?? null;
   const items: WorkspaceReadinessItem[] = [
     {

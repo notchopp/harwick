@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Button } from "../../components/ui/button";
 import { WorkspaceTopbar } from "../../components/workspace-topbar";
@@ -64,7 +64,12 @@ function InfoRow(props: { label: string; value: string }) {
   );
 }
 
-export function SettingsPageContent(props: { workspaceName: string }) {
+export function SettingsPageContent(props: { workspaceName: string; workspaceId: string }) {
+  const [isSaving, setIsSaving] = useState(false);
+  const [automation, setAutomation] = useState({
+    autoSendEnabled: false,
+    confidenceThreshold: 0.78,
+  });
   const [notifications, setNotifications] = useState({
     newLeadAssigned: true,
     replyApprovalNeeded: true,
@@ -73,15 +78,67 @@ export function SettingsPageContent(props: { workspaceName: string }) {
     dailyDigest: false,
   });
   const [preferences, setPreferences] = useState({
-    autoSendActions: false,
     transferQualifiedCalls: true,
   });
+
+  // Load automation settings on mount
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const res = await fetch(
+          `/api/workspaces/${props.workspaceId}/members/automation-settings`,
+        );
+        if (res.ok) {
+          const data = (await res.json()) as Record<string, unknown>;
+          setAutomation({
+            autoSendEnabled: typeof data["autoSendEnabled"] === "boolean" ? data["autoSendEnabled"] : false,
+            confidenceThreshold: typeof data["confidenceThreshold"] === "number" ? data["confidenceThreshold"] : 50,
+          });
+        }
+      } catch (error) {
+        console.error("Failed to load automation settings:", error);
+      }
+    };
+
+    void loadSettings();
+  }, [props.workspaceId]);
+
+  const handleSaveChanges = async () => {
+    setIsSaving(true);
+    try {
+      const res = await fetch(
+        `/api/workspaces/${props.workspaceId}/members/automation-settings`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            autoSendEnabled: automation.autoSendEnabled,
+            confidenceThreshold: automation.confidenceThreshold,
+          }),
+        },
+      );
+
+      if (!res.ok) {
+        throw new Error("Failed to save settings");
+      }
+    } catch (error) {
+      console.error("Save failed:", error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-background">
       <WorkspaceTopbar context="profile & settings" workspaceName={props.workspaceName}>
-        <Button className="ml-auto px-4 text-[11px]" size="sm" type="button">
-          Save Changes
+        <Button
+          className="ml-auto px-4 text-[11px]"
+          disabled={isSaving}
+          onClick={() => void handleSaveChanges()}
+          size="sm"
+          type="button"
+        >
+          {isSaving ? "Saving..." : "Save Changes"}
         </Button>
       </WorkspaceTopbar>
 
@@ -212,11 +269,31 @@ export function SettingsPageContent(props: { workspaceName: string }) {
 
             <SettingsSection title="Reply Preferences">
               <ToggleRow
-                checked={preferences.autoSendActions}
+                checked={automation.autoSendEnabled}
                 description="Send Harwick actions automatically if confidence is high"
                 label="Auto-send approved actions"
-                onToggle={() => setPreferences((current) => ({ ...current, autoSendActions: !current.autoSendActions }))}
+                onToggle={() => setAutomation((current) => ({ ...current, autoSendEnabled: !current.autoSendEnabled }))}
               />
+              <div className="flex items-center gap-4 border-b border-border py-3">
+                <div className="flex-1 text-[13px] font-medium">Confidence threshold</div>
+                <div className="flex items-center gap-2">
+                  <input
+                    className="harwick-control w-[80px] px-[11px] py-[7px] text-[12.5px]"
+                    max="100"
+                    min="0"
+                    onChange={(e) =>
+                      setAutomation((current) => ({
+                        ...current,
+                        confidenceThreshold: Number(e.target.value) / 100,
+                      }))
+                    }
+                    step="1"
+                    type="number"
+                    value={Math.round(automation.confidenceThreshold * 100)}
+                  />
+                  <span className="text-[12px] text-muted-subtle">%</span>
+                </div>
+              </div>
               <div className="flex items-center gap-4 border-b border-border py-3">
                 <div className="flex-1 text-[13px] font-medium">Reply tone</div>
                 <select className="harwick-control px-[10px] py-[6px] text-[12px]">

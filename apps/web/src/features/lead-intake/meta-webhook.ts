@@ -94,7 +94,9 @@ export async function handleMetaWebhookDelivery(params: {
 
   for (const providerAccountId of providerAccountIds) {
     const workspaceId = await params.resolveWorkspaceIdByProviderAccountId(providerAccountId);
+    console.log("[WEBHOOK] Resolved workspace for account", { providerAccountId, workspaceId });
     if (workspaceId === null) {
+      console.log("[WEBHOOK] No workspace found for account:", providerAccountId);
       unmatchedProviderAccountIds.push(providerAccountId);
       continue;
     }

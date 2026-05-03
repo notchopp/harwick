@@ -58,14 +58,14 @@ export async function GET(request: NextRequest, context: RouteContext) {
     roleLabel: profile.role_label,
     areas: profile.areas,
     propertyTypes: profile.property_types as MemberRoutingProfileResponse["propertyTypes"],
-    leadTypes: profile.lead_types.filter((lt): lt is "buyer" | "seller" | "renter" | "investor" =>
+    leadTypes: profile.lead_types.filter((lt: string): lt is "buyer" | "seller" | "renter" | "investor" =>
       lt !== "unknown"
     ),
     budgetMin: profile.budget_min,
     budgetMax: profile.budget_max,
     maxActiveLeads: profile.max_active_leads,
     acceptsNewLeads: profile.accepts_new_leads,
-    notificationPreference: profile.notification_preference,
+    notificationPreference: profile.notification_preference as MemberRoutingProfileResponse["notificationPreference"],
     createdAt: profile.created_at,
     updatedAt: profile.updated_at,
   }));
@@ -148,14 +148,14 @@ export async function POST(request: NextRequest, context: RouteContext) {
     roleLabel: profile.role_label,
     areas: profile.areas,
     propertyTypes: profile.property_types as MemberRoutingProfileResponse["propertyTypes"],
-    leadTypes: profile.lead_types.filter((lt): lt is "buyer" | "seller" | "renter" | "investor" =>
+    leadTypes: profile.lead_types.filter((lt: string): lt is "buyer" | "seller" | "renter" | "investor" =>
       lt !== "unknown"
     ),
     budgetMin: profile.budget_min,
     budgetMax: profile.budget_max,
     maxActiveLeads: profile.max_active_leads,
     acceptsNewLeads: profile.accepts_new_leads,
-    notificationPreference: profile.notification_preference,
+    notificationPreference: profile.notification_preference as MemberRoutingProfileResponse["notificationPreference"],
     createdAt: profile.created_at,
     updatedAt: profile.updated_at,
   };
