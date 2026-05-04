@@ -1,7 +1,5 @@
 import {
-  canAutomationSend,
   ConversationMessageSendRequestSchema,
-  type ConversationAutomationMode,
   type ConversationMessageSendResponse,
   type SendMetaReplyRequest,
 } from "@realty-ops/core";
@@ -19,6 +17,7 @@ export type ConversationMessageRepository = {
     leadId: string;
     sourceChannel: LeadRow["source_channel"];
     reply: string;
+    senderId?: string | null;
   }): Promise<{ status: 200; body: ConversationMessageSendResponse }>;
 };
 
@@ -33,6 +32,7 @@ export async function sendConversationMessage(params: {
   request: unknown;
   repository: ConversationMessageRepository;
   sendMetaReply: ConversationMessageSender;
+  senderId?: string | null;
 }): Promise<
   | { status: 200; body: ConversationMessageSendResponse }
   | { status: 400 | 403 | 404; body: { error: string } }
@@ -60,18 +60,9 @@ export async function sendConversationMessage(params: {
     };
   }
 
-  const automationState = await params.repository.findAutomationState({
-    workspaceId: lead.workspace_id,
-    leadId: lead.id,
-  });
-  const automationMode: ConversationAutomationMode = (automationState?.automation_mode as ConversationAutomationMode) ?? "ai_on";
-
-  if (!canAutomationSend(automationMode)) {
-    return {
-      status: 403,
-      body: { error: "automation_paused" },
-    };
-  }
+  // Manual operator sends are always allowed regardless of conversation
+  // automation mode — automation pause governs the AI runtime, not the
+  // human operator. The human stepping in is the whole point of takeover.
 
   if (lead.source_channel === "manual" || lead.source_channel === "csv_import") {
     return params.repository.recordManualOutboundMessage({
@@ -79,6 +70,7 @@ export async function sendConversationMessage(params: {
       leadId: lead.id,
       sourceChannel: lead.source_channel,
       reply: parsed.data.reply,
+      senderId: params.senderId ?? null,
     });
   }
 
@@ -110,7 +102,7 @@ export async function sendConversationMessage(params: {
     sourceCommentId: lead.source_comment_id,
     sourcePostId: lead.source_post_id,
     reply: parsed.data.reply,
-    automationMode,
+    automationMode: "human_takeover",
   };
 
   const sendResult = await params.sendMetaReply(metaReplyRequest);

@@ -2,6 +2,7 @@ import type { RealtyOpsSupabaseClient } from "./server-client";
 import type { ConversationMessageRepository } from "../../features/conversations/conversation-message-send";
 import type { LeadRow } from "./leads";
 import type { ConversationAutomationStateRow } from "./database.types";
+import { createSupabaseConversationMessageRepository as createConversationMessagesRepository } from "./conversation-messages";
 
 export function createSupabaseConversationMessageRepository(
   supabase: RealtyOpsSupabaseClient,
@@ -61,6 +62,26 @@ export function createSupabaseConversationMessageRepository(
 
       if (error !== null) {
         throw error;
+      }
+
+      // Mirror into conversation_messages so realtime watchers + future AI
+      // memory loads pick up the operator's send.
+      try {
+        await createConversationMessagesRepository(supabase).insertMessage({
+          lead_id: params.leadId,
+          workspace_id: params.workspaceId,
+          sender_type: "operator",
+          sender_id: params.senderId ?? null,
+          body: params.reply,
+          source_channel: params.sourceChannel,
+          provider_message_id: providerEventId,
+          status: "sent",
+          created_at: occurredAt,
+          error_code: null,
+          error_message: null,
+        });
+      } catch (convoError) {
+        console.error("[recordManualOutboundMessage] conversation_messages insert failed:", convoError);
       }
 
       const { error: leadError } = await supabase

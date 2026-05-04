@@ -18,12 +18,10 @@ import {
   MessageSquare,
   PauseCircle,
   Phone,
-  Play,
   Route,
-  Send,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { FacebookGlyph, InstagramGlyph, PhoneGlyph, SearchGlyph } from "../../components/harwick-icons";
 import { Badge } from "../../components/ui/badge";
@@ -31,6 +29,7 @@ import { Button } from "../../components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "../../components/ui/sheet";
 import { WorkspaceTopbar } from "../../components/workspace-topbar";
 import { cn } from "../../lib/utils";
+import { LeadActionToolbar } from "../conversations/lead-action-toolbar";
 import type { LeadPageItem, LeadPageSource, LeadPageStage } from "./leads-data";
 
 type LeadStatus = "new" | "qualified" | "nurture" | "lost";
@@ -439,8 +438,9 @@ function KeyValue(props: { label: string; value: string }) {
 function LeadConversationPanel(props: {
   lead: LeadRecord;
   mode: ConversationAutomationMode;
-  onModeChange: (mode: ConversationAutomationMode) => void;
-  onPrimaryAction: (lead: LeadRecord) => void;
+  workspaceId: string;
+  currentMemberId: string;
+  onChanged?: () => void | Promise<void>;
 }) {
   const aiPaused = props.mode !== "ai_on";
   const modeTone = props.mode === "ai_on"
@@ -508,56 +508,25 @@ function LeadConversationPanel(props: {
         </div>
       </div>
 
-      <div className="border-t border-border bg-surface px-5 py-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-[220px] flex-1">
-            <div className="flex items-center gap-2 text-[11.5px] font-semibold text-foreground">
-              <ClipboardCheck aria-hidden="true" className="h-3.5 w-3.5 text-harwick-brass" strokeWidth={1.8} />
-              Harwick helper
-            </div>
-            <p className="mt-1 text-[11.5px] leading-5 text-muted">{props.lead.automationReason}</p>
-            <p className="mt-1 text-[11px] leading-5 text-muted-subtle">{props.lead.helperSuggestion}</p>
+      <div className="border-t border-border bg-surface px-5 py-4 space-y-3">
+        <div className="flex items-start gap-2">
+          <ClipboardCheck aria-hidden="true" className="mt-0.5 h-3.5 w-3.5 shrink-0 text-harwick-brass" strokeWidth={1.8} />
+          <div className="min-w-0">
+            <div className="text-[11.5px] font-semibold text-foreground">Harwick helper</div>
+            <p className="mt-0.5 text-[11.5px] leading-5 text-muted">{props.lead.automationReason}</p>
+            <p className="mt-0.5 text-[11px] leading-5 text-muted-subtle">{props.lead.helperSuggestion}</p>
           </div>
-          <Button
-            className={cn(
-              "h-8 shrink-0 rounded-full px-3 text-[11.5px]",
-              aiPaused
-                ? "bg-harwick-ink text-white"
-                : "border-border bg-surface-muted text-foreground hover:bg-surface-muted hover:text-foreground",
-            )}
-            onClick={() => props.onModeChange(aiPaused ? "ai_on" : "human_takeover")}
-            size="sm"
-            type="button"
-            variant={aiPaused ? "default" : "outline"}
-          >
-            {aiPaused ? <Play aria-hidden="true" /> : <PauseCircle aria-hidden="true" />}
-            {aiPaused ? "resume ai" : "take over"}
-          </Button>
         </div>
-        <div className="mt-3 flex flex-wrap gap-2 border-t border-border pt-3">
-          <Button className="rounded-full bg-harwick-ink px-4 text-[12px]" onClick={() => props.onPrimaryAction(props.lead)} size="sm" type="button">
-            <Send aria-hidden="true" />
-            {props.lead.primaryAction}
-          </Button>
-          <Button
-            className="rounded-full border-border bg-surface px-4 text-[12px] text-foreground hover:bg-surface hover:text-foreground"
-            onClick={() => props.onPrimaryAction(props.lead)}
-            size="sm"
-            type="button"
-            variant="outline"
-          >
-            {props.lead.secondaryAction}
-          </Button>
-          <Button
-            className="rounded-full border-border bg-surface px-4 text-[12px] text-foreground hover:bg-surface hover:text-foreground"
-            onClick={() => props.onPrimaryAction(props.lead)}
-            size="sm"
-            type="button"
-            variant="outline"
-          >
-            edit action
-          </Button>
-        </div>
+        <LeadActionToolbar
+          workspaceId={props.workspaceId}
+          leadId={props.lead.id}
+          automationMode={props.mode}
+          assignedMemberId={null}
+          currentMemberId={props.currentMemberId}
+          draft={props.lead.draft}
+          reviewId={props.lead.reviewId ?? null}
+          {...(props.onChanged === undefined ? {} : { onChanged: props.onChanged })}
+        />
       </div>
     </div>
   );
@@ -702,12 +671,10 @@ function LeadsPaginationFooter(props: {
 
 function LeadDetailSheet(props: {
   actionStatus: string | null;
-  automationMode: ConversationAutomationMode | null;
+  currentMemberId: string;
   lead: LeadRecord | null;
-  onAutomationModeChange: (leadId: string, mode: ConversationAutomationMode) => void;
+  onChanged?: () => void | Promise<void>;
   onOpenFullConversation: (leadId: string) => void;
-  onOpenConversation: (leadId: string) => void;
-  onPrimaryAction: (lead: LeadRecord) => void;
   onOpenChange: (open: boolean) => void;
 }) {
   const lead = props.lead;
@@ -762,9 +729,10 @@ function LeadDetailSheet(props: {
               <section className="min-w-0 space-y-5">
                 <LeadConversationPanel
                   lead={lead}
-                  mode={props.automationMode ?? lead.automationMode}
-                  onModeChange={(nextMode) => props.onAutomationModeChange(lead.id, nextMode)}
-                  onPrimaryAction={(selectedLead) => props.onPrimaryAction(selectedLead)}
+                  mode={lead.automationMode}
+                  workspaceId={lead.workspaceId}
+                  currentMemberId={props.currentMemberId}
+                  {...(props.onChanged === undefined ? {} : { onChanged: props.onChanged })}
                 />
                 <LeadActivityTimeline lead={lead} />
               </section>
@@ -825,7 +793,7 @@ function LeadDetailSheet(props: {
   );
 }
 
-export function LeadsPageContent(props: { workspaceId: string; workspaceName: string }) {
+export function LeadsPageContent(props: { workspaceId: string; workspaceName: string; currentMemberId: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const leadIdParam = searchParams.get("leadId");
@@ -837,7 +805,6 @@ export function LeadsPageContent(props: { workspaceId: string; workspaceName: st
   const [search, setSearch] = useState("");
   const [leadRecords, setLeadRecords] = useState<LeadRecord[]>(fallbackLeads);
   const [selectedLead, setSelectedLead] = useState<LeadRecord | null>(null);
-  const [automationModes, setAutomationModes] = useState<Record<string, ConversationAutomationMode>>({});
   const [actionStatus, setActionStatus] = useState<string | null>(null);
 
   function replaceLeadQuery(leadId: string | null) {
@@ -885,70 +852,33 @@ export function LeadsPageContent(props: { workspaceId: string; workspaceName: st
     }
   }
 
-  async function updateLeadConversationAutomation(lead: LeadRecord, mode: ConversationAutomationMode) {
-    setAutomationModes((current) => ({ ...current, [lead.id]: mode }));
-
+  const refreshLeads = useCallback(async () => {
     try {
-      // Unified endpoint: uses leadId instead of reviewId
-      const response = await fetch(`/api/workspaces/${lead.workspaceId}/conversations/${lead.id}`, {
-        body: JSON.stringify({
-          mode,
-          reason: mode === "ai_on"
-            ? "agent resumed Harwick AI for this conversation"
-            : "agent took over this conversation from the lead sheet",
-        }),
-        headers: { "content-type": "application/json" },
-        method: "PATCH",
+      const response = await fetch(`/api/leads?workspaceId=${props.workspaceId}&limit=50`, {
+        cache: "no-store",
       });
 
       if (!response.ok) {
-        setActionStatus(response.status === 403
-          ? "Auth is required to change this conversation mode."
-          : "The backend rejected this conversation mode change.");
         return;
       }
 
-      setActionStatus(mode === "ai_on"
-        ? "Harwick AI resumed for this lead conversation only."
-        : "Harwick AI paused for this lead conversation only.");
+      const body: unknown = await response.json();
+      const items =
+        typeof body === "object" && body !== null && "items" in body && Array.isArray((body as { items?: unknown }).items)
+          ? ((body as { items: unknown[] }).items.filter(isLeadPageItem).map(mapLeadPageItemToRecord))
+          : [];
+
+      if (items.length > 0) {
+        setLeadRecords(items);
+      }
     } catch {
-      setActionStatus("Could not reach the automation endpoint.");
+      // Keep local fallback rows until workspace auth/seed data is available.
     }
-  }
+  }, [props.workspaceId]);
 
   useEffect(() => {
-    let ignore = false;
-
-    async function refreshLeads() {
-      try {
-        const response = await fetch(`/api/leads?workspaceId=${props.workspaceId}&limit=50`, {
-          cache: "no-store",
-        });
-
-        if (!response.ok) {
-          return;
-        }
-
-        const body: unknown = await response.json();
-        const items =
-          typeof body === "object" && body !== null && "items" in body && Array.isArray((body as { items?: unknown }).items)
-            ? ((body as { items: unknown[] }).items.filter(isLeadPageItem).map(mapLeadPageItemToRecord))
-            : [];
-
-        if (!ignore && items.length > 0) {
-          setLeadRecords(items);
-        }
-      } catch {
-        // Keep local fallback rows until workspace auth/seed data is available.
-      }
-    }
-
     void refreshLeads();
-
-    return () => {
-      ignore = true;
-    };
-  }, [props.workspaceId]);
+  }, [refreshLeads]);
 
   useEffect(() => {
     if (leadIdParam === null) {
@@ -1015,8 +945,6 @@ export function LeadsPageContent(props: { workspaceId: string; workspaceName: st
       setCurrentPage(safeCurrentPage);
     }
   }, [currentPage, safeCurrentPage]);
-
-  const selectedAutomationMode = selectedLead ? automationModes[selectedLead.id] ?? selectedLead.automationMode : null;
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-background">
@@ -1248,17 +1176,10 @@ export function LeadsPageContent(props: { workspaceId: string; workspaceName: st
 
       <LeadDetailSheet
         actionStatus={actionStatus}
-        automationMode={selectedAutomationMode}
+        currentMemberId={props.currentMemberId}
         lead={selectedLead}
-        onAutomationModeChange={(leadId, mode) => {
-          const lead = leadRecords.find((record) => record.id === leadId) ?? selectedLead;
-          if (lead !== null) {
-            void updateLeadConversationAutomation(lead, mode);
-          }
-        }}
+        onChanged={() => void refreshLeads()}
         onOpenFullConversation={(leadId) => router.push(`/conversations?leadId=${leadId}`)}
-        onOpenConversation={(leadId) => router.push(`/conversations?leadId=${leadId}`)}
-        onPrimaryAction={(lead) => void handlePrimaryAction(lead)}
         onOpenChange={(open) => {
           if (!open) {
             setSelectedLead(null);

@@ -2,7 +2,6 @@
 
 import {
   ConversationsInboxResponseSchema,
-  type ConversationAutomationMode,
   type ConversationInboxMessage,
   type ConversationInboxSource,
   type ConversationInboxStageTone,
@@ -24,7 +23,7 @@ import {
   type SandboxReplySet,
 } from "./conversation-sandbox-reply";
 import { useRealtimeThreadSync } from "./use-realtime-thread-sync";
-import { ConversationControls } from "./conversation-controls";
+import { LeadActionToolbar } from "./lead-action-toolbar";
 
 type ThreadFilter = "all" | "dms" | "comments";
 type LoadState = "loading" | "ready" | "error";
@@ -81,12 +80,6 @@ function getPreviewFromMessages(thread: ConversationInboxThread): string {
 
 function threadTimelineLabel(thread: ConversationInboxThread): string {
   return thread.source === "voice" ? "Call summary + follow-up" : "Live thread";
-}
-
-function composerPlaceholder(thread: ConversationInboxThread): string {
-  return thread.source === "voice"
-    ? "Write a follow-up message from this call summary..."
-    : "Write a reply or next action...";
 }
 
 function composerContextLabel(thread: ConversationInboxThread): string {
@@ -152,9 +145,6 @@ function MessageBubble(props: {
   avatar: string;
   disabled: boolean;
   message: ConversationInboxMessage;
-  onDismissAction: () => void;
-  onEditAction: (draft: string) => void;
-  onSendAction: (draft: string) => void;
 }) {
   if (props.message.kind === "system") {
     return (
@@ -209,34 +199,6 @@ function MessageBubble(props: {
         </div>
         {props.message.kind === "lead" ? (
           <div className="mt-0.5 text-[10px] text-muted-subtle">{props.message.meta}</div>
-        ) : null}
-        {props.message.kind === "ai_action" ? (
-          <div className="mt-[5px] flex gap-[5px]">
-            <button
-              className="rounded-full bg-qualified px-[11px] py-[4px] text-[11px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={props.disabled}
-              onClick={() => props.onSendAction(props.message.body)}
-              type="button"
-            >
-              Send
-            </button>
-            <button
-              className="rounded-full border border-border bg-transparent px-[11px] py-[4px] text-[11px] font-medium text-muted transition-colors hover:border-border-strong hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={props.disabled}
-              onClick={() => props.onEditAction(props.message.body)}
-              type="button"
-            >
-              Edit
-            </button>
-            <button
-              className="rounded-full border border-border bg-transparent px-[11px] py-[4px] text-[11px] font-medium text-muted transition-colors hover:border-border-strong hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={props.disabled}
-              onClick={props.onDismissAction}
-              type="button"
-            >
-              Dismiss
-            </button>
-          </div>
         ) : null}
       </div>
     </div>
@@ -406,11 +368,11 @@ export function ConversationsPageContent(props: {
   }
 
   async function sendLeadConversationMessage(thread: ConversationInboxThread, draft: string) {
-    return fetch(`/api/conversations/${thread.id}/messages`, {
+    return fetch(`/api/workspaces/${thread.workspaceId}/conversations/${thread.leadId}/messages`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        conversationId: thread.id,
+        conversationId: thread.leadId,
         workspaceId: thread.workspaceId,
         reply: draft,
       }),
@@ -507,77 +469,6 @@ export function ConversationsPageContent(props: {
     }
   }
 
-  async function handleAutomationAction(mode: ConversationAutomationMode) {
-    if (selectedThread === null) {
-      return;
-    }
-
-    const reason = mode === "human_takeover"
-      ? "Operator took over from the conversations screen."
-      : "Operator resumed Harwick AI from the conversations screen.";
-    const draftToSend = getThreadDraft(selectedThread).trim();
-
-    try {
-      setActionBusy(true);
-
-      if (mode === "ai_on") {
-        setActionStatus("Resuming AI...");
-      } else {
-        setActionStatus("Taking over conversation...");
-      }
-
-      // Unified endpoint: uses leadId instead of reviewId or conversationId
-      const response = await fetch(`/api/workspaces/${selectedThread.workspaceId}/conversations/${selectedThread.id}/automation`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ mode, reason }),
-      });
-
-      if (response.status === 403) {
-        setActionStatus("Auth is required to change automation mode.");
-        return;
-      }
-
-      if (response.status === 404) {
-        setActionStatus("Conversation automation state was not found.");
-        return;
-      }
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Automation change failed", { status: response.status, errorText });
-        setActionStatus("The backend rejected the automation change.");
-        return;
-      }
-
-      if (mode === "ai_on" && draftToSend.length > 0) {
-        try {
-          const sendResponse = await sendLeadConversationMessage(selectedThread, draftToSend);
-
-          if (sendResponse.ok) {
-            setReply("");
-            setActionStatus("AI resumed and reply sent automatically.");
-            await refreshThreads();
-            return;
-          }
-
-          const errorBody = (await sendResponse.json().catch(() => ({}))) as Record<string, unknown>;
-          console.error("Send failed:", errorBody);
-        } catch (err) {
-          console.error("Failed to auto-send reply:", err);
-        }
-      }
-
-      await refreshThreads();
-      setActionStatus(mode === "ai_on" ? "AI resumed. Conversation will continue automatically." : "Automation paused. You are now in control.");
-    } catch (error) {
-      console.error("Automation action error:", error);
-      setActionStatus("Could not change automation mode.");
-    } finally {
-      setActionBusy(false);
-    }
-  }
-
   async function handleGenerateAction(threadOverride?: ConversationInboxThread) {
     const targetThread = threadOverride ?? selectedThread;
     if (targetThread === null) {
@@ -654,144 +545,6 @@ export function ConversationsPageContent(props: {
     }
   }
 
-  async function handleClaimConversation() {
-    if (selectedThread === null) return;
-
-    try {
-      setActionBusy(true);
-      setActionStatus("Claiming conversation...");
-
-      const response = await fetch(
-        `/api/workspaces/${selectedThread.workspaceId}/conversations/${selectedThread.id}/automation`,
-        {
-          method: "PATCH",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            mode: "human_takeover",
-            reason: "Operator claimed conversation from the conversations screen.",
-          }),
-        },
-      );
-
-      if (!response.ok) {
-        setActionStatus("Failed to claim conversation");
-        return;
-      }
-
-      setActionStatus("Conversation claimed successfully.");
-      await refreshThreads();
-    } catch (error) {
-      console.error("Claim error:", error);
-      setActionStatus("Could not claim conversation.");
-    } finally {
-      setActionBusy(false);
-    }
-  }
-
-  async function handlePauseAI() {
-    if (selectedThread === null) return;
-
-    try {
-      setActionBusy(true);
-      setActionStatus("Pausing AI...");
-
-      // Unified endpoint: uses leadId
-      const response = await fetch(
-        `/api/workspaces/${selectedThread.workspaceId}/conversations/${selectedThread.id}/automation`,
-        {
-          method: "PATCH",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            mode: "human_takeover",
-            reason: "Operator paused AI from the conversations screen.",
-          }),
-        },
-      );
-
-      if (!response.ok) {
-        setActionStatus("Failed to pause AI");
-        return;
-      }
-
-      setActionStatus("AI paused.");
-      await refreshThreads();
-    } catch (error) {
-      console.error("Pause error:", error);
-      setActionStatus("Could not pause AI.");
-    } finally {
-      setActionBusy(false);
-    }
-  }
-
-  async function handleResumeAI() {
-    if (selectedThread === null) return;
-
-    try {
-      setActionBusy(true);
-      setActionStatus("Resuming AI...");
-
-      // Unified endpoint: uses leadId
-      const response = await fetch(
-        `/api/workspaces/${selectedThread.workspaceId}/conversations/${selectedThread.id}/automation`,
-        {
-          method: "PATCH",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            mode: "ai_on",
-            reason: "Operator resumed Harwick AI from the conversations screen.",
-          }),
-        },
-      );
-
-      if (!response.ok) {
-        setActionStatus("Failed to resume AI");
-        return;
-      }
-
-      setActionStatus("AI resumed.");
-      await refreshThreads();
-    } catch (error) {
-      console.error("Resume error:", error);
-      setActionStatus("Could not resume AI.");
-    } finally {
-      setActionBusy(false);
-    }
-  }
-
-  async function handleReleaseConversation() {
-    if (selectedThread === null) return;
-
-    try {
-      setActionBusy(true);
-      setActionStatus("Releasing conversation...");
-
-      const response = await fetch(
-        `/api/workspaces/${selectedThread.workspaceId}/conversations/${selectedThread.id}/automation`,
-        {
-          method: "PATCH",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            mode: "ai_on",
-            reason: "Operator released conversation back to Harwick AI.",
-          }),
-        },
-      );
-
-      if (!response.ok) {
-        setActionStatus("Failed to release conversation");
-        return;
-      }
-
-      setActionStatus("Conversation released.");
-      await refreshThreads();
-    } catch (error) {
-      console.error("Release error:", error);
-      setActionStatus("Could not release conversation.");
-    } finally {
-      setActionBusy(false);
-    }
-  }
-
   async function handleSandboxLeadTurn(messageOverride?: string) {
     if (selectedThread === null || !isConversationSandboxThread(selectedThread)) {
       return;
@@ -811,8 +564,6 @@ export function ConversationsPageContent(props: {
     await handleGenerateAction(updatedThread);
   }
 
-  const automationAction = selectedThread?.automationMode === "ai_on" ? "human_takeover" : "ai_on";
-  const automationLabel = selectedThread?.automationMode === "ai_on" ? "Take over" : "Resume AI";
   const sandboxMode = selectedThread !== null && isConversationSandboxThread(selectedThread);
   const activeSandboxReplySet = selectedThread === null ? null : (sandboxReplySets[selectedThread.id] ?? null);
   const selectedSandboxThreadId = sandboxMode ? selectedThread?.id ?? null : null;
@@ -928,14 +679,6 @@ export function ConversationsPageContent(props: {
                   >
                     View Lead
                   </button>
-                  <button
-                    className="rounded-[8px] bg-foreground px-[11px] py-[4px] text-[11px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
-                    disabled={actionBusy}
-                    onClick={() => void handleAutomationAction(automationAction)}
-                    type="button"
-                  >
-                    {automationLabel}
-                  </button>
                 </div>
               </div>
 
@@ -971,18 +714,6 @@ export function ConversationsPageContent(props: {
                 </div>
               </div>
 
-              <ConversationControls
-                automationMode={selectedThread.automationMode}
-                isAssigned={selectedThread.assignedTo !== "Unassigned"}
-                operatorId={selectedThread.assignedTo}
-                currentOperatorId={props.currentMemberId}
-                onClaim={() => void handleClaimConversation()}
-                onPauseAI={() => void handlePauseAI()}
-                onResumeAI={() => void handleResumeAI()}
-                onRelease={() => void handleReleaseConversation()}
-                isLoading={actionBusy}
-              />
-
               <div className="min-h-0 flex-1 overflow-y-auto px-[18px] py-[18px]">
                 <div className="relative my-[14px] text-center text-[11px] text-muted-subtle">
                   <span className="bg-background px-3">{threadTimelineLabel(selectedThread)}</span>
@@ -996,9 +727,6 @@ export function ConversationsPageContent(props: {
                     disabled={actionBusy}
                     key={message.id}
                     message={message}
-                    onDismissAction={() => void handleQueueAction("dismiss")}
-                    onEditAction={(draft) => setReply(draft)}
-                    onSendAction={(draft) => void handleQueueAction("send", draft)}
                   />
                 ))}
               </div>
@@ -1093,16 +821,8 @@ export function ConversationsPageContent(props: {
                     ) : null}
                   </div>
                 ) : null}
-                <textarea
-                  className="harwick-control min-h-[56px] w-full resize-none px-[11px] py-[9px] text-[12.5px] placeholder:text-muted-subtle"
-                  onChange={(event) => setReply(event.target.value)}
-                  placeholder={composerPlaceholder(selectedThread)}
-                  value={reply}
-                />
-                <div className="mt-2 flex items-center gap-[7px]">
-                  <div className="flex-1 text-[11px] text-muted-subtle">
-                    {composerContextLabel(selectedThread)}
-                  </div>
+                <div className="mb-2 flex items-center justify-between gap-2 text-[11px] text-muted-subtle">
+                  <span>{composerContextLabel(selectedThread)}</span>
                   <button
                     className="harwick-pill px-[11px] py-[4px] text-[11px] font-medium text-muted transition-all hover:-translate-y-px hover:border-border-strong hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
                     disabled={actionBusy}
@@ -1111,15 +831,18 @@ export function ConversationsPageContent(props: {
                   >
                     Generate Action
                   </button>
-                  <button
-                    className="rounded-full border border-harwick-ink bg-[linear-gradient(180deg,#233729_0%,#132218_100%)] px-[11px] py-[4px] text-[11px] font-medium text-white shadow-[0_8px_18px_rgba(19,34,24,0.18)] transition-all hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
-                    disabled={actionBusy}
-                    onClick={() => void handleQueueAction("send")}
-                    type="button"
-                  >
-                    Send
-                  </button>
                 </div>
+                <LeadActionToolbar
+                  workspaceId={selectedThread.workspaceId}
+                  leadId={selectedThread.leadId}
+                  automationMode={selectedThread.automationMode ?? "ai_on"}
+                  assignedMemberId={null}
+                  currentMemberId={props.currentMemberId}
+                  draft={reply}
+                  reviewId={selectedThread.reviewId}
+                  onDraftChange={(next) => setReply(next)}
+                  onChanged={() => void refreshThreads()}
+                />
                 {actionStatus ? (
                   <div className="mt-2 flex items-center gap-2 text-[11px] text-muted">
                     <AlertCircle className="h-3.5 w-3.5 shrink-0" />

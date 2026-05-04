@@ -10,6 +10,7 @@ export default async function Page() {
       workspaceName={membership.workspaceName}
       operatorName={membership.displayName ?? session.user.email ?? "Operator"}
       operatorRole={membership.role}
+      operatorMemberId={membership.memberId}
     />
   );
 }

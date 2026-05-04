@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Harwick — Reference</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400;1,500&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300;1,400&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --bg:#F5F3EF;
+  --paper:#FAFAF8;
+  --linen:#EFEDE9;
+  --linen2:#E8E5DF;
+  --border:rgba(0,0,0,0.08);
+  --border2:rgba(0,0,0,0.13);
+  --ink:#1A1916;
+  --ink2:#4A4740;
+  --ink3:#6B6860;
+  --ink4:#A8A59F;
+  --brass:#C9A84C;
+  --brassf:#F5EDD6;
+  --brassm:#E8D08A;
+  --sage:#2E6B4F;
+  --sagef:#E0EDE7;
+  --oxblood:#9B3A3A;
+  --oxbloodf:#F5E5E5;
+  --clay:#8B5E1A;
+  --clayf:#F5EAD6;
+  --stone:#6B6860;
+  --stonef:#EFEDE9;
+}
+
+html{scroll-behavior:smooth}
+body{
+  font-family:'DM Sans',sans-serif;
+  background:var(--bg);
+  color:var(--ink);
+  font-size:14px;
+  line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* ── LAYOUT ── */
+.doc{max-width:860px;margin:0 auto;padding:80px 48px 120px}
+
+/* ── COVER ── */
+.cover{padding-bottom:56px;border-bottom:1px solid var(--border2);margin-bottom:72px}
+.eyebrow{
+  font-size:10px;font-weight:500;letter-spacing:0.12em;text-transform:uppercase;
+  color:var(--ink4);margin-bottom:28px;display:flex;align-items:center;gap:10px
+}
+.eyebrow::before{content:'';width:20px;height:1px;background:var(--border2);display:inline-block}
+
+.wordmark{
+  font-family:'Cormorant Garamond',serif;
+  font-size:56px;font-weight:400;letter-spacing:0.01em;
+  color:var(--ink);line-height:1;margin-bottom:8px
+}
+.wordmark em{font-style:normal;color:var(--brass)}
+
+.wordmark-sub{
+  font-family:'Cormorant Garamond',serif;
+  font-size:18px;font-weight:300;color:var(--ink3);
+  margin-bottom:28px;letter-spacing:0.01em;font-style:italic
+}
+
+.cover-body{
+  font-size:15px;color:var(--ink3);line-height:1.75;
+  max-width:600px;margin-bottom:32px
+}
+.cover-body strong{color:var(--ink);font-weight:500}
+
+.cover-tags{display:flex;gap:8px;flex-wrap:wrap}
+.ctag{
+  font-size:10px;font-weight:500;letter-spacing:0.07em;text-transform:uppercase;
+  padding:5px 12px;border:1px solid var(--border2);color:var(--ink4);
+  border-radius:6px;background:var(--paper)
+}
+
+/* ── SECTION ── */
+.section{margin-bottom:72px}
+.section-eyebrow{
+  font-size:10px;font-weight:500;letter-spacing:0.12em;text-transform:uppercase;
+  color:var(--ink4);margin-bottom:14px;display:flex;align-items:center;gap:10px
+}
+.section-eyebrow::before{content:'';width:14px;height:1px;background:var(--border2);display:inline-block}
+
+.section-title{
+  font-family:'Cormorant Garamond',serif;
+  font-size:38px;font-weight:400;line-height:1.15;
+  color:var(--ink);margin-bottom:20px
+}
+.section-title em{font-style:italic}
+.section-body{font-size:14px;color:var(--ink3);line-height:1.75;margin-bottom:20px;max-width:640px}
+.section-body strong{color:var(--ink);font-weight:500}
+.section-body em{font-style:italic;color:var(--ink2)}
+
+/* ── NORTH STAR FLOW ── */
+.flow{
+  display:flex;flex-direction:column;
+  border:1px solid var(--border2);border-radius:14px;overflow:hidden;
+  margin:32px 0
+}
+.flow-step{
+  display:grid;grid-template-columns:160px 1fr;
+  padding:22px 28px;background:var(--paper);
+  border-bottom:1px solid var(--border)
+}
+.flow-step:last-child{border-bottom:none}
+.flow-step:nth-child(even){background:var(--linen)}
+.flow-left{
+  display:flex;flex-direction:column;gap:5px;
+  border-right:1px solid var(--border);padding-right:24px
+}
+.flow-num{
+  font-size:10px;font-weight:500;letter-spacing:0.1em;
+  text-transform:uppercase;color:var(--ink4)
+}
+.flow-name{
+  font-family:'Cormorant Garamond',serif;
+  font-size:17px;font-weight:500;color:var(--ink);line-height:1.2
+}
+.flow-right{
+  display:flex;flex-direction:column;gap:9px;padding-left:24px
+}
+.flow-desc{font-size:13px;color:var(--ink3);line-height:1.6}
+.flow-pill{
+  display:inline-flex;align-items:center;gap:4px;
+  font-size:9px;font-weight:600;letter-spacing:0.07em;text-transform:uppercase;
+  padding:3px 10px;border-radius:5px;width:fit-content;
+  border:1px solid var(--brassm);color:var(--clay);background:var(--brassf)
+}
+.flow-pill.sage{border-color:var(--sage);color:var(--sage);background:var(--sagef)}
+.flow-pill.ox{border-color:var(--oxblood);color:var(--oxblood);background:var(--oxbloodf)}
+
+/* ── CHANNEL GRID ── */
+.channel-grid{
+  display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin:28px 0
+}
+.channel-card{
+  background:var(--paper);border:1px solid var(--border2);border-radius:12px;
+  padding:20px;display:flex;flex-direction:column;gap:10px
+}
+.channel-icon{
+  width:38px;height:38px;border-radius:10px;
+  display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0
+}
+.channel-icon.ig{background:#F0E5F5}
+.channel-icon.fb{background:#E5EBF5}
+.channel-icon.vc{background:var(--sagef)}
+.channel-name{font-size:13px;font-weight:500;color:var(--ink)}
+.channel-desc{font-size:12px;color:var(--ink3);line-height:1.5}
+.channel-tag{
+  font-size:9px;font-weight:600;letter-spacing:0.07em;text-transform:uppercase;
+  padding:3px 8px;border-radius:5px;border:1px solid var(--border2);
+  color:var(--ink4);background:var(--linen);width:fit-content;margin-top:auto
+}
+
+/* ── PAIN TABLE ── */
+.pain-table{
+  display:flex;flex-direction:column;
+  border:1px solid var(--border2);border-radius:14px;overflow:hidden;margin:32px 0
+}
+.pain-hd{
+  display:grid;grid-template-columns:1.1fr 1.6fr 0.7fr;
+  padding:14px 24px;
+  font-size:9.5px;font-weight:600;letter-spacing:0.09em;text-transform:uppercase;
+  color:var(--ink4);background:var(--linen2);border-bottom:1px solid var(--border2)
+}
+.pain-row{
+  display:grid;grid-template-columns:1.1fr 1.6fr 0.7fr;
+  padding:20px 24px;background:var(--paper);border-bottom:1px solid var(--border)
+}
+.pain-row:last-child{border-bottom:none}
+.pain-row:nth-child(odd){background:var(--linen)}
+.pain-col1{border-right:1px solid var(--border);padding-right:20px}
+.pain-col2{padding:0 20px;border-right:1px solid var(--border)}
+.pain-col3{padding-left:20px;display:flex;align-items:flex-start}
+.pain-title{font-size:13px;font-weight:500;color:var(--ink);margin-bottom:3px}
+.pain-sub{font-size:11.5px;color:var(--ink4);line-height:1.4;font-style:italic}
+.pain-fix{font-size:13px;color:var(--ink3);line-height:1.55}
+.outcome-tag{
+  font-size:9px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;
+  padding:4px 9px;border-radius:5px;border:1px solid var(--sagef);
+  color:var(--sage);background:var(--sagef);white-space:nowrap;height:fit-content;
+  border-color:rgba(46,107,79,0.2)
+}
+
+/* ── AI BEHAVIOR ── */
+.behavior-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:28px 0}
+.bcard{
+  background:var(--paper);border:1px solid var(--border2);border-radius:12px;padding:20px
+}
+.bcard-label{
+  font-size:9.5px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;
+  color:var(--ink4);margin-bottom:10px
+}
+.bcard-title{
+  font-family:'Cormorant Garamond',serif;
+  font-size:19px;font-weight:500;color:var(--ink);margin-bottom:8px;line-height:1.2
+}
+.bcard-body{font-size:12.5px;color:var(--ink3);line-height:1.6}
+.bcard-body strong{color:var(--ink);font-weight:500}
+
+/* ── ROLES ── */
+.roles-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:28px 0}
+.role-card{
+  background:var(--paper);border:1px solid var(--border2);border-radius:12px;padding:22px
+}
+.role-name{
+  font-family:'Cormorant Garamond',serif;
+  font-size:20px;font-weight:500;color:var(--ink);margin-bottom:6px
+}
+.role-desc{font-size:12.5px;color:var(--ink3);line-height:1.55;margin-bottom:14px}
+.role-list{list-style:none;display:flex;flex-direction:column;gap:7px}
+.role-list li{
+  font-size:12px;color:var(--ink3);padding-left:14px;position:relative;line-height:1.45
+}
+.role-list li::before{
+  content:'';position:absolute;left:0;top:7px;
+  width:5px;height:5px;border-radius:50%;background:var(--brass)
+}
+
+/* ── PRICING ── */
+.pricing-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin:28px 0}
+.price-card{
+  background:var(--paper);border:1px solid var(--border2);border-radius:12px;padding:24px;
+  display:flex;flex-direction:column
+}
+.price-card.featured{
+  background:var(--ink);border-color:var(--ink)
+}
+.price-tier{
+  font-size:10px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;
+  color:var(--ink4);margin-bottom:14px
+}
+.price-card.featured .price-tier{color:rgba(255,255,255,0.4)}
+.price-amount{
+  font-family:'Cormorant Garamond',serif;
+  font-size:40px;font-weight:400;color:var(--ink);line-height:1;margin-bottom:4px
+}
+.price-card.featured .price-amount{color:#fff}
+.price-period{font-size:12px;color:var(--ink4);margin-bottom:16px}
+.price-card.featured .price-period{color:rgba(255,255,255,0.35)}
+.price-desc{font-size:12.5px;color:var(--ink3);line-height:1.55;margin-bottom:18px}
+.price-card.featured .price-desc{color:rgba(255,255,255,0.55)}
+.price-divider{height:1px;background:var(--border);margin-bottom:16px}
+.price-card.featured .price-divider{background:rgba(255,255,255,0.1)}
+.price-features{list-style:none;display:flex;flex-direction:column;gap:8px;flex:1}
+.price-features li{font-size:12px;color:var(--ink3);padding-left:16px;position:relative;line-height:1.4}
+.price-features li::before{content:'✓';position:absolute;left:0;color:var(--sage);font-size:10px;top:1px;font-weight:700}
+.price-card.featured .price-features li{color:rgba(255,255,255,0.5)}
+.price-card.featured .price-features li::before{color:var(--brassm)}
+
+/* ── MULTI-TENANT CALLOUT ── */
+.callout{
+  background:var(--paper);border:1px solid var(--border2);border-radius:14px;
+  padding:28px 32px;margin:28px 0;display:grid;grid-template-columns:1fr 1fr;gap:24px
+}
+.callout-left{}
+.callout-label{
+  font-size:10px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;
+  color:var(--brass);margin-bottom:10px
+}
+.callout-title{
+  font-family:'Cormorant Garamond',serif;
+  font-size:22px;font-weight:500;color:var(--ink);margin-bottom:8px;line-height:1.2
+}
+.callout-body{font-size:13px;color:var(--ink3);line-height:1.6}
+.callout-right{display:flex;flex-direction:column;gap:8px}
+.ci{
+  background:var(--linen);border:1px solid var(--border);border-radius:9px;
+  padding:11px 14px;display:flex;align-items:flex-start;gap:10px
+}
+.ci-dot{
+  width:7px;height:7px;border-radius:50%;background:var(--sage);
+  flex-shrink:0;margin-top:4px
+}
+.ci-dot.brass{background:var(--brass)}
+.ci-dot.ox{background:var(--oxblood)}
+.ci-text{font-size:12px;color:var(--ink2);line-height:1.45}
+.ci-text strong{font-weight:500;color:var(--ink)}
+
+/* ── PRINCIPLES ── */
+.principles{display:flex;flex-direction:column;gap:0;border:1px solid var(--border2);border-radius:14px;overflow:hidden;margin:28px 0}
+.principle{
+  padding:20px 26px;border-bottom:1px solid var(--border);
+  display:grid;grid-template-columns:200px 1fr;gap:0
+}
+.principle:last-child{border-bottom:none}
+.principle-left{border-right:1px solid var(--border);padding-right:20px}
+.principle-name{
+  font-family:'Cormorant Garamond',serif;
+  font-size:16px;font-weight:500;color:var(--ink)
+}
+.principle-right{padding-left:20px}
+.principle-body{font-size:13px;color:var(--ink3);line-height:1.6}
+.principle-body strong{color:var(--ink);font-weight:500}
+
+/* ── FOOTER ── */
+.footer{
+  border-top:1px solid var(--border2);padding-top:40px;margin-top:80px;
+  display:flex;align-items:center;justify-content:space-between
+}
+.footer-mark{
+  font-family:'Cormorant Garamond',serif;
+  font-size:18px;font-weight:400;color:var(--ink);letter-spacing:0.02em
+}
+.footer-mark em{font-style:normal;color:var(--brass)}
+.footer-sub{font-size:11px;color:var(--ink4)}
+
+/* ── UTILS ── */
+.divider{height:1px;background:var(--border);margin:48px 0}
+.brass-rule{height:2px;width:32px;background:var(--brass);margin-bottom:20px;border-radius:2px}
+
+@media(max-width:680px){
+  .doc{padding:40px 24px 80px}
+  .channel-grid,.roles-grid,.pricing-grid,.behavior-grid{grid-template-columns:1fr}
+  .callout{grid-template-columns:1fr}
+  .flow-step,.pain-row,.principle{grid-template-columns:1fr}
+  .flow-left,.pain-col1,.pain-col2,.principle-left{border-right:none;padding-right:0;border-bottom:1px solid var(--border);padding-bottom:12px;margin-bottom:12px}
+  .flow-right,.pain-col2,.pain-col3,.principle-right{padding-left:0}
+  .pain-hd{display:none}
+  .wordmark{font-size:38px}
+  .section-title{font-size:28px}
+  .pricing-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="doc">
+
+<!-- ══ COVER ══ -->
+<div class="cover">
+  <div class="eyebrow">Harwick AI — Product Reference</div>
+  <div class="wordmark">Harwick<em>.</em></div>
+  <div class="wordmark-sub">AI operating layer for real estate teams</div>
+  <div class="cover-body">
+    Harwick is built for the brokerage that doesn't want to miss another lead. It captures inbound demand from <strong>Instagram DMs, Facebook comments, and voice calls</strong> — holds the conversation, qualifies the lead, routes it to the right agent, and syncs everything to Follow Up Boss. <strong>Around the clock. Without a coordinator.</strong>
+  </div>
+  <div class="cover-tags">
+    <div class="ctag">Multi-Tenant</div>
+    <div class="ctag">Multi-User</div>
+    <div class="ctag">Social + Voice Intake</div>
+    <div class="ctag">AI Qualification</div>
+    <div class="ctag">Human Takeover</div>
+    <div class="ctag">Follow Up Boss Sync</div>
+  </div>
+</div>
+
+<!-- ══ WHAT IT IS ══ -->
+<div class="section">
+  <div class="section-eyebrow">The Product</div>
+  <div class="brass-rule"></div>
+  <div class="section-title">Not a chatbot. <em>A front desk.</em></div>
+  <div class="section-body">
+    Most AI tools for real estate are lead forms with a chatbot strapped on. Harwick is different. It's a <strong>full intake-to-routing system</strong> — modeled as a typed AI runtime that holds conversation state, reads listing context, qualifies leads one question at a time, and knows when to step back for a human. Every decision is explainable. Every action is logged. The agent always knows why.
+  </div>
+  <div class="section-body">
+    The core insight behind Harwick: <strong>real estate lead loss doesn't happen because agents are lazy</strong>. It happens because the gap between lead arrival and first qualified response is too slow, too manual, or too fragmented across channels. Harwick closes that gap entirely.
+  </div>
+
+  <!-- Intake channels -->
+  <div class="channel-grid">
+    <div class="channel-card">
+      <div class="channel-icon ig">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="#7B2D7B"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
+      </div>
+      <div class="channel-name">Instagram</div>
+      <div class="channel-desc">DMs and comments captured from connected business accounts. Post context hydrated automatically for listing-specific replies.</div>
+      <div class="channel-tag">Meta Webhooks</div>
+    </div>
+    <div class="channel-card">
+      <div class="channel-icon fb">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="#1A3A6B"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+      </div>
+      <div class="channel-name">Facebook</div>
+      <div class="channel-desc">Page DMs and post comments normalized alongside Instagram — same lead thread, same operator queue, same AI context.</div>
+      <div class="channel-tag">Meta Webhooks</div>
+    </div>
+    <div class="channel-card">
+      <div class="channel-icon vc">
+        <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#2E6B4F" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.77 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l.91-.91a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 17.92z"/></svg>
+      </div>
+      <div class="channel-name">Voice Calls</div>
+      <div class="channel-desc">Workspace-provisioned phone numbers via Retell. AI handles the call, qualifies, transfers to the right agent, or creates a callback task.</div>
+      <div class="channel-tag">Retell AI</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ WORKFLOW ══ -->
+<div class="section">
+  <div class="section-eyebrow">The Workflow</div>
+  <div class="brass-rule"></div>
+  <div class="section-title">Lead arrival to agent handoff</div>
+  <div class="section-body">
+    Every lead follows the same path — regardless of channel. Harwick normalizes everything into one intake flow, one lead record, and one conversation thread.
+  </div>
+  <div class="flow">
+    <div class="flow-step">
+      <div class="flow-left">
+        <div class="flow-num">Phase 1</div>
+        <div class="flow-name">Lead Arrives</div>
+      </div>
+      <div class="flow-right">
+        <div class="flow-desc">A prospect DMs a listing post, comments on a reel, or calls a routed number. Harwick validates the payload, normalizes it into an internal lead event, and creates or updates the lead record. Post context — captions, listing hints, CTA — is hydrated automatically.</div>
+        <div class="flow-pill">Instant capture · All channels</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-left">
+        <div class="flow-num">Phase 2</div>
+        <div class="flow-name">AI Holds the Conversation</div>
+      </div>
+      <div class="flow-right">
+        <div class="flow-desc">Harwick AI generates a context-aware reply informed by the conversation history, listing inventory, workspace tone profile, and the post the lead came from. High-confidence replies auto-send. Anything uncertain surfaces in the operator queue for human approval before it goes out.</div>
+        <div class="flow-pill sage">Context-aware · Tone-matched</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-left">
+        <div class="flow-num">Phase 3</div>
+        <div class="flow-name">Sequential Qualification</div>
+      </div>
+      <div class="flow-right">
+        <div class="flow-desc">One question at a time — intent, timeline, price range, area, property type, financing status. Each answer updates the lead score and qualification state in real time. The AI never interrogates. It converses. Every signal feeds the routing decision downstream.</div>
+        <div class="flow-pill">Score updates live</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-left">
+        <div class="flow-num">Phase 4</div>
+        <div class="flow-name">Human Takeover</div>
+      </div>
+      <div class="flow-right">
+        <div class="flow-desc">Any operator or agent can pause AI on any individual thread and take over manually. The AI watches, retains context, and picks back up the moment the operator resumes. <strong>Takeover is per-conversation</strong> — other leads on the same team keep running on AI in parallel. Pause one, not all.</div>
+        <div class="flow-pill ox">Thread-scoped · Full context preserved</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-left">
+        <div class="flow-num">Phase 5</div>
+        <div class="flow-name">Intelligent Routing</div>
+      </div>
+      <div class="flow-right">
+        <div class="flow-desc">Once qualified, Harwick routes by area coverage, property type expertise, price range, and agent availability. The routing decision is always shown with its reasoning — not a black box. Operators can override. Everything is auditable in the lead timeline.</div>
+        <div class="flow-pill sage">Explainable · Overrideable</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-left">
+        <div class="flow-num">Phase 6</div>
+        <div class="flow-name">FUB Handoff</div>
+      </div>
+      <div class="flow-right">
+        <div class="flow-desc">Qualified lead + full conversation thread + qualification summary + suggested next action syncs to Follow Up Boss. Agent wakes up to a contact they can close — not one they need to re-qualify. Back-sync reconciliation prevents echo loops and keeps both systems accurate.</div>
+        <div class="flow-pill">Full context preserved</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ AI BEHAVIOR ══ -->
+<div class="section">
+  <div class="section-eyebrow">The AI Runtime</div>
+  <div class="brass-rule"></div>
+  <div class="section-title">How Harwick AI <em>actually</em> thinks</div>
+  <div class="section-body">
+    Harwick AI is not a prompt wrapper. It is a typed runtime — each turn returns a full conversation response with qualification state, tool calls, confidence scores, safety flags, and memory patches. The human only sees the reply. The system sees everything.
+  </div>
+  <div class="behavior-grid">
+    <div class="bcard">
+      <div class="bcard-label">Conversation Memory</div>
+      <div class="bcard-title">Isolated per thread</div>
+      <div class="bcard-body">Each conversation has its own persistent state. When a lead resumes after 3 days, Harwick picks up exactly where it left off — buyer intent, price range, questions asked, questions not yet answered.</div>
+    </div>
+    <div class="bcard">
+      <div class="bcard-label">Automation Policy</div>
+      <div class="bcard-title">AI decides. Policy executes.</div>
+      <div class="bcard-body">The AI returns what <em>should</em> happen. The automation policy decides whether it's <strong>allowed</strong> to auto-send, queue for approval, or block entirely. Safe qualification replies auto-send. Showing requests and CRM sync stay approval-gated.</div>
+    </div>
+    <div class="bcard">
+      <div class="bcard-label">Tool Calls</div>
+      <div class="bcard-title">Real actions, not just text</div>
+      <div class="bcard-body">The runtime issues typed tool calls — <code style="font-size:11px;background:var(--linen2);padding:1px 5px;border-radius:4px;color:var(--ink2)">send_meta_reply</code>, <code style="font-size:11px;background:var(--linen2);padding:1px 5px;border-radius:4px;color:var(--ink2)">route_lead</code>, <code style="font-size:11px;background:var(--linen2);padding:1px 5px;border-radius:4px;color:var(--ink2)">sync_follow_up_boss</code>, <code style="font-size:11px;background:var(--linen2);padding:1px 5px;border-radius:4px;color:var(--ink2)">pause_automation</code>. Every action is governed, logged, and reversible.</div>
+    </div>
+    <div class="bcard">
+      <div class="bcard-label">Safety & Confidence</div>
+      <div class="bcard-title">It knows when to stop</div>
+      <div class="bcard-body">Every AI turn includes a confidence score and safety flags. Legal questions, lending topics, valuation estimates — these trigger automatic escalation to a human queue instead of an AI-generated response that could create liability.</div>
+    </div>
+    <div class="bcard">
+      <div class="bcard-label">Listing Context</div>
+      <div class="bcard-title">Knows your inventory</div>
+      <div class="bcard-body">Harwick reads from workspace listing facts — price, beds, baths, status, verification state — before every reply. It never guesses. If a listing is unverified or stale, it flags for operator review instead of hallucinating details.</div>
+    </div>
+    <div class="bcard">
+      <div class="bcard-label">Parallel Convos</div>
+      <div class="bcard-title">Many threads. One team.</div>
+      <div class="bcard-body">An agent can be manually working conversations 1 and 3 while Harwick runs conversations 2, 4, and 5 — all simultaneously, all isolated. No conversation bleeds into another. No context is shared across leads.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MULTI-TENANT ══ -->
+<div class="section">
+  <div class="section-eyebrow">Architecture</div>
+  <div class="brass-rule"></div>
+  <div class="section-title">Built for <em>teams</em>, not just solo agents</div>
+  <div class="section-body">
+    Harwick is multi-tenant and multi-user at its core. Each workspace is fully isolated — its own integrations, routing rules, listing inventory, agent profiles, and conversation history. A brokerage and a solo agent run on the same infrastructure, scoped completely separately.
+  </div>
+
+  <div class="callout">
+    <div class="callout-left">
+      <div class="callout-label">Real-world example</div>
+      <div class="callout-title">Four agents. Twenty conversations. One queue.</div>
+      <div class="callout-body">User A from Prestige Realty has conversations 1–4 running on AI and conversations 5–6 in manual takeover. User D from another workspace has conversations 1–2 manual, 5–7 on AI. Every thread is isolated. Every workspace is private. The AI serves all of them simultaneously.</div>
+    </div>
+    <div class="callout-right">
+      <div class="ci"><span class="ci-dot"></span><div class="ci-text"><strong>Workspace isolation</strong> — each brokerage owns its own integrations, routing, listing facts, and member state</div></div>
+      <div class="ci"><span class="ci-dot brass"></span><div class="ci-text"><strong>Per-conversation automation state</strong> — pause AI on one thread without affecting any other</div></div>
+      <div class="ci"><span class="ci-dot"></span><div class="ci-text"><strong>Role-aware views</strong> — Agent, Operator, Team Lead, and Owner each see the right queue for their responsibility</div></div>
+      <div class="ci"><span class="ci-dot ox"></span><div class="ci-text"><strong>Full audit trail</strong> — every message, routing decision, and action is timestamped and attributed</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ PAIN POINTS ══ -->
+<div class="section">
+  <div class="section-eyebrow">Why Teams Buy</div>
+  <div class="brass-rule"></div>
+  <div class="section-title">What Harwick fixes</div>
+  <div class="pain-table">
+    <div class="pain-hd">
+      <div>Pain Point</div>
+      <div>Harwick Solution</div>
+      <div>Outcome</div>
+    </div>
+    <div class="pain-row">
+      <div class="pain-col1">
+        <div class="pain-title">Missed leads after hours</div>
+        <div class="pain-sub">No one answers. Buyer DMs competitor.</div>
+      </div>
+      <div class="pain-col2">
+        <div class="pain-fix">AI responds on all channels 24/7. Captures intent, holds conversation, and qualifies overnight while agents are off.</div>
+      </div>
+      <div class="pain-col3"><div class="outcome-tag">Direct Fix</div></div>
+    </div>
+    <div class="pain-row">
+      <div class="pain-col1">
+        <div class="pain-title">Manual qualification waste</div>
+        <div class="pain-sub">Agents spend hours asking the same 6 questions.</div>
+      </div>
+      <div class="pain-col2">
+        <div class="pain-fix">AI qualifies one question at a time in natural language. Score and intent ready before the agent ever sees the lead.</div>
+      </div>
+      <div class="pain-col3"><div class="outcome-tag">Direct Fix</div></div>
+    </div>
+    <div class="pain-row">
+      <div class="pain-col1">
+        <div class="pain-title">Fragmented channels</div>
+        <div class="pain-sub">Leads split across Instagram, Facebook, calls, and texts.</div>
+      </div>
+      <div class="pain-col2">
+        <div class="pain-fix">All inbound sources feed one lead record, one conversation thread, and one operator queue. No tab-switching.</div>
+      </div>
+      <div class="pain-col3"><div class="outcome-tag">Direct Fix</div></div>
+    </div>
+    <div class="pain-row">
+      <div class="pain-col1">
+        <div class="pain-title">Routing is guesswork</div>
+        <div class="pain-sub">Wrong agent, reassignment, lost relationship.</div>
+      </div>
+      <div class="pain-col2">
+        <div class="pain-fix">Routes by area, type, price range, and capacity. Shows reasoning. Operators can always override. Fully auditable.</div>
+      </div>
+      <div class="pain-col3"><div class="outcome-tag">Direct Fix</div></div>
+    </div>
+    <div class="pain-row">
+      <div class="pain-col1">
+        <div class="pain-title">Context lost in CRM</div>
+        <div class="pain-sub">Agent sees a name. Misses intent, channel, and score.</div>
+      </div>
+      <div class="pain-col2">
+        <div class="pain-fix">Full conversation + qualification summary + suggested next action syncs to Follow Up Boss. Agent starts ready to close.</div>
+      </div>
+      <div class="pain-col3"><div class="outcome-tag">Strong Fix</div></div>
+    </div>
+    <div class="pain-row">
+      <div class="pain-col1">
+        <div class="pain-title">No audit trail</div>
+        <div class="pain-sub">Can't prove what was said, when, or by whom.</div>
+      </div>
+      <div class="pain-col2">
+        <div class="pain-fix">Every message, routing decision, takeover, and sync event is logged with timestamp, author, and reason. Permanent record.</div>
+      </div>
+      <div class="pain-col3"><div class="outcome-tag">Direct Fix</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ ROLES ══ -->
+<div class="section">
+  <div class="section-eyebrow">Team Roles</div>
+  <div class="brass-rule"></div>
+  <div class="section-title">Who does what inside Harwick</div>
+  <div class="roles-grid">
+    <div class="role-card">
+      <div class="role-name">Agent</div>
+      <div class="role-desc">Receives qualified leads ready to act on. Can pause AI, take over a thread, and resume at any time without touching other conversations.</div>
+      <ul class="role-list">
+        <li>Work assigned lead queue</li>
+        <li>Pause / resume AI per conversation</li>
+        <li>Set routing profile (area, type, price range)</li>
+        <li>View full conversation history and qualification</li>
+        <li>Receive callback and showing tasks</li>
+      </ul>
+    </div>
+    <div class="role-card">
+      <div class="role-name">Operator / ISA</div>
+      <div class="role-desc">Manages the shared work queue. Reviews AI drafts, approves or edits before send, handles edge cases the AI escalates.</div>
+      <ul class="role-list">
+        <li>Approve or dismiss AI reply drafts</li>
+        <li>Take manual control of any conversation</li>
+        <li>Reassign leads between agents</li>
+        <li>Manage unrouted and high-touch leads</li>
+        <li>Review routing decisions and overrides</li>
+      </ul>
+    </div>
+    <div class="role-card">
+      <div class="role-name">Team Lead</div>
+      <div class="role-desc">Manages team routing rules, capacity, and oversight. Sees team-wide performance and can override any assignment or escalation.</div>
+      <ul class="role-list">
+        <li>Configure routing rules and priorities</li>
+        <li>View team leads queue and performance</li>
+        <li>Override assignments and escalations</li>
+        <li>Manage member profiles and availability</li>
+        <li>Access team-level activity log</li>
+      </ul>
+    </div>
+    <div class="role-card">
+      <div class="role-name">Owner / Broker</div>
+      <div class="role-desc">Controls workspace integrations, billing, and full system visibility. Receives unrouted high-touch leads. Can override anything.</div>
+      <ul class="role-list">
+        <li>Connect Meta, Retell voice, and Follow Up Boss</li>
+        <li>Set workspace automation policy</li>
+        <li>Access full audit logs across all agents</li>
+        <li>Override any assignment or routing rule</li>
+        <li>Manage plan and workspace settings</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ══ PRINCIPLES ══ -->
+<div class="section">
+  <div class="section-eyebrow">Design Principles</div>
+  <div class="brass-rule"></div>
+  <div class="section-title">How Harwick is built to behave</div>
+  <div class="principles">
+    <div class="principle">
+      <div class="principle-left">
+        <div class="principle-name">Automation pauses for humans</div>
+      </div>
+      <div class="principle-right">
+        <div class="principle-body">AI handles routine qualification. Humans handle exceptions. The system always tells you <strong>why it paused</strong> — no silent failures, no mystery states. An operator can always see what the AI was doing and step in cleanly.</div>
+      </div>
+    </div>
+    <div class="principle">
+      <div class="principle-left">
+        <div class="principle-name">Context preserved everywhere</div>
+      </div>
+      <div class="principle-right">
+        <div class="principle-body">Every action — from first reply to final FUB sync — carries full context. No re-qualification. No <em>"who was this person again?"</em> The agent always arrives informed.</div>
+      </div>
+    </div>
+    <div class="principle">
+      <div class="principle-left">
+        <div class="principle-name">Routing is explainable</div>
+      </div>
+      <div class="principle-right">
+        <div class="principle-body">Why did this lead go to this agent? Show the work. Score breakdown. Match criteria. Area, type, capacity. Operators can always see and override the reasoning — the system is never a black box.</div>
+      </div>
+    </div>
+    <div class="principle">
+      <div class="principle-left">
+        <div class="principle-name">One lead, one thread</div>
+      </div>
+      <div class="principle-right">
+        <div class="principle-body">Instagram DM, Facebook comment, SMS, voice call — they're all one lead with one conversation history. No channel silos. No context jumps. Whether the lead calls back three days later or DMs from a different account, Harwick connects it.</div>
+      </div>
+    </div>
+    <div class="principle">
+      <div class="principle-left">
+        <div class="principle-name">The AI never guesses</div>
+      </div>
+      <div class="principle-right">
+        <div class="principle-body">If a listing is unverified, the AI does not fabricate details. If a lead asks a legal or lending question, it escalates instead of answering. Confidence scores gate every auto-send. When in doubt, it surfaces — it never wings it.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ PRICING ══ -->
+<div class="section">
+  <div class="section-eyebrow">Pricing</div>
+  <div class="brass-rule"></div>
+  <div class="section-title">One product. Three scales.</div>
+  <div class="pricing-grid">
+    <div class="price-card">
+      <div class="price-tier">Solo Agent</div>
+      <div class="price-amount">$299</div>
+      <div class="price-period">per month</div>
+      <div class="price-desc">For the individual agent running their own social presence and fielding inbound leads alone.</div>
+      <div class="price-divider"></div>
+      <ul class="price-features">
+        <li>1 workspace, 1 user</li>
+        <li>Instagram + Facebook intake</li>
+        <li>AI qualification and reply drafts</li>
+        <li>Voice agent with your number</li>
+        <li>Follow Up Boss sync</li>
+        <li>Work queue and activity log</li>
+        <li>Listing inventory management</li>
+      </ul>
+    </div>
+    <div class="price-card featured">
+      <div class="price-tier">Team</div>
+      <div class="price-amount" style="color:#fff">$799</div>
+      <div class="price-period">per month</div>
+      <div class="price-desc">For a team of agents with a shared queue, routing rules, and a team lead managing assignments.</div>
+      <div class="price-divider"></div>
+      <ul class="price-features">
+        <li>1 workspace, up to 10 users</li>
+        <li>Everything in Solo</li>
+        <li>Multi-agent routing engine</li>
+        <li>Per-conversation AI takeover</li>
+        <li>Team lead oversight view</li>
+        <li>Operator / ISA queue role</li>
+        <li>Assignment review and override</li>
+        <li>Team performance visibility</li>
+      </ul>
+    </div>
+    <div class="price-card">
+      <div class="price-tier">Brokerage</div>
+      <div class="price-amount">$1,500</div>
+      <div class="price-period">per month</div>
+      <div class="price-desc">For a full brokerage or large team with multiple pipelines, full audit needs, and high inbound volume.</div>
+      <div class="price-divider"></div>
+      <ul class="price-features">
+        <li>1 workspace, unlimited users</li>
+        <li>Everything in Team</li>
+        <li>Owner / broker role with full override</li>
+        <li>Full audit log access</li>
+        <li>Multi-channel Meta accounts</li>
+        <li>Custom routing rule configuration</li>
+        <li>FUB conflict resolution tools</li>
+        <li>Worker and sync health visibility</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ══ FOOTER ══ -->
+<div class="footer">
+  <div>
+    <div class="footer-mark">Harwick<em>.</em></div>
+    <div class="footer-sub" style="margin-top:4px">AI operating layer for real estate teams and brokerages</div>
+  </div>
+  <div style="text-align:right">
+    <div class="footer-sub">harwick.ai</div>
+    <div class="footer-sub" style="margin-top:3px">Built for owners, agents, and operators who want to stay in control.</div>
+  </div>
+</div>
+
+</div>
+</body>
+</html>

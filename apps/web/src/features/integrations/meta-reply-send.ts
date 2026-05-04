@@ -9,6 +9,7 @@ import {
 import { decryptCredential } from "../../lib/credentials";
 import type { ConnectedMetaCredentialRecord } from "../../lib/supabase/integration-accounts";
 import type { LeadEventInsertRow, LeadEventPersistenceRepository } from "../../lib/supabase/lead-events";
+import type { ConversationMessageRepository } from "../../lib/supabase/conversation-messages";
 
 export type MetaReplyCredentialRepository = {
   findConnectedCredential(params: {
@@ -59,6 +60,9 @@ export async function sendMetaReply(params: {
   leadEventRepository: Pick<LeadEventPersistenceRepository, "insertLeadEventRows">;
   metaClient: MetaReplyClient;
   automationMode?: ConversationAutomationMode;
+  conversationMessageRepository?: ConversationMessageRepository;
+  senderType?: "ai" | "operator";
+  senderId?: string | null;
   now?: Date;
 }): Promise<
   | { status: 200; body: SendMetaReplyResponse }
@@ -72,7 +76,11 @@ export async function sendMetaReply(params: {
     };
   }
   const automationMode = params.automationMode ?? parsed.data.automationMode;
-  if (!canAutomationSend(automationMode)) {
+  // Operator manual sends bypass the automation gate — that gate is meant for
+  // AI auto-execute decisions only. Operator stepping in is the whole point
+  // of takeover and must work regardless of automation mode.
+  const isOperatorSend = params.senderType === "operator";
+  if (!isOperatorSend && !canAutomationSend(automationMode)) {
     return {
       status: 400,
       body: { error: "invalid_request" },
@@ -115,6 +123,29 @@ export async function sendMetaReply(params: {
       occurredAt,
     }),
   ]);
+
+  // Mirror the outbound into conversation_messages so realtime watchers see it
+  // and the next AI turn loads it as part of the thread history. Without this
+  // the conversations page never gets a realtime ping for AI/operator replies.
+  if (params.conversationMessageRepository !== undefined && parsed.data.leadId !== null) {
+    try {
+      await params.conversationMessageRepository.insertMessage({
+        lead_id: parsed.data.leadId,
+        workspace_id: parsed.data.workspaceId,
+        sender_type: params.senderType ?? "ai",
+        sender_id: params.senderId ?? null,
+        body: parsed.data.reply,
+        source_channel: parsed.data.channel,
+        provider_message_id: providerEvent.providerEventId,
+        status: "sent",
+        created_at: occurredAt,
+        error_code: null,
+        error_message: null,
+      });
+    } catch (mirrorError) {
+      console.error("[sendMetaReply] failed to mirror to conversation_messages:", mirrorError);
+    }
+  }
 
   return {
     status: 200,

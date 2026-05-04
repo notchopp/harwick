@@ -185,7 +185,7 @@ describe("sendConversationMessage", () => {
     }
   });
 
-  it("rejects when automation is paused", async () => {
+  it("allows operator sends when automation is paused", async () => {
     const automationState: ConversationAutomationStateRow = {
       id: "state_id",
       workspace_id: workspaceId,
@@ -211,9 +211,9 @@ describe("sendConversationMessage", () => {
       sendMetaReply: buildMockSender(),
     });
 
-    expect(result.status).toBe(403);
-    if (result.status === 403) {
-      expect(result.body.error).toBe("automation_paused");
+    expect(result.status).toBe(200);
+    if (result.status === 200) {
+      expect(result.body.status).toBe("sent");
     }
   });
 

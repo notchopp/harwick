@@ -159,44 +159,73 @@ export function createSupabaseHarwickAiAutomationPolicyRepository(
 ): HarwickAiAutomationPolicyRepository {
   return {
     async resolveEffectivePolicy(params) {
-      const { data, error } = await supabase
-        .from("harwick_ai_automation_policies")
-        .select("*")
-        .eq("workspace_id", params.workspaceId)
-        .or(`lead_id.eq.${params.leadId ?? "00000000-0000-0000-0000-000000000000"},member_id.eq.${params.memberId ?? "00000000-0000-0000-0000-000000000000"},scope.eq.workspace`)
-        .returns<HarwickAiAutomationPolicyRow[]>();
+      const [policyResult, stateResult] = await Promise.all([
+        supabase
+          .from("harwick_ai_automation_policies")
+          .select("*")
+          .eq("workspace_id", params.workspaceId)
+          .or(`lead_id.eq.${params.leadId ?? "00000000-0000-0000-0000-000000000000"},member_id.eq.${params.memberId ?? "00000000-0000-0000-0000-000000000000"},scope.eq.workspace`)
+          .returns<HarwickAiAutomationPolicyRow[]>(),
+        params.leadId === null
+          ? Promise.resolve({ data: null, error: null })
+          : supabase
+              .from("conversation_automation_states")
+              .select("automation_mode, automation_reason")
+              .eq("workspace_id", params.workspaceId)
+              .eq("lead_id", params.leadId)
+              .maybeSingle<{ automation_mode: "ai_on" | "human_takeover" | "paused_by_rule"; automation_reason: string | null }>(),
+      ]);
 
-      if (error !== null) {
-        throw error;
+      if (policyResult.error !== null) {
+        throw policyResult.error;
+      }
+      if (stateResult.error !== null) {
+        throw stateResult.error;
       }
 
-      const rows = data ?? [];
-      const conversationPolicy = params.leadId === null
-        ? undefined
-        : rows.find((row) => row.scope === "conversation" && row.lead_id === params.leadId);
-      if (conversationPolicy !== undefined) {
-        return mapPolicyRow(conversationPolicy);
+      const rows = policyResult.data ?? [];
+      const conversationState = stateResult.data ?? null;
+
+      const basePolicy = (() => {
+        const conversationPolicy = params.leadId === null
+          ? undefined
+          : rows.find((row) => row.scope === "conversation" && row.lead_id === params.leadId);
+        if (conversationPolicy !== undefined) {
+          return mapPolicyRow(conversationPolicy);
+        }
+
+        const memberPolicy = params.memberId === null
+          ? undefined
+          : rows.find((row) => row.scope === "member" && row.member_id === params.memberId);
+        if (memberPolicy !== undefined) {
+          return mapPolicyRow(memberPolicy);
+        }
+
+        const workspacePolicy = rows.find((row) => row.scope === "workspace");
+        if (workspacePolicy !== undefined) {
+          return mapPolicyRow(workspacePolicy);
+        }
+
+        return HarwickAiAutomationPolicySchema.parse({
+          workspaceId: params.workspaceId,
+          memberId: params.memberId,
+          leadId: params.leadId,
+          scope: params.leadId === null ? "workspace" : "conversation",
+          automationMode: "ai_on",
+        });
+      })();
+
+      // Per-conversation pause is the source of truth: if an operator paused
+      // this thread via the UI, override the policy mode so the runtime
+      // does not auto-execute. Other threads in this workspace are unaffected.
+      if (conversationState !== null && conversationState.automation_mode !== "ai_on") {
+        return HarwickAiAutomationPolicySchema.parse({
+          ...basePolicy,
+          automationMode: conversationState.automation_mode,
+        });
       }
 
-      const memberPolicy = params.memberId === null
-        ? undefined
-        : rows.find((row) => row.scope === "member" && row.member_id === params.memberId);
-      if (memberPolicy !== undefined) {
-        return mapPolicyRow(memberPolicy);
-      }
-
-      const workspacePolicy = rows.find((row) => row.scope === "workspace");
-      if (workspacePolicy !== undefined) {
-        return mapPolicyRow(workspacePolicy);
-      }
-
-      return HarwickAiAutomationPolicySchema.parse({
-        workspaceId: params.workspaceId,
-        memberId: params.memberId,
-        leadId: params.leadId,
-        scope: params.leadId === null ? "workspace" : "conversation",
-        automationMode: "ai_on",
-      });
+      return basePolicy;
     },
   };
 }

@@ -1,10 +1,13 @@
 import type { NormalizedLeadEvent } from "@realty-ops/core";
 import type { HarwickAiTurnGeneratorService } from "./harwick-ai-turn-generator";
 import type { WorkflowJobEnqueuer } from "../../lib/supabase/workflow-jobs";
+import type { ConversationMessageRepository } from "../../lib/supabase/conversation-messages";
+import { loadAiConversationHistory } from "./harwick-ai-conversation-history";
 
 export type MetaToHarwickAiBridgeParams = {
   generatorService: HarwickAiTurnGeneratorService;
   enqueueWorkflowJob: WorkflowJobEnqueuer;
+  conversationMessageRepository?: ConversationMessageRepository;
 };
 
 export type GenerateAndEnqueueHarwickAiTurnParams = {
@@ -40,8 +43,13 @@ export async function generateAndEnqueueHarwickAiTurn(
 
   const channel = params.event.sourceChannel as typeof validChannels[number];
 
-  // For now, minimal context — just the inbound text
-  // TODO: Hydrate with lead history, agent assignment, listing context
+  const conversationHistory = bridge.conversationMessageRepository === undefined
+    ? []
+    : await loadAiConversationHistory({
+        leadId: params.leadId,
+        repository: bridge.conversationMessageRepository,
+      });
+
   const turn = await bridge.generatorService.generateAndPersistTurn({
     workspaceId: params.workspaceId,
     leadId: params.leadId,
@@ -50,8 +58,8 @@ export async function generateAndEnqueueHarwickAiTurn(
     channel,
     inboundText: params.event.text,
     context: {
-      conversationHistory: [],
-      workspaceName: "Workspace", // TODO: fetch workspace name
+      conversationHistory,
+      workspaceName: "Workspace",
       toneProfile: {},
       listingContext: null,
       calendarContext: [],
@@ -84,9 +92,11 @@ export async function generateAndEnqueueHarwickAiTurn(
 export function createMetaToHarwickAiBridge(
   generatorService: HarwickAiTurnGeneratorService,
   enqueueWorkflowJob: WorkflowJobEnqueuer,
+  conversationMessageRepository?: ConversationMessageRepository,
 ): MetaToHarwickAiBridgeParams {
   return {
     generatorService,
     enqueueWorkflowJob,
+    ...(conversationMessageRepository === undefined ? {} : { conversationMessageRepository }),
   };
 }

@@ -17,6 +17,8 @@ import type { RealtyOpsSupabaseClient } from "../../lib/supabase/server-client";
 import { sendMetaReply } from "../integrations/meta-reply-send";
 import { createSupabaseMetaCredentialRepository } from "../../lib/supabase/integration-accounts";
 import type { SocialReplyQueueRepository } from "../operator-queues/operator-queues";
+import { createSupabaseConversationMessageRepository } from "../../lib/supabase/conversation-messages";
+import { loadAiConversationHistory } from "./harwick-ai-conversation-history";
 
 export type GenerateAndExecuteHarwickAiTurnParams = {
   workspaceId: string;
@@ -70,12 +72,20 @@ export async function generateAndExecuteHarwickAiTurnSync(
       leadId: params.leadId,
     });
 
-    // Build runtime input
+    // Hydrate prior conversation messages so the AI has memory of the thread.
+    // Without this, every turn is generated as if it's the first — breaking
+    // the north-star promise of "picks up exactly where it left off".
+    const conversationRepo = createSupabaseConversationMessageRepository(deps.supabase);
+    const conversationHistory = await loadAiConversationHistory({
+      leadId: params.leadId,
+      repository: conversationRepo,
+    });
+
     const runtimeInput = HarwickAiRuntimeInputSchema.parse({
       workspaceName: "Workspace",
       channel,
       inboundText: params.event.text,
-      conversation: [],
+      conversation: conversationHistory,
       state: null,
       toneProfile: {},
       postContext: null,
@@ -154,6 +164,8 @@ export async function generateAndExecuteHarwickAiTurnSync(
           credentialRepository: createSupabaseMetaCredentialRepository(deps.supabase),
           leadEventRepository: deps.leadEventRepository,
           metaClient: createMetaMessagingClient(),
+          conversationMessageRepository: conversationRepo,
+          senderType: "ai",
         });
 
         if (sendResult.status === 200) {

@@ -15,6 +15,7 @@ import { Bot, CalendarClock, CheckCircle2, ClipboardCheck, GitBranch, Home, List
 import { type KeyboardEvent, type ReactNode, useEffect, useMemo, useState } from "react";
 
 import { AppShell } from "../../components/app-shell";
+import { LeadActionToolbar } from "../conversations/lead-action-toolbar";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
@@ -752,11 +753,13 @@ function ActivityTimeline(props: { entry: WorkItem }) {
 
 function ReplyDetail(props: {
   actionStatus: string | null;
-  onReplyAction: (action: "send" | "takeover" | "resume" | "dismiss", reply: Reply) => void;
   reply: Reply;
+  workspaceId: string;
+  currentMemberId: string;
+  onChanged?: () => void | Promise<void>;
 }) {
   const leadName = getWorkItemLeadName({ kind: "reply", item: props.reply });
-  const aiIsOn = props.reply.automationMode === "ai_on";
+  const canActOnReal = props.reply.workspaceId !== undefined && props.reply.leadId !== undefined;
 
   return (
     <div className="space-y-4">
@@ -786,20 +789,24 @@ function ReplyDetail(props: {
             {props.actionStatus}
           </div>
         )}
-        <div className="mt-4 flex flex-wrap gap-2">
-          <Button className={primaryPillClass} onClick={() => props.onReplyAction("send", props.reply)} variant="ghost">
-            {props.reply.primaryAction}
-          </Button>
-          <Button className={outlinePillClass} onClick={() => props.onReplyAction("takeover", props.reply)} variant="ghost">
-            {props.reply.secondaryAction}
-          </Button>
-          <Button className={outlinePillClass} onClick={() => props.onReplyAction(aiIsOn ? "takeover" : "resume", props.reply)} variant="ghost">
-            {aiIsOn ? "pause ai" : "resume ai"}
-          </Button>
-          <Button className={outlinePillClass} onClick={() => props.onReplyAction("dismiss", props.reply)} variant="ghost">
-            dismiss
-          </Button>
-        </div>
+        {canActOnReal ? (
+          <div className="mt-4">
+            <LeadActionToolbar
+              workspaceId={props.reply.workspaceId!}
+              leadId={props.reply.leadId!}
+              automationMode={props.reply.automationMode}
+              assignedMemberId={null}
+              currentMemberId={props.currentMemberId}
+              draft={props.reply.draft}
+              reviewId={props.reply.reviewId ?? null}
+              {...(props.onChanged === undefined ? {} : { onChanged: props.onChanged })}
+            />
+          </div>
+        ) : (
+          <div className="mt-4 rounded-[11px] border border-dashed border-border bg-surface px-3 py-3 text-[11.5px] text-muted">
+            this work item is missing its lead reference, so the toolbar cannot reach the backend.
+          </div>
+        )}
       </DetailSection>
       <ActivityTimeline entry={{ kind: "reply", item: props.reply }} />
     </div>
@@ -910,10 +917,12 @@ function DetailSideRail(props: { entry: WorkItem }) {
 function WorkItemDetailSheet(props: {
   actionStatus: string | null;
   entry: WorkItem | null;
-  onReplyAction: (action: "send" | "takeover" | "resume" | "dismiss", reply: Reply) => void;
   onOpenChange: (open: boolean) => void;
   onTaskAction: (action: "callback" | "reviewed" | "dismiss", task: Task) => void;
+  workspaceId: string;
   workspaceName: string;
+  currentMemberId: string;
+  onChanged?: () => void | Promise<void>;
 }) {
   const entry = props.entry;
   const leadName = entry === null ? "" : getWorkItemLeadName(entry);
@@ -974,7 +983,13 @@ function WorkItemDetailSheet(props: {
                 </div>
 
                 {entry.kind === "reply" ? (
-                  <ReplyDetail actionStatus={props.actionStatus} onReplyAction={props.onReplyAction} reply={entry.item} />
+                  <ReplyDetail
+                    actionStatus={props.actionStatus}
+                    reply={entry.item}
+                    workspaceId={props.workspaceId}
+                    currentMemberId={props.currentMemberId}
+                    {...(props.onChanged === undefined ? {} : { onChanged: props.onChanged })}
+                  />
                 ) : (
                   <TaskDetail actionStatus={props.actionStatus} onTaskAction={props.onTaskAction} task={entry.item} />
                 )}
@@ -1259,6 +1274,7 @@ export type HomePageProps = {
   workspaceName: string;
   operatorName: string;
   operatorRole: WorkspaceRole;
+  operatorMemberId: string;
 };
 
 type StatusPill = {
@@ -1344,76 +1360,6 @@ export function HomePage(props: HomePageProps) {
       }];
     });
     setStatusPills(pills);
-  }
-
-  async function handleReplyAction(action: "send" | "takeover" | "resume" | "dismiss", reply: Reply) {
-    if (reply.workspaceId === undefined || reply.leadId === undefined) {
-      setActionStatus("this demo item is not connected to a backend queue row yet.");
-      return;
-    }
-
-    try {
-      setActionStatus("working...");
-      const isAutomationAction = action === "takeover" || action === "resume";
-      
-      if (isAutomationAction) {
-        // Use social-queue automation endpoint for takeover/resume
-        const response = await fetch(
-          `/api/workspaces/${reply.workspaceId}/social-queue/${reply.reviewId}/automation`,
-          {
-            method: "PATCH",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify(
-              action === "takeover"
-                ? { mode: "human_takeover", reason: "operator took over from the work queue" }
-                : { mode: "ai_on", reason: "operator resumed Harwick AI from the work queue" },
-            ),
-          },
-        );
-
-        if (response.status === 403) {
-          setActionStatus("auth is required to commit this action. the endpoint is real and protected.");
-          return;
-        }
-
-        if (!response.ok) {
-          setActionStatus("the backend rejected this action. check queue state or credentials.");
-          return;
-        }
-
-        setActionStatus("queue state updated.");
-        await refreshHomeData();
-      } else {
-        // Send and dismiss actions still use old endpoint (for now)
-        const response = await fetch(
-          `/api/workspaces/${reply.workspaceId}/social-queue/${reply.reviewId}/action`,
-          {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify(
-              action === "dismiss"
-                ? { action: "dismiss", reason: "operator dismissed from the work queue" }
-                : { action: "send", reply: reply.draft },
-            ),
-          },
-        );
-
-        if (response.status === 403) {
-          setActionStatus("auth is required to commit this action. the endpoint is real and protected.");
-          return;
-        }
-
-        if (!response.ok) {
-          setActionStatus("the backend rejected this action. check queue state or credentials.");
-          return;
-        }
-
-        setActionStatus(action === "send" ? "reply sent through the social queue." : "queue state updated.");
-        await refreshHomeData();
-      }
-    } catch {
-      setActionStatus("could not reach the queue endpoint.");
-    }
   }
 
   async function handleTaskAction(action: "callback" | "reviewed" | "dismiss", task: Task) {
@@ -1528,9 +1474,6 @@ export function HomePage(props: HomePageProps) {
         <WorkItemDetailSheet
           actionStatus={actionStatus}
           entry={selectedWorkItem}
-          onReplyAction={(action, reply) => {
-            void handleReplyAction(action, reply);
-          }}
           onOpenChange={(open) => {
             if (!open) {
               setSelectedWorkItem(null);
@@ -1540,7 +1483,12 @@ export function HomePage(props: HomePageProps) {
           onTaskAction={(action, task) => {
             void handleTaskAction(action, task);
           }}
+          workspaceId={props.workspaceId}
           workspaceName={props.workspaceName}
+          currentMemberId={props.operatorMemberId}
+          onChanged={() => {
+            void refreshHomeData();
+          }}
         />
       </div>
     </AppShell>

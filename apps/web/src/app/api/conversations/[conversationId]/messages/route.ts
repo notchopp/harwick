@@ -7,6 +7,7 @@ import { authorizeWorkspaceRequest } from "../../../../../lib/api/workspace-auth
 import { checkRateLimit, rateLimitKeyFromRequest } from "../../../../../lib/rate-limit";
 import { getServerEnvironment } from "../../../../../lib/server-env";
 import { createSupabaseConversationMessageRepository } from "../../../../../lib/supabase/conversation-message";
+import { createSupabaseConversationMessageRepository as createConversationMessagesRepo } from "../../../../../lib/supabase/conversation-messages";
 import { createSupabaseMetaCredentialRepository } from "../../../../../lib/supabase/integration-accounts";
 import { createSupabaseLeadEventRepository } from "../../../../../lib/supabase/lead-events";
 import { createSupabaseProviderErrorLogger } from "../../../../../lib/supabase/provider-errors";
@@ -73,9 +74,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
   try {
     const supabase = createServerSupabaseClient();
+    const conversationMessageMirror = createConversationMessagesRepo(supabase);
     const result = await sendConversationMessage({
       request: parsed.data,
       repository: createSupabaseConversationMessageRepository(supabase),
+      senderId: membership.memberId,
       sendMetaReply: (metaReplyRequest) =>
         sendMetaReply({
           request: metaReplyRequest,
@@ -83,6 +86,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
           credentialRepository: createSupabaseMetaCredentialRepository(supabase),
           leadEventRepository: createSupabaseLeadEventRepository(supabase),
           metaClient: createMetaMessagingClient(),
+          conversationMessageRepository: conversationMessageMirror,
+          senderType: "operator",
+          senderId: membership.memberId,
         }),
     });
 

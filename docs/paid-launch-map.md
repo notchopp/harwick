@@ -155,9 +155,11 @@ Undeniables:
 Build items:
 
 - ✅ message send API (POST /api/conversations/[conversationId]/messages)
+- ✅ live lead-scoped messages API (GET/POST /api/workspaces/[workspaceId]/conversations/[leadId]/messages)
+- ✅ lead-scoped automation API (PATCH /api/workspaces/[workspaceId]/conversations/[leadId]/automation)
+- ✅ unified lead action toolbar mounted in conversations, home queue, and leads detail sheets
 - ✅ conversation automation state enforcement in send path
 - ✅ tests for send validation, auth, automation checks, and Meta integration
-- live conversation messages API
 - conversation timeline aggregation
 - AI state strip attached to conversation
 - realtime subscription or polling strategy
@@ -314,4 +316,3 @@ Run targeted verification; run release:check and build after structural changes.
 Update docs/paid-launch-map.md if the launch status changed.
 Do not build fake UI or placeholder-only flows when a backend contract is required.
 ```
-
