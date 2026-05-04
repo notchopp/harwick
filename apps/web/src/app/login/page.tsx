@@ -3,6 +3,8 @@ import { LoginPage } from "../../features/auth/login-page";
 import { getCookieAuthSessionSummary } from "../../features/auth/session";
 import { normalizeAuthRedirect } from "../../features/auth/redirects";
 
+export const dynamic = "force-dynamic";
+
 export default async function Page(props: {
   searchParams: Promise<{
     error?: string;
