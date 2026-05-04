@@ -4,6 +4,8 @@ import { loadIntegrationsPageData } from "../../features/integrations/integratio
 import { IntegrationsPageContent } from "../../features/integrations/integrations-page";
 import { createServerSupabaseClient } from "../../lib/supabase/server-client";
 
+export const dynamic = "force-dynamic";
+
 export default async function Page() {
   const { membership } = await requireActiveWorkspace({ nextPath: "/integrations" });
 

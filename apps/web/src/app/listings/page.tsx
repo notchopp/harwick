@@ -2,6 +2,8 @@ import { AppShell } from "../../components/app-shell";
 import { ListingsPageContent } from "../../features/listings/listings-page";
 import { requireActiveWorkspace } from "../../features/auth/session";
 
+export const dynamic = "force-dynamic";
+
 function slugifyWorkspaceName(workspaceName: string) {
   return workspaceName
     .trim()
