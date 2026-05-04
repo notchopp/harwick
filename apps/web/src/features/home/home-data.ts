@@ -308,4 +308,4 @@ export const inventoryLink = {
 };
 
 export const homeNarrative =
-  "Maya is ready for a call, the best inventory is lined up to send, and the desk only needs a few decisive moves.";
+  "Focus on high-priority items first. Start with Maya's call, then review the Oak Forest listing, and finally check new leads.";

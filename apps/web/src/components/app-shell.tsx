@@ -218,8 +218,10 @@ export function AppShell(props: AppShellProps) {
         </div>
       </aside>
 
-      <div className="harwick-fade-in-delayed flex min-w-0 flex-1 flex-col overflow-hidden">
-        <main className="min-h-0 min-w-0 flex-1 overflow-hidden">{props.children}</main>
+      <div className="harwick-fade-in-delayed flex min-w-0 flex-1 flex-col overflow-hidden bg-surface-muted">
+        <main className="min-h-0 min-w-0 flex-1 overflow-hidden bg-background rounded-tl-3xl p-6">
+          {props.children}
+        </main>
       </div>
     </div>
   );

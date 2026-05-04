@@ -850,17 +850,24 @@ function TaskDetail(props: {
         )}
         <div className="mt-4 flex flex-wrap gap-2">
           <Button
-            className={props.task.type === "crm" ? outlinePillClass : darkPillClass}
+            className={cn(
+              props.task.type === "crm" ? outlinePillClass : darkPillClass,
+              "flex-1 min-w-[100px]"
+            )}
             onClick={() => props.onTaskAction(props.task.type === "callback" ? "callback" : "reviewed", props.task)}
             variant="ghost"
           >
             {props.task.action}
           </Button>
-          <Button className={outlinePillClass} variant="ghost">
+          <Button className={cn(outlinePillClass, "flex-1 min-w-[80px]")} variant="ghost">
             Assign
           </Button>
-          <Button className={outlinePillClass} onClick={() => props.onTaskAction("dismiss", props.task)} variant="ghost">
-            dismiss
+          <Button 
+            className={cn(outlinePillClass, "flex-1 min-w-[80px]")} 
+            onClick={() => props.onTaskAction("dismiss", props.task)} 
+            variant="ghost"
+          >
+            Dismiss
           </Button>
         </div>
       </DetailSection>
