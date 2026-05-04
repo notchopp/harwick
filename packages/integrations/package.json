@@ -8,6 +8,9 @@
   "exports": {
     ".": "./dist/index.js"
   },
+  "scripts": {
+    "build": "tsc --build --pretty false"
+  },
   "dependencies": {
     "@realty-ops/core": "0.1.0",
     "retell-sdk": "^5.16.0",

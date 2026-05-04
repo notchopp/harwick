@@ -21,7 +21,7 @@ function buildStatusUrl(request: NextRequest, confirmationCode: string): string 
   return `${base}/api/meta/data-deletion?code=${encodeURIComponent(confirmationCode)}`;
 }
 
-export async function GET(request: NextRequest) {
+export function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
   if (code === null || code.length === 0) {
     return new NextResponse(
