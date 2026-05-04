@@ -222,6 +222,15 @@ export function IntegrationsPageContent(props: IntegrationsPageContentProps) {
           </div>
         ) : null}
 
+        {props.data.warnings.map((warning) => (
+          <div
+            className="mb-4 rounded-[12px] border border-clay/30 bg-clay/10 px-4 py-3 text-[12px] text-clay"
+            key={warning}
+          >
+            {warning}
+          </div>
+        ))}
+
         <div className="grid gap-4">
           <IntegrationCard
             account={metaAccount}
