@@ -28,6 +28,8 @@ const mocks = vi.hoisted(() => {
   };
   const workspaceMemoryRepo = {
     listRuntimeMemoryDocuments: vi.fn(),
+    listReviewableMemoryDocuments: vi.fn(),
+    updateMemoryReview: vi.fn(),
     semanticMemorySearch: vi.fn(),
     saveMemoryEmbedding: vi.fn(),
   };

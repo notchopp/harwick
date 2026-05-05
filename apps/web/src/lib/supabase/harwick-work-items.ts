@@ -378,6 +378,7 @@ export function createSupabaseHarwickWorkItemRepository(
         .from("workspace_memory_documents")
         .select("id, workspace_id, memory_type, title, body, source, confidence, last_observed_at, updated_at")
         .gte("updated_at", params.sinceIso)
+        .neq("review_status", "dismissed")
         .order("confidence", { ascending: false })
         .order("updated_at", { ascending: false })
         .limit(params.limit);

@@ -18,6 +18,8 @@ function createRepository(params: {
 }): WorkspaceMemoryRepository {
   return {
     listRuntimeMemoryDocuments: vi.fn(() => Promise.resolve([])),
+    listReviewableMemoryDocuments: vi.fn(() => Promise.resolve([])),
+    updateMemoryReview: vi.fn(() => Promise.reject(new Error("not implemented in test repository"))),
     semanticMemorySearch: vi.fn(() => Promise.resolve([])),
     saveMemoryEmbedding: vi.fn((input: {
       workspaceId: string;

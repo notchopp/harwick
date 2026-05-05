@@ -1,8 +1,16 @@
 import {
+  WorkspaceMemoryDocumentSchema,
   WorkspaceMemoryDocumentCreateSchema,
+  type WorkspaceMemoryDocument,
   type WorkspaceMemoryDocumentCreate,
+  type WorkspaceMemoryReviewStatus,
 } from "@realty-ops/core";
-import type { WorkspaceMemoryDocumentInsertRow, Json } from "./database.types";
+import type {
+  WorkspaceMemoryDocumentInsertRow,
+  WorkspaceMemoryDocumentRow,
+  WorkspaceMemoryDocumentUpdateRow,
+  Json,
+} from "./database.types";
 import type { RealtyOpsSupabaseClient } from "./server-client";
 
 export type WorkspaceMemoryRoutingOverrideSignal = {
@@ -88,6 +96,19 @@ export type WorkspaceMemoryRepository = {
     workspaceId: string;
     limit: number;
   }): Promise<WorkspaceMemoryRuntimeDocument[]>;
+  listReviewableMemoryDocuments(params: {
+    workspaceId: string;
+    limit: number;
+    reviewStatus?: WorkspaceMemoryReviewStatus;
+  }): Promise<WorkspaceMemoryDocument[]>;
+  updateMemoryReview(params: {
+    workspaceId: string;
+    memoryId: string;
+    reviewStatus: WorkspaceMemoryReviewStatus;
+    reviewedByMemberId: string;
+    reviewedAt: string;
+    reviewNote: string | null;
+  }): Promise<WorkspaceMemoryDocument>;
   semanticMemorySearch(params: {
     workspaceId: string;
     embedding: number[];
@@ -179,6 +200,43 @@ type RuntimeMemoryDocumentRow = {
   similarity?: number;
 };
 
+export type ReviewableMemoryDocumentRow = Pick<
+  WorkspaceMemoryDocumentRow,
+  | "id"
+  | "workspace_id"
+  | "memory_type"
+  | "title"
+  | "body"
+  | "source"
+  | "confidence"
+  | "evidence"
+  | "last_observed_at"
+  | "review_status"
+  | "reviewed_by_member_id"
+  | "reviewed_at"
+  | "review_note"
+  | "created_at"
+  | "updated_at"
+>;
+
+const REVIEWABLE_MEMORY_SELECT = [
+  "id",
+  "workspace_id",
+  "memory_type",
+  "title",
+  "body",
+  "source",
+  "confidence",
+  "evidence",
+  "last_observed_at",
+  "review_status",
+  "reviewed_by_member_id",
+  "reviewed_at",
+  "review_note",
+  "created_at",
+  "updated_at",
+].join(", ");
+
 function mapCreateToInsertRow(input: WorkspaceMemoryDocumentCreate): WorkspaceMemoryDocumentInsertRow {
   const parsed = WorkspaceMemoryDocumentCreateSchema.parse(input);
   return {
@@ -191,6 +249,33 @@ function mapCreateToInsertRow(input: WorkspaceMemoryDocumentCreate): WorkspaceMe
     evidence: parsed.evidence as Json,
     last_observed_at: parsed.lastObservedAt,
   };
+}
+
+function normalizeEvidence(value: Json): Record<string, unknown> {
+  if (value !== null && typeof value === "object" && !Array.isArray(value)) {
+    return value;
+  }
+  return {};
+}
+
+export function mapReviewableMemoryDocumentRow(row: ReviewableMemoryDocumentRow): WorkspaceMemoryDocument {
+  return WorkspaceMemoryDocumentSchema.parse({
+    id: row.id,
+    workspaceId: row.workspace_id,
+    memoryType: row.memory_type,
+    title: row.title,
+    body: row.body,
+    source: row.source,
+    confidence: row.confidence,
+    evidence: normalizeEvidence(row.evidence),
+    lastObservedAt: row.last_observed_at,
+    reviewStatus: row.review_status,
+    reviewedByMemberId: row.reviewed_by_member_id,
+    reviewedAt: row.reviewed_at,
+    reviewNote: row.review_note,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  });
 }
 
 function readString(value: unknown): string | null {
@@ -278,6 +363,7 @@ export function createSupabaseWorkspaceMemoryRepository(
         .from("workspace_memory_documents")
         .select("id, memory_type, title, body, confidence, last_observed_at")
         .eq("workspace_id", params.workspaceId)
+        .neq("review_status", "dismissed")
         .order("last_observed_at", { ascending: false })
         .order("updated_at", { ascending: false })
         .limit(params.limit)
@@ -295,6 +381,51 @@ export function createSupabaseWorkspaceMemoryRepository(
         confidence: row.confidence,
         lastObservedAt: row.last_observed_at,
       }));
+    },
+
+    async listReviewableMemoryDocuments(params) {
+      let query = supabase
+        .from("workspace_memory_documents")
+        .select(REVIEWABLE_MEMORY_SELECT)
+        .eq("workspace_id", params.workspaceId)
+        .order("updated_at", { ascending: false })
+        .limit(params.limit);
+
+      if (params.reviewStatus !== undefined) {
+        query = query.eq("review_status", params.reviewStatus);
+      }
+
+      const { data, error } = await query.returns<ReviewableMemoryDocumentRow[]>();
+
+      if (error !== null) {
+        throw error;
+      }
+
+      return (data ?? []).map(mapReviewableMemoryDocumentRow);
+    },
+
+    async updateMemoryReview(params) {
+      const row: WorkspaceMemoryDocumentUpdateRow = {
+        review_status: params.reviewStatus,
+        reviewed_by_member_id: params.reviewStatus === "pending" ? null : params.reviewedByMemberId,
+        reviewed_at: params.reviewStatus === "pending" ? null : params.reviewedAt,
+        review_note: params.reviewNote,
+        updated_at: params.reviewedAt,
+      };
+
+      const { data, error } = await supabase
+        .from("workspace_memory_documents")
+        .update(row)
+        .eq("workspace_id", params.workspaceId)
+        .eq("id", params.memoryId)
+        .select(REVIEWABLE_MEMORY_SELECT)
+        .single<ReviewableMemoryDocumentRow>();
+
+      if (error !== null) {
+        throw error;
+      }
+
+      return mapReviewableMemoryDocumentRow(data);
     },
 
     async semanticMemorySearch(params) {

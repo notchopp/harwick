@@ -2668,6 +2668,10 @@ export type Database = {
           id: string
           last_observed_at: string
           memory_type: string
+          review_note: string | null
+          review_status: string
+          reviewed_at: string | null
+          reviewed_by_member_id: string | null
           source: string
           title: string
           updated_at: string
@@ -2684,6 +2688,10 @@ export type Database = {
           id?: string
           last_observed_at?: string
           memory_type: string
+          review_note?: string | null
+          review_status?: string
+          reviewed_at?: string | null
+          reviewed_by_member_id?: string | null
           source?: string
           title: string
           updated_at?: string
@@ -2700,12 +2708,23 @@ export type Database = {
           id?: string
           last_observed_at?: string
           memory_type?: string
+          review_note?: string | null
+          review_status?: string
+          reviewed_at?: string | null
+          reviewed_by_member_id?: string | null
           source?: string
           title?: string
           updated_at?: string
           workspace_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "workspace_memory_documents_reviewed_by_member_id_fkey"
+            columns: ["reviewed_by_member_id"]
+            isOneToOne: false
+            referencedRelation: "workspace_members"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "workspace_memory_documents_workspace_id_fkey"
             columns: ["workspace_id"]
@@ -3218,4 +3237,5 @@ export type WorkspaceSubscriptionRow = Tables<"workspace_subscriptions">;
 export type WorkspaceUsageSummaryRow = Tables<"workspace_usage_summaries">;
 export type WorkspaceMemoryDocumentRow = Tables<"workspace_memory_documents">;
 export type WorkspaceMemoryDocumentInsertRow = TablesInsert<"workspace_memory_documents">;
+export type WorkspaceMemoryDocumentUpdateRow = TablesUpdate<"workspace_memory_documents">;
 export type WorkerHeartbeatRow = Tables<"worker_heartbeats">;
