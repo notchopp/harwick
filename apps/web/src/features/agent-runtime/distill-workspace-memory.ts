@@ -1,5 +1,6 @@
 import { WorkspaceMemoryDocumentCreateSchema, type WorkspaceMemoryDocumentCreate } from "@realty-ops/core";
-import type { EmbeddingClient } from "@realty-ops/integrations";
+import type { EmbeddingClient, SmallModelClient } from "@realty-ops/integrations";
+import { z } from "zod";
 import type {
   WorkspaceMemoryLeadOutcomeSignal,
   WorkspaceMemoryMarketSignal,
@@ -21,15 +22,57 @@ export type WorkspaceMemoryDistillationDeps = {
   minObjectionCount?: number;
   batchSize?: number;
   embeddings?: EmbeddingClient;
+  synthesisClient?: WorkspaceMemorySynthesisClient;
 };
 
 export type WorkspaceMemoryDistillationReport = {
   scanned: number;
   created: number;
+  refined: number;
   embedded: number;
   skippedExisting: number;
   errors: number;
 };
+
+const WorkspaceMemorySynthesisSchema = z.object({
+  title: z.string().trim().min(1).max(160),
+  body: z.string().trim().min(1).max(4000),
+  confidence: z.number().min(0).max(1).optional(),
+});
+
+export type WorkspaceMemorySynthesis = z.infer<typeof WorkspaceMemorySynthesisSchema>;
+
+export type WorkspaceMemorySynthesisClient = {
+  synthesizeMemory(memory: WorkspaceMemoryDocumentCreate): Promise<WorkspaceMemorySynthesis>;
+};
+
+export function createSmallModelWorkspaceMemorySynthesisClient(
+  client: SmallModelClient,
+): WorkspaceMemorySynthesisClient {
+  return {
+    async synthesizeMemory(memory) {
+      return client.classify({
+        schema: WorkspaceMemorySynthesisSchema,
+        temperature: 0.2,
+        maxTokens: 700,
+        instructions: [
+          "You write durable workspace-level memory for Harwick, a real estate brokerage chief of staff.",
+          "Keep facts grounded only in the provided deterministic memory and evidence. Do not invent names, prices, outcomes, or policy.",
+          "Rewrite the title and body so the memory is concise, reusable across future leads, and operationally useful.",
+          "Return JSON with title, body, and optional confidence.",
+        ].join("\n"),
+        input: JSON.stringify({
+          memoryType: memory.memoryType,
+          title: memory.title,
+          body: memory.body,
+          confidence: memory.confidence,
+          evidence: memory.evidence,
+          lastObservedAt: memory.lastObservedAt,
+        }),
+      });
+    },
+  };
+}
 
 function buildRoutingOverrideMemory(signal: WorkspaceMemoryRoutingOverrideSignal): WorkspaceMemoryDocumentCreate {
   const title = "Routing overrides are repeating";
@@ -226,6 +269,37 @@ export function buildWorkspaceMemoryEmbeddingText(memory: WorkspaceMemoryDocumen
   ].join("\n");
 }
 
+async function refineMemoryDocument(
+  deps: Pick<WorkspaceMemoryDistillationDeps, "synthesisClient">,
+  memory: WorkspaceMemoryDocumentCreate,
+): Promise<{ memory: WorkspaceMemoryDocumentCreate; refined: boolean }> {
+  if (deps.synthesisClient === undefined) {
+    return { memory, refined: false };
+  }
+
+  try {
+    const synthesis = await deps.synthesisClient.synthesizeMemory(memory);
+    return {
+      refined: true,
+      memory: WorkspaceMemoryDocumentCreateSchema.parse({
+        ...memory,
+        title: synthesis.title,
+        body: synthesis.body,
+        confidence: synthesis.confidence ?? memory.confidence,
+        evidence: {
+          ...memory.evidence,
+          synthesisSource: "small_model",
+          deterministicTitle: memory.title,
+          deterministicBody: memory.body,
+        },
+      }),
+    };
+  } catch (error) {
+    console.warn("[distillWorkspaceMemory] memory synthesis failed", memory.workspaceId, memory.title, error);
+    return { memory, refined: false };
+  }
+}
+
 export async function distillWorkspaceMemory(
   deps: WorkspaceMemoryDistillationDeps,
 ): Promise<WorkspaceMemoryDistillationReport> {
@@ -267,6 +341,7 @@ export async function distillWorkspaceMemory(
   });
 
   let created = 0;
+  let refined = 0;
   let embedded = 0;
   let skippedExisting = 0;
   let errors = 0;
@@ -292,14 +367,19 @@ export async function distillWorkspaceMemory(
         continue;
       }
 
-      const { memoryId } = await deps.repository.insertMemoryDocument(memory);
+      const refinedMemory = await refineMemoryDocument(deps, memory);
+      if (refinedMemory.refined) {
+        refined += 1;
+      }
+
+      const { memoryId } = await deps.repository.insertMemoryDocument(refinedMemory.memory);
       created += 1;
 
       if (deps.embeddings !== undefined) {
-        const embeddingText = buildWorkspaceMemoryEmbeddingText(memory);
+        const embeddingText = buildWorkspaceMemoryEmbeddingText(refinedMemory.memory);
         const embedding = await deps.embeddings.embed(embeddingText);
         await deps.repository.saveMemoryEmbedding({
-          workspaceId: memory.workspaceId,
+          workspaceId: refinedMemory.memory.workspaceId,
           memoryId,
           embedding,
           embeddingText,
@@ -320,6 +400,7 @@ export async function distillWorkspaceMemory(
       + sourceChannelSignals.length
       + objectionSignals.length,
     created,
+    refined,
     embedded,
     skippedExisting,
     errors,

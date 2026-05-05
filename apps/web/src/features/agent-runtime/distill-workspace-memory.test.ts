@@ -59,6 +59,7 @@ describe("distillWorkspaceMemory", () => {
     expect(report).toEqual({
       scanned: 1,
       created: 1,
+      refined: 0,
       embedded: 0,
       skippedExisting: 0,
       errors: 0,
@@ -84,6 +85,7 @@ describe("distillWorkspaceMemory", () => {
     expect(report).toEqual({
       scanned: 1,
       created: 0,
+      refined: 0,
       embedded: 0,
       skippedExisting: 1,
       errors: 0,
@@ -107,6 +109,7 @@ describe("distillWorkspaceMemory", () => {
     expect(report).toEqual({
       scanned: 1,
       created: 1,
+      refined: 0,
       embedded: 1,
       skippedExisting: 0,
       errors: 0,
@@ -140,6 +143,7 @@ describe("distillWorkspaceMemory", () => {
     expect(report).toEqual({
       scanned: 2,
       created: 2,
+      refined: 0,
       embedded: 0,
       skippedExisting: 0,
       errors: 0,
@@ -212,6 +216,7 @@ describe("distillWorkspaceMemory", () => {
     expect(report).toEqual({
       scanned: 4,
       created: 4,
+      refined: 0,
       embedded: 0,
       skippedExisting: 0,
       errors: 0,
@@ -236,5 +241,49 @@ describe("distillWorkspaceMemory", () => {
     ]));
     const objection = inserted.find((memory) => memory.memoryType === "objection");
     expect(objection?.evidence["examples"]).toEqual(["Need to talk to my spouse first."]);
+  });
+
+  it("uses small-model synthesis for memory prose when provided", async () => {
+    const inserted: WorkspaceMemoryDocumentCreate[] = [];
+    const report = await distillWorkspaceMemory({
+      repository: createRepository({
+        inserted,
+        routingSignals: [],
+        objectionSignals: [{
+          workspaceId,
+          objectionType: "price",
+          outcomeCount: 3,
+          latestObservedAt: "2026-05-05T12:00:00.000Z",
+          sourceChannels: ["instagram_dm"],
+          examples: ["Is this negotiable?"],
+        }],
+      }),
+      minObjectionCount: 3,
+      synthesisClient: {
+        synthesizeMemory: vi.fn(() => Promise.resolve({
+          title: "Price sensitivity is recurring in DMs",
+          body: "Leads are repeatedly asking price-sensitive questions in Instagram DMs. Harwick should qualify budget early and avoid overpromising negotiation room.",
+          confidence: 0.81,
+        })),
+      },
+      now: () => new Date("2026-05-05T12:00:00.000Z"),
+    });
+
+    expect(report).toEqual({
+      scanned: 1,
+      created: 1,
+      refined: 1,
+      embedded: 0,
+      skippedExisting: 0,
+      errors: 0,
+    });
+    expect(inserted[0]).toEqual(expect.objectContaining({
+      memoryType: "objection",
+      title: "Price sensitivity is recurring in DMs",
+      body: "Leads are repeatedly asking price-sensitive questions in Instagram DMs. Harwick should qualify budget early and avoid overpromising negotiation room.",
+      confidence: 0.81,
+    }));
+    expect(inserted[0]?.evidence["synthesisSource"]).toBe("small_model");
+    expect(inserted[0]?.evidence["deterministicTitle"]).toBe("Price objections are repeating");
   });
 });
