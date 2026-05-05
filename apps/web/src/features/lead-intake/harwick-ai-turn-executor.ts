@@ -11,9 +11,11 @@ import {
 import {
   createOpenAIEmbeddingClient,
   createOpenAIHarwickAiRuntime,
+  createOpenAISmallModelClient,
   runHarwickAiAgenticLoop,
   type HarwickAiToolHandlers,
 } from "@realty-ops/integrations";
+import { buildClassifierFallback, classifyInboundLead } from "./lead-classifier";
 import { getServerEnvironment } from "../../lib/server-env";
 import type {
   HarwickAiTurnPersistenceRepository,
@@ -84,6 +86,38 @@ export async function generateAndExecuteHarwickAiTurnSync(
   }
   if (!deps.credentialSecret) {
     console.warn("Skipping Harwick AI turn: CREDENTIAL_ENCRYPTION_KEY not set");
+    return;
+  }
+
+  // Cap #8: lead-or-not gate. Classify the inbound on a small/cheap model
+  // before firing the full agent loop. `not_lead` exits early; `needs_review`
+  // logs and exits without spending agent tokens; only `lead` enters the loop.
+  const classification = await runLeadClassifier({
+    inboundText: params.event.text,
+    channel,
+    senderName: null,
+    senderHandle: params.event.providerUserId,
+  });
+
+  try {
+    await persistClassification({
+      supabase: deps.supabase,
+      leadEventId: params.leadEventId,
+      classification,
+    });
+  } catch (persistError) {
+    console.warn("[harwick-ai] could not persist classification:", persistError);
+  }
+
+  if (classification.classification !== "lead") {
+    // Audit-only path: structured fields persisted; no agent loop, no tokens
+    // spent on the big model. Operator can still see the message via the
+    // social inbox surface (built later) and reclassify if needed.
+    console.info("[harwick-ai] inbound classified as", classification.classification, "— skipping agent loop", {
+      leadEventId: params.leadEventId,
+      reason: classification.reasonCode,
+      confidence: classification.confidence,
+    });
     return;
   }
 
@@ -369,6 +403,63 @@ export async function generateAndExecuteHarwickAiTurnSync(
     }
     // Don't rethrow — webhook delivery should still succeed.
   }
+}
+
+/**
+ * Cap #8: small-model lead classifier. Returns the model's decision when
+ * possible; falls back to `needs_review` on any failure (no API key, parse
+ * error, network) so we never accidentally fire the full agent loop on
+ * spam during a transient outage.
+ */
+async function runLeadClassifier(params: {
+  inboundText: string;
+  channel: string;
+  senderName: string | null;
+  senderHandle: string | null;
+}) {
+  const environment = getServerEnvironment();
+  if (environment.OPENAI_API_KEY === undefined) {
+    return buildClassifierFallback("OPENAI_API_KEY not set");
+  }
+  try {
+    const client = createOpenAISmallModelClient({
+      apiKey: environment.OPENAI_API_KEY,
+      model: environment.OPENAI_SMALL_MODEL,
+    });
+    return await classifyInboundLead({
+      client,
+      input: {
+        inboundText: params.inboundText,
+        channel: params.channel,
+        senderName: params.senderName,
+        senderHandle: params.senderHandle,
+      },
+    });
+  } catch (error) {
+    return buildClassifierFallback(error instanceof Error ? error.message : String(error));
+  }
+}
+
+async function persistClassification(params: {
+  supabase: import("../../lib/supabase/server-client").RealtyOpsSupabaseClient;
+  leadEventId: string;
+  classification: {
+    classification: string;
+    reasonCode: string;
+    confidence: number;
+    leadHint: string;
+  };
+}): Promise<void> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (params.supabase as any)
+    .from("lead_events")
+    .update({
+      lead_classification: params.classification.classification,
+      lead_classification_reason: params.classification.reasonCode,
+      lead_classification_confidence: params.classification.confidence,
+      lead_classification_hint: params.classification.leadHint,
+    })
+    .eq("id", params.leadEventId);
 }
 
 /**

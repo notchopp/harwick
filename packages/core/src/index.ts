@@ -15,6 +15,7 @@ export * from "./domains/environment.js";
 export * from "./domains/integration.js";
 export * from "./domains/lead.js";
 export * from "./domains/lead-actionability.js";
+export * from "./domains/lead-classification.js";
 export * from "./domains/lead-routing.js";
 export * from "./domains/lead-workflow.js";
 export * from "./domains/listing.js";

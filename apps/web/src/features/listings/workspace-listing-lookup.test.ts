@@ -12,6 +12,7 @@ const baseEnvironment = {
   META_WEBHOOK_VERIFY_TOKEN: "verify-token-123456789",
   RETELL_API_KEY: "retell-key",
   OPENAI_REPLY_MODEL: "gpt-5.2",
+  OPENAI_SMALL_MODEL: "gpt-4o-mini",
   NEXT_PUBLIC_SUPABASE_URL: "https://example.supabase.co",
   NEXT_PUBLIC_SUPABASE_ANON_KEY: "anon-key",
   SUPABASE_SERVICE_ROLE_KEY: "service-role",

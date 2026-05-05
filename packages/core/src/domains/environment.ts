@@ -47,6 +47,10 @@ const ServerEnvironmentBaseSchema = z.object({
   RETELL_VOICE_ID: z.string().trim().min(1).optional(),
   OPENAI_API_KEY: z.string().trim().min(1).optional(),
   OPENAI_REPLY_MODEL: z.string().trim().min(1).default("gpt-5.2"),
+  // Small-model tier for cheap classification, routing-assist, lite reasoning.
+  // Defaults to gpt-4o-mini if unset; brokerages can swap to Haiku 3.5 or
+  // a Llama-via-Groq deployment by setting this env.
+  OPENAI_SMALL_MODEL: z.string().trim().min(1).default("gpt-4o-mini"),
   LISTING_PROVIDER: OptionalListingProviderSchema,
   REPLIERS_API_KEY: OptionalNonEmptyStringSchema,
   REPLIERS_BOARD_ID: OptionalPositiveIntegerSchema,
