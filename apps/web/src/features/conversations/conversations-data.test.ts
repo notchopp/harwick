@@ -106,6 +106,19 @@ function buildRepository(overrides: Partial<ConversationsInboxRepository> = {}):
       leadId: leadId,
       automationMode: "ai_on",
     }]),
+    listLatestAiSynthesis: vi.fn().mockResolvedValue([{
+      leadId,
+      turnId: "55555555-5555-4555-8555-555555555555",
+      status: "auto_executed",
+      intent: "listing_question",
+      nextAction: "ask_qualification",
+      confidence: 0.91,
+      missingFields: ["timeline"],
+      safetyFlags: ["safe_to_send"],
+      handoffBrief: null,
+      documentUpdate: "Lead asked whether the listing is still available.",
+      updatedAt: "2026-04-30T12:15:00.000Z",
+    }]),
     ...overrides,
   };
 }
@@ -133,6 +146,10 @@ describe("conversation inbox data", () => {
       assignedTo: "Sarah Kim",
       listingStatus: "AI action ready",
       automationMode: "ai_on",
+    });
+    expect(inbox.threads[0]?.aiSynthesis).toMatchObject({
+      intent: "listing_question",
+      missingFields: ["timeline"],
     });
     expect(inbox.threads[0]?.messages.map((message) => message.kind)).toEqual([
       "lead",

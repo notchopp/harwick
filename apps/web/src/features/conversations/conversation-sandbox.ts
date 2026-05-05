@@ -137,6 +137,7 @@ function buildSandboxThread(workspaceId: string, thread: SandboxThreadInput): Co
     listingStatus: thread.listingStatus,
     automationMode: thread.automationMode,
     automationReason: thread.automationReason,
+    aiSynthesis: null,
     messages: thread.messages.map((message) => ({
       id: message.id,
       kind: message.kind,

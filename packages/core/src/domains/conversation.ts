@@ -19,6 +19,19 @@ export const ConversationInboxMessageSchema = z.object({
   agentStepId: UuidSchema.nullish(),
 });
 
+export const ConversationAiSynthesisSchema = z.object({
+  turnId: UuidSchema,
+  status: z.string().trim().min(1).max(80),
+  intent: z.string().trim().min(1).max(120),
+  nextAction: z.string().trim().min(1).max(120),
+  confidence: z.number().min(0).max(1),
+  missingFields: z.array(z.string().trim().min(1).max(80)).max(12),
+  safetyFlags: z.array(z.string().trim().min(1).max(80)).max(12),
+  handoffBrief: z.string().trim().max(1000).nullable(),
+  documentUpdate: z.string().trim().max(2000).nullable(),
+  updatedAt: IsoDateTimeSchema,
+});
+
 export const ConversationInboxThreadSchema = z.object({
   id: UuidSchema,
   workspaceId: UuidSchema,
@@ -49,6 +62,7 @@ export const ConversationInboxThreadSchema = z.object({
   listingStatus: z.string().trim().min(1),
   automationMode: ConversationAutomationModeSchema.nullable(),
   automationReason: z.string().trim().min(1).nullable(),
+  aiSynthesis: ConversationAiSynthesisSchema.nullable().default(null),
   messages: z.array(ConversationInboxMessageSchema),
 });
 
@@ -62,5 +76,6 @@ export type ConversationInboxBucket = z.infer<typeof ConversationInboxBucketSche
 export type ConversationInboxStageTone = z.infer<typeof ConversationInboxStageToneSchema>;
 export type ConversationInboxMessageKind = z.infer<typeof ConversationInboxMessageKindSchema>;
 export type ConversationInboxMessage = z.infer<typeof ConversationInboxMessageSchema>;
+export type ConversationAiSynthesis = z.infer<typeof ConversationAiSynthesisSchema>;
 export type ConversationInboxThread = z.infer<typeof ConversationInboxThreadSchema>;
 export type ConversationsInboxResponse = z.infer<typeof ConversationsInboxResponseSchema>;

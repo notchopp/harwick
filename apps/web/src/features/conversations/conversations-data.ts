@@ -5,6 +5,7 @@ import {
   type ConversationInboxSource,
   type ConversationInboxStageTone,
   type ConversationInboxThread,
+  type ConversationAiSynthesis,
   type ConversationsInboxResponse,
 } from "@realty-ops/core";
 import type {
@@ -21,6 +22,7 @@ export type ConversationsInboxRepository = {
   listLeadEvents(params: { workspaceId: string; leadIds: string[]; limit: number }): Promise<LeadEventRow[]>;
   listSocialReplyReviews(params: { workspaceId: string; leadIds: string[] }): Promise<SocialReplyReviewRow[]>;
   listConversationAutomationStates(params: { workspaceId: string; leadIds: string[] }): Promise<Array<{ leadId: string | null; automationMode: string }>>;
+  listLatestAiSynthesis(params: { workspaceId: string; leadIds: string[] }): Promise<Array<ConversationAiSynthesis & { leadId: string }>>;
 };
 
 function initialsForName(name: string): string {
@@ -280,7 +282,7 @@ export async function loadConversationsInbox(params: {
   });
   const leadIds = leads.map((lead) => lead.id);
 
-  const [members, events, reviews, automationStates] = await Promise.all([
+  const [members, events, reviews, automationStates, aiSynthesisRows] = await Promise.all([
     params.repository.listWorkspaceMembers(params.workspaceId),
     params.repository.listLeadEvents({
       workspaceId: params.workspaceId,
@@ -295,12 +297,17 @@ export async function loadConversationsInbox(params: {
       workspaceId: params.workspaceId,
       leadIds,
     }),
+    params.repository.listLatestAiSynthesis({
+      workspaceId: params.workspaceId,
+      leadIds,
+    }),
   ]);
 
   const membersById = new Map(members.map((member) => [member.id, member.display_name]));
   const eventsByLeadId = new Map<string, LeadEventRow[]>();
   const latestReviewByLeadId = new Map<string, SocialReplyReviewRow>();
   const automationModeByLeadId = new Map<string, string>();
+  const aiSynthesisByLeadId = new Map<string, ConversationAiSynthesis>();
 
   for (const event of events) {
     if (event.lead_id === null) continue;
@@ -318,6 +325,10 @@ export async function loadConversationsInbox(params: {
     if (state.leadId !== null) {
       automationModeByLeadId.set(state.leadId, state.automationMode);
     }
+  }
+
+  for (const synthesis of aiSynthesisRows) {
+    aiSynthesisByLeadId.set(synthesis.leadId, synthesis);
   }
 
   const actionableLeads = leads.filter((lead) => {
@@ -377,6 +388,7 @@ export async function loadConversationsInbox(params: {
       listingStatus: listingStatus(lead, review),
       automationMode,
       automationReason: review?.automation_reason ?? null,
+      aiSynthesis: aiSynthesisByLeadId.get(lead.id) ?? null,
       messages: buildMessages({ lead, events: leadEvents, review }),
     };
   });

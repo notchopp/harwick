@@ -1,5 +1,6 @@
 import type { ConversationsInboxRepository } from "../../features/conversations/conversations-data";
 import type {
+  Json,
   LeadEventRow,
   SocialReplyReviewRow,
   WorkspaceMemberRow,
@@ -117,6 +118,68 @@ export function createSupabaseConversationsInboxRepository(
         leadId: row.lead_id,
         automationMode: row.automation_mode,
       }));
+    },
+
+    async listLatestAiSynthesis(params) {
+      if (params.leadIds.length === 0) {
+        return [];
+      }
+
+      const { data, error } = await supabase
+        .from("harwick_ai_turns")
+        .select("id, lead_id, status, turn, next_action, confidence, missing_fields, safety_flags, handoff_brief, created_at")
+        .eq("workspace_id", params.workspaceId)
+        .in("lead_id", params.leadIds)
+        .order("created_at", { ascending: false })
+        .limit(Math.max(params.leadIds.length * 3, params.leadIds.length))
+        .returns<Array<{
+          id: string;
+          lead_id: string | null;
+          status: string;
+          turn: Json;
+          next_action: string;
+          confidence: number;
+          missing_fields: string[];
+          safety_flags: string[];
+          handoff_brief: string | null;
+          created_at: string;
+        }>>();
+
+      if (error !== null) {
+        throw error;
+      }
+
+      const seen = new Set<string>();
+      return (data ?? []).flatMap((row) => {
+        if (row.lead_id === null || seen.has(row.lead_id)) {
+          return [];
+        }
+        seen.add(row.lead_id);
+
+        const turn = typeof row.turn === "object" && row.turn !== null && !Array.isArray(row.turn)
+          ? row.turn
+          : {};
+        const intent = typeof turn["intent"] === "string" && turn["intent"].trim().length > 0
+          ? turn["intent"]
+          : "unknown";
+        const documentUpdate = typeof turn["documentUpdate"] === "string" && turn["documentUpdate"].trim().length > 0
+          ? turn["documentUpdate"].trim()
+          : null;
+
+        return [{
+          leadId: row.lead_id,
+          turnId: row.id,
+          status: row.status,
+          intent,
+          nextAction: row.next_action,
+          confidence: row.confidence,
+          missingFields: row.missing_fields,
+          safetyFlags: row.safety_flags,
+          handoffBrief: row.handoff_brief,
+          documentUpdate,
+          updatedAt: row.created_at,
+        }];
+      });
     },
   };
 }

@@ -40,6 +40,18 @@ describe("conversation contracts", () => {
           listingStatus: "AI action ready",
           automationMode: "ai_on",
           automationReason: "safe listing reply",
+          aiSynthesis: {
+            turnId: "44444444-4444-4444-8444-444444444444",
+            status: "auto_executed",
+            intent: "listing_question",
+            nextAction: "ask_qualification",
+            confidence: 0.91,
+            missingFields: ["timeline"],
+            safetyFlags: ["safe_to_send"],
+            handoffBrief: null,
+            documentUpdate: "Lead asked whether the listing is still available.",
+            updatedAt: "2026-04-30T12:15:00.000Z",
+          },
           messages: [
             {
               id: "event-1",
@@ -61,6 +73,7 @@ describe("conversation contracts", () => {
     });
 
     expect(parsed.threads[0]?.messages[1]?.kind).toBe("ai_action");
+    expect(parsed.threads[0]?.aiSynthesis?.missingFields).toEqual(["timeline"]);
   });
 
   it("rejects invalid conversation buckets", () => {

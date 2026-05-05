@@ -957,6 +957,38 @@ export function ConversationsPageContent(props: {
                 </div>
               </div>
 
+              {selectedThread.aiSynthesis === null ? null : (
+                <div className="border-b border-border px-[14px] py-[14px]">
+                  <div className="mb-[9px] text-[9.5px] font-medium uppercase tracking-[0.12em] text-muted-subtle">Harwick Synthesis</div>
+                  <div className="rounded-[8px] bg-surface-muted p-[10px] text-[12px] text-muted">
+                    <div className="flex items-center justify-between gap-3 text-foreground">
+                      <span className="font-medium">{selectedThread.aiSynthesis.intent.replace(/_/g, " ")}</span>
+                      <span className="text-[11px] text-muted-subtle">
+                        {Math.round(selectedThread.aiSynthesis.confidence * 100)}%
+                      </span>
+                    </div>
+                    <div className="mt-1 leading-5">
+                      next: {selectedThread.aiSynthesis.nextAction.replace(/_/g, " ")}
+                    </div>
+                    {selectedThread.aiSynthesis.missingFields.length === 0 ? null : (
+                      <div className="mt-1 leading-5">
+                        missing: {selectedThread.aiSynthesis.missingFields.map((field) => field.replace(/_/g, " ")).join(", ")}
+                      </div>
+                    )}
+                    {selectedThread.aiSynthesis.handoffBrief === null ? null : (
+                      <div className="mt-2 rounded-[7px] border border-border bg-surface px-2 py-1.5 leading-5">
+                        {selectedThread.aiSynthesis.handoffBrief}
+                      </div>
+                    )}
+                    {selectedThread.aiSynthesis.documentUpdate === null ? null : (
+                      <div className="mt-2 leading-5">
+                        {selectedThread.aiSynthesis.documentUpdate}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               <div className="px-[14px] py-[14px]">
                 <button
                   className="mb-[7px] flex h-10 w-full items-center justify-center gap-2 rounded-[8px] bg-foreground text-[12px] font-medium text-white"
