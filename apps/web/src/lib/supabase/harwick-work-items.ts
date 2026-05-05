@@ -1,4 +1,10 @@
-import { HarwickWorkItemCreateSchema, type HarwickWorkItemCreate } from "@realty-ops/core";
+import {
+  HarwickHomeWorkItemSchema,
+  HarwickWorkItemCreateSchema,
+  type HarwickHomeWorkItem,
+  type HarwickWorkItemCreate,
+  type WorkspaceRole,
+} from "@realty-ops/core";
 import type { ProactiveInsightRepository, AmbiguousInboundEvent, DormantLead, UnassignedPriorityLead } from "../../features/agent-runtime/proactive-insights";
 import type { HarwickWorkItemInsertRow, Json } from "./database.types";
 import type { RealtyOpsSupabaseClient } from "./server-client";
@@ -9,6 +15,17 @@ export type HarwickWorkItemRepository = {
     workspaceId: string;
     signalKey: string;
   }): Promise<{ id: string } | null>;
+  listVisibleHomeWorkItems(params: {
+    workspaceId: string;
+    memberId: string;
+    role: WorkspaceRole;
+    limit: number;
+  }): Promise<HarwickHomeWorkItem[]>;
+  updateWorkItemStatus(params: {
+    workspaceId: string;
+    workItemId: string;
+    status: "seen" | "dismissed" | "completed";
+  }): Promise<{ workItemId: string }>;
 };
 
 function mapWorkItemCreateToInsertRow(item: HarwickWorkItemCreate): HarwickWorkItemInsertRow {
@@ -36,6 +53,53 @@ function mapWorkItemCreateToInsertRow(item: HarwickWorkItemCreate): HarwickWorkI
 type WorkItemIdRow = {
   id: string;
 };
+
+type HomeWorkItemRow = {
+  id: string;
+  workspace_id: string;
+  lead_id: string | null;
+  item_type: string;
+  status: string;
+  priority: string;
+  title: string;
+  summary: string;
+  recommended_action: string;
+  reason: string;
+  target_member_id: string | null;
+  target_role: string | null;
+  created_at: string;
+  due_at: string | null;
+};
+
+function canSeeWorkItem(
+  row: HomeWorkItemRow,
+  params: { memberId: string; role: WorkspaceRole },
+): boolean {
+  if (params.role === "owner" || params.role === "admin") {
+    return true;
+  }
+
+  return row.target_member_id === params.memberId || row.target_role === params.role;
+}
+
+function mapHomeWorkItemRow(row: HomeWorkItemRow): HarwickHomeWorkItem {
+  return HarwickHomeWorkItemSchema.parse({
+    id: row.id,
+    workspaceId: row.workspace_id,
+    leadId: row.lead_id,
+    type: row.item_type,
+    status: row.status,
+    priority: row.priority,
+    title: row.title,
+    summary: row.summary,
+    recommendedAction: row.recommended_action,
+    reason: row.reason,
+    targetMemberId: row.target_member_id,
+    targetRole: row.target_role,
+    createdAt: row.created_at,
+    dueAt: row.due_at,
+  });
+}
 
 type AmbiguousInboundEventRow = {
   id: string;
@@ -129,6 +193,49 @@ export function createSupabaseHarwickWorkItemRepository(
           reasonCode: row.lead_classification_reason,
           leadHint: row.lead_classification_hint,
         }));
+    },
+
+    async listVisibleHomeWorkItems(params) {
+      const { data, error } = await supabase
+        .from("harwick_work_items")
+        .select("id, workspace_id, lead_id, item_type, status, priority, title, summary, recommended_action, reason, target_member_id, target_role, created_at, due_at")
+        .eq("workspace_id", params.workspaceId)
+        .in("status", ["pending", "surfaced", "seen"])
+        .order("priority", { ascending: false })
+        .order("created_at", { ascending: false })
+        .limit(Math.max(params.limit * 3, params.limit));
+
+      if (error !== null) {
+        throw error;
+      }
+
+      return ((data ?? []) as HomeWorkItemRow[])
+        .filter((row) => canSeeWorkItem(row, params))
+        .slice(0, params.limit)
+        .map(mapHomeWorkItemRow);
+    },
+
+    async updateWorkItemStatus(params) {
+      const now = new Date().toISOString();
+      const update = {
+        status: params.status,
+        updated_at: now,
+        ...(params.status === "seen" ? { seen_at: now } : {}),
+        ...(params.status === "dismissed" || params.status === "completed" ? { completed_at: now } : {}),
+      };
+      const { data, error } = await supabase
+        .from("harwick_work_items")
+        .update(update)
+        .eq("workspace_id", params.workspaceId)
+        .eq("id", params.workItemId)
+        .select("id")
+        .single<WorkItemIdRow>();
+
+      if (error !== null) {
+        throw error;
+      }
+
+      return { workItemId: data.id };
     },
 
     async listUnassignedPriorityLeads(params) {

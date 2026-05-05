@@ -12,6 +12,7 @@ import { createSupabaseSocialReplyQueueRepository, createSupabaseVoiceHandoffQue
 import { createSupabaseRecentLeadsRepository } from "../../../lib/supabase/recent-leads";
 import { createSupabaseRoutingDeskRepository } from "../../../lib/supabase/routing-desk";
 import { createSupabaseTeamPresenceRepository } from "../../../lib/supabase/team-presence";
+import { createSupabaseHarwickWorkItemRepository } from "../../../lib/supabase/harwick-work-items";
 
 export const runtime = "nodejs";
 
@@ -27,7 +28,8 @@ export async function GET(request: NextRequest) {
     }
 
     const workspaceId = parsedWorkspaceId.data;
-    if ((await authorizeWorkspaceRequest({ request, workspaceId })) === null) {
+    const membership = await authorizeWorkspaceRequest({ request, workspaceId });
+    if (membership === null) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
 
@@ -40,6 +42,7 @@ export async function GET(request: NextRequest) {
       voiceQueue,
       recentLeads,
       routingDesk,
+      harwickWorkItems,
     ] = await Promise.all([
       loadTeamPresence({
         workspaceId,
@@ -94,6 +97,15 @@ export async function GET(request: NextRequest) {
         console.error("GET /api/home routing desk error:", error);
         return null;
       }),
+      createSupabaseHarwickWorkItemRepository(supabase).listVisibleHomeWorkItems({
+        workspaceId,
+        memberId: membership.memberId,
+        role: membership.role,
+        limit: 10,
+      }).catch((error: unknown) => {
+        console.error("GET /api/home Harwick work items error:", error);
+        return [];
+      }),
     ]);
 
     return NextResponse.json({
@@ -105,6 +117,10 @@ export async function GET(request: NextRequest) {
       voiceQueue,
       recentLeads,
       routingDesk,
+      harwickWorkItems: {
+        workspaceId,
+        items: harwickWorkItems,
+      },
     });
   } catch (error) {
     console.error("GET /api/home error:", error);

@@ -2,10 +2,12 @@
 
 import {
   automationModeLabel,
+  HarwickHomeWorkItemsResponseSchema,
   RecentLeadsResponseSchema,
   RoutingDeskResponseSchema,
   TeamPresenceResponseSchema,
   type ConversationAutomationMode,
+  type HarwickHomeWorkItem,
   type RecentLeadItem,
   type RoutingDeskItem,
   type TeamPresenceMember,
@@ -26,7 +28,7 @@ import { cn } from "../../lib/utils";
 
 type Source = "instagram" | "facebook";
 type Tone = "green" | "red" | "amber" | "stone";
-type QueueFilter = "all" | "instagram" | "facebook" | "calls" | "verify" | "crm";
+type QueueFilter = "all" | "instagram" | "facebook" | "calls" | "insights" | "verify" | "crm";
 type WorkItem = { kind: "reply"; item: Reply } | { kind: "task"; item: Task };
 
 type Reply = {
@@ -47,11 +49,13 @@ type Reply = {
 type Task = {
   workspaceId?: string;
   handoffId?: string;
+  workItemId?: string;
   leadId?: string;
-  type: "callback" | "listing" | "crm";
+  type: "callback" | "listing" | "crm" | "insight";
   label: string;
   title: string;
   detail: string;
+  reason?: string;
   time: string;
   action: string;
   tone: Tone;
@@ -186,6 +190,7 @@ function mapHomePayloadToWorkItems(payload: Record<string, unknown>): WorkItem[]
   const voiceQueue = readObject(payload["voiceQueue"]);
   const socialItems = Array.isArray(socialQueue?.["items"]) ? socialQueue["items"] : [];
   const voiceItems = Array.isArray(voiceQueue?.["items"]) ? voiceQueue["items"] : [];
+  const harwickWorkItemsParsed = HarwickHomeWorkItemsResponseSchema.safeParse(payload["harwickWorkItems"]);
 
   const mappedSocial: WorkItem[] = socialItems.flatMap((item) => {
     const row = readObject(item);
@@ -240,7 +245,40 @@ function mapHomePayloadToWorkItems(payload: Record<string, unknown>): WorkItem[]
     }];
   });
 
-  return mappedSocial.length > 0 || mappedVoice.length > 0 ? [...mappedSocial, ...mappedVoice] : null;
+  const mappedHarwick: WorkItem[] = harwickWorkItemsParsed.success
+    ? harwickWorkItemsParsed.data.items.map(mapHarwickWorkItemToQueueItem)
+    : [];
+
+  return mappedHarwick.length > 0 || mappedSocial.length > 0 || mappedVoice.length > 0
+    ? [...mappedHarwick, ...mappedSocial, ...mappedVoice]
+    : null;
+}
+
+function toneFromHarwickPriority(priority: HarwickHomeWorkItem["priority"]): Tone {
+  if (priority === "urgent") return "red";
+  if (priority === "high") return "amber";
+  if (priority === "low") return "stone";
+  return "green";
+}
+
+function mapHarwickWorkItemToQueueItem(item: HarwickHomeWorkItem): WorkItem {
+  return {
+    kind: "task",
+    item: {
+      workspaceId: item.workspaceId,
+      workItemId: item.id,
+      ...(item.leadId === null ? {} : { leadId: item.leadId }),
+      type: "insight",
+      label: item.priority === "urgent" ? "Urgent Harwick insight" : "Harwick insight",
+      title: item.title,
+      detail: item.summary,
+      reason: item.reason,
+      time: item.dueAt ?? item.createdAt,
+      action: item.recommendedAction,
+      tone: toneFromHarwickPriority(item.priority),
+      icon: ListChecks,
+    },
+  };
 }
 
 const primaryPillClass =
@@ -253,7 +291,7 @@ const outlinePillClass =
   "h-[25px] rounded-full border border-[rgba(26,25,22,0.10)] bg-transparent px-[12px] text-[10.75px] font-medium text-[#6b6860] shadow-none hover:border-[rgba(26,25,22,0.16)] hover:bg-transparent hover:text-[#1a1916]";
 
 function getWorkItemKey(entry: WorkItem): string {
-  return entry.kind === "reply" ? `reply:${entry.item.lead}` : `task:${entry.item.title}`;
+  return entry.kind === "reply" ? `reply:${entry.item.lead}` : `task:${entry.item.workItemId ?? entry.item.title}`;
 }
 
 function getWorkItemLeadName(entry: WorkItem): string {
@@ -272,6 +310,10 @@ function getWorkItemChannel(entry: WorkItem): string {
 
   if (entry.item.type === "listing") {
     return "Listing verification";
+  }
+
+  if (entry.item.type === "insight") {
+    return "Harwick insight";
   }
 
   return "CRM sync";
@@ -603,6 +645,10 @@ function matchesQueueFilter(
     return entry.item.type === "callback";
   }
 
+  if (filter === "insights") {
+    return entry.item.type === "insight";
+  }
+
   if (filter === "verify") {
     return entry.item.type === "listing";
   }
@@ -624,6 +670,7 @@ function QueueSwitch(props: {
     { value: "instagram", label: "instagram", count: props.items.filter((entry) => entry.kind === "reply" && entry.item.source === "instagram").length },
     { value: "facebook", label: "facebook", count: props.items.filter((entry) => entry.kind === "reply" && entry.item.source === "facebook").length },
     { value: "calls", label: "callbacks", count: props.items.filter((entry) => entry.kind === "task" && entry.item.type === "callback").length },
+    { value: "insights", label: "insights", count: props.items.filter((entry) => entry.kind === "task" && entry.item.type === "insight").length },
     { value: "verify", label: "verify", count: props.items.filter((entry) => entry.kind === "task" && entry.item.type === "listing").length },
     { value: "crm", label: "crm", count: props.items.filter((entry) => entry.kind === "task" && entry.item.type === "crm").length },
   ];
@@ -826,6 +873,11 @@ function TaskDetail(props: {
         <div className="rounded-[12px] bg-surface-muted px-4 py-3">
           <div className="text-[13px] font-semibold text-foreground">{props.task.title}</div>
           <div className="mt-1.5 text-[12px] leading-5 text-muted">{props.task.detail}</div>
+          {props.task.reason === undefined ? null : (
+            <div className="mt-3 rounded-[10px] border border-border bg-surface px-3 py-2 text-[11.5px] leading-5 text-muted">
+              {props.task.reason}
+            </div>
+          )}
         </div>
         <div className="mt-4 grid gap-2 sm:grid-cols-3">
           <div className="rounded-[11px] border border-border px-3 py-2">
@@ -851,7 +903,7 @@ function TaskDetail(props: {
         <div className="mt-4 flex flex-wrap gap-2">
           <Button
             className={cn(
-              props.task.type === "crm" ? outlinePillClass : darkPillClass,
+              props.task.type === "crm" || props.task.type === "insight" ? outlinePillClass : darkPillClass,
               "flex-1 min-w-[100px]"
             )}
             onClick={() => props.onTaskAction(props.task.type === "callback" ? "callback" : "reviewed", props.task)}
@@ -859,8 +911,16 @@ function TaskDetail(props: {
           >
             {props.task.action}
           </Button>
-          <Button className={cn(outlinePillClass, "flex-1 min-w-[80px]")} variant="ghost">
-            Assign
+          <Button
+            className={cn(outlinePillClass, "flex-1 min-w-[80px]")}
+            onClick={() => {
+              if (props.task.type === "insight" && props.task.leadId !== undefined) {
+                window.location.href = `/leads?leadId=${props.task.leadId}`;
+              }
+            }}
+            variant="ghost"
+          >
+            {props.task.type === "insight" ? "Open lead" : "Assign"}
           </Button>
           <Button 
             className={cn(outlinePillClass, "flex-1 min-w-[80px]")} 
@@ -885,7 +945,9 @@ function DetailSideRail(props: { entry: WorkItem }) {
       ? "Call this lead back and attach the outcome to the timeline."
       : props.entry.item.type === "listing"
         ? "Verify listing status before the AI references it again."
-        : "Resolve assignment mismatch before the next FUB sync.";
+        : props.entry.item.type === "insight"
+          ? props.entry.item.action
+          : "Resolve assignment mismatch before the next FUB sync.";
   const leadId = props.entry.kind === "reply" ? props.entry.item.leadId : props.entry.item.leadId;
   const initials = leadName.split(/\s+/).filter(Boolean).map((part) => part[0]).join("").slice(0, 2).toUpperCase() || "LD";
 
@@ -1370,6 +1432,38 @@ export function HomePage(props: HomePageProps) {
   }
 
   async function handleTaskAction(action: "callback" | "reviewed" | "dismiss", task: Task) {
+    if (task.type === "insight") {
+      if (task.workspaceId === undefined || task.workItemId === undefined) {
+        setActionStatus("this Harwick insight is missing its backend work item row.");
+        return;
+      }
+
+      try {
+        setActionStatus("working...");
+        const response = await fetch(`/api/workspaces/${task.workspaceId}/harwick-work-items/${task.workItemId}/action`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ action: action === "dismiss" ? "dismiss" : "mark_seen" }),
+        });
+
+        if (response.status === 403) {
+          setActionStatus("auth is required to update this Harwick insight.");
+          return;
+        }
+
+        if (!response.ok) {
+          setActionStatus("the backend rejected this Harwick insight action.");
+          return;
+        }
+
+        setActionStatus(action === "dismiss" ? "Harwick insight dismissed." : "Harwick insight marked seen.");
+        await refreshHomeData();
+      } catch {
+        setActionStatus("could not reach the Harwick insight endpoint.");
+      }
+      return;
+    }
+
     if (task.workspaceId === undefined || task.handoffId === undefined || task.type !== "callback") {
       setActionStatus("this task is not connected to a backend handoff row yet.");
       return;
