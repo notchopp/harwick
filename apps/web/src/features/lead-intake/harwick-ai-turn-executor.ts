@@ -24,6 +24,7 @@ import type { RealtyOpsSupabaseClient } from "../../lib/supabase/server-client";
 import type { SocialReplyQueueRepository } from "../operator-queues/operator-queues";
 import type { TablesUpdate } from "../../lib/supabase/database.types";
 import type { LeadRow } from "../../lib/supabase/leads";
+import { createSupabaseAuditLogRepository } from "../../lib/supabase/audit-logs";
 import { createSupabaseConversationMessageRepository } from "../../lib/supabase/conversation-messages";
 import { createSupabaseConversationAutomationRepository } from "../../lib/supabase/conversation-automation";
 import { createSupabaseLeadDocumentRepository } from "../../lib/supabase/lead-document";
@@ -92,6 +93,7 @@ export async function generateAndExecuteHarwickAiTurnSync(
   const policyNarrativeRepo = createSupabaseWorkspacePolicyNarrativeRepository(deps.supabase);
   const leadDocumentRepo = createSupabaseLeadDocumentRepository(deps.supabase);
   const memberRoutingRepo = createSupabaseMemberRoutingProfileRepository(deps.supabase);
+  const auditLogRepo = createSupabaseAuditLogRepository(deps.supabase);
 
   let trajectoryId: string | null = null;
   let stepCount = 0;
@@ -257,6 +259,27 @@ export async function generateAndExecuteHarwickAiTurnSync(
       });
       if (!shadowComparison.agree) {
         console.warn("[harwick-ai policy shadow disagreement]", shadowComparison);
+      }
+      try {
+        await auditLogRepo.insertAuditLog({
+          workspaceId: params.workspaceId,
+          userId: null,
+          actorType: "ai",
+          action: "harwick_ai.policy_shadow",
+          resourceType: "harwick_ai_turn",
+          resourceId: turnId,
+          metadata: {
+            leadId: params.leadId,
+            channel,
+            agree: shadowComparison.agree,
+            deterministicAutoExecute: shadowComparison.deterministicAutoExecute,
+            deterministicReason: shadowComparison.deterministicReason,
+            modelSelfGateAutoExecute: shadowComparison.modelSelfGateAutoExecute,
+            modelSelfGateReason: shadowComparison.modelSelfGateReason,
+          },
+        });
+      } catch (auditError) {
+        console.warn("Could not record Harwick AI policy shadow audit:", auditError);
       }
 
       try {

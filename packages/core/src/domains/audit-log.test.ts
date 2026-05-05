@@ -30,6 +30,23 @@ describe("AuditLogEntrySchema", () => {
     expect(result.success).toBe(true);
   });
 
+  it("validates an AI policy shadow entry", () => {
+    const result = AuditLogEntrySchema.safeParse({
+      workspaceId: "00000000-0000-0000-0000-000000000001",
+      userId: null,
+      actorType: "ai",
+      action: "harwick_ai.policy_shadow",
+      resourceType: "harwick_ai_turn",
+      resourceId: "00000000-0000-0000-0000-000000000003",
+      metadata: {
+        agree: false,
+        deterministicAutoExecute: true,
+        modelSelfGateAutoExecute: false,
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+
   it("validates a system action", () => {
     const result = AuditLogEntrySchema.safeParse({
       workspaceId: "00000000-0000-0000-0000-000000000001",

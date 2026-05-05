@@ -19,6 +19,7 @@ export const AuditLogActionSchema = z.enum([
   "reply.sent",
   "reply.ai_approved",
   "reply.ai_blocked",
+  "harwick_ai.policy_shadow",
   "routing_profile.updated",
   "workspace.settings_changed",
 ]);
@@ -30,6 +31,7 @@ export const AuditLogResourceTypeSchema = z.enum([
   "integration",
   "member",
   "reply",
+  "harwick_ai_turn",
   "routing_profile",
   "workspace",
 ]);
