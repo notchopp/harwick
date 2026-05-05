@@ -13,6 +13,16 @@ export type WorkspaceMemoryRoutingOverrideSignal = {
   aiSuggestedMemberIds: string[];
 };
 
+export type WorkspaceMemoryOperatorFeedbackSignal = {
+  workspaceId: string;
+  signalType: "operator_tag_positive" | "operator_tag_negative" | "operator_tag_note";
+  feedbackLabel: string | null;
+  feedbackSource: string | null;
+  outcomeCount: number;
+  latestObservedAt: string;
+  memberIds: string[];
+};
+
 export type WorkspaceMemoryRuntimeDocument = {
   id: string;
   memoryType: string;
@@ -51,6 +61,11 @@ export type WorkspaceMemoryRepository = {
     minCount: number;
     limit: number;
   }): Promise<WorkspaceMemoryRoutingOverrideSignal[]>;
+  listOperatorFeedbackSignals(params: {
+    sinceIso: string;
+    minCount: number;
+    limit: number;
+  }): Promise<WorkspaceMemoryOperatorFeedbackSignal[]>;
 };
 
 type IdRow = {
@@ -60,6 +75,13 @@ type IdRow = {
 type RoutingOverrideOutcomeRow = {
   workspace_id: string;
   recorded_at: string;
+  signal_value: Record<string, unknown> | null;
+};
+
+type OperatorFeedbackOutcomeRow = {
+  workspace_id: string;
+  recorded_at: string;
+  signal_type: "operator_tag_positive" | "operator_tag_negative" | "operator_tag_note";
   signal_value: Record<string, unknown> | null;
 };
 
@@ -240,6 +262,71 @@ export function createSupabaseWorkspaceMemoryRepository(
           latestObservedAt: entry.latestObservedAt,
           operatorMemberIds: [...entry.operatorMemberIds],
           aiSuggestedMemberIds: [...entry.aiSuggestedMemberIds],
+        }));
+    },
+
+    async listOperatorFeedbackSignals(params) {
+      const { data, error } = await supabase
+        .from("agent_outcomes")
+        .select("workspace_id, recorded_at, signal_type, signal_value")
+        .in("signal_type", ["operator_tag_positive", "operator_tag_negative", "operator_tag_note"])
+        .gte("recorded_at", params.sinceIso)
+        .order("recorded_at", { ascending: false })
+        .limit(params.limit * 20)
+        .returns<OperatorFeedbackOutcomeRow[]>();
+
+      if (error !== null) {
+        throw error;
+      }
+
+      const grouped = new Map<string, {
+        workspaceId: string;
+        signalType: WorkspaceMemoryOperatorFeedbackSignal["signalType"];
+        feedbackLabel: string | null;
+        feedbackSource: string | null;
+        latestObservedAt: string;
+        memberIds: Set<string>;
+        count: number;
+      }>();
+
+      for (const row of data ?? []) {
+        const feedbackLabel = readString(row.signal_value?.["feedbackLabel"]);
+        const feedbackSource = readString(row.signal_value?.["source"]);
+        const groupKey = [
+          row.workspace_id,
+          row.signal_type,
+          feedbackLabel ?? "unlabeled",
+          feedbackSource ?? "unknown",
+        ].join(":");
+        const current = grouped.get(groupKey) ?? {
+          workspaceId: row.workspace_id,
+          signalType: row.signal_type,
+          feedbackLabel,
+          feedbackSource,
+          latestObservedAt: row.recorded_at,
+          memberIds: new Set<string>(),
+          count: 0,
+        };
+        current.count += 1;
+        if (Date.parse(row.recorded_at) > Date.parse(current.latestObservedAt)) {
+          current.latestObservedAt = row.recorded_at;
+        }
+        const memberId = readString(row.signal_value?.["memberId"]);
+        if (memberId !== null) current.memberIds.add(memberId);
+        grouped.set(groupKey, current);
+      }
+
+      return [...grouped.values()]
+        .filter((entry) => entry.count >= params.minCount)
+        .slice(0, params.limit)
+        .map((entry) => ({
+          workspaceId: entry.workspaceId,
+          signalType: entry.signalType,
+          feedbackLabel: entry.feedbackLabel,
+          feedbackSource: entry.feedbackSource,
+          outcomeCount: entry.count,
+          latestObservedAt: entry.latestObservedAt,
+          memberIds: [...entry.memberIds],
         }));
     },
   };

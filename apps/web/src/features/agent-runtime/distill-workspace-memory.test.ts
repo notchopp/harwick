@@ -9,6 +9,7 @@ function createRepository(params: {
   existing?: boolean;
   inserted?: WorkspaceMemoryDocumentCreate[];
   savedEmbeddings?: Array<{ memoryId: string; embedding: number[] }>;
+  operatorFeedbackSignals?: Awaited<ReturnType<WorkspaceMemoryRepository["listOperatorFeedbackSignals"]>>;
 }): WorkspaceMemoryRepository {
   return {
     listRuntimeMemoryDocuments: vi.fn(() => Promise.resolve([])),
@@ -29,6 +30,7 @@ function createRepository(params: {
       operatorMemberIds: ["00000000-0000-0000-0000-000000000002"],
       aiSuggestedMemberIds: ["00000000-0000-0000-0000-000000000003"],
     }])),
+    listOperatorFeedbackSignals: vi.fn(() => Promise.resolve(params.operatorFeedbackSignals ?? [])),
     findRecentMemoryByTitle: vi.fn(() => Promise.resolve(params.existing === true ? { id: "existing-memory" } : null)),
     insertMemoryDocument: vi.fn((input: WorkspaceMemoryDocumentCreate) => {
       params.inserted?.push(input);
@@ -105,5 +107,44 @@ describe("distillWorkspaceMemory", () => {
       memoryId: "memory-id",
       embedding: [0.1, 0.2, 0.3],
     })]);
+  });
+
+  it("writes workspace memory from repeated operator feedback outcomes", async () => {
+    const inserted: WorkspaceMemoryDocumentCreate[] = [];
+    const report = await distillWorkspaceMemory({
+      repository: createRepository({
+        inserted,
+        operatorFeedbackSignals: [{
+          workspaceId,
+          signalType: "operator_tag_negative",
+          feedbackLabel: "not_relevant",
+          feedbackSource: "harwick_work_item",
+          outcomeCount: 4,
+          latestObservedAt: "2026-05-05T12:00:00.000Z",
+          memberIds: ["00000000-0000-0000-0000-000000000002"],
+        }],
+      }),
+      minOperatorFeedbackCount: 3,
+      now: () => new Date("2026-05-05T12:00:00.000Z"),
+    });
+
+    expect(report).toEqual({
+      scanned: 2,
+      created: 2,
+      embedded: 0,
+      skippedExisting: 0,
+      errors: 0,
+    });
+    expect(inserted).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        workspaceId,
+        memoryType: "policy_signal",
+        title: "Operators keep marking not relevant Harwick work as not relevant",
+        source: "distillation_worker",
+      }),
+    ]));
+    const feedbackMemory = inserted.find((memory) => memory.memoryType === "policy_signal");
+    expect(feedbackMemory?.evidence["feedbackLabel"]).toBe("not_relevant");
+    expect(feedbackMemory?.evidence["feedbackLabelDisplay"]).toBe("not relevant");
   });
 });
