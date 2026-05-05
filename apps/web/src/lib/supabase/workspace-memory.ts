@@ -23,6 +23,50 @@ export type WorkspaceMemoryOperatorFeedbackSignal = {
   memberIds: string[];
 };
 
+export type WorkspaceMemoryLeadOutcomeSignal = {
+  workspaceId: string;
+  signalType: "conversion_pattern" | "qualification_pattern" | "churn_pattern";
+  sourceChannel: string;
+  leadType: string;
+  targetArea: string | null;
+  outcomeCount: number;
+  latestObservedAt: string;
+  finalStatuses: string[];
+  averageScore: number | null;
+};
+
+export type WorkspaceMemoryMarketSignal = {
+  workspaceId: string;
+  targetArea: string;
+  leadType: string;
+  outcomeCount: number;
+  latestObservedAt: string;
+  sourceChannels: string[];
+  timelines: string[];
+  budgetMin: number | null;
+  budgetMax: number | null;
+};
+
+export type WorkspaceMemorySourceChannelSignal = {
+  workspaceId: string;
+  sourceChannel: string;
+  leadType: string;
+  outcomeCount: number;
+  qualifiedCount: number;
+  convertedCount: number;
+  churnedCount: number;
+  latestObservedAt: string;
+};
+
+export type WorkspaceMemoryObjectionSignal = {
+  workspaceId: string;
+  objectionType: "financing" | "price" | "timeline" | "location" | "availability" | "decision_partner";
+  outcomeCount: number;
+  latestObservedAt: string;
+  sourceChannels: string[];
+  examples: string[];
+};
+
 export type WorkspaceMemoryRuntimeDocument = {
   id: string;
   memoryType: string;
@@ -66,6 +110,26 @@ export type WorkspaceMemoryRepository = {
     minCount: number;
     limit: number;
   }): Promise<WorkspaceMemoryOperatorFeedbackSignal[]>;
+  listLeadOutcomeSignals(params: {
+    sinceIso: string;
+    minCount: number;
+    limit: number;
+  }): Promise<WorkspaceMemoryLeadOutcomeSignal[]>;
+  listMarketSignals(params: {
+    sinceIso: string;
+    minCount: number;
+    limit: number;
+  }): Promise<WorkspaceMemoryMarketSignal[]>;
+  listSourceChannelSignals(params: {
+    sinceIso: string;
+    minCount: number;
+    limit: number;
+  }): Promise<WorkspaceMemorySourceChannelSignal[]>;
+  listObjectionSignals(params: {
+    sinceIso: string;
+    minCount: number;
+    limit: number;
+  }): Promise<WorkspaceMemoryObjectionSignal[]>;
 };
 
 type IdRow = {
@@ -83,6 +147,26 @@ type OperatorFeedbackOutcomeRow = {
   recorded_at: string;
   signal_type: "operator_tag_positive" | "operator_tag_negative" | "operator_tag_note";
   signal_value: Record<string, unknown> | null;
+};
+
+type LeadMemorySignalRow = {
+  workspace_id: string;
+  status: string;
+  source_channel: string;
+  lead_type: string;
+  target_area: string | null;
+  timeline: string | null;
+  budget_min: number | null;
+  budget_max: number | null;
+  score: number;
+  updated_at: string;
+};
+
+type ConversationMessageMemorySignalRow = {
+  workspace_id: string;
+  body: string;
+  source_channel: string | null;
+  created_at: string | null;
 };
 
 type RuntimeMemoryDocumentRow = {
@@ -111,6 +195,47 @@ function mapCreateToInsertRow(input: WorkspaceMemoryDocumentCreate): WorkspaceMe
 
 function readString(value: unknown): string | null {
   return typeof value === "string" && value.trim().length > 0 ? value : null;
+}
+
+function normalizeGroupText(value: string | null): string | null {
+  const trimmed = value?.trim();
+  return trimmed === undefined || trimmed.length === 0 ? null : trimmed;
+}
+
+function readOutcomeSignalType(status: string): WorkspaceMemoryLeadOutcomeSignal["signalType"] | null {
+  if (status === "closed_won" || status === "active_client") {
+    return "conversion_pattern";
+  }
+  if (status === "qualified" || status === "hot") {
+    return "qualification_pattern";
+  }
+  if (status === "closed_lost" || status === "archived") {
+    return "churn_pattern";
+  }
+  return null;
+}
+
+function detectObjectionType(body: string): WorkspaceMemoryObjectionSignal["objectionType"] | null {
+  const text = body.toLowerCase();
+  if (/\b(preapproved|pre-approved|lender|loan|mortgage|cash|credit|financ|down payment)\b/.test(text)) {
+    return "financing";
+  }
+  if (/\b(expensive|price|budget|afford|cheaper|payment|too much)\b/.test(text)) {
+    return "price";
+  }
+  if (/\b(not ready|later|next year|lease|waiting|timing|few months|in months)\b/.test(text)) {
+    return "timeline";
+  }
+  if (/\b(commute|school district|neighborhood|area|location)\b/.test(text)) {
+    return "location";
+  }
+  if (/\b(available|still available|sold|showing|tour|open house|schedule)\b/.test(text)) {
+    return "availability";
+  }
+  if (/\b(partner|spouse|husband|wife|family|talk to|discuss)\b/.test(text)) {
+    return "decision_partner";
+  }
+  return null;
 }
 
 export function createSupabaseWorkspaceMemoryRepository(
@@ -327,6 +452,274 @@ export function createSupabaseWorkspaceMemoryRepository(
           outcomeCount: entry.count,
           latestObservedAt: entry.latestObservedAt,
           memberIds: [...entry.memberIds],
+        }));
+    },
+
+    async listLeadOutcomeSignals(params) {
+      const { data, error } = await supabase
+        .from("leads")
+        .select("workspace_id, status, source_channel, lead_type, target_area, timeline, budget_min, budget_max, score, updated_at")
+        .in("status", ["qualified", "hot", "active_client", "closed_won", "closed_lost", "archived"])
+        .gte("updated_at", params.sinceIso)
+        .order("updated_at", { ascending: false })
+        .limit(params.limit * 50)
+        .returns<LeadMemorySignalRow[]>();
+
+      if (error !== null) {
+        throw error;
+      }
+
+      const grouped = new Map<string, {
+        workspaceId: string;
+        signalType: WorkspaceMemoryLeadOutcomeSignal["signalType"];
+        sourceChannel: string;
+        leadType: string;
+        targetArea: string | null;
+        latestObservedAt: string;
+        finalStatuses: Set<string>;
+        scoreTotal: number;
+        count: number;
+      }>();
+
+      for (const row of data ?? []) {
+        const signalType = readOutcomeSignalType(row.status);
+        if (signalType === null) continue;
+        const targetArea = normalizeGroupText(row.target_area);
+        const groupKey = [
+          row.workspace_id,
+          signalType,
+          row.source_channel,
+          row.lead_type,
+          targetArea ?? "unknown_area",
+        ].join(":");
+        const current = grouped.get(groupKey) ?? {
+          workspaceId: row.workspace_id,
+          signalType,
+          sourceChannel: row.source_channel,
+          leadType: row.lead_type,
+          targetArea,
+          latestObservedAt: row.updated_at,
+          finalStatuses: new Set<string>(),
+          scoreTotal: 0,
+          count: 0,
+        };
+        current.count += 1;
+        current.scoreTotal += row.score;
+        current.finalStatuses.add(row.status);
+        if (Date.parse(row.updated_at) > Date.parse(current.latestObservedAt)) {
+          current.latestObservedAt = row.updated_at;
+        }
+        grouped.set(groupKey, current);
+      }
+
+      return [...grouped.values()]
+        .filter((entry) => entry.count >= params.minCount)
+        .slice(0, params.limit)
+        .map((entry) => ({
+          workspaceId: entry.workspaceId,
+          signalType: entry.signalType,
+          sourceChannel: entry.sourceChannel,
+          leadType: entry.leadType,
+          targetArea: entry.targetArea,
+          outcomeCount: entry.count,
+          latestObservedAt: entry.latestObservedAt,
+          finalStatuses: [...entry.finalStatuses],
+          averageScore: Math.round(entry.scoreTotal / entry.count),
+        }));
+    },
+
+    async listMarketSignals(params) {
+      const { data, error } = await supabase
+        .from("leads")
+        .select("workspace_id, status, source_channel, lead_type, target_area, timeline, budget_min, budget_max, score, updated_at")
+        .not("target_area", "is", null)
+        .neq("intent", "spam")
+        .gte("updated_at", params.sinceIso)
+        .order("updated_at", { ascending: false })
+        .limit(params.limit * 50)
+        .returns<LeadMemorySignalRow[]>();
+
+      if (error !== null) {
+        throw error;
+      }
+
+      const grouped = new Map<string, {
+        workspaceId: string;
+        targetArea: string;
+        leadType: string;
+        latestObservedAt: string;
+        sourceChannels: Set<string>;
+        timelines: Set<string>;
+        budgetMin: number | null;
+        budgetMax: number | null;
+        count: number;
+      }>();
+
+      for (const row of data ?? []) {
+        const targetArea = normalizeGroupText(row.target_area);
+        if (targetArea === null) continue;
+        const groupKey = [row.workspace_id, targetArea.toLowerCase(), row.lead_type].join(":");
+        const current = grouped.get(groupKey) ?? {
+          workspaceId: row.workspace_id,
+          targetArea,
+          leadType: row.lead_type,
+          latestObservedAt: row.updated_at,
+          sourceChannels: new Set<string>(),
+          timelines: new Set<string>(),
+          budgetMin: null,
+          budgetMax: null,
+          count: 0,
+        };
+        current.count += 1;
+        current.sourceChannels.add(row.source_channel);
+        const timeline = normalizeGroupText(row.timeline);
+        if (timeline !== null) current.timelines.add(timeline);
+        if (row.budget_min !== null) {
+          current.budgetMin = current.budgetMin === null ? row.budget_min : Math.min(current.budgetMin, row.budget_min);
+        }
+        if (row.budget_max !== null) {
+          current.budgetMax = current.budgetMax === null ? row.budget_max : Math.max(current.budgetMax, row.budget_max);
+        }
+        if (Date.parse(row.updated_at) > Date.parse(current.latestObservedAt)) {
+          current.latestObservedAt = row.updated_at;
+        }
+        grouped.set(groupKey, current);
+      }
+
+      return [...grouped.values()]
+        .filter((entry) => entry.count >= params.minCount)
+        .slice(0, params.limit)
+        .map((entry) => ({
+          workspaceId: entry.workspaceId,
+          targetArea: entry.targetArea,
+          leadType: entry.leadType,
+          outcomeCount: entry.count,
+          latestObservedAt: entry.latestObservedAt,
+          sourceChannels: [...entry.sourceChannels],
+          timelines: [...entry.timelines],
+          budgetMin: entry.budgetMin,
+          budgetMax: entry.budgetMax,
+        }));
+    },
+
+    async listSourceChannelSignals(params) {
+      const { data, error } = await supabase
+        .from("leads")
+        .select("workspace_id, status, source_channel, lead_type, target_area, timeline, budget_min, budget_max, score, updated_at")
+        .gte("updated_at", params.sinceIso)
+        .order("updated_at", { ascending: false })
+        .limit(params.limit * 50)
+        .returns<LeadMemorySignalRow[]>();
+
+      if (error !== null) {
+        throw error;
+      }
+
+      const grouped = new Map<string, {
+        workspaceId: string;
+        sourceChannel: string;
+        leadType: string;
+        latestObservedAt: string;
+        qualifiedCount: number;
+        convertedCount: number;
+        churnedCount: number;
+        count: number;
+      }>();
+
+      for (const row of data ?? []) {
+        const groupKey = [row.workspace_id, row.source_channel, row.lead_type].join(":");
+        const current = grouped.get(groupKey) ?? {
+          workspaceId: row.workspace_id,
+          sourceChannel: row.source_channel,
+          leadType: row.lead_type,
+          latestObservedAt: row.updated_at,
+          qualifiedCount: 0,
+          convertedCount: 0,
+          churnedCount: 0,
+          count: 0,
+        };
+        current.count += 1;
+        if (row.status === "qualified" || row.status === "hot") current.qualifiedCount += 1;
+        if (row.status === "active_client" || row.status === "closed_won") current.convertedCount += 1;
+        if (row.status === "closed_lost" || row.status === "archived") current.churnedCount += 1;
+        if (Date.parse(row.updated_at) > Date.parse(current.latestObservedAt)) {
+          current.latestObservedAt = row.updated_at;
+        }
+        grouped.set(groupKey, current);
+      }
+
+      return [...grouped.values()]
+        .filter((entry) => entry.count >= params.minCount)
+        .slice(0, params.limit)
+        .map((entry) => ({
+          workspaceId: entry.workspaceId,
+          sourceChannel: entry.sourceChannel,
+          leadType: entry.leadType,
+          outcomeCount: entry.count,
+          qualifiedCount: entry.qualifiedCount,
+          convertedCount: entry.convertedCount,
+          churnedCount: entry.churnedCount,
+          latestObservedAt: entry.latestObservedAt,
+        }));
+    },
+
+    async listObjectionSignals(params) {
+      const { data, error } = await supabase
+        .from("conversation_messages")
+        .select("workspace_id, body, source_channel, created_at")
+        .eq("sender_type", "customer")
+        .gte("created_at", params.sinceIso)
+        .order("created_at", { ascending: false })
+        .limit(params.limit * 80)
+        .returns<ConversationMessageMemorySignalRow[]>();
+
+      if (error !== null) {
+        throw error;
+      }
+
+      const grouped = new Map<string, {
+        workspaceId: string;
+        objectionType: WorkspaceMemoryObjectionSignal["objectionType"];
+        latestObservedAt: string;
+        sourceChannels: Set<string>;
+        examples: string[];
+        count: number;
+      }>();
+
+      for (const row of data ?? []) {
+        const objectionType = detectObjectionType(row.body);
+        const observedAt = row.created_at ?? new Date().toISOString();
+        if (objectionType === null) continue;
+        const groupKey = [row.workspace_id, objectionType].join(":");
+        const current = grouped.get(groupKey) ?? {
+          workspaceId: row.workspace_id,
+          objectionType,
+          latestObservedAt: observedAt,
+          sourceChannels: new Set<string>(),
+          examples: [],
+          count: 0,
+        };
+        current.count += 1;
+        const sourceChannel = normalizeGroupText(row.source_channel);
+        if (sourceChannel !== null) current.sourceChannels.add(sourceChannel);
+        const example = row.body.trim().slice(0, 160);
+        if (example.length > 0 && current.examples.length < 3) current.examples.push(example);
+        if (Date.parse(observedAt) > Date.parse(current.latestObservedAt)) {
+          current.latestObservedAt = observedAt;
+        }
+        grouped.set(groupKey, current);
+      }
+
+      return [...grouped.values()]
+        .filter((entry) => entry.count >= params.minCount)
+        .slice(0, params.limit)
+        .map((entry) => ({
+          workspaceId: entry.workspaceId,
+          objectionType: entry.objectionType,
+          outcomeCount: entry.count,
+          latestObservedAt: entry.latestObservedAt,
+          sourceChannels: [...entry.sourceChannels],
+          examples: entry.examples,
         }));
     },
   };

@@ -54,7 +54,7 @@ Status values:
 | Meta intake | done | webhook intake, normalization, post context, reply send, social queue exist, E2E flow verified with real IG DMs | Continue with production signature checks, OAuth connection, and real approval/send loop. |
 | Harwick AI runtime | partial | typed runtime, local/OpenAI adapters, tool contracts, tool registry prompt construction, durable subagent task dispatch, automation policy, and tool executor exist | Persist full turns, tool execution records, state patches, policy decisions, production auto-send results, and worker execution for subagent tasks. |
 | Harwick proactive insight feed | partial | `harwick_work_items` exists; `/api/agent-runtime/insights` cron producer surfaces ambiguous inbound, unassigned priority leads, dormant active leads, workspace memory patterns, and optional small-model-refined narratives; `/home` shows member/role-filtered insights with seen/dismiss actions and feedback labels | Add deeper insight types from objections, conversion outcomes, source/channel patterns, and subagent task results. |
-| Harwick workspace memory | partial | `workspace_memory_documents` table, typed contract, repository, `/api/agent-runtime/workspace-memory` distillation worker, embedding persistence, semantic pgvector retrieval, and Harwick runtime prompt injection exist for repeated routing override patterns and repeated operator feedback on Harwick work | Broaden distillation into objection, market, conversion, and source/channel patterns. |
+| Harwick workspace memory | partial | `workspace_memory_documents` table, typed contract, repository, `/api/agent-runtime/workspace-memory` distillation worker, embedding persistence, semantic pgvector retrieval, and Harwick runtime prompt injection exist for routing overrides, operator feedback, objection, market, conversion, and source/channel patterns | Add higher-fidelity model-authored memory synthesis and workspace-level memory review controls. |
 | Conversation-scoped AI control | partial | `conversation_automation_states` migration and UI controls exist | Enforce before every send path and expose admin/agent-safe controls consistently. |
 | Conversations page | partial | conversation data contracts and sandbox/test utilities exist | Bind to live conversation records, realtime or polling updates, message send, takeover, resume, and transcript timeline. |
 | Work queue | partial | social/voice/operator queue concepts exist | Ensure every queue action is backed by a real API mutation and audit event. |
@@ -309,7 +309,7 @@ This is a parallel track to the launch spine above. It is not gated by launch �
 
 The frame: Harwick is becoming an AI agent that calls infrastructure when it needs to act, not a workflow engine that calls AI when it needs language. Progress is measured in lines deleted from the existing policy/state-machine layer, not in features added. See `AGENTS.md` north-star section for principles.
 
-Current AI-native completion estimate: **72%**.
+Current AI-native completion estimate: **75%**.
 
 Recently completed:
 
@@ -327,10 +327,11 @@ Recently completed:
 - Capability 4 / Step 3 standing instructions: workspace settings can save manual Harwick policy narrative into `workspaces.policy_narrative`, and the existing runtime injects that prose into every turn.
 - Capability 5/6 foundation: Harwick tool prompt construction now comes from a typed registry, and `dispatch_subagent` writes durable specialist tasks for later worker execution.
 - Capability 3 richer narratives: the proactive insight cron can use the configured small model to rewrite deterministic insight cards into validated, action-oriented narratives, with deterministic fallback on failure.
+- Capability 1 broader distillation: workspace memory now learns objection, market, conversion, and source/channel patterns from real leads and conversation messages.
 
 Still open before this becomes “fully AI native”:
 
-- Workspace-level memory distillation for objections, market context, conversion outcomes, and source/channel patterns.
+- Higher-fidelity model-authored workspace memory synthesis and workspace-level memory review controls.
 - True in-flight progressive synthesis from active tool/result events, not just persisted completed turns.
 - Policy shadow validation metrics and deletion of deterministic policy paths once model self-gating is trusted.
 - Worker execution and result surfacing for queued Harwick subagent tasks.
