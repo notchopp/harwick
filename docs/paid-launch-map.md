@@ -53,7 +53,7 @@ Status values:
 | RLS and tenant boundaries | partial | migrations and workspace scoping exist | Audit all tenant tables, add missing policies, test owner/assigned/unassigned/outsider access. |
 | Meta intake | done | webhook intake, normalization, post context, reply send, social queue exist, E2E flow verified with real IG DMs | Continue with production signature checks, OAuth connection, and real approval/send loop. |
 | Harwick AI runtime | partial | typed runtime, local/OpenAI adapters, tool contracts, automation policy, tool executor exist | Persist full turns, tool execution records, state patches, policy decisions, and production auto-send results. |
-| Harwick proactive insight feed | partial | `harwick_work_items` exists; `/api/agent-runtime/insights` cron producer surfaces ambiguous inbound, unassigned priority leads, and dormant active leads; `/home` shows member/role-filtered insights with seen/dismiss actions | Add model-distilled workspace pattern insights and operator feedback labels. |
+| Harwick proactive insight feed | partial | `harwick_work_items` exists; `/api/agent-runtime/insights` cron producer surfaces ambiguous inbound, unassigned priority leads, dormant active leads, and workspace memory patterns; `/home` shows member/role-filtered insights with seen/dismiss actions and feedback labels | Add richer model-distilled insight narratives beyond the current memory-pattern producer. |
 | Harwick workspace memory | partial | `workspace_memory_documents` table, typed contract, repository, `/api/agent-runtime/workspace-memory` distillation worker, embedding persistence, semantic pgvector retrieval, and Harwick runtime prompt injection exist for repeated routing override patterns | Broaden distillation beyond routing overrides. |
 | Conversation-scoped AI control | partial | `conversation_automation_states` migration and UI controls exist | Enforce before every send path and expose admin/agent-safe controls consistently. |
 | Conversations page | partial | conversation data contracts and sandbox/test utilities exist | Bind to live conversation records, realtime or polling updates, message send, takeover, resume, and transcript timeline. |
@@ -309,7 +309,7 @@ This is a parallel track to the launch spine above. It is not gated by launch �
 
 The frame: Harwick is becoming an AI agent that calls infrastructure when it needs to act, not a workflow engine that calls AI when it needs language. Progress is measured in lines deleted from the existing policy/state-machine layer, not in features added. See `AGENTS.md` north-star section for principles.
 
-Current AI-native completion estimate: **50%**.
+Current AI-native completion estimate: **53%**.
 
 Recently completed:
 
@@ -320,6 +320,7 @@ Recently completed:
 - Capability 1 foundation: workspace-level memory table and distillation worker now capture repeated routing override patterns across leads.
 - Capability 1 runtime use: Harwick now retrieves recent workspace memories and injects them into the model prompt as brokerage-wide soft context.
 - Capability 1 semantic retrieval: workspace memories are embedded when distilled and semantically matched against the current inbound plus lead document before prompt injection.
+- Capability 3 pattern insights: proactive insight producer now surfaces workspace memory patterns to team leads and captures operator feedback labels on Harwick work-item actions.
 
 Still open before this becomes “fully AI native”:
 
@@ -327,7 +328,7 @@ Still open before this becomes “fully AI native”:
 - Live progressive synthesis while conversations are running.
 - Standing instructions as natural-language policy.
 - Subagent dispatch and tool registry prompt construction.
-- Model-distilled proactive insights from workspace patterns, not only deterministic v1 signals.
+- Richer model-distilled proactive insight narratives beyond the current workspace memory pattern producer.
 
 ### Step 1: Semantic listing search (pgvector)
 

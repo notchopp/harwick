@@ -5,9 +5,29 @@ import {
   type HarwickWorkItemCreate,
   type WorkspaceRole,
 } from "@realty-ops/core";
-import type { ProactiveInsightRepository, AmbiguousInboundEvent, DormantLead, UnassignedPriorityLead } from "../../features/agent-runtime/proactive-insights";
-import type { HarwickWorkItemInsertRow, Json } from "./database.types";
+import type {
+  ProactiveInsightRepository,
+  AmbiguousInboundEvent,
+  DormantLead,
+  UnassignedPriorityLead,
+  WorkspaceMemoryPattern,
+} from "../../features/agent-runtime/proactive-insights";
+import type { HarwickWorkItemInsertRow, Json, TablesUpdate } from "./database.types";
 import type { RealtyOpsSupabaseClient } from "./server-client";
+
+export type HarwickWorkItemFeedbackLabel =
+  | "useful"
+  | "not_relevant"
+  | "wrong_person"
+  | "already_handled"
+  | "needs_more_context";
+
+export type HarwickWorkItemActionResult = {
+  workItemId: string;
+  leadId: string | null;
+  trajectoryId: string | null;
+  stepId: string | null;
+};
 
 export type HarwickWorkItemRepository = {
   createWorkItem(item: HarwickWorkItemCreate): Promise<{ workItemId: string }>;
@@ -25,7 +45,10 @@ export type HarwickWorkItemRepository = {
     workspaceId: string;
     workItemId: string;
     status: "seen" | "dismissed" | "completed";
-  }): Promise<{ workItemId: string }>;
+    actorMemberId?: string | null;
+    feedbackLabel?: HarwickWorkItemFeedbackLabel | null;
+    feedbackNote?: string | null;
+  }): Promise<HarwickWorkItemActionResult>;
 };
 
 function mapWorkItemCreateToInsertRow(item: HarwickWorkItemCreate): HarwickWorkItemInsertRow {
@@ -52,6 +75,14 @@ function mapWorkItemCreateToInsertRow(item: HarwickWorkItemCreate): HarwickWorkI
 
 type WorkItemIdRow = {
   id: string;
+};
+
+type WorkItemActionRow = {
+  id: string;
+  lead_id: string | null;
+  trajectory_id: string | null;
+  step_id: string | null;
+  payload: Json;
 };
 
 type HomeWorkItemRow = {
@@ -128,6 +159,24 @@ type UnassignedPriorityLeadRow = {
 type DormantLeadRow = UnassignedPriorityLeadRow & {
   assigned_agent_id: string | null;
 };
+
+type WorkspaceMemoryPatternRow = {
+  id: string;
+  workspace_id: string;
+  memory_type: string;
+  title: string;
+  body: string;
+  source: string;
+  confidence: number;
+  last_observed_at: string;
+  updated_at: string;
+};
+
+function payloadAsRecord(payload: Json): Record<string, unknown> {
+  return typeof payload === "object" && payload !== null && !Array.isArray(payload)
+    ? payload
+    : {};
+}
 
 export function createSupabaseHarwickWorkItemRepository(
   supabase: RealtyOpsSupabaseClient,
@@ -217,11 +266,35 @@ export function createSupabaseHarwickWorkItemRepository(
 
     async updateWorkItemStatus(params) {
       const now = new Date().toISOString();
-      const update = {
+      const { data: existing, error: readError } = await supabase
+        .from("harwick_work_items")
+        .select("id, lead_id, trajectory_id, step_id, payload")
+        .eq("workspace_id", params.workspaceId)
+        .eq("id", params.workItemId)
+        .single<WorkItemActionRow>();
+
+      if (readError !== null) {
+        throw readError;
+      }
+
+      const feedback = params.feedbackLabel === undefined || params.feedbackLabel === null
+        ? {}
+        : {
+            operatorFeedback: {
+              label: params.feedbackLabel,
+              note: params.feedbackNote ?? null,
+              actorMemberId: params.actorMemberId ?? null,
+              recordedAt: now,
+            },
+          };
+      const update: TablesUpdate<"harwick_work_items"> = {
         status: params.status,
         updated_at: now,
         ...(params.status === "seen" ? { seen_at: now } : {}),
         ...(params.status === "dismissed" || params.status === "completed" ? { completed_at: now } : {}),
+        ...(params.feedbackLabel === undefined || params.feedbackLabel === null
+          ? {}
+          : { payload: { ...payloadAsRecord(existing.payload), ...feedback } }),
       };
       const { data, error } = await supabase
         .from("harwick_work_items")
@@ -235,7 +308,12 @@ export function createSupabaseHarwickWorkItemRepository(
         throw error;
       }
 
-      return { workItemId: data.id };
+      return {
+        workItemId: data.id,
+        leadId: existing.lead_id,
+        trajectoryId: existing.trajectory_id,
+        stepId: existing.step_id,
+      };
     },
 
     async listUnassignedPriorityLeads(params) {
@@ -292,6 +370,34 @@ export function createSupabaseHarwickWorkItemRepository(
           timeline: row.timeline,
           lastMessageAt: row.last_message_at,
           assignedAgentId: row.assigned_agent_id,
+        }));
+    },
+
+    async listWorkspaceMemoryPatterns(params) {
+      const { data, error } = await supabase
+        .from("workspace_memory_documents")
+        .select("id, workspace_id, memory_type, title, body, source, confidence, last_observed_at, updated_at")
+        .gte("updated_at", params.sinceIso)
+        .order("confidence", { ascending: false })
+        .order("updated_at", { ascending: false })
+        .limit(params.limit);
+
+      if (error !== null) {
+        throw error;
+      }
+
+      return ((data ?? []) as WorkspaceMemoryPatternRow[])
+        .filter((row) => row.source === "distillation_worker" || row.source === "system")
+        .map((row): WorkspaceMemoryPattern => ({
+          id: row.id,
+          workspaceId: row.workspace_id,
+          memoryType: row.memory_type,
+          title: row.title,
+          body: row.body,
+          source: row.source,
+          confidence: row.confidence,
+          lastObservedAt: row.last_observed_at,
+          updatedAt: row.updated_at,
         }));
     },
   };

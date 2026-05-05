@@ -913,6 +913,7 @@ function TaskDetail(props: {
           </Button>
           <Button
             className={cn(outlinePillClass, "flex-1 min-w-[80px]")}
+            disabled={props.task.type === "insight" && props.task.leadId === undefined}
             onClick={() => {
               if (props.task.type === "insight" && props.task.leadId !== undefined) {
                 window.location.href = `/leads?leadId=${props.task.leadId}`;
@@ -920,7 +921,7 @@ function TaskDetail(props: {
             }}
             variant="ghost"
           >
-            {props.task.type === "insight" ? "Open lead" : "Assign"}
+            {props.task.type === "insight" ? props.task.leadId === undefined ? "Workspace" : "Open lead" : "Assign"}
           </Button>
           <Button 
             className={cn(outlinePillClass, "flex-1 min-w-[80px]")} 
@@ -1443,7 +1444,9 @@ export function HomePage(props: HomePageProps) {
         const response = await fetch(`/api/workspaces/${task.workspaceId}/harwick-work-items/${task.workItemId}/action`, {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ action: action === "dismiss" ? "dismiss" : "mark_seen" }),
+          body: JSON.stringify(action === "dismiss"
+            ? { action: "dismiss", feedbackLabel: "not_relevant" }
+            : { action: "mark_seen", feedbackLabel: "useful" }),
         });
 
         if (response.status === 403) {

@@ -29,6 +29,18 @@ export type DormantLead = UnassignedPriorityLead & {
   assignedAgentId: string | null;
 };
 
+export type WorkspaceMemoryPattern = {
+  id: string;
+  workspaceId: string;
+  memoryType: string;
+  title: string;
+  body: string;
+  source: string;
+  confidence: number;
+  lastObservedAt: string;
+  updatedAt: string;
+};
+
 export type ProactiveInsightRepository = {
   listAmbiguousInboundEvents(params: {
     sinceIso: string;
@@ -41,6 +53,10 @@ export type ProactiveInsightRepository = {
     beforeIso: string;
     limit: number;
   }): Promise<DormantLead[]>;
+  listWorkspaceMemoryPatterns(params: {
+    sinceIso: string;
+    limit: number;
+  }): Promise<WorkspaceMemoryPattern[]>;
   findOpenInsightBySignalKey(params: {
     workspaceId: string;
     signalKey: string;
@@ -209,6 +225,42 @@ function buildDormantLeadCandidate(lead: DormantLead, now: Date): InsightCandida
   };
 }
 
+function buildWorkspaceMemoryPatternCandidate(memory: WorkspaceMemoryPattern): InsightCandidate {
+  const signalKey = `workspace_memory_pattern:${memory.id}`;
+
+  return {
+    workspaceId: memory.workspaceId,
+    signalKey,
+    item: HarwickWorkItemCreateSchema.parse({
+      workspaceId: memory.workspaceId,
+      leadId: null,
+      routingDecisionId: null,
+      trajectoryId: null,
+      stepId: null,
+      type: "insight",
+      status: "pending",
+      targetMemberId: null,
+      targetRole: "team_lead",
+      priority: memory.confidence >= 0.8 ? "high" : "normal",
+      title: "Workspace pattern needs review",
+      summary: memory.title,
+      recommendedAction: "Review pattern",
+      reason: memory.body,
+      payload: {
+        signalType: "workspace_memory_pattern",
+        signalKey,
+        workspaceMemoryId: memory.id,
+        memoryType: memory.memoryType,
+        source: memory.source,
+        confidence: memory.confidence,
+        lastObservedAt: memory.lastObservedAt,
+        updatedAt: memory.updatedAt,
+      },
+      dueAt: null,
+    }),
+  };
+}
+
 async function createCandidateIfNew(
   repository: ProactiveInsightRepository,
   candidate: InsightCandidate,
@@ -235,16 +287,18 @@ export async function surfaceProactiveInsights(
   const sinceIso = new Date(now.getTime() - lookbackHours * 3600000).toISOString();
   const dormantBeforeIso = new Date(now.getTime() - dormantLeadDays * 24 * 3600000).toISOString();
 
-  const [ambiguousEvents, unassignedLeads, dormantLeads] = await Promise.all([
+  const [ambiguousEvents, unassignedLeads, dormantLeads, workspacePatterns] = await Promise.all([
     deps.repository.listAmbiguousInboundEvents({ sinceIso, limit: batchSize }),
     deps.repository.listUnassignedPriorityLeads({ limit: batchSize }),
     deps.repository.listDormantLeads({ beforeIso: dormantBeforeIso, limit: batchSize }),
+    deps.repository.listWorkspaceMemoryPatterns({ sinceIso, limit: batchSize }),
   ]);
 
   const candidates = [
     ...ambiguousEvents.map(buildAmbiguousInboundCandidate),
     ...unassignedLeads.map(buildUnassignedPriorityLeadCandidate),
     ...dormantLeads.map((lead) => buildDormantLeadCandidate(lead, now)),
+    ...workspacePatterns.map(buildWorkspaceMemoryPatternCandidate),
   ];
 
   let created = 0;
