@@ -1,4 +1,6 @@
 import { HarwickWorkItemCreateSchema, type HarwickWorkItemCreate } from "@realty-ops/core";
+import type { SmallModelClient } from "@realty-ops/integrations";
+import { z } from "zod";
 
 export type AmbiguousInboundEvent = {
   id: string;
@@ -67,12 +69,31 @@ export type ProactiveInsightRepository = {
 export type ProactiveInsightReport = {
   scanned: number;
   created: number;
+  refined: number;
   skippedExisting: number;
   errors: number;
 };
 
+const InsightNarrativeSchema = z.object({
+  title: z.string().trim().min(1).max(160),
+  summary: z.string().trim().min(1).max(1000),
+  recommendedAction: z.string().trim().min(1).max(160),
+  reason: z.string().trim().min(1).max(1000),
+  priority: z.enum(["low", "normal", "high", "urgent"]).optional(),
+});
+
+export type ProactiveInsightNarrative = z.infer<typeof InsightNarrativeSchema>;
+
+export type ProactiveInsightNarrativeClient = {
+  refineInsight(params: {
+    signalKey: string;
+    item: HarwickWorkItemCreate;
+  }): Promise<ProactiveInsightNarrative>;
+};
+
 export type ProactiveInsightDeps = {
   repository: ProactiveInsightRepository;
+  narrativeClient?: ProactiveInsightNarrativeClient;
   now?: () => Date;
   batchSize?: number;
   lookbackHours?: number;
@@ -84,6 +105,36 @@ type InsightCandidate = {
   signalKey: string;
   item: HarwickWorkItemCreate;
 };
+
+export function createSmallModelProactiveInsightNarrativeClient(
+  client: SmallModelClient,
+): ProactiveInsightNarrativeClient {
+  return {
+    async refineInsight(params) {
+      return client.classify({
+        schema: InsightNarrativeSchema,
+        temperature: 0.2,
+        maxTokens: 450,
+        instructions: [
+          "You write concise, operational Harwick insight cards for a real estate team.",
+          "Keep facts grounded only in the provided item. Do not invent names, prices, promises, or outcomes.",
+          "Make the card specific, action-oriented, and useful to the targeted workspace role.",
+          "Return JSON with title, summary, recommendedAction, reason, and optional priority.",
+        ].join("\n"),
+        input: JSON.stringify({
+          signalKey: params.signalKey,
+          title: params.item.title,
+          summary: params.item.summary,
+          recommendedAction: params.item.recommendedAction,
+          reason: params.item.reason,
+          priority: params.item.priority,
+          targetRole: params.item.targetRole,
+          payload: params.item.payload,
+        }),
+      });
+    },
+  };
+}
 
 function displayLeadName(name: string | null): string {
   const trimmed = name?.trim();
@@ -277,6 +328,45 @@ async function createCandidateIfNew(
   return "created";
 }
 
+async function refineCandidate(
+  deps: Pick<ProactiveInsightDeps, "narrativeClient">,
+  candidate: InsightCandidate,
+): Promise<{ candidate: InsightCandidate; refined: boolean }> {
+  if (deps.narrativeClient === undefined) {
+    return { candidate, refined: false };
+  }
+
+  try {
+    const narrative = await deps.narrativeClient.refineInsight({
+      signalKey: candidate.signalKey,
+      item: candidate.item,
+    });
+    return {
+      refined: true,
+      candidate: {
+        ...candidate,
+        item: HarwickWorkItemCreateSchema.parse({
+          ...candidate.item,
+          title: narrative.title,
+          summary: narrative.summary,
+          recommendedAction: narrative.recommendedAction,
+          reason: narrative.reason,
+          priority: narrative.priority ?? candidate.item.priority,
+          payload: {
+            ...candidate.item.payload,
+            narrativeSource: "small_model",
+            deterministicTitle: candidate.item.title,
+            deterministicSummary: candidate.item.summary,
+          },
+        }),
+      },
+    };
+  } catch (error) {
+    console.warn("[surfaceProactiveInsights] narrative refinement failed", candidate.signalKey, error);
+    return { candidate, refined: false };
+  }
+}
+
 export async function surfaceProactiveInsights(
   deps: ProactiveInsightDeps,
 ): Promise<ProactiveInsightReport> {
@@ -302,12 +392,17 @@ export async function surfaceProactiveInsights(
   ];
 
   let created = 0;
+  let refined = 0;
   let skippedExisting = 0;
   let errors = 0;
 
   for (const candidate of candidates) {
     try {
-      const result = await createCandidateIfNew(deps.repository, candidate);
+      const refinedCandidate = await refineCandidate(deps, candidate);
+      if (refinedCandidate.refined) {
+        refined += 1;
+      }
+      const result = await createCandidateIfNew(deps.repository, refinedCandidate.candidate);
       if (result === "created") {
         created += 1;
       } else {
@@ -322,6 +417,7 @@ export async function surfaceProactiveInsights(
   return {
     scanned: candidates.length,
     created,
+    refined,
     skippedExisting,
     errors,
   };

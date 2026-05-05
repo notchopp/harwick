@@ -100,6 +100,7 @@ describe("surfaceProactiveInsights", () => {
     expect(report).toEqual({
       scanned: 4,
       created: 4,
+      refined: 0,
       skippedExisting: 0,
       errors: 0,
     });
@@ -165,9 +166,59 @@ describe("surfaceProactiveInsights", () => {
     expect(report).toEqual({
       scanned: 1,
       created: 0,
+      refined: 0,
       skippedExisting: 1,
       errors: 0,
     });
     expect(created).toHaveLength(0);
+  });
+
+  it("uses small-model narrative refinement when provided", async () => {
+    const created: HarwickWorkItemCreate[] = [];
+    const repository = createRepository({
+      created,
+      unassignedLeads: [{
+        id: hotLeadId,
+        workspaceId,
+        status: "hot",
+        score: 82,
+        leadType: "buyer",
+        fullName: "Sarah Jones",
+        targetArea: "Katy",
+        timeline: "this month",
+        lastMessageAt: "2026-05-05T11:00:00.000Z",
+      }],
+    });
+    const narrativeClient = {
+      refineInsight: vi.fn(() => Promise.resolve({
+        title: "Route Sarah while the signal is warm",
+        summary: "Sarah is hot, scored 82, and has no assigned agent.",
+        recommendedAction: "Pick the best available Katy agent",
+        reason: "The lead is qualified enough to route now.",
+        priority: "urgent" as const,
+      })),
+    };
+
+    const report = await surfaceProactiveInsights({
+      repository,
+      narrativeClient,
+      now: () => new Date("2026-05-05T12:00:00.000Z"),
+    });
+
+    expect(report).toEqual({
+      scanned: 1,
+      created: 1,
+      refined: 1,
+      skippedExisting: 0,
+      errors: 0,
+    });
+    expect(created[0]).toEqual(expect.objectContaining({
+      title: "Route Sarah while the signal is warm",
+      summary: "Sarah is hot, scored 82, and has no assigned agent.",
+      recommendedAction: "Pick the best available Katy agent",
+      reason: "The lead is qualified enough to route now.",
+      priority: "urgent",
+    }));
+    expect(created[0]?.payload["narrativeSource"]).toBe("small_model");
   });
 });
