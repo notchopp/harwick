@@ -15,9 +15,22 @@ Use `docs/codex-agent-constraints.json` as the compact rule index. Read it every
 
 Use `docs/paid-launch-map.md` as the execution spine from current state to paid launch. At the start of each coding turn, pick the highest-priority incomplete launch item from that map unless the user explicitly redirects. When a slice moves from partial to done, update the map in the same turn.
 
-## North star: AI is the engine, not a feature
+## North star: Harwick is the product
 
-Harwick is an AI agent that calls infrastructure when it needs to act. It is not a workflow engine that calls AI when it needs language. Every architectural decision should reinforce that inversion.
+Harwick is not an AI feature inside a real estate ops tool. Harwick is **the product** — the brokerage's chief of staff. Everything else (inboxes, dashboards, lead views, queues) is the **surface area Harwick operates through and reports back on**. Users should feel like they have the world's best VA, almost like Jarvis from Iron Man — they don't tell Harwick to do things; Harwick is doing things and telling them why and what to do next.
+
+### Eight capabilities define the destination
+
+1. **Workspace-level memory** — cross-lead pattern recognition. "Two months ago this happened; I think this happens here." Per-lead `lead_document` exists; workspace-scoped knowledge and a distillation worker that learns patterns across the whole brokerage do not.
+2. **Live progressive synthesis** — while Harwick talks to a lead, the operator's view fills in qualification tags, refines a handoff brief, shows exactly what to do next, in real time.
+3. **Proactive insight feed** — Harwick surfaces things unprompted ("Sarah went quiet 5 days ago, said she was waiting on her partner — propose a follow-up?"). `harwick_work_items.type='insight'` is the data primitive; the producer is missing.
+4. **Standing instructions / declarative rules** — operator types prose ("every closed lead gets a thank-you and a 6-month check-in"); Harwick internalizes and executes autonomously.
+5. **Subagent dispatch** — Harwick spawns specialized AIs (research, writer, calendar) with their own prompts and tool subsets, in parallel when useful.
+6. **Tool registry as OS-level** — Gmail, FUB, calendar, listings, voice all pluggable. New tools register with metadata; the system prompt builds itself from the registry.
+7. **Cost-tiered cognition** — small models for classification, routing-assist, lite reasoning; the big model only for actual conversation turns and complex tool-chaining.
+8. **Lead-or-not filter upstream** — small-model gate before the agent loop. Not every inbound is a lead; friends, vendors, spam don't deserve agentic-loop spend.
+
+### Operating principles
 
 - The model owns the loop. Code provides capabilities (tools), not rules about when AI is allowed to speak.
 - Policy lives in context, not in functions. Broker preferences become a prose `policy_narrative` injected into the system prompt; tool descriptions carry their own permission semantics. Deterministic policy evaluators are a transitional layer running in shadow mode until model self-gating is validated, then deleted.
