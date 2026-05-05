@@ -13,6 +13,10 @@ export const ConversationInboxMessageSchema = z.object({
   body: z.string().trim().min(1),
   meta: z.string().trim().min(1),
   occurredAt: IsoDateTimeSchema,
+  /** Trajectory that produced this message; non-null only for AI-sent messages. */
+  agentTrajectoryId: UuidSchema.nullish(),
+  /** Specific agent step that produced this message — required for inline operator tags. */
+  agentStepId: UuidSchema.nullish(),
 });
 
 export const ConversationInboxThreadSchema = z.object({

@@ -13,6 +13,7 @@ import type { MemberRoutingProfileRepository } from "../../lib/supabase/member-r
 import { mapRowToAgentRoutingProfile } from "../../lib/supabase/member-routing-profiles";
 import type { RealtyOpsSupabaseClient } from "../../lib/supabase/server-client";
 import type { LeadRow } from "../../lib/supabase/leads";
+import type { TablesInsert, TablesUpdate } from "../../lib/supabase/database.types";
 import { sendMetaReply } from "../integrations/meta-reply-send";
 import { createSupabaseMetaCredentialRepository } from "../../lib/supabase/integration-accounts";
 
@@ -28,6 +29,9 @@ export type HarwickAiToolContext = {
   sourcePostId: string | null;
   sourceCommentId: string | null;
   automationMode: "ai_on" | "human_takeover" | "human_review";
+  /** Trajectory + step IDs threaded into outbound conversation_messages so operator inline-tags attribute to the exact (state, action) pair. */
+  agentTrajectoryId: string | null;
+  agentStepId: string | null;
 };
 
 export type HarwickAiToolHandlerDependencies = {
@@ -43,11 +47,6 @@ export type HarwickAiToolHandlerDependencies = {
 function readPayloadString(toolCall: HarwickAiToolCall, key: string): string | null {
   const value = toolCall.payload[key];
   return typeof value === "string" && value.trim().length > 0 ? value : null;
-}
-
-function readPayloadNumber(toolCall: HarwickAiToolCall, key: string): number | null {
-  const value = toolCall.payload[key];
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
 /**
@@ -102,6 +101,8 @@ export function createHarwickAiToolHandlers(
       metaClient: createMetaMessagingClient(),
       conversationMessageRepository: deps.conversationMessageRepository,
       senderType: "ai",
+      agentTrajectoryId: deps.context.agentTrajectoryId,
+      agentStepId: deps.context.agentStepId,
     });
 
     if (result.status === 200) {
@@ -123,7 +124,7 @@ export function createHarwickAiToolHandlers(
     const requestedListing = readPayloadString(toolCall, "listing");
     const assignedAgentId = deps.context.lead?.assigned_agent_id ?? null;
     let agentName: string | null = null;
-    let availableWindows: string[];
+    const availableWindows = synthesizeAvailableWindows();
 
     if (assignedAgentId !== null) {
       const profile = await deps.memberRoutingRepository.findProfileByMemberId({
@@ -138,8 +139,6 @@ export function createHarwickAiToolHandlers(
     // No real calendar integration yet — synthesize next-business-days slots
     // so the model has something concrete to offer. Replaced by a real
     // Google Calendar lookup once shift 8 (calendar) lands.
-    availableWindows = synthesizeAvailableWindows();
-
     return {
       assignedAgentId,
       agentName,
@@ -154,27 +153,27 @@ export function createHarwickAiToolHandlers(
     const occurredAt = new Date().toISOString();
     const listing = readPayloadString(toolCall, "listing");
     const requestedTime = readPayloadString(toolCall, "requestedTime") ?? readPayloadString(toolCall, "time");
+    const insert: TablesInsert<"lead_tasks"> = {
+      workspace_id: deps.context.workspaceId,
+      lead_id: deps.context.leadId,
+      listing_id: null,
+      task_type: "request_showing_approval",
+      status: "open",
+      priority: "high",
+      title: listing === null ? "Showing approval requested" : `Showing approval: ${listing}`,
+      description: [
+        `Harwick AI requested a showing.${listing === null ? "" : ` Listing: ${listing}.`}`,
+        requestedTime === null ? "" : `Requested time: ${requestedTime}.`,
+        `Reason: ${toolCall.reason}`,
+      ].filter((line) => line.length > 0).join("\n"),
+      assigned_member_id: deps.context.lead?.assigned_agent_id ?? null,
+      created_at: occurredAt,
+      updated_at: occurredAt,
+    };
 
     const { data, error } = await deps.supabase
       .from("lead_tasks")
-      .insert({
-        workspace_id: deps.context.workspaceId,
-        lead_id: deps.context.leadId,
-        listing_id: null,
-        task_type: "request_showing_approval",
-        status: "open",
-        priority: "high",
-        title: listing === null ? "Showing approval requested" : `Showing approval: ${listing}`,
-        description: [
-          `Harwick AI requested a showing.${listing === null ? "" : ` Listing: ${listing}.`}`,
-          requestedTime === null ? "" : `Requested time: ${requestedTime}.`,
-          `Reason: ${toolCall.reason}`,
-        ].filter((line) => line.length > 0).join("\n"),
-        assigned_member_id: deps.context.lead?.assigned_agent_id ?? null,
-        created_at: occurredAt,
-        updated_at: occurredAt,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } as any)
+      .insert(insert)
       .select("id")
       .single<{ id: string }>();
 
@@ -194,28 +193,28 @@ export function createHarwickAiToolHandlers(
     const occurredAt = new Date().toISOString();
     const listing = readPayloadString(toolCall, "listing");
     const eventDate = readPayloadString(toolCall, "eventDate") ?? readPayloadString(toolCall, "date");
+    const insert: TablesInsert<"lead_tasks"> = {
+      workspace_id: deps.context.workspaceId,
+      lead_id: deps.context.leadId,
+      listing_id: null,
+      task_type: "open_house_registration",
+      status: "open",
+      priority: "normal",
+      title: listing === null ? "Open house registration" : `Open house: ${listing}`,
+      description: [
+        `Harwick AI registered the lead for an open house.`,
+        listing === null ? "" : `Listing: ${listing}.`,
+        eventDate === null ? "" : `Event date: ${eventDate}.`,
+        `Reason: ${toolCall.reason}`,
+      ].filter((line) => line.length > 0).join("\n"),
+      assigned_member_id: deps.context.lead?.assigned_agent_id ?? null,
+      created_at: occurredAt,
+      updated_at: occurredAt,
+    };
 
     const { data, error } = await deps.supabase
       .from("lead_tasks")
-      .insert({
-        workspace_id: deps.context.workspaceId,
-        lead_id: deps.context.leadId,
-        listing_id: null,
-        task_type: "open_house_registration",
-        status: "open",
-        priority: "normal",
-        title: listing === null ? "Open house registration" : `Open house: ${listing}`,
-        description: [
-          `Harwick AI registered the lead for an open house.`,
-          listing === null ? "" : `Listing: ${listing}.`,
-          eventDate === null ? "" : `Event date: ${eventDate}.`,
-          `Reason: ${toolCall.reason}`,
-        ].filter((line) => line.length > 0).join("\n"),
-        assigned_member_id: deps.context.lead?.assigned_agent_id ?? null,
-        created_at: occurredAt,
-        updated_at: occurredAt,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } as any)
+      .insert(insert)
       .select("id")
       .single<{ id: string }>();
 
@@ -251,13 +250,13 @@ export function createHarwickAiToolHandlers(
       qualification: {
         leadId: lead.id,
         workspaceId: lead.workspace_id,
-        leadType: lead.lead_type as "buyer" | "seller" | "renter" | "investor" | "unknown",
+        leadType: lead.lead_type,
         targetArea: lead.target_area ?? null,
         propertyType: null,
         budgetMin: lead.budget_min ?? null,
         budgetMax: lead.budget_max ?? null,
         timeline: lead.timeline ?? null,
-        financingStatus: (lead.financing_status as "preapproved" | "cash" | "needs_lender" | "unknown") ?? "unknown",
+        financingStatus: lead.financing_status ?? "unknown",
         score: lead.score ?? 0,
         sourceOwnerMemberId: null,
       },
@@ -275,14 +274,14 @@ export function createHarwickAiToolHandlers(
     }
 
     // Persist the assignment.
+    const leadUpdate: TablesUpdate<"leads"> = {
+      assigned_agent_id: decision.assignedMemberId,
+      status: "assigned",
+      updated_at: new Date().toISOString(),
+    };
     const { error: updateError } = await deps.supabase
       .from("leads")
-      .update({
-        assigned_agent_id: decision.assignedMemberId,
-        status: "assigned",
-        updated_at: new Date().toISOString(),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } as any)
+      .update(leadUpdate)
       .eq("workspace_id", deps.context.workspaceId)
       .eq("id", lead.id);
 
@@ -301,28 +300,28 @@ export function createHarwickAiToolHandlers(
   handlers["sync_follow_up_boss"] = async (toolCall) => {
     const occurredAt = new Date().toISOString();
     const idempotencyKey = `harwick_ai_fub_sync:${deps.context.leadId}:${Date.now()}`;
+    const insert: TablesInsert<"workflow_jobs"> = {
+      workspace_id: deps.context.workspaceId,
+      lead_id: deps.context.leadId,
+      lead_event_id: deps.context.leadEventId,
+      job_type: "fub_sync",
+      status: "queued",
+      run_after: occurredAt,
+      idempotency_key: idempotencyKey,
+      attempt_count: 0,
+      max_attempts: 5,
+      payload: {
+        jobType: "fub_sync",
+        workspaceId: deps.context.workspaceId,
+        leadId: deps.context.leadId,
+        source: "harwick_ai_tool",
+        reason: toolCall.reason,
+      },
+    };
 
     const { error } = await deps.supabase
       .from("workflow_jobs")
-      .insert({
-        workspace_id: deps.context.workspaceId,
-        lead_id: deps.context.leadId,
-        lead_event_id: deps.context.leadEventId,
-        job_type: "fub_sync",
-        status: "queued",
-        run_after: occurredAt,
-        idempotency_key: idempotencyKey,
-        attempt_count: 0,
-        max_attempts: 5,
-        payload: {
-          jobType: "fub_sync",
-          workspaceId: deps.context.workspaceId,
-          leadId: deps.context.leadId,
-          source: "harwick_ai_tool",
-          reason: toolCall.reason,
-        },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } as any);
+      .insert(insert);
 
     if (error !== null) {
       throw error;

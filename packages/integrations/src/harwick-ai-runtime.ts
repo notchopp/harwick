@@ -660,6 +660,12 @@ export function createOpenAIHarwickAiRuntime(options: OpenAIHarwickAiRuntimeOpti
               parsed.leadDocument,
               "",
             ] : []),
+            ...(parsed.retrievedExamples ? [
+              "",
+              "PAST SIMILAR SITUATIONS THAT WORKED WELL (use these as inspiration; do not copy verbatim and do not assume the lead is the same):",
+              parsed.retrievedExamples,
+              "",
+            ] : []),
             "Your CORE PURPOSE: Process real estate inquiries only. Recognize off-topic messages BEFORE generating a reply.",
             "",
             "RULE 1: INTENT CLASSIFICATION (CRITICAL)",

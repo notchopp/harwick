@@ -7,11 +7,17 @@ dist
 .vercel
 .env
 .env.local
+.env.production
+.env.prod.tmp
 .env.*.local
 *.tsbuildinfo
 coverage
 playwright-report
 test-results
+tmp/*.json
+tmp/*.txt
+tmp/dev-*.log
 
 .vercel
 .aider*
+.claude/

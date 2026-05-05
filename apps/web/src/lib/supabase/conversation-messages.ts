@@ -15,15 +15,21 @@ export type ConversationMessageRow = {
   provider_message_id: string | null;
   error_code: string | null;
   error_message: string | null;
+  /** Trajectory that produced this AI message; null for customer/operator messages. */
+  agent_trajectory_id: string | null;
+  /** Specific agent step that produced this AI message; lets operators inline-tag the exact (state, action) pair. */
+  agent_step_id: string | null;
 };
 
 export type ConversationMessageInsertRow = Omit<
   ConversationMessageRow,
-  "id" | "created_at" | "updated_at"
+  "id" | "created_at" | "updated_at" | "agent_trajectory_id" | "agent_step_id"
 > & {
   id?: string;
   created_at?: string;
   updated_at?: string;
+  agent_trajectory_id?: string | null;
+  agent_step_id?: string | null;
 };
 
 export type ConversationMessageRepository = {
@@ -53,7 +59,8 @@ export function createSupabaseConversationMessageRepository(
     async insertMessage(row) {
       const { data, error } = await supabase
         .from("conversation_messages")
-        .insert([row])
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .insert([row] as any)
         .select("*")
         .single<ConversationMessageRow>();
 
@@ -80,7 +87,8 @@ export function createSupabaseConversationMessageRepository(
 
       const { error } = await supabase
         .from("conversation_messages")
-        .update(updatePayload as unknown as Partial<ConversationMessageRow>)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .update(updatePayload as any)
         .eq("id", messageId);
 
       if (error !== null) {

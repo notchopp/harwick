@@ -4,16 +4,17 @@ import {
   HarwickAiAutomationDecisionSchema,
   buildPersistedHarwickAiToolCalls,
   deriveHarwickAiTurnPersistenceStatus,
-  evaluateHarwickAiAutomation,
   generatePolicyNarrative,
   buildPolicyShadowComparison,
   type HarwickAiPersistedTurn,
 } from "@realty-ops/core";
 import {
+  createOpenAIEmbeddingClient,
   createOpenAIHarwickAiRuntime,
   runHarwickAiAgenticLoop,
   type HarwickAiToolHandlers,
 } from "@realty-ops/integrations";
+import { getServerEnvironment } from "../../lib/server-env";
 import type {
   HarwickAiTurnPersistenceRepository,
   HarwickAiAutomationPolicyRepository,
@@ -21,12 +22,14 @@ import type {
 import type { LeadEventPersistenceRepository } from "../../lib/supabase/lead-events";
 import type { RealtyOpsSupabaseClient } from "../../lib/supabase/server-client";
 import type { SocialReplyQueueRepository } from "../operator-queues/operator-queues";
+import type { TablesUpdate } from "../../lib/supabase/database.types";
+import type { LeadRow } from "../../lib/supabase/leads";
 import { createSupabaseConversationMessageRepository } from "../../lib/supabase/conversation-messages";
 import { createSupabaseConversationAutomationRepository } from "../../lib/supabase/conversation-automation";
 import { createSupabaseLeadDocumentRepository } from "../../lib/supabase/lead-document";
 import { createSupabaseMemberRoutingProfileRepository } from "../../lib/supabase/member-routing-profiles";
 import { createSupabaseWorkspacePolicyNarrativeRepository } from "../../lib/supabase/workspace-policy-narrative";
-import { createSupabaseAgentTrajectoryStore } from "../../lib/supabase/agent-trajectory-store";
+import { createSupabaseAgentTrajectoryStore, findSimilarTrajectories } from "../../lib/supabase/agent-trajectory-store";
 import { loadAiConversationHistory } from "./harwick-ai-conversation-history";
 import { createHarwickAiToolHandlers, type HarwickAiToolContext } from "./harwick-ai-tool-handlers";
 
@@ -109,7 +112,7 @@ export async function generateAndExecuteHarwickAiTurnSync(
       .select("*")
       .eq("workspace_id", params.workspaceId)
       .eq("id", params.leadId)
-      .maybeSingle();
+      .maybeSingle<LeadRow>();
 
     const conversationHistory = await loadAiConversationHistory({
       leadId: params.leadId,
@@ -136,6 +139,17 @@ export async function generateAndExecuteHarwickAiTurnSync(
       leadId: params.leadId,
     });
 
+    // In-context retrieval RL: embed the inbound text + lead document, fetch
+    // the top-N similar past trajectories with positive outcomes, render
+    // them as few-shot examples. Behavior improves as the workspace
+    // accumulates positive trajectories — no gradient updates needed.
+    const retrievedExamples = await retrievePositiveExamples({
+      supabase: deps.supabase,
+      workspaceId: params.workspaceId,
+      inboundText: params.event.text,
+      leadDocument,
+    });
+
     const initialInput = HarwickAiRuntimeInputSchema.parse({
       workspaceName: "Workspace",
       channel,
@@ -149,21 +163,32 @@ export async function generateAndExecuteHarwickAiTurnSync(
       buyerBlueprintUrl: null,
       policyNarrative,
       leadDocument,
+      retrievedExamples,
     });
+
+    // Open a trajectory for this episode. Every loop step is appended; on
+    // completion we update outcome_label and step_count.
+    const { trajectoryId: openedTrajectoryId } = await trajectoryStore.startTrajectory({
+      workspaceId: params.workspaceId,
+      leadId: params.leadId,
+      channel,
+    });
+    trajectoryId = openedTrajectoryId;
 
     const toolContext: HarwickAiToolContext = {
       workspaceId: params.workspaceId,
       leadId: params.leadId,
       leadEventId: params.leadEventId,
       event: params.event,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      lead: leadRow as any,
+      lead: leadRow,
       channel,
       providerAccountId: params.event.providerAccountId,
       recipientUserId: params.event.providerUserId,
       sourcePostId: params.event.sourcePostId,
       sourceCommentId: params.event.sourceCommentId,
       automationMode: "ai_on",
+      agentTrajectoryId: openedTrajectoryId,
+      agentStepId: null,
     };
 
     const handlers: HarwickAiToolHandlers = createHarwickAiToolHandlers({
@@ -176,15 +201,7 @@ export async function generateAndExecuteHarwickAiTurnSync(
       credentialSecret: deps.credentialSecret,
     });
 
-    // Open a trajectory for this episode. Every loop step is appended; on
-    // completion we update outcome_label and step_count.
-    const { trajectoryId: openedTrajectoryId } = await trajectoryStore.startTrajectory({
-      workspaceId: params.workspaceId,
-      leadId: params.leadId,
-      channel,
-    });
-    trajectoryId = openedTrajectoryId;
-
+    const loopStartedAt = new Date().toISOString();
     const loopOutcome = await runHarwickAiAgenticLoop({
       initialInput,
       runtime: deps.runtimeClient,
@@ -243,7 +260,7 @@ export async function generateAndExecuteHarwickAiTurnSync(
       }
 
       try {
-        await trajectoryStore.appendStep({
+        const { stepId } = await trajectoryStore.appendStep({
           trajectoryId: openedTrajectoryId,
           workspaceId: params.workspaceId,
           leadId: params.leadId,
@@ -258,6 +275,27 @@ export async function generateAndExecuteHarwickAiTurnSync(
           exitReason: step.iteration === loopOutcome.steps.length ? loopOutcome.exitReason : null,
           harwickAiTurnId: turnId,
         });
+
+        // Backfill agent_step_id on any AI conversation_messages this
+        // iteration produced. The handlers wrote trajectory_id at send time
+        // but step_id wasn't known until appendStep returned. This single
+        // UPDATE attaches them so operator inline tags can later attribute
+        // to the exact (state, action) pair.
+        try {
+          const update: TablesUpdate<"conversation_messages"> = {
+            agent_step_id: stepId,
+          };
+          await deps.supabase
+            .from("conversation_messages")
+            .update(update)
+            .eq("workspace_id", params.workspaceId)
+            .eq("lead_id", params.leadId)
+            .eq("agent_trajectory_id", openedTrajectoryId)
+            .is("agent_step_id", null)
+            .gte("created_at", loopStartedAt);
+        } catch (backfillError) {
+          console.warn("Could not backfill agent_step_id on conversation_messages:", backfillError);
+        }
       } catch (stepError) {
         console.warn("Could not persist agent step:", stepError);
       }
@@ -307,6 +345,58 @@ export async function generateAndExecuteHarwickAiTurnSync(
       }
     }
     // Don't rethrow — webhook delivery should still succeed.
+  }
+}
+
+/**
+ * In-context retrieval RL: at decision time, embed the new state and find
+ * the top-N similar past trajectories where the outcome was positive.
+ * Render them as a prose block the model can use as few-shot examples.
+ *
+ * Returns null on any failure path (no API key, embedding error, no matches).
+ * The runtime input field is nullable, so a null here just means "no
+ * retrieval context for this turn"; the loop still runs.
+ */
+async function retrievePositiveExamples(params: {
+  supabase: import("../../lib/supabase/server-client").RealtyOpsSupabaseClient;
+  workspaceId: string;
+  inboundText: string;
+  leadDocument: string | null;
+}): Promise<string | null> {
+  try {
+    const environment = getServerEnvironment();
+    if (environment.OPENAI_API_KEY === undefined) return null;
+
+    const queryText = params.leadDocument === null
+      ? params.inboundText
+      : `${params.leadDocument}\n\n---\nNew inbound: ${params.inboundText}`;
+    const trimmed = queryText.trim();
+    if (trimmed.length === 0) return null;
+
+    const embeddings = createOpenAIEmbeddingClient({ apiKey: environment.OPENAI_API_KEY });
+    const queryEmbedding = await embeddings.embed(trimmed.slice(0, 8000));
+
+    const matches = await findSimilarTrajectories(params.supabase, {
+      workspaceId: params.workspaceId,
+      embedding: queryEmbedding,
+      limit: 3,
+      minSimilarity: 0.3,
+      requireOutcome: "positive",
+    });
+
+    if (matches.length === 0) return null;
+
+    return matches
+      .map((match, index) => {
+        const summary = match.summaryText ?? "(no summary)";
+        const outcome = match.completionReason ?? match.outcomeLabel ?? "positive outcome";
+        const similarity = (match.similarity * 100).toFixed(0);
+        return `Example ${index + 1} (similarity ${similarity}%, outcome: ${outcome}):\n${summary}`;
+      })
+      .join("\n\n");
+  } catch (error) {
+    console.warn("[retrievePositiveExamples] failed; continuing without examples", error);
+    return null;
   }
 }
 

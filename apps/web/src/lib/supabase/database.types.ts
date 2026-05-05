@@ -149,6 +149,203 @@ export type Database = {
           },
         ]
       }
+      agent_trajectories: {
+        Row: {
+          channel: string | null
+          completed_at: string | null
+          completion_reason: string | null
+          created_at: string
+          final_lead_status: string | null
+          id: string
+          lead_id: string | null
+          outcome_label: string | null
+          started_at: string
+          step_count: number
+          summary_embedding: number[] | null
+          summary_text: string | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          channel?: string | null
+          completed_at?: string | null
+          completion_reason?: string | null
+          created_at?: string
+          final_lead_status?: string | null
+          id?: string
+          lead_id?: string | null
+          outcome_label?: string | null
+          started_at?: string
+          step_count?: number
+          summary_embedding?: number[] | null
+          summary_text?: string | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          channel?: string | null
+          completed_at?: string | null
+          completion_reason?: string | null
+          created_at?: string
+          final_lead_status?: string | null
+          id?: string
+          lead_id?: string | null
+          outcome_label?: string | null
+          started_at?: string
+          step_count?: number
+          summary_embedding?: number[] | null
+          summary_text?: string | null
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_trajectories_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_trajectories_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_steps: {
+        Row: {
+          created_at: string
+          deterministic_gate_auto_execute: boolean | null
+          exit_reason: string | null
+          gates_agreed: boolean | null
+          harwick_ai_turn_id: string | null
+          id: string
+          input_embedding: number[] | null
+          input_snapshot: Json
+          iteration: number
+          lead_id: string | null
+          self_gate_auto_execute: boolean | null
+          self_gate_reason: string | null
+          tool_executions: Json
+          trajectory_id: string
+          turn_output: Json
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          deterministic_gate_auto_execute?: boolean | null
+          exit_reason?: string | null
+          gates_agreed?: boolean | null
+          harwick_ai_turn_id?: string | null
+          id?: string
+          input_embedding?: number[] | null
+          input_snapshot: Json
+          iteration: number
+          lead_id?: string | null
+          self_gate_auto_execute?: boolean | null
+          self_gate_reason?: string | null
+          tool_executions?: Json
+          trajectory_id: string
+          turn_output: Json
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          deterministic_gate_auto_execute?: boolean | null
+          exit_reason?: string | null
+          gates_agreed?: boolean | null
+          harwick_ai_turn_id?: string | null
+          id?: string
+          input_embedding?: number[] | null
+          input_snapshot?: Json
+          iteration?: number
+          lead_id?: string | null
+          self_gate_auto_execute?: boolean | null
+          self_gate_reason?: string | null
+          tool_executions?: Json
+          trajectory_id?: string
+          turn_output?: Json
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_steps_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_steps_trajectory_id_fkey"
+            columns: ["trajectory_id"]
+            isOneToOne: false
+            referencedRelation: "agent_trajectories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_steps_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_outcomes: {
+        Row: {
+          attributed_to_step_id: string | null
+          id: string
+          recorded_at: string
+          signal_type: string
+          signal_value: Json
+          trajectory_id: string
+          workspace_id: string
+        }
+        Insert: {
+          attributed_to_step_id?: string | null
+          id?: string
+          recorded_at?: string
+          signal_type: string
+          signal_value?: Json
+          trajectory_id: string
+          workspace_id: string
+        }
+        Update: {
+          attributed_to_step_id?: string | null
+          id?: string
+          recorded_at?: string
+          signal_type?: string
+          signal_value?: Json
+          trajectory_id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_outcomes_attributed_to_step_id_fkey"
+            columns: ["attributed_to_step_id"]
+            isOneToOne: false
+            referencedRelation: "agent_steps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_outcomes_trajectory_id_fkey"
+            columns: ["trajectory_id"]
+            isOneToOne: false
+            referencedRelation: "agent_trajectories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_outcomes_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversation_activity_log: {
         Row: {
           actor_id: string | null
@@ -335,6 +532,8 @@ export type Database = {
       }
       conversation_messages: {
         Row: {
+          agent_step_id: string | null
+          agent_trajectory_id: string | null
           body: string
           created_at: string
           error_code: string | null
@@ -350,6 +549,8 @@ export type Database = {
           workspace_id: string
         }
         Insert: {
+          agent_step_id?: string | null
+          agent_trajectory_id?: string | null
           body: string
           created_at?: string
           error_code?: string | null
@@ -365,6 +566,8 @@ export type Database = {
           workspace_id: string
         }
         Update: {
+          agent_step_id?: string | null
+          agent_trajectory_id?: string | null
           body?: string
           created_at?: string
           error_code?: string | null
@@ -380,6 +583,20 @@ export type Database = {
           workspace_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "conversation_messages_agent_step_id_fkey"
+            columns: ["agent_step_id"]
+            isOneToOne: false
+            referencedRelation: "agent_steps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversation_messages_agent_trajectory_id_fkey"
+            columns: ["agent_trajectory_id"]
+            isOneToOne: false
+            referencedRelation: "agent_trajectories"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "fk_lead"
             columns: ["lead_id"]
@@ -1173,6 +1390,9 @@ export type Database = {
           external_listing_id: string | null
           has_pool: boolean | null
           id: string
+          embedded_at: string | null
+          embedding: number[] | null
+          embedding_text: string | null
           mls_number: string | null
           needs_recheck_at: string | null
           price: number | null
@@ -1193,6 +1413,9 @@ export type Database = {
           external_listing_id?: string | null
           has_pool?: boolean | null
           id?: string
+          embedded_at?: string | null
+          embedding?: number[] | null
+          embedding_text?: string | null
           mls_number?: string | null
           needs_recheck_at?: string | null
           price?: number | null
@@ -1213,6 +1436,9 @@ export type Database = {
           external_listing_id?: string | null
           has_pool?: boolean | null
           id?: string
+          embedded_at?: string | null
+          embedding?: number[] | null
+          embedding_text?: string | null
           mls_number?: string | null
           needs_recheck_at?: string | null
           price?: number | null
@@ -2377,6 +2603,61 @@ export type Database = {
         Args: { target_workspace_id: string }
         Returns: boolean
       }
+      match_agent_trajectories: {
+        Args: {
+          workspace: string
+          query_embedding: number[]
+          match_count?: number
+          min_similarity?: number
+          require_outcome?: string | null
+        }
+        Returns: {
+          id: string
+          workspace_id: string
+          lead_id: string | null
+          channel: string | null
+          started_at: string
+          completed_at: string | null
+          completion_reason: string | null
+          outcome_label: string | null
+          step_count: number
+          final_lead_status: string | null
+          summary_text: string | null
+          similarity: number
+        }[]
+      }
+      match_listing_facts: {
+        Args: {
+          workspace: string
+          query_embedding: number[]
+          match_count?: number
+          min_similarity?: number
+        }
+        Returns: {
+          id: string
+          workspace_id: string
+          source: string
+          external_listing_id: string | null
+          mls_number: string | null
+          address: string
+          status: string | null
+          price: number | null
+          beds: number | null
+          baths: number | null
+          has_pool: boolean | null
+          raw_facts: Json
+          verification_status: string
+          verified_by_member_id: string | null
+          verified_at: string | null
+          needs_recheck_at: string | null
+          created_at: string
+          updated_at: string
+          embedding: number[] | null
+          embedding_text: string | null
+          embedded_at: string | null
+          similarity: number
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
@@ -2526,6 +2807,9 @@ export type ConversationAutomationStateRow = Tables<"conversation_automation_sta
 export type ConversationMessageRow = Tables<"conversation_messages">;
 export type ConversationRow = Tables<"conversations">;
 export type ConversationActivityLogRow = Tables<"conversation_activity_log">;
+export type AgentTrajectoryRow = Tables<"agent_trajectories">;
+export type AgentStepRow = Tables<"agent_steps">;
+export type AgentOutcomeRow = Tables<"agent_outcomes">;
 export type IntegrationAccountRow = Tables<"integration_accounts">;
 export type CrmSyncLogRow = Tables<"crm_sync_logs">;
 export type CrmBacksyncEventRow = Tables<"crm_backsync_events">;

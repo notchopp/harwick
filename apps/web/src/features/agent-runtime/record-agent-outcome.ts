@@ -2,6 +2,7 @@ import type {
   AgentOutcomeInsert,
   AgentTrajectoryStore,
 } from "../../lib/supabase/agent-trajectory-store";
+import type { TablesUpdate } from "../../lib/supabase/database.types";
 import type { RealtyOpsSupabaseClient } from "../../lib/supabase/server-client";
 
 export type RecordOutcomeParams = {
@@ -20,8 +21,7 @@ async function findLatestTrajectoryForLead(
   supabase: RealtyOpsSupabaseClient,
   params: { workspaceId: string; leadId: string },
 ): Promise<FindLatestTrajectoryResult | null> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from("agent_trajectories")
     .select("id, outcome_label")
     .eq("workspace_id", params.workspaceId)
@@ -81,13 +81,13 @@ export async function recordAgentOutcome(
     });
     if (nextLabel !== null && nextLabel !== trajectory.outcomeLabel) {
       const occurredAt = new Date().toISOString();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase as any)
+      const update: TablesUpdate<"agent_trajectories"> = {
+        outcome_label: nextLabel,
+        updated_at: occurredAt,
+      };
+      const { error } = await supabase
         .from("agent_trajectories")
-        .update({
-          outcome_label: nextLabel,
-          updated_at: occurredAt,
-        })
+        .update(update)
         .eq("id", trajectory.trajectoryId);
       if (error !== null) {
         console.warn("Could not promote trajectory outcome_label:", error);

@@ -183,6 +183,8 @@ function buildMessages(params: {
           minute: "2-digit",
         })} · Sent via ${source} ${channel}`,
         occurredAt: row.occurred_at,
+        agentTrajectoryId: null,
+        agentStepId: null,
       };
     }
 
@@ -193,6 +195,8 @@ function buildMessages(params: {
         body: row.text.trim(),
         meta: formatMessageMeta(row.occurred_at, source, channel),
         occurredAt: row.occurred_at,
+        agentTrajectoryId: null,
+        agentStepId: null,
       };
     }
 
@@ -202,6 +206,8 @@ function buildMessages(params: {
       body: eventSummary(row),
       meta: formatMessageMeta(row.occurred_at, source, channel),
       occurredAt: row.occurred_at,
+      agentTrajectoryId: null,
+      agentStepId: null,
     };
   });
 
@@ -213,6 +219,8 @@ function buildMessages(params: {
       body: review.suggested_reply,
       meta: reviewMeta(review),
       occurredAt: review.updated_at,
+      agentTrajectoryId: null,
+      agentStepId: null,
     });
   }
 
@@ -223,6 +231,8 @@ function buildMessages(params: {
       body: "No conversation text has been captured for this lead yet.",
       meta: formatMessageMeta(params.lead.created_at, source, channel),
       occurredAt: params.lead.created_at,
+      agentTrajectoryId: null,
+      agentStepId: null,
     });
   }
 

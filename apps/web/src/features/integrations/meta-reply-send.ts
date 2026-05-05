@@ -63,6 +63,8 @@ export async function sendMetaReply(params: {
   conversationMessageRepository?: ConversationMessageRepository;
   senderType?: "ai" | "operator";
   senderId?: string | null;
+  agentTrajectoryId?: string | null;
+  agentStepId?: string | null;
   now?: Date;
 }): Promise<
   | { status: 200; body: SendMetaReplyResponse }
@@ -141,6 +143,8 @@ export async function sendMetaReply(params: {
         created_at: occurredAt,
         error_code: null,
         error_message: null,
+        agent_trajectory_id: params.agentTrajectoryId ?? null,
+        agent_step_id: params.agentStepId ?? null,
       });
     } catch (mirrorError) {
       console.error("[sendMetaReply] failed to mirror to conversation_messages:", mirrorError);

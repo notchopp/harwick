@@ -2,5 +2,15 @@
   "buildCommand": "npm run typecheck && npm run build",
   "installCommand": "npm install",
   "outputDirectory": "apps/web/.next",
-  "framework": "nextjs"
+  "framework": "nextjs",
+  "crons": [
+    {
+      "path": "/api/agent-runtime/reconcile",
+      "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/agent-runtime/embed",
+      "schedule": "*/30 * * * *"
+    }
+  ]
 }

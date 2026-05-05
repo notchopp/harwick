@@ -1,3 +1,4 @@
+import type { Json, TablesInsert, TablesUpdate } from "./database.types";
 import type { RealtyOpsSupabaseClient } from "./server-client";
 
 export type AgentStepInsert = {
@@ -85,68 +86,65 @@ export function createSupabaseAgentTrajectoryStore(
 ): AgentTrajectoryStore {
   return {
     async startTrajectory(params) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any)
+      const insert: TablesInsert<"agent_trajectories"> = {
+        workspace_id: params.workspaceId,
+        lead_id: params.leadId,
+        channel: params.channel,
+        started_at: params.startedAt ?? new Date().toISOString(),
+      };
+      const { data, error } = await supabase
         .from("agent_trajectories")
-        .insert({
-          workspace_id: params.workspaceId,
-          lead_id: params.leadId,
-          channel: params.channel,
-          started_at: params.startedAt ?? new Date().toISOString(),
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        } as any)
+        .insert(insert)
         .select("id")
         .single();
 
       if (error !== null) {
         throw error;
       }
-      return { trajectoryId: (data as { id: string }).id };
+      return { trajectoryId: data.id };
     },
 
     async appendStep(params) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any)
+      const insert: TablesInsert<"agent_steps"> = {
+        trajectory_id: params.trajectoryId,
+        workspace_id: params.workspaceId,
+        lead_id: params.leadId,
+        iteration: params.iteration,
+        input_snapshot: params.inputSnapshot as Json,
+        turn_output: params.turnOutput as Json,
+        tool_executions: params.toolExecutions as Json,
+        self_gate_auto_execute: params.selfGateAutoExecute,
+        self_gate_reason: params.selfGateReason,
+        deterministic_gate_auto_execute: params.deterministicGateAutoExecute,
+        gates_agreed: params.gatesAgreed,
+        exit_reason: params.exitReason,
+        harwick_ai_turn_id: params.harwickAiTurnId,
+      };
+      const { data, error } = await supabase
         .from("agent_steps")
-        .insert({
-          trajectory_id: params.trajectoryId,
-          workspace_id: params.workspaceId,
-          lead_id: params.leadId,
-          iteration: params.iteration,
-          input_snapshot: params.inputSnapshot,
-          turn_output: params.turnOutput,
-          tool_executions: params.toolExecutions,
-          self_gate_auto_execute: params.selfGateAutoExecute,
-          self_gate_reason: params.selfGateReason,
-          deterministic_gate_auto_execute: params.deterministicGateAutoExecute,
-          gates_agreed: params.gatesAgreed,
-          exit_reason: params.exitReason,
-          harwick_ai_turn_id: params.harwickAiTurnId,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        } as any)
+        .insert(insert)
         .select("id")
         .single();
 
       if (error !== null) {
         throw error;
       }
-      return { stepId: (data as { id: string }).id };
+      return { stepId: data.id };
     },
 
     async completeTrajectory(params) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase as any)
+      const update: TablesUpdate<"agent_trajectories"> = {
+        completed_at: params.completedAt,
+        completion_reason: params.completionReason,
+        step_count: params.stepCount,
+        final_lead_status: params.finalLeadStatus ?? null,
+        summary_text: params.summaryText ?? null,
+        outcome_label: params.outcomeLabel ?? "pending",
+        updated_at: new Date().toISOString(),
+      };
+      const { error } = await supabase
         .from("agent_trajectories")
-        .update({
-          completed_at: params.completedAt,
-          completion_reason: params.completionReason,
-          step_count: params.stepCount,
-          final_lead_status: params.finalLeadStatus ?? null,
-          summary_text: params.summaryText ?? null,
-          outcome_label: params.outcomeLabel ?? "pending",
-          updated_at: new Date().toISOString(),
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        } as any)
+        .update(update)
         .eq("id", params.trajectoryId);
 
       if (error !== null) {
@@ -155,36 +153,34 @@ export function createSupabaseAgentTrajectoryStore(
     },
 
     async recordOutcome(params) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any)
+      const insert: TablesInsert<"agent_outcomes"> = {
+        trajectory_id: params.trajectoryId,
+        workspace_id: params.workspaceId,
+        attributed_to_step_id: params.attributedToStepId ?? null,
+        signal_type: params.signalType,
+        signal_value: params.signalValue as Json,
+        recorded_at: params.recordedAt ?? new Date().toISOString(),
+      };
+      const { data, error } = await supabase
         .from("agent_outcomes")
-        .insert({
-          trajectory_id: params.trajectoryId,
-          workspace_id: params.workspaceId,
-          attributed_to_step_id: params.attributedToStepId ?? null,
-          signal_type: params.signalType,
-          signal_value: params.signalValue,
-          recorded_at: params.recordedAt ?? new Date().toISOString(),
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        } as any)
+        .insert(insert)
         .select("id")
         .single();
 
       if (error !== null) {
         throw error;
       }
-      return { outcomeId: (data as { id: string }).id };
+      return { outcomeId: data.id };
     },
 
     async saveTrajectoryEmbedding(params) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase as any)
+      const update: TablesUpdate<"agent_trajectories"> = {
+        summary_embedding: params.embedding,
+        updated_at: new Date().toISOString(),
+      };
+      const { error } = await supabase
         .from("agent_trajectories")
-        .update({
-          summary_embedding: params.embedding as unknown as never,
-          updated_at: new Date().toISOString(),
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        } as any)
+        .update(update)
         .eq("id", params.trajectoryId);
 
       if (error !== null) {
@@ -193,13 +189,9 @@ export function createSupabaseAgentTrajectoryStore(
     },
 
     async saveStepEmbedding(params) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase as any)
+      const { error } = await supabase
         .from("agent_steps")
-        .update({
-          input_embedding: params.embedding as unknown as never,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        } as any)
+        .update({ input_embedding: params.embedding })
         .eq("id", params.stepId);
 
       if (error !== null) {
@@ -240,8 +232,7 @@ export async function findSimilarTrajectories(
     requireOutcome?: "positive" | "negative" | "neutral" | "pending";
   },
 ): Promise<SimilarTrajectoryMatch[]> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any).rpc("match_agent_trajectories", {
+  const { data, error } = await supabase.rpc("match_agent_trajectories", {
     workspace: params.workspaceId,
     query_embedding: params.embedding,
     match_count: params.limit ?? 5,

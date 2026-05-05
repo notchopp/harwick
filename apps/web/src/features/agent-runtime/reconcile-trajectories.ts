@@ -2,6 +2,7 @@ import type {
   AgentOutcomeInsert,
   AgentTrajectoryStore,
 } from "../../lib/supabase/agent-trajectory-store";
+import type { TablesUpdate } from "../../lib/supabase/database.types";
 import type { RealtyOpsSupabaseClient } from "../../lib/supabase/server-client";
 
 /**
@@ -58,8 +59,7 @@ async function fetchPendingTrajectories(
   supabase: RealtyOpsSupabaseClient,
   params: { batchSize: number; olderThanIso: string },
 ): Promise<PendingTrajectory[]> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from("agent_trajectories")
     .select("id, workspace_id, lead_id, channel, started_at, completed_at, step_count")
     .eq("outcome_label", "pending")
@@ -70,7 +70,7 @@ async function fetchPendingTrajectories(
   if (error !== null) {
     throw error;
   }
-  return (data ?? []) as PendingTrajectory[];
+  return data ?? [];
 }
 
 type LeadSnapshot = {
@@ -108,8 +108,7 @@ async function fetchSteps(
   supabase: RealtyOpsSupabaseClient,
   trajectoryId: string,
 ): Promise<StepRow[]> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from("agent_steps")
     .select("id, iteration, turn_output, tool_executions, created_at")
     .eq("trajectory_id", trajectoryId)
@@ -124,8 +123,7 @@ async function fetchOutcomeTypesForTrajectory(
   supabase: RealtyOpsSupabaseClient,
   trajectoryId: string,
 ): Promise<Set<string>> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from("agent_outcomes")
     .select("signal_type")
     .eq("trajectory_id", trajectoryId);
@@ -408,14 +406,14 @@ export async function reconcileAgentTrajectories(
       }
       if (promotedTo !== null) {
         const occurredAt = new Date().toISOString();
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { error: promoteError } = await (deps.supabase as any)
+        const update: TablesUpdate<"agent_trajectories"> = {
+          outcome_label: promotedTo,
+          final_lead_status: lead.status,
+          updated_at: occurredAt,
+        };
+        const { error: promoteError } = await deps.supabase
           .from("agent_trajectories")
-          .update({
-            outcome_label: promotedTo,
-            final_lead_status: lead.status,
-            updated_at: occurredAt,
-          })
+          .update(update)
           .eq("id", trajectory.id);
         if (promoteError === null) {
           trajectoriesPromoted += 1;

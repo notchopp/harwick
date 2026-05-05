@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import type { ConversationAutomationMode } from "@realty-ops/core";
 import { Button } from "../../components/ui/button";
 import { cn } from "../../lib/utils";
+import { AgentStepsPanel } from "../agent-runtime/agent-steps-panel";
 
 export type LeadActionToolbarProps = {
   workspaceId: string;
@@ -197,6 +198,11 @@ function errorMessageFromBody(value: unknown): string {
 
   return (
     <div className={cn("space-y-2", props.className)}>
+      <AgentStepsPanel
+        workspaceId={props.workspaceId}
+        leadId={props.leadId}
+      />
+
       <div className="rounded-[12px] border border-border bg-surface">
         <textarea
           aria-label="Reply"

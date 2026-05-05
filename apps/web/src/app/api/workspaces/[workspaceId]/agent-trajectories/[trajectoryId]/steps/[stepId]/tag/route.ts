@@ -62,8 +62,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
   // Verify the step belongs to the trajectory and to the workspace before
   // recording. Service-role client bypasses RLS, so we enforce this in code.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: stepRow, error: stepError } = await (supabase as any)
+  const { data: stepRow, error: stepError } = await supabase
     .from("agent_steps")
     .select("id, trajectory_id, workspace_id")
     .eq("id", stepId)
