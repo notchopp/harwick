@@ -101,6 +101,9 @@ export const HarwickAiRuntimeInputSchema = z.object({
   // AI-native shift 4: prose lead document the model reads as primary context
   // and amends each turn. Coexists with structured `state` during shadow mode.
   leadDocument: z.string().trim().max(16000).nullable().default(null),
+  // AI-native capability 1: workspace-level memory distilled across leads.
+  // This is brokerage-wide context, not facts from this specific lead.
+  workspaceMemory: z.string().trim().max(8000).nullable().default(null),
   // In-context retrieval RL: prose-rendered top-N similar past trajectories
   // with positive outcomes. Lets the model do retrieval-flavored RL without
   // any gradient updates. Populated by the executor at decision time.

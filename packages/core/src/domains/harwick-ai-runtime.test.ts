@@ -26,10 +26,12 @@ describe("Harwick AI runtime contracts", () => {
         },
         knownFacts: ["asked about 1234 Ocean View Dr"],
       },
+      workspaceMemory: "Routing pattern: Noah often closes high-budget Katy buyers.",
     });
 
     expect(input.state?.providerThreadId).toBe("ig-thread-1");
     expect(input.state?.qualification.targetArea).toBe("Coral Gables");
+    expect(input.workspaceMemory).toContain("Noah");
   });
 
   it("requires structured decisions instead of loose reply text", () => {

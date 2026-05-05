@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { AuditLogEntry, NormalizedLeadEvent } from "@realty-ops/core";
+import type { AuditLogEntry, HarwickAiRuntimeInput, NormalizedLeadEvent } from "@realty-ops/core";
 import type { HarwickAiRuntimeClient } from "@realty-ops/integrations";
 import { generateAndExecuteHarwickAiTurnSync } from "./harwick-ai-turn-executor";
 import type {
@@ -26,6 +26,9 @@ const mocks = vi.hoisted(() => {
     read: vi.fn(),
     appendUpdate: vi.fn(),
   };
+  const workspaceMemoryRepo = {
+    listRuntimeMemoryDocuments: vi.fn(),
+  };
   const policyNarrativeRepo = {
     read: vi.fn(),
     write: vi.fn(),
@@ -50,6 +53,7 @@ const mocks = vi.hoisted(() => {
     conversationRepo,
     automationRepo,
     leadDocumentRepo,
+    workspaceMemoryRepo,
     policyNarrativeRepo,
     memberRoutingRepo,
     trajectoryStore,
@@ -77,6 +81,16 @@ vi.mock("../../lib/supabase/conversation-automation", () => ({
 vi.mock("../../lib/supabase/lead-document", () => ({
   createSupabaseLeadDocumentRepository: () => mocks.leadDocumentRepo,
 }));
+
+vi.mock("../../lib/supabase/workspace-memory", async () => {
+  const actual = await vi.importActual<typeof import("../../lib/supabase/workspace-memory")>(
+    "../../lib/supabase/workspace-memory",
+  );
+  return {
+    ...actual,
+    createSupabaseWorkspaceMemoryRepository: () => mocks.workspaceMemoryRepo,
+  };
+});
 
 vi.mock("../../lib/supabase/workspace-policy-narrative", () => ({
   createSupabaseWorkspacePolicyNarrativeRepository: () => mocks.policyNarrativeRepo,
@@ -213,6 +227,14 @@ describe("generateAndExecuteHarwickAiTurnSync", () => {
     mocks.policyNarrativeRepo.read.mockResolvedValue("Auto-send normal buyer replies. Queue risky tools.");
     mocks.leadDocumentRepo.read.mockResolvedValue("Lead asked about a Katy home.");
     mocks.leadDocumentRepo.appendUpdate.mockResolvedValue("updated lead document");
+    mocks.workspaceMemoryRepo.listRuntimeMemoryDocuments.mockResolvedValue([{
+      id: "memory-1",
+      memoryType: "routing",
+      title: "Noah closes high-budget Katy buyers",
+      body: "Operators often reassign high-budget Katy buyers to Noah.",
+      confidence: 0.83,
+      lastObservedAt: "2026-05-05T12:00:00.000Z",
+    }]);
     mocks.findSimilarTrajectories.mockResolvedValue([]);
     mocks.trajectoryStore.startTrajectory.mockResolvedValue({ trajectoryId: "00000000-0000-0000-0000-000000000010" });
     mocks.trajectoryStore.appendStep.mockResolvedValue({ stepId: "00000000-0000-0000-0000-000000000011" });
@@ -336,6 +358,8 @@ describe("generateAndExecuteHarwickAiTurnSync", () => {
     );
 
     expect(runTurn).toHaveBeenCalledTimes(1);
+    const runTurnCalls = runTurn.mock.calls as Array<[HarwickAiRuntimeInput]>;
+    expect(runTurnCalls[0]?.[0].workspaceMemory).toContain("Noah closes high-budget Katy buyers");
     expect(mocks.sendMetaReply).toHaveBeenCalledTimes(1);
     expect(mocks.conversationRepo.insertMessage).toHaveBeenCalledWith(
       expect.objectContaining({

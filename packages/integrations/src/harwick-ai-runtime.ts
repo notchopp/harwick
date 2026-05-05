@@ -660,6 +660,12 @@ export function createOpenAIHarwickAiRuntime(options: OpenAIHarwickAiRuntimeOpti
               parsed.leadDocument,
               "",
             ] : []),
+            ...(parsed.workspaceMemory ? [
+              "",
+              "WORKSPACE MEMORY (brokerage-wide patterns learned across leads; use as soft context, not as a hard rule):",
+              parsed.workspaceMemory,
+              "",
+            ] : []),
             ...(parsed.retrievedExamples ? [
               "",
               "PAST SIMILAR SITUATIONS THAT WORKED WELL (use these as inspiration; do not copy verbatim and do not assume the lead is the same):",

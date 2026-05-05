@@ -10,6 +10,7 @@ function createRepository(params: {
   inserted?: WorkspaceMemoryDocumentCreate[];
 }): WorkspaceMemoryRepository {
   return {
+    listRuntimeMemoryDocuments: vi.fn(() => Promise.resolve([])),
     listRoutingOverrideSignals: vi.fn(() => Promise.resolve([{
       workspaceId,
       outcomeCount: 3,

@@ -145,6 +145,7 @@ describe("Harwick AI runtime", () => {
       workspaceName: "Prestige Realty",
       channel: "instagram_comment",
       inboundText: "price?",
+      workspaceMemory: "Routing pattern: Noah often closes high-budget Katy buyers.",
       postContext: {
         caption: "Coral Gables family home.",
         ctaLabel: null,
@@ -161,5 +162,7 @@ describe("Harwick AI runtime", () => {
     const requestBody = JSON.parse(requestInit.body as string) as Record<string, unknown>;
     expect(JSON.stringify(requestBody)).toContain("Harwick AI");
     expect(JSON.stringify(requestBody)).toContain("toolCalls");
+    expect(JSON.stringify(requestBody)).toContain("WORKSPACE MEMORY");
+    expect(JSON.stringify(requestBody)).toContain("Noah often closes high-budget Katy buyers");
   });
 });

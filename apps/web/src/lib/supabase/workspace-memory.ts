@@ -13,6 +13,15 @@ export type WorkspaceMemoryRoutingOverrideSignal = {
   aiSuggestedMemberIds: string[];
 };
 
+export type WorkspaceMemoryRuntimeDocument = {
+  id: string;
+  memoryType: string;
+  title: string;
+  body: string;
+  confidence: number;
+  lastObservedAt: string | null;
+};
+
 export type WorkspaceMemoryRepository = {
   insertMemoryDocument(input: WorkspaceMemoryDocumentCreate): Promise<{ memoryId: string }>;
   findRecentMemoryByTitle(params: {
@@ -20,6 +29,10 @@ export type WorkspaceMemoryRepository = {
     title: string;
     sinceIso: string;
   }): Promise<{ id: string } | null>;
+  listRuntimeMemoryDocuments(params: {
+    workspaceId: string;
+    limit: number;
+  }): Promise<WorkspaceMemoryRuntimeDocument[]>;
   listRoutingOverrideSignals(params: {
     sinceIso: string;
     minCount: number;
@@ -35,6 +48,15 @@ type RoutingOverrideOutcomeRow = {
   workspace_id: string;
   recorded_at: string;
   signal_value: Record<string, unknown> | null;
+};
+
+type RuntimeMemoryDocumentRow = {
+  id: string;
+  memory_type: string;
+  title: string;
+  body: string;
+  confidence: number;
+  last_observed_at: string | null;
 };
 
 function mapCreateToInsertRow(input: WorkspaceMemoryDocumentCreate): WorkspaceMemoryDocumentInsertRow {
@@ -88,6 +110,30 @@ export function createSupabaseWorkspaceMemoryRepository(
       }
 
       return data ?? null;
+    },
+
+    async listRuntimeMemoryDocuments(params) {
+      const { data, error } = await supabase
+        .from("workspace_memory_documents")
+        .select("id, memory_type, title, body, confidence, last_observed_at")
+        .eq("workspace_id", params.workspaceId)
+        .order("last_observed_at", { ascending: false })
+        .order("updated_at", { ascending: false })
+        .limit(params.limit)
+        .returns<RuntimeMemoryDocumentRow[]>();
+
+      if (error !== null) {
+        throw error;
+      }
+
+      return (data ?? []).map((row) => ({
+        id: row.id,
+        memoryType: row.memory_type,
+        title: row.title,
+        body: row.body,
+        confidence: row.confidence,
+        lastObservedAt: row.last_observed_at,
+      }));
     },
 
     async listRoutingOverrideSignals(params) {

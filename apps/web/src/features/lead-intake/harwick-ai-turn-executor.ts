@@ -32,9 +32,11 @@ import { createSupabaseConversationAutomationRepository } from "../../lib/supaba
 import { createSupabaseLeadDocumentRepository } from "../../lib/supabase/lead-document";
 import { createSupabaseMemberRoutingProfileRepository } from "../../lib/supabase/member-routing-profiles";
 import { createSupabaseWorkspacePolicyNarrativeRepository } from "../../lib/supabase/workspace-policy-narrative";
+import { createSupabaseWorkspaceMemoryRepository } from "../../lib/supabase/workspace-memory";
 import { createSupabaseAgentTrajectoryStore, findSimilarTrajectories } from "../../lib/supabase/agent-trajectory-store";
 import { loadAiConversationHistory } from "./harwick-ai-conversation-history";
 import { createHarwickAiToolHandlers, type HarwickAiToolContext } from "./harwick-ai-tool-handlers";
+import { buildWorkspaceMemoryRuntimeContext } from "./workspace-memory-runtime-context";
 
 export type GenerateAndExecuteHarwickAiTurnParams = {
   workspaceId: string;
@@ -126,6 +128,7 @@ export async function generateAndExecuteHarwickAiTurnSync(
   const conversationAutomationRepo = createSupabaseConversationAutomationRepository(deps.supabase);
   const policyNarrativeRepo = createSupabaseWorkspacePolicyNarrativeRepository(deps.supabase);
   const leadDocumentRepo = createSupabaseLeadDocumentRepository(deps.supabase);
+  const workspaceMemoryRepo = createSupabaseWorkspaceMemoryRepository(deps.supabase);
   const memberRoutingRepo = createSupabaseMemberRoutingProfileRepository(deps.supabase);
   const auditLogRepo = createSupabaseAuditLogRepository(deps.supabase);
 
@@ -175,6 +178,13 @@ export async function generateAndExecuteHarwickAiTurnSync(
       leadId: params.leadId,
     });
 
+    const workspaceMemory = buildWorkspaceMemoryRuntimeContext(
+      await workspaceMemoryRepo.listRuntimeMemoryDocuments({
+        workspaceId: params.workspaceId,
+        limit: 5,
+      }),
+    );
+
     // In-context retrieval RL: embed the inbound text + lead document, fetch
     // the top-N similar past trajectories with positive outcomes, render
     // them as few-shot examples. Behavior improves as the workspace
@@ -199,6 +209,7 @@ export async function generateAndExecuteHarwickAiTurnSync(
       buyerBlueprintUrl: null,
       policyNarrative,
       leadDocument,
+      workspaceMemory,
       retrievedExamples,
     });
 
