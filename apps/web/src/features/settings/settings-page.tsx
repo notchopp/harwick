@@ -66,6 +66,9 @@ function InfoRow(props: { label: string; value: string }) {
 
 export function SettingsPageContent(props: { workspaceName: string; workspaceId: string }) {
   const [isSaving, setIsSaving] = useState(false);
+  const [policyNarrative, setPolicyNarrative] = useState("");
+  const [policyNarrativeSource, setPolicyNarrativeSource] = useState<"generated" | "manual" | null>(null);
+  const [policyNarrativeStatus, setPolicyNarrativeStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [automation, setAutomation] = useState({
     autoSendEnabled: false,
     confidenceThreshold: 0.78,
@@ -103,6 +106,27 @@ export function SettingsPageContent(props: { workspaceName: string; workspaceId:
     void loadSettings();
   }, [props.workspaceId]);
 
+  useEffect(() => {
+    const loadPolicyNarrative = async () => {
+      try {
+        const res = await fetch(`/api/workspaces/${props.workspaceId}/policy-narrative`);
+        if (!res.ok) {
+          return;
+        }
+        const data = (await res.json()) as {
+          body: string | null;
+          source: "generated" | "manual" | null;
+        };
+        setPolicyNarrative(data.body ?? "");
+        setPolicyNarrativeSource(data.source);
+      } catch (error) {
+        console.error("Failed to load Harwick standing instructions:", error);
+      }
+    };
+
+    void loadPolicyNarrative();
+  }, [props.workspaceId]);
+
   const handleSaveChanges = async () => {
     setIsSaving(true);
     try {
@@ -125,6 +149,32 @@ export function SettingsPageContent(props: { workspaceName: string; workspaceId:
       console.error("Save failed:", error);
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleSavePolicyNarrative = async () => {
+    setPolicyNarrativeStatus("saving");
+    try {
+      const res = await fetch(`/api/workspaces/${props.workspaceId}/policy-narrative`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body: policyNarrative }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to save Harwick standing instructions");
+      }
+
+      const data = (await res.json()) as {
+        body: string | null;
+        source: "generated" | "manual" | null;
+      };
+      setPolicyNarrative(data.body ?? "");
+      setPolicyNarrativeSource(data.source);
+      setPolicyNarrativeStatus("saved");
+    } catch (error) {
+      console.error("Policy narrative save failed:", error);
+      setPolicyNarrativeStatus("error");
     }
   };
 
@@ -305,6 +355,47 @@ export function SettingsPageContent(props: { workspaceName: string; workspaceId:
               <div className="flex items-center gap-4 py-3">
                 <div className="flex-1 text-[13px] font-medium">Signature</div>
                 <input className="harwick-control w-[230px] px-[11px] py-[7px] text-[12.5px]" defaultValue="- Sarah Kim, Prestige Realty" />
+              </div>
+            </SettingsSection>
+
+            <SettingsSection title="Harwick Standing Instructions">
+              <div className="space-y-3">
+                <textarea
+                  className="harwick-control min-h-[172px] w-full resize-y px-[12px] py-[10px] text-[12.5px] leading-5"
+                  maxLength={8000}
+                  onChange={(event) => {
+                    setPolicyNarrative(event.target.value);
+                    setPolicyNarrativeStatus("idle");
+                  }}
+                  placeholder="Every closed lead gets a thank-you and a 6-month check-in. Pause automation on legal, lending, or contract advice. Route Katy luxury buyers to Noah when capacity is open."
+                  value={policyNarrative}
+                />
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-[11.5px] text-muted-subtle">
+                    {policyNarrativeSource === "manual"
+                      ? "Manual workspace policy"
+                      : policyNarrativeSource === "generated"
+                        ? "Generated from automation policy"
+                        : "No workspace policy saved"}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {policyNarrativeStatus === "saved" && (
+                      <span className="text-[11.5px] text-qualified">Saved</span>
+                    )}
+                    {policyNarrativeStatus === "error" && (
+                      <span className="text-[11.5px] text-hot">Save failed</span>
+                    )}
+                    <Button
+                      className="px-4 text-[11px]"
+                      disabled={policyNarrativeStatus === "saving" || policyNarrative.trim().length === 0}
+                      onClick={() => void handleSavePolicyNarrative()}
+                      size="sm"
+                      type="button"
+                    >
+                      {policyNarrativeStatus === "saving" ? "Saving..." : "Save Instructions"}
+                    </Button>
+                  </div>
+                </div>
               </div>
             </SettingsSection>
 

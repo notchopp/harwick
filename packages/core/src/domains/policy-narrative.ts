@@ -23,6 +23,21 @@ export const PolicyNarrativeSchema = z.object({
 
 export type PolicyNarrative = z.infer<typeof PolicyNarrativeSchema>;
 
+export const WorkspacePolicyNarrativeSourceSchema = z.enum(["generated", "manual"]);
+
+export const WorkspacePolicyNarrativeResponseSchema = z.object({
+  body: z.string().trim().max(8000).nullable(),
+  source: WorkspacePolicyNarrativeSourceSchema.nullable(),
+  generatedAt: z.string().datetime().nullable(),
+});
+
+export const WorkspacePolicyNarrativeUpdateRequestSchema = z.object({
+  body: z.string().trim().min(1).max(8000),
+});
+
+export type WorkspacePolicyNarrativeResponse = z.infer<typeof WorkspacePolicyNarrativeResponseSchema>;
+export type WorkspacePolicyNarrativeUpdateRequest = z.infer<typeof WorkspacePolicyNarrativeUpdateRequestSchema>;
+
 const ACTION_LABELS: Record<string, string> = {
   send_reply: "send conversational replies",
   ask_qualification: "ask qualifying questions",

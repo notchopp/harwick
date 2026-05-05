@@ -309,7 +309,7 @@ This is a parallel track to the launch spine above. It is not gated by launch �
 
 The frame: Harwick is becoming an AI agent that calls infrastructure when it needs to act, not a workflow engine that calls AI when it needs language. Progress is measured in lines deleted from the existing policy/state-machine layer, not in features added. See `AGENTS.md` north-star section for principles.
 
-Current AI-native completion estimate: **61%**.
+Current AI-native completion estimate: **65%**.
 
 Recently completed:
 
@@ -324,12 +324,13 @@ Recently completed:
 - Capability 2 foundation: conversations now expose a live Harwick synthesis strip from persisted `harwick_ai_turns` with intent, next action, confidence, missing fields, handoff brief, and document update.
 - Capability 2 refresh: the conversations workspace silently polls while visible so the Harwick synthesis strip updates as persisted turns land.
 - Capability 1 broader distillation: workspace memory now learns repeated operator feedback on Harwick work items, not only routing overrides.
+- Capability 4 / Step 3 standing instructions: workspace settings can save manual Harwick policy narrative into `workspaces.policy_narrative`, and the existing runtime injects that prose into every turn.
 
 Still open before this becomes “fully AI native”:
 
 - Workspace-level memory distillation for objections, market context, conversion outcomes, and source/channel patterns.
 - True in-flight progressive synthesis from active tool/result events, not just persisted completed turns.
-- Standing instructions as natural-language policy.
+- Policy shadow validation metrics and deletion of deterministic policy paths once model self-gating is trusted.
 - Subagent dispatch and tool registry prompt construction.
 - Richer model-distilled proactive insight narratives beyond the current workspace memory pattern producer.
 

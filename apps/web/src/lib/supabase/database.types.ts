@@ -2637,6 +2637,9 @@ export type Database = {
           created_at: string
           id: string
           name: string
+          policy_narrative: string | null
+          policy_narrative_generated_at: string | null
+          policy_narrative_source: string | null
           slug: string
           updated_at: string
         }
@@ -2644,6 +2647,9 @@ export type Database = {
           created_at?: string
           id?: string
           name: string
+          policy_narrative?: string | null
+          policy_narrative_generated_at?: string | null
+          policy_narrative_source?: string | null
           slug: string
           updated_at?: string
         }
@@ -2651,6 +2657,9 @@ export type Database = {
           created_at?: string
           id?: string
           name?: string
+          policy_narrative?: string | null
+          policy_narrative_generated_at?: string | null
+          policy_narrative_source?: string | null
           slug?: string
           updated_at?: string
         }
