@@ -9,20 +9,26 @@ import {
   buildPolicyShadowComparison,
   type HarwickAiPersistedTurn,
 } from "@realty-ops/core";
-import { createOpenAIHarwickAiRuntime, createMetaMessagingClient } from "@realty-ops/integrations";
+import {
+  createOpenAIHarwickAiRuntime,
+  runHarwickAiAgenticLoop,
+  type HarwickAiToolHandlers,
+} from "@realty-ops/integrations";
 import type {
   HarwickAiTurnPersistenceRepository,
   HarwickAiAutomationPolicyRepository,
 } from "../../lib/supabase/harwick-ai-turns";
 import type { LeadEventPersistenceRepository } from "../../lib/supabase/lead-events";
 import type { RealtyOpsSupabaseClient } from "../../lib/supabase/server-client";
-import { sendMetaReply } from "../integrations/meta-reply-send";
-import { createSupabaseMetaCredentialRepository } from "../../lib/supabase/integration-accounts";
 import type { SocialReplyQueueRepository } from "../operator-queues/operator-queues";
 import { createSupabaseConversationMessageRepository } from "../../lib/supabase/conversation-messages";
+import { createSupabaseConversationAutomationRepository } from "../../lib/supabase/conversation-automation";
 import { createSupabaseLeadDocumentRepository } from "../../lib/supabase/lead-document";
+import { createSupabaseMemberRoutingProfileRepository } from "../../lib/supabase/member-routing-profiles";
 import { createSupabaseWorkspacePolicyNarrativeRepository } from "../../lib/supabase/workspace-policy-narrative";
+import { createSupabaseAgentTrajectoryStore } from "../../lib/supabase/agent-trajectory-store";
 import { loadAiConversationHistory } from "./harwick-ai-conversation-history";
+import { createHarwickAiToolHandlers, type HarwickAiToolContext } from "./harwick-ai-tool-handlers";
 
 export type GenerateAndExecuteHarwickAiTurnParams = {
   workspaceId: string;
@@ -41,61 +47,77 @@ export type HarwickAiExecutorDependencies = {
   credentialSecret: string | undefined;
 };
 
+const VALID_CHANNELS = [
+  "instagram_dm",
+  "instagram_comment",
+  "facebook_dm",
+  "facebook_comment",
+] as const;
+
+type ValidChannel = typeof VALID_CHANNELS[number];
+
 /**
- * Synchronously generates and executes AI turn for a conversation.
- * If automation policy allows, sends reply immediately.
- * This replaces the async job queue for immediate, live AI responses.
+ * AI-native runtime entry point. The model owns the loop:
+ *  1. Hydrate context (conversation history, lead document, policy narrative).
+ *  2. Run the agentic loop — model emits tool calls, runtime executes them
+ *     against real handlers, results feed back into the next iteration.
+ *  3. Persist every step into agent_trajectories / agent_steps for future
+ *     RL, fine-tuning, and in-context retrieval.
+ *  4. Append documentUpdate to the lead document so memory compounds.
+ *  5. Shadow-compare deterministic gate vs model self-gate per step.
  */
 export async function generateAndExecuteHarwickAiTurnSync(
   params: GenerateAndExecuteHarwickAiTurnParams,
   deps: HarwickAiExecutorDependencies,
 ): Promise<void> {
-  // Only process DM and comment channels
-  const validChannels = [
-    "instagram_dm",
-    "instagram_comment",
-    "facebook_dm",
-    "facebook_comment",
-  ] as const;
-
-  if (!validChannels.includes(params.event.sourceChannel as typeof validChannels[number])) {
+  if (!VALID_CHANNELS.includes(params.event.sourceChannel as ValidChannel)) {
     return;
   }
 
-  const channel = params.event.sourceChannel as typeof validChannels[number];
-
+  const channel = params.event.sourceChannel as ValidChannel;
   if (!params.event.text || !params.event.providerAccountId || !params.event.providerUserId) {
     return;
   }
+  if (!deps.credentialSecret) {
+    console.warn("Skipping Harwick AI turn: CREDENTIAL_ENCRYPTION_KEY not set");
+    return;
+  }
+
+  const trajectoryStore = createSupabaseAgentTrajectoryStore(deps.supabase);
+  const conversationRepo = createSupabaseConversationMessageRepository(deps.supabase);
+  const conversationAutomationRepo = createSupabaseConversationAutomationRepository(deps.supabase);
+  const policyNarrativeRepo = createSupabaseWorkspacePolicyNarrativeRepository(deps.supabase);
+  const leadDocumentRepo = createSupabaseLeadDocumentRepository(deps.supabase);
+  const memberRoutingRepo = createSupabaseMemberRoutingProfileRepository(deps.supabase);
+
+  let trajectoryId: string | null = null;
+  let stepCount = 0;
+  let exitReason: string = "unknown";
 
   try {
-    // Resolve automation policy
     const automationPolicy = await deps.policyRepository.resolveEffectivePolicy({
       workspaceId: params.workspaceId,
       memberId: null,
       leadId: params.leadId,
     });
 
-    // Hydrate prior conversation messages so the AI has memory of the thread.
-    // Without this, every turn is generated as if it's the first — breaking
-    // the north-star promise of "picks up exactly where it left off".
-    const conversationRepo = createSupabaseConversationMessageRepository(deps.supabase);
+    // Look up the lead row once — handlers reuse it for assignment, calendar
+    // lookup, automation pause target, etc. A fresh read each step would be
+    // overkill since the agentic loop completes in seconds.
+    const { data: leadRow } = await deps.supabase
+      .from("leads")
+      .select("*")
+      .eq("workspace_id", params.workspaceId)
+      .eq("id", params.leadId)
+      .maybeSingle();
+
     const conversationHistory = await loadAiConversationHistory({
       leadId: params.leadId,
       repository: conversationRepo,
     });
 
-    // AI-native shifts 3 + 4: hydrate the policy narrative (model self-gates
-    // against this prose) and the lead document (primary memory) before
-    // building runtime input. Both fall back to null if not yet populated;
-    // the runtime side handles missing values gracefully.
-    const policyNarrativeRepo = createSupabaseWorkspacePolicyNarrativeRepository(deps.supabase);
-    const leadDocumentRepo = createSupabaseLeadDocumentRepository(deps.supabase);
-
     let policyNarrative = await policyNarrativeRepo.read(params.workspaceId);
     if (policyNarrative === null) {
-      // First-touch: render the structured policy as prose and persist so
-      // brokers can edit it directly going forward.
       const generated = generatePolicyNarrative(automationPolicy);
       try {
         await policyNarrativeRepo.write({
@@ -114,7 +136,7 @@ export async function generateAndExecuteHarwickAiTurnSync(
       leadId: params.leadId,
     });
 
-    const runtimeInput = HarwickAiRuntimeInputSchema.parse({
+    const initialInput = HarwickAiRuntimeInputSchema.parse({
       workspaceName: "Workspace",
       channel,
       inboundText: params.event.text,
@@ -129,120 +151,173 @@ export async function generateAndExecuteHarwickAiTurnSync(
       leadDocument,
     });
 
-    // Run AI synchronously
-    const turn = await deps.runtimeClient.runTurn(runtimeInput);
-
-    // Evaluate automation decision
-    const automationDecision = HarwickAiAutomationDecisionSchema.parse(
-      evaluateHarwickAiAutomation({
-        turn,
-        policy: automationPolicy,
-      })
-    );
-
-    // Build persisted tool calls
-    const persistedToolCalls = buildPersistedHarwickAiToolCalls({
-      toolCalls: turn.toolCalls,
-      approvedTools: automationDecision.approvedTools,
-      blockedTools: automationDecision.blockedTools,
-    });
-
-    // Derive persistence status
-    const persistenceStatus = deriveHarwickAiTurnPersistenceStatus({
-      automationDecision,
-      isExecuted: automationDecision.canAutoExecute,
-      hasExecutionFailure: false,
-    });
-
-    // Persist turn
-    const persistedTurn: HarwickAiPersistedTurn = {
+    const toolContext: HarwickAiToolContext = {
       workspaceId: params.workspaceId,
       leadId: params.leadId,
-      socialReplyReviewId: null,
-      providerThreadId: params.event.providerUserId,
+      leadEventId: params.leadEventId,
+      event: params.event,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      lead: leadRow as any,
       channel,
-      runtimeInput,
-      turn,
-      automationPolicy,
-      automationDecision,
-      status: persistenceStatus,
-      toolCalls: persistedToolCalls,
+      providerAccountId: params.event.providerAccountId,
+      recipientUserId: params.event.providerUserId,
+      sourcePostId: params.event.sourcePostId,
+      sourceCommentId: params.event.sourceCommentId,
+      automationMode: "ai_on",
     };
 
-    const { turnId } = await deps.turnRepository.insertTurn(persistedTurn);
-
-    // AI-native shift 3: shadow-compare deterministic gate vs model self-gate.
-    // Logged for now; once disagreement < 5% across N turns, flip the source
-    // of truth via HARWICK_AI_POLICY_SOURCE env flag.
-    const shadowComparison = buildPolicyShadowComparison({
-      workspaceId: params.workspaceId,
-      turnId,
-      deterministicAutoExecute: automationDecision.canAutoExecute,
-      deterministicReason: automationDecision.reason,
-      modelSelfGateAutoExecute: turn.selfGateAutoExecute,
-      modelSelfGateReason: turn.selfGateReason,
+    const handlers: HarwickAiToolHandlers = createHarwickAiToolHandlers({
+      supabase: deps.supabase,
+      context: toolContext,
+      conversationMessageRepository: conversationRepo,
+      conversationAutomationRepository: conversationAutomationRepo,
+      leadEventRepository: deps.leadEventRepository,
+      memberRoutingRepository: memberRoutingRepo,
+      credentialSecret: deps.credentialSecret,
     });
-    if (!shadowComparison.agree) {
-      console.warn("[harwick-ai policy shadow disagreement]", shadowComparison);
-    }
 
-    // AI-native shift 4: append the model's prose update to the lead document.
-    if (turn.documentUpdate.trim().length > 0) {
+    // Open a trajectory for this episode. Every loop step is appended; on
+    // completion we update outcome_label and step_count.
+    const { trajectoryId: openedTrajectoryId } = await trajectoryStore.startTrajectory({
+      workspaceId: params.workspaceId,
+      leadId: params.leadId,
+      channel,
+    });
+    trajectoryId = openedTrajectoryId;
+
+    const loopOutcome = await runHarwickAiAgenticLoop({
+      initialInput,
+      runtime: deps.runtimeClient,
+      policy: automationPolicy,
+      handlers,
+      maxIterations: 6,
+    });
+
+    exitReason = loopOutcome.exitReason;
+    stepCount = loopOutcome.steps.length;
+
+    // Persist every step into the trajectory + the harwick_ai_turns log.
+    // Each iteration is a complete (state, action, tool_results) tuple
+    // suitable for RL trajectories and supervised fine-tuning corpus.
+    for (const step of loopOutcome.steps) {
+      const turn = step.turn;
+      const automationDecision = HarwickAiAutomationDecisionSchema.parse(step.automation);
+
+      const persistedToolCalls = buildPersistedHarwickAiToolCalls({
+        toolCalls: turn.toolCalls,
+        approvedTools: automationDecision.approvedTools,
+        blockedTools: automationDecision.blockedTools,
+      });
+      const persistenceStatus = deriveHarwickAiTurnPersistenceStatus({
+        automationDecision,
+        isExecuted: step.results.some((result) => result.status === "executed"),
+        hasExecutionFailure: step.results.some((result) => result.status === "failed"),
+      });
+
+      const persistedTurn: HarwickAiPersistedTurn = {
+        workspaceId: params.workspaceId,
+        leadId: params.leadId,
+        socialReplyReviewId: null,
+        providerThreadId: params.event.providerUserId,
+        channel,
+        runtimeInput: step.iteration === 1 ? initialInput : initialInput,
+        turn,
+        automationPolicy,
+        automationDecision,
+        status: persistenceStatus,
+        toolCalls: persistedToolCalls,
+      };
+
+      const { turnId } = await deps.turnRepository.insertTurn(persistedTurn);
+
+      const shadowComparison = buildPolicyShadowComparison({
+        workspaceId: params.workspaceId,
+        turnId,
+        deterministicAutoExecute: automationDecision.canAutoExecute,
+        deterministicReason: automationDecision.reason,
+        modelSelfGateAutoExecute: turn.selfGateAutoExecute,
+        modelSelfGateReason: turn.selfGateReason,
+      });
+      if (!shadowComparison.agree) {
+        console.warn("[harwick-ai policy shadow disagreement]", shadowComparison);
+      }
+
       try {
-        await leadDocumentRepo.appendUpdate({
+        await trajectoryStore.appendStep({
+          trajectoryId: openedTrajectoryId,
           workspaceId: params.workspaceId,
           leadId: params.leadId,
-          update: turn.documentUpdate,
+          iteration: step.iteration,
+          inputSnapshot: step.iteration === 1 ? initialInput : { iteration: step.iteration, note: "see iteration 1 inputSnapshot for base context" },
+          turnOutput: turn,
+          toolExecutions: step.results,
+          selfGateAutoExecute: turn.selfGateAutoExecute,
+          selfGateReason: turn.selfGateReason,
+          deterministicGateAutoExecute: automationDecision.canAutoExecute,
+          gatesAgreed: shadowComparison.agree,
+          exitReason: step.iteration === loopOutcome.steps.length ? loopOutcome.exitReason : null,
+          harwickAiTurnId: turnId,
         });
-      } catch (documentError) {
-        console.warn("Could not append lead document update:", documentError);
-      }
-    }
-
-    // If automation allows and has approved send tool, execute immediately
-    if (
-      automationDecision.canAutoExecute
-      && automationDecision.approvedTools.includes("send_meta_dm")
-      && turn.reply
-    ) {
-      if (!deps.credentialSecret) {
-        console.warn("Skipping auto-send: CREDENTIAL_ENCRYPTION_KEY not set");
-        return;
+      } catch (stepError) {
+        console.warn("Could not persist agent step:", stepError);
       }
 
-      try {
-        const sendResult = await sendMetaReply({
-          request: {
+      // AI-native shift 4: append the model's prose update to the lead document.
+      if (turn.documentUpdate.trim().length > 0) {
+        try {
+          await leadDocumentRepo.appendUpdate({
             workspaceId: params.workspaceId,
             leadId: params.leadId,
-            providerAccountId: params.event.providerAccountId,
-            channel,
-            recipientUserId: params.event.providerUserId,
-            sourceCommentId: params.event.sourceCommentId,
-            sourcePostId: params.event.sourcePostId,
-            reply: turn.reply,
-            automationMode: "ai_on",
-          },
-          credentialSecret: deps.credentialSecret,
-          credentialRepository: createSupabaseMetaCredentialRepository(deps.supabase),
-          leadEventRepository: deps.leadEventRepository,
-          metaClient: createMetaMessagingClient(),
-          conversationMessageRepository: conversationRepo,
-          senderType: "ai",
-        });
-
-        if (sendResult.status === 200) {
-          // Mark turn as auto-executed
-          await deps.turnRepository.updateTurnStatus(turnId, "auto_executed");
-        } else {
-          console.error("Failed to auto-send reply:", sendResult.body.error);
+            update: turn.documentUpdate,
+          });
+        } catch (documentError) {
+          console.warn("Could not append lead document update:", documentError);
         }
-      } catch (sendError) {
-        console.error("Auto-send error:", sendError);
+      }
+
+      if (automationDecision.canAutoExecute && step.results.some((result) => result.status === "executed")) {
+        await deps.turnRepository.updateTurnStatus(turnId, "auto_executed");
       }
     }
+
+    await trajectoryStore.completeTrajectory({
+      trajectoryId: openedTrajectoryId,
+      completedAt: new Date().toISOString(),
+      completionReason: loopOutcome.exitReason,
+      stepCount,
+      summaryText: buildTrajectorySummary(loopOutcome),
+      // outcome_label stays "pending" until downstream operator/lead signals
+      // close the loop via agent_outcomes.
+      outcomeLabel: "pending",
+    });
   } catch (error) {
     console.error("Harwick AI turn generation error:", error);
-    // Don't throw - let webhook continue even if AI fails
+    if (trajectoryId !== null) {
+      try {
+        await trajectoryStore.completeTrajectory({
+          trajectoryId,
+          completedAt: new Date().toISOString(),
+          completionReason: exitReason === "unknown" ? "tool_failed" : exitReason,
+          stepCount,
+          summaryText: `Trajectory aborted: ${error instanceof Error ? error.message : String(error)}`,
+          outcomeLabel: "negative",
+        });
+      } catch (completionError) {
+        console.warn("Could not record aborted trajectory:", completionError);
+      }
+    }
+    // Don't rethrow — webhook delivery should still succeed.
   }
+}
+
+function buildTrajectorySummary(outcome: Awaited<ReturnType<typeof runHarwickAiAgenticLoop>>): string {
+  const lines: string[] = [];
+  for (const step of outcome.steps) {
+    const tools = step.results
+      .map((result) => `${result.tool}=${result.status}`)
+      .join(", ");
+    lines.push(`Step ${step.iteration}: ${step.turn.intent} → ${step.turn.nextAction} (${tools || "no tools"})`);
+  }
+  lines.push(`Exit: ${outcome.exitReason} after ${outcome.steps.length} step(s).`);
+  return lines.join("\n");
 }

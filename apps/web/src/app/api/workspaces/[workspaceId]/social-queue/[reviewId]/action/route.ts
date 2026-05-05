@@ -4,8 +4,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import { ZodError } from "zod";
 import { sendMetaReply } from "../../../../../../../features/integrations/meta-reply-send";
 import { actOnSocialReplyReview } from "../../../../../../../features/operator-queues/operator-queues";
+import { recordAgentOutcome } from "../../../../../../../features/agent-runtime/record-agent-outcome";
 import { getServerEnvironment } from "../../../../../../../lib/server-env";
 import { authorizeWorkspaceRequest } from "../../../../../../../lib/api/workspace-auth";
+import { createSupabaseAgentTrajectoryStore } from "../../../../../../../lib/supabase/agent-trajectory-store";
 import { createSupabaseMetaCredentialRepository } from "../../../../../../../lib/supabase/integration-accounts";
 import { createSupabaseLeadEventRepository } from "../../../../../../../lib/supabase/lead-events";
 import { createSupabaseSocialReplyQueueRepository } from "../../../../../../../lib/supabase/operator-queues";
@@ -64,6 +66,37 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     if (result === null) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
+    }
+
+    // Reward signal: attribute the operator's action back to the trajectory
+    // that produced this queued reply. Used for RL/fine-tune later. The
+    // "edit then send" case is detected downstream (reconciliation worker
+    // compares the operator's reply text to the original AI draft).
+    const resultLeadId = (result as { leadId?: string | null }).leadId ?? null;
+    if (resultLeadId !== null) {
+      const action = parsedAction.action;
+      const signalType: "operator_approve" | "operator_dismiss" | null = action === "approve" || action === "send"
+        ? "operator_approve"
+        : action === "dismiss"
+          ? "operator_dismiss"
+          : null;
+      if (signalType !== null) {
+        const trajectoryStore = createSupabaseAgentTrajectoryStore(supabase);
+        const editedReply = action === "approve" || action === "send"
+          ? (parsedAction as { reply: string }).reply
+          : null;
+        await recordAgentOutcome(supabase, trajectoryStore, {
+          workspaceId,
+          leadId: resultLeadId,
+          signalType,
+          signalValue: {
+            reviewId,
+            action,
+            memberId: membership.memberId,
+            ...(editedReply === null ? {} : { editedReply }),
+          },
+        });
+      }
     }
 
     return NextResponse.json({ item: result }, { status: 200 });
