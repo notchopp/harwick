@@ -25,7 +25,7 @@ import type { RealtyOpsSupabaseClient } from "../../lib/supabase/server-client";
  *   converted              — lead status closed_won
  *   churned                — lead status closed_lost / archived
  *   routing_accepted       — AI's route_lead decision matches the current
- *                            assigned_member_id past the override window
+ *                            assigned_agent_id past the override window
  *   routing_overridden     — operator changed assignment within the window
  *
  * Customers never know they're labeling. They use Harwick; Harwick records.
@@ -77,7 +77,7 @@ type LeadSnapshot = {
   id: string;
   workspace_id: string;
   status: string | null;
-  assigned_member_id: string | null;
+  assigned_agent_id: string | null;
   last_message_at: string | null;
   updated_at: string | null;
 };
@@ -88,7 +88,7 @@ async function fetchLeadSnapshot(
 ): Promise<LeadSnapshot | null> {
   const { data, error } = await supabase
     .from("leads")
-    .select("id, workspace_id, status, assigned_member_id, last_message_at, updated_at")
+    .select("id, workspace_id, status, assigned_agent_id, last_message_at, updated_at")
     .eq("workspace_id", params.workspaceId)
     .eq("id", params.leadId)
     .maybeSingle<LeadSnapshot>();
@@ -282,18 +282,18 @@ export async function reconcileAgentTrajectories(
           ?? aiAssignedRaw?.payload?.["agentId"] as string | undefined
           ?? null;
 
-        if (lead.assigned_member_id !== null && aiAssignedAgentId !== null) {
-          if (lead.assigned_member_id === aiAssignedAgentId) {
+        if (lead.assigned_agent_id !== null && aiAssignedAgentId !== null) {
+          if (lead.assigned_agent_id === aiAssignedAgentId) {
             await recordIfMissing({
               signalType: "routing_accepted",
-              signalValue: { assignedMemberId: lead.assigned_member_id, aiSuggestedMemberId: aiAssignedAgentId },
+              signalValue: { assignedMemberId: lead.assigned_agent_id, aiSuggestedMemberId: aiAssignedAgentId },
               attributedToStepId: routeStep.id,
             });
           } else {
             await recordIfMissing({
               signalType: "routing_overridden",
               signalValue: {
-                operatorChoseMemberId: lead.assigned_member_id,
+                operatorChoseMemberId: lead.assigned_agent_id,
                 aiSuggestedMemberId: aiAssignedAgentId,
               },
               attributedToStepId: routeStep.id,

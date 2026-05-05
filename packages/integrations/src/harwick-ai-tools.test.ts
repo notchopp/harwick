@@ -75,6 +75,61 @@ describe("executeHarwickAiToolCalls", () => {
     }]);
   });
 
+  it("does not execute tools blocked by policy even if the model omits requiresApproval", async () => {
+    const handler = vi.fn().mockResolvedValue({ assignedMemberId: "agent-1" });
+
+    const result = await executeHarwickAiTurnWithPolicy({
+      turn: {
+        intent: "buyer_qualification",
+        nextAction: "route_lead",
+        missingFields: [],
+        confidence: 0.93,
+        safetyFlags: ["safe_to_send"],
+        reply: "I have enough to get you to the right person.",
+        statePatch: {
+          currentIntent: null,
+          leadType: null,
+          intent: null,
+          timeline: null,
+          budget: null,
+          targetArea: null,
+          propertyType: null,
+          financingStatus: null,
+          knownFacts: [],
+        },
+        handoffBrief: null,
+        toolCalls: [{
+          tool: "route_lead",
+          reason: "qualified Katy buyer should be routed",
+          requiresApproval: false,
+          payload: { assignedMemberId: "agent-1" },
+        }],
+        selfGateAutoExecute: true,
+        selfGateReason: "model thought routing was allowed.",
+        documentUpdate: "",
+        endTurn: true,
+      },
+      policy: {
+        autoSendEnabled: true,
+      },
+      handlers: {
+        route_lead: handler,
+      },
+    });
+
+    expect(result.automation.canAutoExecute).toBe(false);
+    expect(result.automation.blockedTools).toEqual(["route_lead"]);
+    expect(result.results).toEqual([{
+      tool: "route_lead",
+      status: "queued_for_approval",
+      reason: "qualified Katy buyer should be routed",
+      output: {
+        payload: { assignedMemberId: "agent-1" },
+      },
+    }]);
+    expect(handler).not.toHaveBeenCalled();
+  });
+
   it("captures handler failures instead of aborting the turn", async () => {
     const handler = vi.fn().mockRejectedValue(new Error("Meta is unavailable"));
 

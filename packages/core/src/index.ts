@@ -9,6 +9,7 @@ export * from "./domains/harwick-ai.js";
 export * from "./domains/harwick-ai-automation-policy.js";
 export * from "./domains/harwick-ai-persistence.js";
 export * from "./domains/harwick-ai-runtime.js";
+export * from "./domains/harwick-work-item.js";
 export * from "./domains/home-data.js";
 export * from "./domains/environment.js";
 export * from "./domains/integration.js";

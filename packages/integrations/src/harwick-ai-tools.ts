@@ -30,11 +30,12 @@ export async function executeHarwickAiToolCalls(params: {
   handlers: HarwickAiToolHandlers;
   approvedTools?: HarwickAiToolName[];
 }): Promise<HarwickAiToolExecutionResult[]> {
+  const enforceApprovedTools = params.approvedTools !== undefined;
   const approvedTools = new Set(params.approvedTools ?? []);
   const results: HarwickAiToolExecutionResult[] = [];
 
   for (const toolCall of params.toolCalls.map((candidate) => HarwickAiToolCallSchema.parse(candidate))) {
-    if (toolCall.requiresApproval && !approvedTools.has(toolCall.tool)) {
+    if ((toolCall.requiresApproval || enforceApprovedTools) && !approvedTools.has(toolCall.tool)) {
       results.push(HarwickAiToolExecutionResultSchema.parse({
         tool: toolCall.tool,
         status: "queued_for_approval",
