@@ -246,8 +246,11 @@ export function ConversationsPageContent(props: {
     router.push(`/leads?leadId=${thread.leadId}`);
   }
 
-  const refreshThreads = useCallback(async () => {
-    setLoadState("loading");
+  const refreshThreads = useCallback(async (options?: { silent?: boolean }) => {
+    const silent = options?.silent === true;
+    if (!silent) {
+      setLoadState("loading");
+    }
 
     try {
       const response = await fetch(`/api/conversations?workspaceId=${props.workspaceId}&limit=30`, {
@@ -282,17 +285,35 @@ export function ConversationsPageContent(props: {
         });
         return queryMatch?.id ?? nextThreads[0]?.id ?? "";
       });
-      setLoadState("ready");
+      if (!silent) {
+        setLoadState("ready");
+      }
     } catch {
-      setThreads([]);
-      setSelectedId("");
-      setLoadState("error");
+      if (!silent) {
+        setThreads([]);
+        setSelectedId("");
+        setLoadState("error");
+      }
     }
   }, [leadIdParam, props.workspaceId, reviewIdParam]);
 
   useEffect(() => {
     void refreshThreads();
   }, [refreshThreads]);
+
+  useEffect(() => {
+    if (loadState !== "ready") {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        void refreshThreads({ silent: true });
+      }
+    }, 15000);
+
+    return () => window.clearInterval(intervalId);
+  }, [loadState, refreshThreads]);
 
   // Wire realtime subscriptions for live updates
   useRealtimeThreadSync(props.workspaceId, selectedId, threads, (updater) => {
