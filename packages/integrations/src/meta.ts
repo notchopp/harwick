@@ -142,6 +142,8 @@ export function buildMetaSocialPostContext(params: {
   text: string | null;
   permalink: string | null;
   mediaType: string | null;
+  mediaUrl?: string | null;
+  visualDescription?: string | null;
   fetchedAt?: string;
   rawPayload: unknown;
 }): SocialPostContext {
@@ -158,6 +160,8 @@ export function buildMetaSocialPostContext(params: {
     caption,
     permalink: params.permalink,
     mediaType: params.mediaType,
+    mediaUrl: params.mediaUrl ?? null,
+    visualDescription: params.visualDescription ?? null,
     ctaLabel: /\bblueprint\b/i.test(combinedText) ? "buyer blueprint" : null,
     areasMentioned: extractMetaAreas(combinedText.length > 0 ? combinedText : null),
     listingHints: extractMetaListingHints(combinedText.length > 0 ? combinedText : null),

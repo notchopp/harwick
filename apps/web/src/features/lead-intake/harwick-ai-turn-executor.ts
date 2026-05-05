@@ -5,6 +5,8 @@ import {
   buildPersistedHarwickAiToolCalls,
   deriveHarwickAiTurnPersistenceStatus,
   evaluateHarwickAiAutomation,
+  generatePolicyNarrative,
+  buildPolicyShadowComparison,
   type HarwickAiPersistedTurn,
 } from "@realty-ops/core";
 import { createOpenAIHarwickAiRuntime, createMetaMessagingClient } from "@realty-ops/integrations";
@@ -18,6 +20,8 @@ import { sendMetaReply } from "../integrations/meta-reply-send";
 import { createSupabaseMetaCredentialRepository } from "../../lib/supabase/integration-accounts";
 import type { SocialReplyQueueRepository } from "../operator-queues/operator-queues";
 import { createSupabaseConversationMessageRepository } from "../../lib/supabase/conversation-messages";
+import { createSupabaseLeadDocumentRepository } from "../../lib/supabase/lead-document";
+import { createSupabaseWorkspacePolicyNarrativeRepository } from "../../lib/supabase/workspace-policy-narrative";
 import { loadAiConversationHistory } from "./harwick-ai-conversation-history";
 
 export type GenerateAndExecuteHarwickAiTurnParams = {
@@ -81,6 +85,35 @@ export async function generateAndExecuteHarwickAiTurnSync(
       repository: conversationRepo,
     });
 
+    // AI-native shifts 3 + 4: hydrate the policy narrative (model self-gates
+    // against this prose) and the lead document (primary memory) before
+    // building runtime input. Both fall back to null if not yet populated;
+    // the runtime side handles missing values gracefully.
+    const policyNarrativeRepo = createSupabaseWorkspacePolicyNarrativeRepository(deps.supabase);
+    const leadDocumentRepo = createSupabaseLeadDocumentRepository(deps.supabase);
+
+    let policyNarrative = await policyNarrativeRepo.read(params.workspaceId);
+    if (policyNarrative === null) {
+      // First-touch: render the structured policy as prose and persist so
+      // brokers can edit it directly going forward.
+      const generated = generatePolicyNarrative(automationPolicy);
+      try {
+        await policyNarrativeRepo.write({
+          workspaceId: params.workspaceId,
+          body: generated.body,
+          source: "generated",
+        });
+      } catch (writeError) {
+        console.warn("Could not persist generated policy narrative:", writeError);
+      }
+      policyNarrative = generated.body;
+    }
+
+    const leadDocument = await leadDocumentRepo.read({
+      workspaceId: params.workspaceId,
+      leadId: params.leadId,
+    });
+
     const runtimeInput = HarwickAiRuntimeInputSchema.parse({
       workspaceName: "Workspace",
       channel,
@@ -92,6 +125,8 @@ export async function generateAndExecuteHarwickAiTurnSync(
       listingContext: null,
       calendarContext: [],
       buyerBlueprintUrl: null,
+      policyNarrative,
+      leadDocument,
     });
 
     // Run AI synchronously
@@ -135,6 +170,34 @@ export async function generateAndExecuteHarwickAiTurnSync(
     };
 
     const { turnId } = await deps.turnRepository.insertTurn(persistedTurn);
+
+    // AI-native shift 3: shadow-compare deterministic gate vs model self-gate.
+    // Logged for now; once disagreement < 5% across N turns, flip the source
+    // of truth via HARWICK_AI_POLICY_SOURCE env flag.
+    const shadowComparison = buildPolicyShadowComparison({
+      workspaceId: params.workspaceId,
+      turnId,
+      deterministicAutoExecute: automationDecision.canAutoExecute,
+      deterministicReason: automationDecision.reason,
+      modelSelfGateAutoExecute: turn.selfGateAutoExecute,
+      modelSelfGateReason: turn.selfGateReason,
+    });
+    if (!shadowComparison.agree) {
+      console.warn("[harwick-ai policy shadow disagreement]", shadowComparison);
+    }
+
+    // AI-native shift 4: append the model's prose update to the lead document.
+    if (turn.documentUpdate.trim().length > 0) {
+      try {
+        await leadDocumentRepo.appendUpdate({
+          workspaceId: params.workspaceId,
+          leadId: params.leadId,
+          update: turn.documentUpdate,
+        });
+      } catch (documentError) {
+        console.warn("Could not append lead document update:", documentError);
+      }
+    }
 
     // If automation allows and has approved send tool, execute immediately
     if (

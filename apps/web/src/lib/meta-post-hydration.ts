@@ -1,7 +1,8 @@
-import type { SocialPostContext } from "@realty-ops/core";
+import type { Logger, SocialPostContext } from "@realty-ops/core";
 import { SocialPostContextSchema } from "@realty-ops/core";
-import { createMetaGraphClient } from "@realty-ops/integrations";
+import { createMetaGraphClient, type VisionClient } from "@realty-ops/integrations";
 import { z } from "zod";
+import { hydratePostVisualDescription } from "../features/lead-intake/post-vision-hydrator";
 import { decryptCredential } from "./credentials";
 import type { ConnectedMetaCredentialRecord } from "./supabase/integration-accounts";
 
@@ -92,26 +93,35 @@ export function createMetaSocialPostContextHydrator(params: {
   credentialSecret: string;
   integrationRepository: MetaCredentialRepository;
   fetchImpl?: typeof fetch;
+  vision?: VisionClient;
+  logger?: Logger;
 }) {
   return async function hydrate(contexts: SocialPostContext[]): Promise<SocialPostContext[]> {
     return Promise.all(
       contexts.map(async (context) => {
-        if (!isSocialPostContextThin(context)) {
-          return context;
+        let next = context;
+        if (isSocialPostContextThin(context)) {
+          const hydratedContext = await hydrateMetaSocialPostContext({
+            workspaceId: context.workspaceId,
+            providerAccountId: context.providerAccountId,
+            sourcePostId: context.sourcePostId,
+            sourceChannel: context.sourceChannel,
+            credentialSecret: params.credentialSecret,
+            integrationRepository: params.integrationRepository,
+            existingContext: context,
+            ...(params.fetchImpl === undefined ? {} : { fetchImpl: params.fetchImpl }),
+          });
+          next = hydratedContext ?? context;
         }
 
-        const hydratedContext = await hydrateMetaSocialPostContext({
-          workspaceId: context.workspaceId,
-          providerAccountId: context.providerAccountId,
-          sourcePostId: context.sourcePostId,
-          sourceChannel: context.sourceChannel,
-          credentialSecret: params.credentialSecret,
-          integrationRepository: params.integrationRepository,
-          existingContext: context,
-          ...(params.fetchImpl === undefined ? {} : { fetchImpl: params.fetchImpl }),
-        });
+        if (params.vision !== undefined && params.logger !== undefined) {
+          next = await hydratePostVisualDescription(
+            { vision: params.vision, logger: params.logger },
+            next,
+          );
+        }
 
-        return hydratedContext ?? context;
+        return next;
       }),
     );
   };

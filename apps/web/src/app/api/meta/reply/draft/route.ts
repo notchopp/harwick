@@ -210,6 +210,7 @@ export async function POST(request: NextRequest) {
       areasMentioned: postContext.areas_mentioned,
       listingHints: postContext.listing_hints,
       permalink: postContext.permalink,
+      visualDescription: (postContext as { visual_description?: string | null }).visual_description ?? null,
     },
     listingContext: listingContext === null ? null : {
       listingId: null,

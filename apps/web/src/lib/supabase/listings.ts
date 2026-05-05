@@ -48,6 +48,8 @@ export type ListingLookupRepository = {
   }): Promise<ListingFactRow | null>;
 };
 
+export type SemanticListingMatch = ListingFactRow & { similarity: number };
+
 export type ListingFactsRepository = {
   findCachedListing(params: {
     workspaceId: string;
@@ -81,6 +83,22 @@ export type ListingFactsRepository = {
     listingId: string;
     runAfter: string;
   }): Promise<void>;
+  findListingsMissingEmbedding(params: {
+    workspaceId: string;
+    limit?: number;
+  }): Promise<ListingFactRow[]>;
+  saveListingEmbedding(params: {
+    workspaceId: string;
+    listingId: string;
+    embedding: number[];
+    embeddingText: string;
+  }): Promise<void>;
+  semanticListingSearch(params: {
+    workspaceId: string;
+    embedding: number[];
+    limit?: number;
+    minSimilarity?: number;
+  }): Promise<SemanticListingMatch[]>;
 };
 
 function buildLookupQuery(params: {
@@ -273,6 +291,59 @@ export function createSupabaseListingFactsRepository(
       }
 
       return completedTaskIds.size;
+    },
+
+    async findListingsMissingEmbedding(params) {
+      const { data, error } = await supabase
+        .from("listing_facts")
+        .select("*")
+        .eq("workspace_id", params.workspaceId)
+        .is("embedding", null)
+        .order("updated_at", { ascending: false })
+        .limit(params.limit ?? 25)
+        .returns<ListingFactRow[]>();
+
+      if (error !== null) {
+        throw error;
+      }
+      return data ?? [];
+    },
+
+    async saveListingEmbedding(params) {
+      const { error } = await supabase
+        .from("listing_facts")
+        .update({
+          embedding: params.embedding as unknown as never,
+          embedding_text: params.embeddingText,
+          embedded_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } as any)
+        .eq("workspace_id", params.workspaceId)
+        .eq("id", params.listingId);
+
+      if (error !== null) {
+        throw error;
+      }
+    },
+
+    async semanticListingSearch(params) {
+      // pgvector cosine similarity via the `match_listing_facts` SQL function
+      // (created in supabase/migrations/20260505000100). The function name
+      // isn't in the generated DB types, so we route through `any` here.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any).rpc("match_listing_facts", {
+        workspace: params.workspaceId,
+        query_embedding: params.embedding,
+        match_count: params.limit ?? 5,
+        min_similarity: params.minSimilarity ?? 0.2,
+      });
+
+      if (error !== null) {
+        throw error;
+      }
+
+      return (data ?? []) as Array<ListingFactRow & { similarity: number }>;
     },
 
     async enqueueListingRecheck(params) {

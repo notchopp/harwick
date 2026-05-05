@@ -3,7 +3,7 @@ import {
   type Logger,
   type ServerEnvironment,
 } from "@realty-ops/core";
-import { createRepliersListingClient, type ListingProviderClient } from "@realty-ops/integrations";
+import { createOpenAIEmbeddingClient, createRepliersListingClient, type EmbeddingClient, type ListingProviderClient } from "@realty-ops/integrations";
 import { decryptCredential } from "../../lib/credentials";
 import type {
   ListingFactsRepository,
@@ -72,11 +72,20 @@ export function createWorkspaceScopedListingLookupRepository(params: {
         });
       }
 
+      const embeddings = buildEmbeddingClient(params.environment);
       return createListingLookupRepository({
         repository: params.repository,
         logger: params.logger,
         ...(provider === undefined ? {} : { provider }),
+        ...(embeddings === undefined ? {} : { embeddings }),
       }).lookupListing(input);
     },
   };
+}
+
+function buildEmbeddingClient(environment: ServerEnvironment): EmbeddingClient | undefined {
+  if (environment.OPENAI_API_KEY === undefined) {
+    return undefined;
+  }
+  return createOpenAIEmbeddingClient({ apiKey: environment.OPENAI_API_KEY });
 }

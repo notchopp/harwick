@@ -9,16 +9,24 @@ const MetaGraphInstagramMediaSchema = z.object({
   caption: z.string().optional(),
   permalink: z.string().trim().url().optional(),
   media_type: z.string().trim().min(1).optional(),
+  media_url: z.string().trim().url().optional(),
+  thumbnail_url: z.string().trim().url().optional(),
 }).passthrough();
 
 const MetaGraphAttachmentSchema = z.object({
   media_type: z.string().trim().min(1).optional(),
+  media: z.object({
+    image: z.object({
+      src: z.string().trim().url().optional(),
+    }).passthrough().optional(),
+  }).passthrough().optional(),
 }).passthrough();
 
 const MetaGraphFacebookPostSchema = z.object({
   id: z.string().trim().min(1),
   message: z.string().optional(),
   permalink_url: z.string().trim().url().optional(),
+  full_picture: z.string().trim().url().optional(),
   attachments: z.object({
     data: z.array(MetaGraphAttachmentSchema).optional(),
   }).optional(),
@@ -177,7 +185,7 @@ export function createMetaGraphClient(options: MetaGraphClientOptions = {}) {
       url.searchParams.set("access_token", params.accessToken);
 
       if (params.sourceChannel === "instagram_comment") {
-        url.searchParams.set("fields", "id,caption,permalink,media_type");
+        url.searchParams.set("fields", "id,caption,permalink,media_type,media_url,thumbnail_url");
         const media = MetaGraphInstagramMediaSchema.parse(await request(url));
 
         return buildMetaSocialPostContext({
@@ -189,11 +197,12 @@ export function createMetaGraphClient(options: MetaGraphClientOptions = {}) {
           text: null,
           permalink: media.permalink ?? null,
           mediaType: media.media_type ?? null,
+          mediaUrl: media.media_url ?? media.thumbnail_url ?? null,
           rawPayload: media,
         });
       }
 
-      url.searchParams.set("fields", "id,message,permalink_url,attachments{media_type}");
+      url.searchParams.set("fields", "id,message,permalink_url,full_picture,attachments{media_type,media}");
       const post = MetaGraphFacebookPostSchema.parse(await request(url));
 
       return buildMetaSocialPostContext({
@@ -205,6 +214,7 @@ export function createMetaGraphClient(options: MetaGraphClientOptions = {}) {
         text: null,
         permalink: post.permalink_url ?? null,
         mediaType: post.attachments?.data?.[0]?.media_type ?? null,
+        mediaUrl: post.full_picture ?? post.attachments?.data?.[0]?.media?.image?.src ?? null,
         rawPayload: post,
       });
     },

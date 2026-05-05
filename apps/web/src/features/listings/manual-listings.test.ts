@@ -40,6 +40,9 @@ function buildRepository(overrides: Partial<ListingFactsRepository> = {}): Listi
     updateListingFact: vi.fn(),
     completeVerifyListingTasks: vi.fn().mockResolvedValue(0),
     enqueueListingRecheck: vi.fn().mockResolvedValue(undefined),
+    findListingsMissingEmbedding: vi.fn().mockResolvedValue([]),
+    saveListingEmbedding: vi.fn().mockResolvedValue(undefined),
+    semanticListingSearch: vi.fn().mockResolvedValue([]),
     ...overrides,
   };
 }

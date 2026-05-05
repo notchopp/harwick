@@ -23,6 +23,7 @@ export * from "./domains/meta-oauth.js";
 export * from "./domains/meta-reply.js";
 export * from "./domains/nurture.js";
 export * from "./domains/operator-queue.js";
+export * from "./domains/policy-narrative.js";
 export * from "./domains/operations.js";
 export * from "./domains/social-post.js";
 export * from "./domains/system-health.js";

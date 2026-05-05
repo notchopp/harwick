@@ -80,6 +80,7 @@ export const HarwickAiPostContextSchema = z.object({
   areasMentioned: z.array(z.string().trim().min(1).max(120)).max(20).default([]),
   listingHints: z.array(z.string().trim().min(1).max(240)).max(30).default([]),
   permalink: z.string().trim().url().nullable().default(null),
+  visualDescription: z.string().trim().max(2000).nullable().default(null),
 });
 
 export const HarwickAiRuntimeInputSchema = z.object({
@@ -93,6 +94,13 @@ export const HarwickAiRuntimeInputSchema = z.object({
   listingContext: HarwickAiListingMemorySchema.nullable().default(null),
   calendarContext: z.array(HarwickAiCalendarMemorySchema).max(20).default([]),
   buyerBlueprintUrl: z.string().trim().url().nullable().default(null),
+  // AI-native shift 3: prose policy injected into the system prompt; model
+  // self-gates against this narrative. Coexists with the structured policy
+  // gate during shadow mode.
+  policyNarrative: z.string().trim().max(8000).nullable().default(null),
+  // AI-native shift 4: prose lead document the model reads as primary context
+  // and amends each turn. Coexists with structured `state` during shadow mode.
+  leadDocument: z.string().trim().max(16000).nullable().default(null),
 });
 
 export const HarwickAiMissingFieldRuntimeSchema = z.enum([
@@ -185,6 +193,16 @@ export const HarwickAiTurnSchema = z.object({
   statePatch: HarwickAiStatePatchSchema.default({}),
   handoffBrief: z.string().trim().max(1000).nullable().default(null),
   toolCalls: z.array(HarwickAiToolCallSchema).max(8).default([]),
+  // AI-native shift 3: model self-gates and reports its own decision so we can
+  // shadow-compare against the deterministic gate.
+  selfGateAutoExecute: z.boolean().default(true),
+  selfGateReason: z.string().trim().max(500).default("policy narrative permits autonomous send."),
+  // AI-native shift 4: prose update the model appends to the lead document
+  // after the turn. Empty string means "no update this turn" — caller skips.
+  documentUpdate: z.string().trim().max(2000).default(""),
+  // AI-native shift 5: model declares whether the agentic loop should keep
+  // running tools or close the turn.
+  endTurn: z.boolean().default(true),
 });
 
 export type HarwickAiConversationMessage = z.infer<typeof HarwickAiConversationMessageSchema>;

@@ -11,6 +11,8 @@ export type SocialPostRow = {
   caption: string | null;
   permalink: string | null;
   media_type: string | null;
+  media_url: string | null;
+  visual_description: string | null;
   cta_label: string | null;
   areas_mentioned: string[];
   listing_hints: string[];
@@ -44,6 +46,8 @@ function mapContextToRow(context: SocialPostContext): SocialPostInsertRow {
     caption: context.caption,
     permalink: context.permalink,
     media_type: context.mediaType,
+    media_url: context.mediaUrl,
+    visual_description: context.visualDescription,
     cta_label: context.ctaLabel,
     areas_mentioned: context.areasMentioned,
     listing_hints: context.listingHints,
@@ -62,7 +66,8 @@ export function createSupabaseSocialPostRepository(
 
       const { data, error } = await supabase
         .from("social_posts")
-        .upsert(contexts.map(mapContextToRow), {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .upsert(contexts.map(mapContextToRow) as any, {
           onConflict: "workspace_id,provider,source_post_id",
         })
         .select("id");
@@ -77,7 +82,7 @@ export function createSupabaseSocialPostRepository(
     async findPostContext(params) {
       const { data, error } = await supabase
         .from("social_posts")
-        .select("id,workspace_id,provider,provider_account_id,source_post_id,source_channel,caption,permalink,media_type,cta_label,areas_mentioned,listing_hints,fetched_at,created_at,updated_at")
+        .select("id,workspace_id,provider,provider_account_id,source_post_id,source_channel,caption,permalink,media_type,media_url,visual_description,cta_label,areas_mentioned,listing_hints,fetched_at,created_at,updated_at")
         .eq("workspace_id", params.workspaceId)
         .eq("provider", params.provider)
         .eq("source_post_id", params.sourcePostId)

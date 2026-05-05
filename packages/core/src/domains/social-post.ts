@@ -12,6 +12,8 @@ export const SocialPostContextSchema = z.object({
   caption: z.string().trim().max(8000).nullable(),
   permalink: z.string().trim().url().nullable(),
   mediaType: z.string().trim().max(80).nullable(),
+  mediaUrl: z.string().trim().url().nullable().default(null),
+  visualDescription: z.string().trim().max(2000).nullable().default(null),
   ctaLabel: z.string().trim().max(120).nullable(),
   areasMentioned: z.array(z.string().trim().min(1).max(120)).max(20),
   listingHints: z.array(z.string().trim().min(1).max(240)).max(30),

@@ -16,7 +16,8 @@ import { createSupabaseLeadUpsertRepository } from "../../../lib/supabase/leads"
 import { createServerSupabaseClient } from "../../../lib/supabase/server-client";
 import { createSupabaseMetaCredentialRepository } from "../../../lib/supabase/integration-accounts";
 import { createSupabaseSocialPostRepository } from "../../../lib/supabase/social-posts";
-import { createOpenAIHarwickAiRuntime } from "@realty-ops/integrations";
+import { createLogger } from "@realty-ops/core";
+import { createOpenAIHarwickAiRuntime, createOpenAIVisionClient } from "@realty-ops/integrations";
 import { createSupabaseHarwickAiAutomationPolicyRepository, createSupabaseHarwickAiTurnRepository } from "../../../lib/supabase/harwick-ai-turns";
 import { generateAndExecuteHarwickAiTurnSync } from "../../../features/lead-intake/harwick-ai-turn-executor";
 import { createSupabaseSocialReplyQueueRepository } from "../../../lib/supabase/operator-queues";
@@ -114,6 +115,10 @@ export function createMetaWebhookPostDependencies(): MetaWebhookPostDependencies
           hydrateSocialPostContexts: createMetaSocialPostContextHydrator({
             credentialSecret: environment.CREDENTIAL_ENCRYPTION_KEY,
             integrationRepository: credentialRepository,
+            logger: createLogger({ service: "meta-post-vision", environment: process.env["APP_ENV"] }),
+            ...(environment.OPENAI_API_KEY === undefined
+              ? {}
+              : { vision: createOpenAIVisionClient({ apiKey: environment.OPENAI_API_KEY }) }),
           }),
         }),
   };

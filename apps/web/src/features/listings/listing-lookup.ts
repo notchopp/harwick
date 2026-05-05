@@ -1,8 +1,9 @@
 import { ListingProviderLookupInputSchema, type Logger } from "@realty-ops/core";
-import { ListingProviderRequestError, type ListingProviderClient } from "@realty-ops/integrations";
+import { ListingProviderRequestError, type EmbeddingClient, type ListingProviderClient } from "@realty-ops/integrations";
 import type { ListingFactsRepository, ListingLookupRepository } from "../../lib/supabase/listings";
 
 export const DEFAULT_LISTING_STALE_AFTER_MS = 15 * 60 * 1000;
+export const DEFAULT_SEMANTIC_MIN_SIMILARITY = 0.25;
 
 export function isListingFactFresh(params: {
   verifiedAt: string | null;
@@ -25,7 +26,9 @@ export function createListingLookupRepository(params: {
   repository: ListingFactsRepository;
   logger: Logger;
   provider?: ListingProviderClient;
+  embeddings?: EmbeddingClient;
   staleAfterMs?: number;
+  semanticMinSimilarity?: number;
   now?: () => Date;
 }): ListingLookupRepository {
   return {
@@ -37,6 +40,37 @@ export function createListingLookupRepository(params: {
         ...(lookupInput.mlsNumber === undefined ? {} : { mlsNumber: lookupInput.mlsNumber }),
         ...(lookupInput.address === undefined ? {} : { address: lookupInput.address }),
       });
+
+      // Semantic fallback when the structured lookup whiffed and an embedding
+      // client is available. The model is asking for "somewhere quiet with
+      // character" or similar prose — the deterministic ILIKE can't help.
+      if (cachedListing === null && params.embeddings !== undefined && lookupInput.mlsNumber === undefined) {
+        try {
+          const embedding = await params.embeddings.embed(lookupInput.query);
+          const matches = await params.repository.semanticListingSearch({
+            workspaceId: input.workspaceId,
+            embedding,
+            limit: 1,
+            minSimilarity: params.semanticMinSimilarity ?? DEFAULT_SEMANTIC_MIN_SIMILARITY,
+          });
+          if (matches.length > 0) {
+            params.logger.info("semantic listing match", {
+              workspaceId: input.workspaceId,
+              query: lookupInput.query,
+              listingId: matches[0]!.id,
+              similarity: matches[0]!.similarity,
+            });
+            return matches[0]!;
+          }
+        } catch (semanticError) {
+          params.logger.warn("semantic listing lookup failed; continuing with deterministic path", {
+            workspaceId: input.workspaceId,
+            query: lookupInput.query,
+            error: semanticError,
+          });
+        }
+      }
+
       const now = params.now?.() ?? new Date();
       const staleAfterMs = params.staleAfterMs ?? DEFAULT_LISTING_STALE_AFTER_MS;
 

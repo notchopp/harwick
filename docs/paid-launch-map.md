@@ -301,6 +301,105 @@ Build items:
 - rollback notes for risky migrations
 - full-funnel local/staging test harness
 
+## AI-Native Migration Track
+
+This is a parallel track to the launch spine above. It is not gated by launch — semantic listings and vision ship pre-launch because they are immediately product-positive and zero-risk. Policy narrative and living lead document ship as v1 work that runs in shadow mode against the existing path. Agentic loop is v2 north star. Each step is independently shippable and reversible.
+
+The frame: Harwick is becoming an AI agent that calls infrastructure when it needs to act, not a workflow engine that calls AI when it needs language. Progress is measured in lines deleted from the existing policy/state-machine layer, not in features added. See `AGENTS.md` north-star section for principles.
+
+### Step 1: Semantic listing search (pgvector)
+
+Status: `partial`
+
+Replaces: deterministic listing lookup (`features/listings/listing-lookup.ts`, Retell `lookup_listing` tool).
+
+What lands:
+
+- Supabase migration enabling `pgvector` extension and adding `embedding vector(1536)` column on `listing_facts`.
+- Embedding client in `packages/integrations/src/openai-embeddings.ts` (text-embedding-3-small).
+- Worker hook on listing insert/update generates and persists embedding.
+- Semantic similarity search in `listing-lookup.ts` (cosine distance, top-N with similarity scores).
+- Retell `lookup_listing` tool routes through the same path.
+
+Risk: zero — additive column, falls back to existing path if embedding is null.
+
+### Step 2: Vision on social intake
+
+Status: `partial`
+
+Replaces: text-only `HarwickAiPostContextSchema`.
+
+What lands:
+
+- Vision-capable model client (Claude or GPT-4o vision).
+- In `meta-to-harwick-ai-bridge.ts`, fetch post media, pass image URL to vision call, append response paragraph to lead context.
+- New `post_visual_description` field surfaces in the runtime input until shift 4 collapses it into `lead_document`.
+
+Risk: low — ~2¢ per intake, gated by feature flag, gracefully degrades to text-only if vision call fails.
+
+### Step 3: Policy narrative + shadow mode
+
+Status: `partial`
+
+Replaces: `evaluateHarwickAiAutomation()` once shadow-mode disagreement is < 5%.
+
+What lands:
+
+- New `policy_narrative text` column on `workspaces`.
+- Generator function in `packages/core/src/domains/policy-narrative.ts` converts existing `HarwickAiAutomationPolicy` rows to plain English.
+- System prompt builder injects narrative on every turn.
+- Each tool definition in `packages/integrations/src/harwick-ai-tools.ts` carries permission semantics in its `description` field.
+- Shadow comparison logs every disagreement between deterministic gate and model self-gating into `audit_logs` with action `harwick_ai_policy_shadow`.
+- Feature flag `HARWICK_AI_POLICY_SOURCE` defaults to `deterministic`; flips to `model_self_gate` after validation.
+
+Deletion target after validation: `harwick-ai-automation-policy.ts` (~144 lines), `executeHarwickAiTurnWithPolicy`, `HarwickAiAutomationDecisionSchema`, derived persistence statuses.
+
+### Step 4: Living lead document
+
+Status: `partial`
+
+Replaces: `HarwickAiConversationStateSchema` as runtime input, `HarwickAiStatePatchSchema` and patch application logic.
+
+What lands:
+
+- New `lead_document text` column on `leads`.
+- Turn output gains an optional `documentUpdate` field (prose append).
+- `harwick-ai-turn-executor.ts` writes `documentUpdate` to `leads.lead_document` after each turn (concatenate with separator).
+- Runtime input feeds the document to the model as primary context; structured fields remain in the input during transition for sanity checking.
+- Comparison logged when document-derived extract diverges from structured patch — second shadow loop.
+
+Deletion target after validation: `HarwickAiStatePatchSchema`, patch application, `HarwickAiConversationStateSchema` runtime usage, `HarwickAiQualificationStateSchema` runtime usage.
+
+### Step 5: Agentic loop
+
+Status: `partial`
+
+Replaces: single-step turn execution (one model call per inbound).
+
+What lands:
+
+- `runAgenticLoop` wrapper in `packages/integrations/src/harwick-ai-runtime.ts` around `executeHarwickAiToolCalls`.
+- Bounded by `MAX_AGENTIC_ITERATIONS` (default 6) and exits early on approval-required tool calls.
+- Model emits `endTurn: true` to break the loop voluntarily.
+- Operator queues evolve to approve outcomes (multi-tool sequences) instead of individual messages — UI copy update only, schema-compatible.
+
+Deletion target: nothing on its own; it unlocks deletions from steps 3 and 4.
+
+### Step 6: Cascade deletions
+
+Once shadow validations pass, land deletions from earlier steps in standalone PRs:
+
+- Delete `evaluateHarwickAiAutomation` and `harwick-ai-automation-policy.ts`.
+- Delete `HarwickAiStatePatchSchema` and patch application.
+- Collapse `HarwickAiRuntimeInputSchema` from 9 fields to 3 (workspaceName, channel, inboundText) plus document and conversation history.
+- Delete `deriveHarwickAiTurnPersistenceStatus` and `deriveHarwickAiToolPolicyStatus`.
+
+Estimated deletion: 400-500 lines from `packages/core` plus the structured `harwick_ai_automation_policies` table (replaced by `policy_narrative`).
+
+### Step 7: Demote `decideLeadWorkflow` to fallback
+
+Once the agentic loop reliably calls `route_lead`, `create_handoff_task`, `sync_follow_up_boss`, and `enroll_nurture` via tool descriptions, the deterministic scorer in `lead-workflow.ts` becomes a stalled-lead fallback rather than the primary path. This is the last big "AI native takes over" milestone.
+
 ## Per-Turn Prompt
 
 Use this as the implicit self-prompt for future work:

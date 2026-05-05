@@ -7,6 +7,8 @@ export * from "./meta.js";
 export * from "./meta-graph.js";
 export * from "./meta-messaging.js";
 export * from "./meta-oauth.js";
+export * from "./openai-embeddings.js";
+export * from "./openai-vision.js";
 export * from "./openai-reply.js";
 export * from "./repliers.js";
 export * from "./retell-provisioning.js";

@@ -27,6 +27,10 @@ const safeTurn: HarwickAiTurn = {
     requiresApproval: false,
     payload: { reply: "I can send details. Are you looking to move soon?" },
   }],
+  selfGateAutoExecute: true,
+  selfGateReason: "policy narrative permits autonomous send.",
+  documentUpdate: "",
+  endTurn: true,
 };
 
 describe("evaluateHarwickAiAutomation", () => {

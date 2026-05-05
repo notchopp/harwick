@@ -33,6 +33,15 @@ const nextConfig = {
   },
   reactStrictMode: true,
   typedRoutes: true,
+  // Workspace packages live as TS source under packages/*; tell Next/Turbopack
+  // to transpile them from source rather than expecting prebuilt dist output.
+  // Without this, Vercel deploys fail with "Module not found: @realty-ops/core"
+  // because the symlinked workspace point at .ts files.
+  transpilePackages: [
+    "@realty-ops/core",
+    "@realty-ops/integrations",
+    "@realty-ops/api-client",
+  ],
   turbopack: {
     root: fileURLToPath(new URL("../..", import.meta.url)),
   },
