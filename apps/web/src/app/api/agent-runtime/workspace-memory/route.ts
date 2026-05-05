@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { createOpenAIEmbeddingClient } from "@realty-ops/integrations";
 import { distillWorkspaceMemory } from "../../../../features/agent-runtime/distill-workspace-memory";
+import { getServerEnvironment } from "../../../../lib/server-env";
 import { createServerSupabaseClient } from "../../../../lib/supabase/server-client";
 import { createSupabaseWorkspaceMemoryRepository } from "../../../../lib/supabase/workspace-memory";
 
@@ -30,8 +32,15 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    const environment = getServerEnvironment();
+    const embeddings = environment.OPENAI_API_KEY === undefined
+      ? undefined
+      : createOpenAIEmbeddingClient({ apiKey: environment.OPENAI_API_KEY });
     const repository = createSupabaseWorkspaceMemoryRepository(createServerSupabaseClient());
-    const report = await distillWorkspaceMemory({ repository });
+    const report = await distillWorkspaceMemory({
+      repository,
+      ...(embeddings === undefined ? {} : { embeddings }),
+    });
     return NextResponse.json({ status: "ok", report }, { status: 200 });
   } catch (error) {
     return NextResponse.json(

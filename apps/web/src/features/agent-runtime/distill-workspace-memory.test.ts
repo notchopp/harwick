@@ -8,9 +8,20 @@ const workspaceId = "00000000-0000-0000-0000-000000000001";
 function createRepository(params: {
   existing?: boolean;
   inserted?: WorkspaceMemoryDocumentCreate[];
+  savedEmbeddings?: Array<{ memoryId: string; embedding: number[] }>;
 }): WorkspaceMemoryRepository {
   return {
     listRuntimeMemoryDocuments: vi.fn(() => Promise.resolve([])),
+    semanticMemorySearch: vi.fn(() => Promise.resolve([])),
+    saveMemoryEmbedding: vi.fn((input: {
+      workspaceId: string;
+      memoryId: string;
+      embedding: number[];
+      embeddingText: string;
+    }) => {
+      params.savedEmbeddings?.push({ memoryId: input.memoryId, embedding: input.embedding });
+      return Promise.resolve();
+    }),
     listRoutingOverrideSignals: vi.fn(() => Promise.resolve([{
       workspaceId,
       outcomeCount: 3,
@@ -37,6 +48,7 @@ describe("distillWorkspaceMemory", () => {
     expect(report).toEqual({
       scanned: 1,
       created: 1,
+      embedded: 0,
       skippedExisting: 0,
       errors: 0,
     });
@@ -61,9 +73,37 @@ describe("distillWorkspaceMemory", () => {
     expect(report).toEqual({
       scanned: 1,
       created: 0,
+      embedded: 0,
       skippedExisting: 1,
       errors: 0,
     });
     expect(inserted).toHaveLength(0);
+  });
+
+  it("embeds new workspace memories when an embedding client is provided", async () => {
+    const savedEmbeddings: Array<{ memoryId: string; embedding: number[] }> = [];
+    const repository = createRepository({ savedEmbeddings });
+    const embeddings = {
+      embed: vi.fn(() => Promise.resolve([0.1, 0.2, 0.3])),
+    };
+
+    const report = await distillWorkspaceMemory({
+      repository,
+      embeddings,
+      now: () => new Date("2026-05-05T12:00:00.000Z"),
+    });
+
+    expect(report).toEqual({
+      scanned: 1,
+      created: 1,
+      embedded: 1,
+      skippedExisting: 0,
+      errors: 0,
+    });
+    expect(embeddings.embed).toHaveBeenCalledWith(expect.stringContaining("Routing overrides are repeating"));
+    expect(savedEmbeddings).toEqual([expect.objectContaining({
+      memoryId: "memory-id",
+      embedding: [0.1, 0.2, 0.3],
+    })]);
   });
 });

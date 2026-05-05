@@ -2578,7 +2578,9 @@ export type Database = {
           body: string
           confidence: number
           created_at: string
+          embedded_at: string | null
           embedding: number[] | null
+          embedding_text: string | null
           evidence: Json
           id: string
           last_observed_at: string
@@ -2592,7 +2594,9 @@ export type Database = {
           body: string
           confidence?: number
           created_at?: string
+          embedded_at?: string | null
           embedding?: number[] | null
+          embedding_text?: string | null
           evidence?: Json
           id?: string
           last_observed_at?: string
@@ -2606,7 +2610,9 @@ export type Database = {
           body?: string
           confidence?: number
           created_at?: string
+          embedded_at?: string | null
           embedding?: number[] | null
+          embedding_text?: string | null
           evidence?: Json
           id?: string
           last_observed_at?: string
@@ -2918,6 +2924,30 @@ export type Database = {
           created_at: string
           updated_at: string
           embedding: number[] | null
+          embedding_text: string | null
+          embedded_at: string | null
+          similarity: number
+        }[]
+      }
+      match_workspace_memory_documents: {
+        Args: {
+          workspace: string
+          query_embedding: number[]
+          match_count?: number
+          min_similarity?: number
+        }
+        Returns: {
+          id: string
+          workspace_id: string
+          memory_type: string
+          title: string
+          body: string
+          source: string
+          confidence: number
+          evidence: Json
+          last_observed_at: string
+          created_at: string
+          updated_at: string
           embedding_text: string | null
           embedded_at: string | null
           similarity: number

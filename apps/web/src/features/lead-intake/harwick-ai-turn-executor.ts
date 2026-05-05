@@ -32,7 +32,7 @@ import { createSupabaseConversationAutomationRepository } from "../../lib/supaba
 import { createSupabaseLeadDocumentRepository } from "../../lib/supabase/lead-document";
 import { createSupabaseMemberRoutingProfileRepository } from "../../lib/supabase/member-routing-profiles";
 import { createSupabaseWorkspacePolicyNarrativeRepository } from "../../lib/supabase/workspace-policy-narrative";
-import { createSupabaseWorkspaceMemoryRepository } from "../../lib/supabase/workspace-memory";
+import { createSupabaseWorkspaceMemoryRepository, type WorkspaceMemoryRepository } from "../../lib/supabase/workspace-memory";
 import { createSupabaseAgentTrajectoryStore, findSimilarTrajectories } from "../../lib/supabase/agent-trajectory-store";
 import { loadAiConversationHistory } from "./harwick-ai-conversation-history";
 import { createHarwickAiToolHandlers, type HarwickAiToolContext } from "./harwick-ai-tool-handlers";
@@ -178,12 +178,12 @@ export async function generateAndExecuteHarwickAiTurnSync(
       leadId: params.leadId,
     });
 
-    const workspaceMemory = buildWorkspaceMemoryRuntimeContext(
-      await workspaceMemoryRepo.listRuntimeMemoryDocuments({
-        workspaceId: params.workspaceId,
-        limit: 5,
-      }),
-    );
+    const workspaceMemory = await retrieveWorkspaceMemory({
+      repository: workspaceMemoryRepo,
+      workspaceId: params.workspaceId,
+      inboundText: params.event.text,
+      leadDocument,
+    });
 
     // In-context retrieval RL: embed the inbound text + lead document, fetch
     // the top-N similar past trajectories with positive outcomes, render
@@ -471,6 +471,51 @@ async function persistClassification(params: {
     .from("lead_events")
     .update(update)
     .eq("id", params.leadEventId);
+}
+
+async function retrieveWorkspaceMemory(params: {
+  repository: WorkspaceMemoryRepository;
+  workspaceId: string;
+  inboundText: string;
+  leadDocument: string | null;
+}): Promise<string | null> {
+  const queryText = params.leadDocument === null
+    ? params.inboundText
+    : `${params.leadDocument}\n\n---\nNew inbound: ${params.inboundText}`;
+  const trimmed = queryText.trim();
+
+  if (trimmed.length > 0) {
+    try {
+      const environment = getServerEnvironment();
+      if (environment.OPENAI_API_KEY !== undefined) {
+        const embeddings = createOpenAIEmbeddingClient({ apiKey: environment.OPENAI_API_KEY });
+        const queryEmbedding = await embeddings.embed(trimmed.slice(0, 8000));
+        const semanticMatches = await params.repository.semanticMemorySearch({
+          workspaceId: params.workspaceId,
+          embedding: queryEmbedding,
+          limit: 5,
+          minSimilarity: 0.18,
+        });
+        if (semanticMatches.length > 0) {
+          return buildWorkspaceMemoryRuntimeContext(semanticMatches);
+        }
+      }
+    } catch (error) {
+      console.warn("[retrieveWorkspaceMemory] semantic search failed; falling back to recent memories", error);
+    }
+  }
+
+  try {
+    return buildWorkspaceMemoryRuntimeContext(
+      await params.repository.listRuntimeMemoryDocuments({
+        workspaceId: params.workspaceId,
+        limit: 5,
+      }),
+    );
+  } catch (error) {
+    console.warn("[retrieveWorkspaceMemory] recent memory lookup failed; continuing without workspace memory", error);
+    return null;
+  }
 }
 
 /**

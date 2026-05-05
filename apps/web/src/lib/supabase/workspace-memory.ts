@@ -20,6 +20,7 @@ export type WorkspaceMemoryRuntimeDocument = {
   body: string;
   confidence: number;
   lastObservedAt: string | null;
+  similarity?: number;
 };
 
 export type WorkspaceMemoryRepository = {
@@ -33,6 +34,18 @@ export type WorkspaceMemoryRepository = {
     workspaceId: string;
     limit: number;
   }): Promise<WorkspaceMemoryRuntimeDocument[]>;
+  semanticMemorySearch(params: {
+    workspaceId: string;
+    embedding: number[];
+    limit?: number;
+    minSimilarity?: number;
+  }): Promise<WorkspaceMemoryRuntimeDocument[]>;
+  saveMemoryEmbedding(params: {
+    workspaceId: string;
+    memoryId: string;
+    embedding: number[];
+    embeddingText: string;
+  }): Promise<void>;
   listRoutingOverrideSignals(params: {
     sinceIso: string;
     minCount: number;
@@ -57,6 +70,7 @@ type RuntimeMemoryDocumentRow = {
   body: string;
   confidence: number;
   last_observed_at: string | null;
+  similarity?: number;
 };
 
 function mapCreateToInsertRow(input: WorkspaceMemoryDocumentCreate): WorkspaceMemoryDocumentInsertRow {
@@ -134,6 +148,46 @@ export function createSupabaseWorkspaceMemoryRepository(
         confidence: row.confidence,
         lastObservedAt: row.last_observed_at,
       }));
+    },
+
+    async semanticMemorySearch(params) {
+      const { data, error } = await supabase.rpc("match_workspace_memory_documents", {
+        workspace: params.workspaceId,
+        query_embedding: params.embedding,
+        match_count: params.limit ?? 5,
+        min_similarity: params.minSimilarity ?? 0.2,
+      });
+
+      if (error !== null) {
+        throw error;
+      }
+
+      return ((data ?? []) as RuntimeMemoryDocumentRow[]).map((row) => ({
+        id: row.id,
+        memoryType: row.memory_type,
+        title: row.title,
+        body: row.body,
+        confidence: row.confidence,
+        lastObservedAt: row.last_observed_at,
+        ...(row.similarity === undefined ? {} : { similarity: row.similarity }),
+      }));
+    },
+
+    async saveMemoryEmbedding(params) {
+      const { error } = await supabase
+        .from("workspace_memory_documents")
+        .update({
+          embedding: params.embedding,
+          embedding_text: params.embeddingText,
+          embedded_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("workspace_id", params.workspaceId)
+        .eq("id", params.memoryId);
+
+      if (error !== null) {
+        throw error;
+      }
     },
 
     async listRoutingOverrideSignals(params) {

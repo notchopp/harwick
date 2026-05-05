@@ -1,4 +1,5 @@
 import { WorkspaceMemoryDocumentCreateSchema, type WorkspaceMemoryDocumentCreate } from "@realty-ops/core";
+import type { EmbeddingClient } from "@realty-ops/integrations";
 import type {
   WorkspaceMemoryRepository,
   WorkspaceMemoryRoutingOverrideSignal,
@@ -11,11 +12,13 @@ export type WorkspaceMemoryDistillationDeps = {
   duplicateWindowDays?: number;
   minRoutingOverrideCount?: number;
   batchSize?: number;
+  embeddings?: EmbeddingClient;
 };
 
 export type WorkspaceMemoryDistillationReport = {
   scanned: number;
   created: number;
+  embedded: number;
   skippedExisting: number;
   errors: number;
 };
@@ -44,6 +47,14 @@ function buildRoutingOverrideMemory(signal: WorkspaceMemoryRoutingOverrideSignal
   });
 }
 
+export function buildWorkspaceMemoryEmbeddingText(memory: WorkspaceMemoryDocumentCreate): string {
+  return [
+    `type: ${memory.memoryType}`,
+    `title: ${memory.title}`,
+    memory.body,
+  ].join("\n");
+}
+
 export async function distillWorkspaceMemory(
   deps: WorkspaceMemoryDistillationDeps,
 ): Promise<WorkspaceMemoryDistillationReport> {
@@ -60,6 +71,7 @@ export async function distillWorkspaceMemory(
   });
 
   let created = 0;
+  let embedded = 0;
   let skippedExisting = 0;
   let errors = 0;
 
@@ -76,8 +88,20 @@ export async function distillWorkspaceMemory(
         continue;
       }
 
-      await deps.repository.insertMemoryDocument(memory);
+      const { memoryId } = await deps.repository.insertMemoryDocument(memory);
       created += 1;
+
+      if (deps.embeddings !== undefined) {
+        const embeddingText = buildWorkspaceMemoryEmbeddingText(memory);
+        const embedding = await deps.embeddings.embed(embeddingText);
+        await deps.repository.saveMemoryEmbedding({
+          workspaceId: memory.workspaceId,
+          memoryId,
+          embedding,
+          embeddingText,
+        });
+        embedded += 1;
+      }
     } catch (error) {
       console.warn("[distillWorkspaceMemory] failed for workspace", signal.workspaceId, error);
       errors += 1;
@@ -87,6 +111,7 @@ export async function distillWorkspaceMemory(
   return {
     scanned: routingSignals.length,
     created,
+    embedded,
     skippedExisting,
     errors,
   };

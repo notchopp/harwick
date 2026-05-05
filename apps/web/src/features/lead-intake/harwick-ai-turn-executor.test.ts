@@ -28,6 +28,8 @@ const mocks = vi.hoisted(() => {
   };
   const workspaceMemoryRepo = {
     listRuntimeMemoryDocuments: vi.fn(),
+    semanticMemorySearch: vi.fn(),
+    saveMemoryEmbedding: vi.fn(),
   };
   const policyNarrativeRepo = {
     read: vi.fn(),
@@ -227,14 +229,17 @@ describe("generateAndExecuteHarwickAiTurnSync", () => {
     mocks.policyNarrativeRepo.read.mockResolvedValue("Auto-send normal buyer replies. Queue risky tools.");
     mocks.leadDocumentRepo.read.mockResolvedValue("Lead asked about a Katy home.");
     mocks.leadDocumentRepo.appendUpdate.mockResolvedValue("updated lead document");
-    mocks.workspaceMemoryRepo.listRuntimeMemoryDocuments.mockResolvedValue([{
+    mocks.workspaceMemoryRepo.listRuntimeMemoryDocuments.mockResolvedValue([]);
+    mocks.workspaceMemoryRepo.semanticMemorySearch.mockResolvedValue([{
       id: "memory-1",
       memoryType: "routing",
       title: "Noah closes high-budget Katy buyers",
       body: "Operators often reassign high-budget Katy buyers to Noah.",
       confidence: 0.83,
       lastObservedAt: "2026-05-05T12:00:00.000Z",
+      similarity: 0.77,
     }]);
+    mocks.workspaceMemoryRepo.saveMemoryEmbedding.mockResolvedValue(undefined);
     mocks.findSimilarTrajectories.mockResolvedValue([]);
     mocks.trajectoryStore.startTrajectory.mockResolvedValue({ trajectoryId: "00000000-0000-0000-0000-000000000010" });
     mocks.trajectoryStore.appendStep.mockResolvedValue({ stepId: "00000000-0000-0000-0000-000000000011" });
