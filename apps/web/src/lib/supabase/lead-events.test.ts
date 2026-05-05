@@ -8,6 +8,7 @@ import {
   toLeadEventIdentityKey,
   type IntegrationAccountLookup,
   type LeadEventIdentity,
+  type LeadEventInsertedRow,
   type LeadEventInsertRow,
   type LeadEventPersistenceRepository,
 } from "./lead-events";
@@ -59,7 +60,13 @@ function createRepository(params: {
     },
     insertLeadEventRows(rows: LeadEventInsertRow[]) {
       params.insertedRows?.push(...rows);
-      return Promise.resolve(rows.length);
+      return Promise.resolve(rows.map((row, index): LeadEventInsertedRow => ({
+        id: `lead-event-id-${index + 1}`,
+        workspace_id: row.workspace_id,
+        provider: row.provider,
+        provider_event_id: row.provider_event_id,
+        lead_id: row.lead_id,
+      })));
     },
     markLeadNurtureOptedOut(input) {
       params.optedOutLeadIds?.push(input.leadId);
@@ -213,14 +220,46 @@ describe("createLeadEventWriter", () => {
       expect.objectContaining({
         jobType: "lead_intake",
         leadId: "lead-id",
+        leadEventId: "lead-event-id-1",
         idempotencyKey: "lead_intake:meta:comment-1",
       }),
       expect.objectContaining({
         jobType: "lead_qualification",
         leadId: "lead-id",
+        leadEventId: "lead-event-id-1",
         idempotencyKey: "lead_qualification:meta:comment-1",
       }),
     ]);
+  });
+
+  it("passes the inserted lead event id to Harwick after persistence", async () => {
+    const insertedRows: LeadEventInsertRow[] = [];
+    const generated: Array<{
+      workspaceId: string;
+      leadId: string;
+      leadEventId: string;
+      event: NormalizedLeadEvent;
+    }> = [];
+    const writer = createLeadEventWriter(
+      createRepository({ insertedRows }),
+      {
+        leadUpsertRepository: createLeadUpsertRepository({ upsertedLookups: [] }),
+        generateAndExecuteHarwickAiTurn(input) {
+          generated.push(input);
+          return Promise.resolve();
+        },
+      },
+    );
+
+    await writer([normalizedEvent]);
+
+    expect(insertedRows).toHaveLength(1);
+    expect(generated).toEqual([{
+      workspaceId,
+      leadId: "lead-id",
+      leadEventId: "lead-event-id-1",
+      event: normalizedEvent,
+    }]);
   });
 
   it("marks active nurture opted out when an inbound event says stop", async () => {

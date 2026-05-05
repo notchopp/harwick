@@ -99,7 +99,7 @@ export function createOpenAISmallModelClient(options: OpenAISmallModelClientOpti
       let json: unknown;
       try {
         json = JSON.parse(responseText);
-      } catch (parseError) {
+      } catch {
         throw new Error(`Small-model classify returned non-JSON: ${responseText.slice(0, 200)}`);
       }
       return params.schema.parse(json);

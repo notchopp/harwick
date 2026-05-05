@@ -53,6 +53,7 @@ Status values:
 | RLS and tenant boundaries | partial | migrations and workspace scoping exist | Audit all tenant tables, add missing policies, test owner/assigned/unassigned/outsider access. |
 | Meta intake | done | webhook intake, normalization, post context, reply send, social queue exist, E2E flow verified with real IG DMs | Continue with production signature checks, OAuth connection, and real approval/send loop. |
 | Harwick AI runtime | partial | typed runtime, local/OpenAI adapters, tool contracts, automation policy, tool executor exist | Persist full turns, tool execution records, state patches, policy decisions, and production auto-send results. |
+| Harwick proactive insight feed | partial | `harwick_work_items` exists; `/api/agent-runtime/insights` cron producer surfaces ambiguous inbound, unassigned priority leads, and dormant active leads to the right role/member | Bind dashboard feed/actions to these real records; add model-distilled workspace pattern insights and operator feedback labels. |
 | Conversation-scoped AI control | partial | `conversation_automation_states` migration and UI controls exist | Enforce before every send path and expose admin/agent-safe controls consistently. |
 | Conversations page | partial | conversation data contracts and sandbox/test utilities exist | Bind to live conversation records, realtime or polling updates, message send, takeover, resume, and transcript timeline. |
 | Work queue | partial | social/voice/operator queue concepts exist | Ensure every queue action is backed by a real API mutation and audit event. |
@@ -306,6 +307,23 @@ Build items:
 This is a parallel track to the launch spine above. It is not gated by launch — semantic listings and vision ship pre-launch because they are immediately product-positive and zero-risk. Policy narrative and living lead document ship as v1 work that runs in shadow mode against the existing path. Agentic loop is v2 north star. Each step is independently shippable and reversible.
 
 The frame: Harwick is becoming an AI agent that calls infrastructure when it needs to act, not a workflow engine that calls AI when it needs language. Progress is measured in lines deleted from the existing policy/state-machine layer, not in features added. See `AGENTS.md` north-star section for principles.
+
+Current AI-native completion estimate: **38%**.
+
+Recently completed:
+
+- Capability 7: cheap small-model tier for classifier/lite reasoning path.
+- Capability 8: lead-or-not gate before the full Harwick loop, with `needs_review` fallback.
+- Capability 3 foundation: proactive insight producer writes durable `harwick_work_items.item_type = 'insight'` from live tables and targets operator/team lead/assigned agent surfaces.
+
+Still open before this becomes “fully AI native”:
+
+- Dashboard surfaces and actions for `harwick_work_items`.
+- Workspace-level memory distillation across leads.
+- Live progressive synthesis while conversations are running.
+- Standing instructions as natural-language policy.
+- Subagent dispatch and tool registry prompt construction.
+- Model-distilled proactive insights from workspace patterns, not only deterministic v1 signals.
 
 ### Step 1: Semantic listing search (pgvector)
 

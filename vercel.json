@@ -11,6 +11,10 @@
     {
       "path": "/api/agent-runtime/embed",
       "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/agent-runtime/insights",
+      "schedule": "*/30 * * * *"
     }
   ]
 }

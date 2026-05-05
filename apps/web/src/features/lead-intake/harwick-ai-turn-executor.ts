@@ -450,15 +450,15 @@ async function persistClassification(params: {
     leadHint: string;
   };
 }): Promise<void> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (params.supabase as any)
+  const update: TablesUpdate<"lead_events"> = {
+    lead_classification: params.classification.classification,
+    lead_classification_reason: params.classification.reasonCode,
+    lead_classification_confidence: params.classification.confidence,
+    lead_classification_hint: params.classification.leadHint,
+  };
+  await params.supabase
     .from("lead_events")
-    .update({
-      lead_classification: params.classification.classification,
-      lead_classification_reason: params.classification.reasonCode,
-      lead_classification_confidence: params.classification.confidence,
-      lead_classification_hint: params.classification.leadHint,
-    })
+    .update(update)
     .eq("id", params.leadEventId);
 }
 

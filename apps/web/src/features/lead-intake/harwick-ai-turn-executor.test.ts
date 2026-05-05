@@ -60,7 +60,10 @@ const mocks = vi.hoisted(() => {
 });
 
 vi.mock("../../lib/server-env", () => ({
-  getServerEnvironment: () => ({ OPENAI_API_KEY: undefined }),
+  getServerEnvironment: () => ({
+    OPENAI_API_KEY: "test-openai-key",
+    OPENAI_SMALL_MODEL: "gpt-4o-mini",
+  }),
 }));
 
 vi.mock("../../lib/supabase/conversation-messages", () => ({
@@ -110,6 +113,18 @@ vi.mock("@realty-ops/integrations", async () => {
   const actual = await vi.importActual<typeof import("@realty-ops/integrations")>("@realty-ops/integrations");
   return {
     ...actual,
+    createOpenAISmallModelClient: () => ({
+      classify: vi.fn().mockResolvedValue({
+        classification: "lead",
+        reasonCode: "listing_question",
+        reasonText: "Asking if a property is still available.",
+        confidence: 0.92,
+        leadHint: "buyer",
+      }),
+    }),
+    createOpenAIEmbeddingClient: () => ({
+      embed: vi.fn().mockResolvedValue([0.1, 0.2, 0.3]),
+    }),
     createMetaMessagingClient: () => ({}),
   };
 });
@@ -129,6 +144,9 @@ function createSupabaseMock() {
         })),
       })),
     })),
+  }));
+  const updateLeadEvents = vi.fn(() => ({
+    eq: vi.fn(() => Promise.resolve({ error: null })),
   }));
 
   const from = vi.fn((table: string) => {
@@ -164,6 +182,12 @@ function createSupabaseMock() {
       };
     }
 
+    if (table === "lead_events") {
+      return {
+        update: updateLeadEvents,
+      };
+    }
+
     throw new Error(`Unexpected table in executor test: ${table}`);
   });
 
@@ -171,6 +195,7 @@ function createSupabaseMock() {
     client: { from } as unknown as RealtyOpsSupabaseClient,
     from,
     updateConversationMessages,
+    updateLeadEvents,
   };
 }
 
@@ -188,6 +213,7 @@ describe("generateAndExecuteHarwickAiTurnSync", () => {
     mocks.policyNarrativeRepo.read.mockResolvedValue("Auto-send normal buyer replies. Queue risky tools.");
     mocks.leadDocumentRepo.read.mockResolvedValue("Lead asked about a Katy home.");
     mocks.leadDocumentRepo.appendUpdate.mockResolvedValue("updated lead document");
+    mocks.findSimilarTrajectories.mockResolvedValue([]);
     mocks.trajectoryStore.startTrajectory.mockResolvedValue({ trajectoryId: "00000000-0000-0000-0000-000000000010" });
     mocks.trajectoryStore.appendStep.mockResolvedValue({ stepId: "00000000-0000-0000-0000-000000000011" });
     mocks.trajectoryStore.completeTrajectory.mockResolvedValue(undefined);

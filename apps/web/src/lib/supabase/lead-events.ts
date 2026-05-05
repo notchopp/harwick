@@ -20,6 +20,14 @@ export type LeadEventInsertRow = {
   occurred_at: string;
 };
 
+export type LeadEventInsertedRow = {
+  id: string;
+  workspace_id: string;
+  provider: NormalizedLeadEvent["provider"];
+  provider_event_id: string;
+  lead_id: string | null;
+};
+
 export type LeadEventIdentity = {
   workspaceId: string;
   provider: NormalizedLeadEvent["provider"];
@@ -51,7 +59,7 @@ export type LeadEventPersistenceRepository = {
   findWorkspaceIdByIntegrationAccount(lookup: IntegrationAccountLookup): Promise<string | null>;
   findWorkspaceIdByVoiceAgent?(retellAgentId: string): Promise<string | null>;
   findExistingLeadEventIdentities(identities: LeadEventIdentity[]): Promise<Set<string>>;
-  insertLeadEventRows(rows: LeadEventInsertRow[]): Promise<number>;
+  insertLeadEventRows(rows: LeadEventInsertRow[]): Promise<LeadEventInsertedRow[]>;
   updateLeadsLastMessageAt?(params: {
     workspaceId: string;
     leadIds: string[];
@@ -192,7 +200,6 @@ export function createLeadEventWriter(
     const rows: LeadEventInsertRow[] = [];
 
     for (const event of newEvents) {
-      let leadId: string | null = null;
       if (options.leadUpsertRepository === undefined) {
         rows.push(mapNormalizedLeadEventToInsertRow(event));
       } else {
@@ -200,7 +207,6 @@ export function createLeadEventWriter(
             event,
             repository: options.leadUpsertRepository,
         });
-        leadId = result.leadId;
         rows.push(mapNormalizedLeadEventToInsertRow(event, result.leadId));
         leadUpsertCount += 1;
         if (event.text !== null && isOptOutMessage(event.text)) {
@@ -211,6 +217,33 @@ export function createLeadEventWriter(
           });
         }
       }
+    }
+
+    const insertedRows = await repository.insertLeadEventRows(rows);
+    const insertedByIdentity = new Map(
+      insertedRows.map((row) => [
+        toLeadEventIdentityKey({
+          workspaceId: row.workspace_id,
+          provider: row.provider,
+          providerEventId: row.provider_event_id,
+        }),
+        row,
+      ]),
+    );
+
+    for (const event of newEvents) {
+      const identityKey = toLeadEventIdentityKey({
+        workspaceId: event.workspaceId,
+        provider: event.provider,
+        providerEventId: event.providerEventId,
+      });
+      const insertedEvent = insertedByIdentity.get(identityKey);
+      const leadId = insertedEvent?.lead_id ?? rows.find((row) =>
+        row.workspace_id === event.workspaceId
+        && row.provider === event.provider
+        && row.provider_event_id === event.providerEventId
+      )?.lead_id ?? null;
+      const leadEventId = insertedEvent?.id ?? null;
 
       if (options.enqueueWorkflowJob !== undefined) {
         const intakeSource = event.sourceChannel === "instagram_dm" || event.sourceChannel === "instagram_comment"
@@ -225,7 +258,7 @@ export function createLeadEventWriter(
         await options.enqueueWorkflowJob({
           workspaceId: event.workspaceId,
           leadId,
-          leadEventId: null,
+          leadEventId,
           jobType: "lead_intake",
           idempotencyKey: `lead_intake:${event.provider}:${event.providerEventId}`,
           payload: {
@@ -238,7 +271,7 @@ export function createLeadEventWriter(
         await options.enqueueWorkflowJob({
           workspaceId: event.workspaceId,
           leadId,
-          leadEventId: null,
+          leadEventId,
           jobType: "lead_qualification",
           idempotencyKey: `lead_qualification:${event.provider}:${event.providerEventId}`,
           payload: {
@@ -250,16 +283,6 @@ export function createLeadEventWriter(
         });
       }
 
-      // Generate Harwick AI turn if callback provided
-      if (options.generateAndExecuteHarwickAiTurn !== undefined && leadId !== null) {
-        await options.generateAndExecuteHarwickAiTurn({
-          workspaceId: event.workspaceId,
-          leadId,
-          leadEventId: event.providerEventId,
-          event,
-        });
-      }
-
       // Create conversation message for inbound events if callback provided
       if (options.createConversationMessage !== undefined && leadId !== null && event.text !== null) {
         await options.createConversationMessage({
@@ -268,9 +291,17 @@ export function createLeadEventWriter(
           event,
         });
       }
-    }
 
-    const insertedCount = await repository.insertLeadEventRows(rows);
+      // Generate Harwick AI turn if callback provided
+      if (options.generateAndExecuteHarwickAiTurn !== undefined && leadId !== null && leadEventId !== null) {
+        await options.generateAndExecuteHarwickAiTurn({
+          workspaceId: event.workspaceId,
+          leadId,
+          leadEventId,
+          event,
+        });
+      }
+    }
 
     // Update last_message_at on leads that received events
     const leadIds = rows
@@ -286,7 +317,7 @@ export function createLeadEventWriter(
     }
 
     return {
-      persistedCount: insertedCount,
+      persistedCount: insertedRows.length,
       duplicateCount: events.length - newEvents.length,
       leadUpsertCount,
     };
@@ -377,19 +408,20 @@ export function createSupabaseLeadEventRepository(
 
     async insertLeadEventRows(rows) {
       if (rows.length === 0) {
-        return 0;
+        return [];
       }
 
       const { data, error } = await supabase
         .from("lead_events")
         .insert(rows)
-        .select("id");
+        .select("id, workspace_id, provider, provider_event_id, lead_id")
+        .returns<LeadEventInsertedRow[]>();
 
       if (error !== null) {
         throw error;
       }
 
-      return data?.length ?? rows.length;
+      return data ?? [];
     },
 
     async updateLeadsLastMessageAt(params) {

@@ -1067,6 +1067,206 @@ export type Database = {
           },
         ]
       }
+      harwick_routing_decisions: {
+        Row: {
+          confidence: number | null
+          created_at: string
+          created_by_actor_type: string
+          decided_at: string | null
+          decided_by_member_id: string | null
+          evidence: Json
+          final_member_id: string | null
+          id: string
+          lead_id: string
+          override_reason: string | null
+          reason: string
+          status: string
+          step_id: string | null
+          suggested_member_id: string | null
+          trajectory_id: string | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          confidence?: number | null
+          created_at?: string
+          created_by_actor_type: string
+          decided_at?: string | null
+          decided_by_member_id?: string | null
+          evidence?: Json
+          final_member_id?: string | null
+          id?: string
+          lead_id: string
+          override_reason?: string | null
+          reason: string
+          status?: string
+          step_id?: string | null
+          suggested_member_id?: string | null
+          trajectory_id?: string | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          confidence?: number | null
+          created_at?: string
+          created_by_actor_type?: string
+          decided_at?: string | null
+          decided_by_member_id?: string | null
+          evidence?: Json
+          final_member_id?: string | null
+          id?: string
+          lead_id?: string
+          override_reason?: string | null
+          reason?: string
+          status?: string
+          step_id?: string | null
+          suggested_member_id?: string | null
+          trajectory_id?: string | null
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "harwick_routing_decisions_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "harwick_routing_decisions_step_id_fkey"
+            columns: ["step_id"]
+            isOneToOne: false
+            referencedRelation: "agent_steps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "harwick_routing_decisions_trajectory_id_fkey"
+            columns: ["trajectory_id"]
+            isOneToOne: false
+            referencedRelation: "agent_trajectories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "harwick_routing_decisions_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      harwick_work_items: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          due_at: string | null
+          id: string
+          item_type: string
+          lead_id: string | null
+          payload: Json
+          priority: string
+          reason: string
+          recommended_action: string
+          routing_decision_id: string | null
+          seen_at: string | null
+          status: string
+          step_id: string | null
+          summary: string
+          surfaced_at: string | null
+          target_member_id: string | null
+          target_role: string | null
+          title: string
+          trajectory_id: string | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          due_at?: string | null
+          id?: string
+          item_type: string
+          lead_id?: string | null
+          payload?: Json
+          priority?: string
+          reason: string
+          recommended_action: string
+          routing_decision_id?: string | null
+          seen_at?: string | null
+          status?: string
+          step_id?: string | null
+          summary: string
+          surfaced_at?: string | null
+          target_member_id?: string | null
+          target_role?: string | null
+          title: string
+          trajectory_id?: string | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          due_at?: string | null
+          id?: string
+          item_type?: string
+          lead_id?: string | null
+          payload?: Json
+          priority?: string
+          reason?: string
+          recommended_action?: string
+          routing_decision_id?: string | null
+          seen_at?: string | null
+          status?: string
+          step_id?: string | null
+          summary?: string
+          surfaced_at?: string | null
+          target_member_id?: string | null
+          target_role?: string | null
+          title?: string
+          trajectory_id?: string | null
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "harwick_work_items_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "harwick_work_items_routing_decision_id_fkey"
+            columns: ["routing_decision_id"]
+            isOneToOne: false
+            referencedRelation: "harwick_routing_decisions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "harwick_work_items_step_id_fkey"
+            columns: ["step_id"]
+            isOneToOne: false
+            referencedRelation: "agent_steps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "harwick_work_items_trajectory_id_fkey"
+            columns: ["trajectory_id"]
+            isOneToOne: false
+            referencedRelation: "agent_trajectories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "harwick_work_items_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       integration_accounts: {
         Row: {
           account_scope: string
@@ -1141,6 +1341,10 @@ export type Database = {
           created_at: string
           event_type: string
           id: string
+          lead_classification: string | null
+          lead_classification_confidence: number | null
+          lead_classification_hint: string | null
+          lead_classification_reason: string | null
           lead_id: string | null
           occurred_at: string
           provider: string
@@ -1157,6 +1361,10 @@ export type Database = {
           created_at?: string
           event_type: string
           id?: string
+          lead_classification?: string | null
+          lead_classification_confidence?: number | null
+          lead_classification_hint?: string | null
+          lead_classification_reason?: string | null
           lead_id?: string | null
           occurred_at: string
           provider: string
@@ -1173,6 +1381,10 @@ export type Database = {
           created_at?: string
           event_type?: string
           id?: string
+          lead_classification?: string | null
+          lead_classification_confidence?: number | null
+          lead_classification_hint?: string | null
+          lead_classification_reason?: string | null
           lead_id?: string | null
           occurred_at?: string
           provider?: string
@@ -2817,6 +3029,10 @@ export type FollowUpBossWebhookSubscriptionRow = Tables<"follow_up_boss_webhook_
 export type HarwickAiTurnInsertRow = TablesInsert<"harwick_ai_turns">;
 export type HarwickAiToolCallInsertRow = TablesInsert<"harwick_ai_tool_calls">;
 export type HarwickAiAutomationPolicyRow = Tables<"harwick_ai_automation_policies">;
+export type HarwickWorkItemRow = Tables<"harwick_work_items">;
+export type HarwickWorkItemInsertRow = TablesInsert<"harwick_work_items">;
+export type HarwickRoutingDecisionRow = Tables<"harwick_routing_decisions">;
+export type HarwickRoutingDecisionInsertRow = TablesInsert<"harwick_routing_decisions">;
 export type MemberRoutingProfileRow = Tables<"member_routing_profiles">;
 export type MemberRoutingProfileInsertRow = TablesInsert<"member_routing_profiles">;
 export type MemberRoutingProfileUpdateRow = TablesUpdate<"member_routing_profiles">;
