@@ -36,4 +36,5 @@ export * from "./domains/voice-contract.js";
 export * from "./domains/voice-tool.js";
 export * from "./domains/workflow-job.js";
 export * from "./domains/workspace.js";
+export * from "./domains/workspace-memory.js";
 export * from "./normalization.js";

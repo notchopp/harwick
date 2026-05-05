@@ -2573,6 +2573,59 @@ export type Database = {
           },
         ]
       }
+      workspace_memory_documents: {
+        Row: {
+          body: string
+          confidence: number
+          created_at: string
+          embedding: number[] | null
+          evidence: Json
+          id: string
+          last_observed_at: string
+          memory_type: string
+          source: string
+          title: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          body: string
+          confidence?: number
+          created_at?: string
+          embedding?: number[] | null
+          evidence?: Json
+          id?: string
+          last_observed_at?: string
+          memory_type: string
+          source?: string
+          title: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          body?: string
+          confidence?: number
+          created_at?: string
+          embedding?: number[] | null
+          evidence?: Json
+          id?: string
+          last_observed_at?: string
+          memory_type?: string
+          source?: string
+          title?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_memory_documents_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workspaces: {
         Row: {
           created_at: string
@@ -3041,4 +3094,6 @@ export type NurtureMessageRow = Tables<"nurture_messages">;
 export type ProviderErrorLogRow = Tables<"provider_error_logs">;
 export type WorkspaceSubscriptionRow = Tables<"workspace_subscriptions">;
 export type WorkspaceUsageSummaryRow = Tables<"workspace_usage_summaries">;
+export type WorkspaceMemoryDocumentRow = Tables<"workspace_memory_documents">;
+export type WorkspaceMemoryDocumentInsertRow = TablesInsert<"workspace_memory_documents">;
 export type WorkerHeartbeatRow = Tables<"worker_heartbeats">;
