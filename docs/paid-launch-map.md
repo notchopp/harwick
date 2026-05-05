@@ -53,7 +53,7 @@ Status values:
 | RLS and tenant boundaries | partial | migrations and workspace scoping exist | Audit all tenant tables, add missing policies, test owner/assigned/unassigned/outsider access. |
 | Meta intake | done | webhook intake, normalization, post context, reply send, social queue exist, E2E flow verified with real IG DMs | Continue with production signature checks, OAuth connection, and real approval/send loop. |
 | Harwick AI runtime | partial | typed runtime, local/OpenAI adapters, tool contracts, tool registry prompt construction, durable subagent task dispatch, subagent execution cron, automation policy, and tool executor exist | Persist full turns, tool execution records, state patches, policy decisions, and production auto-send results. |
-| Harwick proactive insight feed | partial | `harwick_work_items` exists; `/api/agent-runtime/insights` cron producer surfaces ambiguous inbound, unassigned priority leads, dormant active leads, workspace memory patterns, and optional small-model-refined narratives; `/api/agent-runtime/subagents` surfaces completed subagent results; `/home` shows member/role-filtered insights with seen/dismiss actions and feedback labels | Add deeper insight types from live tool/result events and policy shadow signals. |
+| Harwick proactive insight feed | partial | `harwick_work_items` exists; `/api/agent-runtime/insights` cron producer surfaces ambiguous inbound, unassigned priority leads, dormant active leads, workspace memory patterns, and optional small-model-refined narratives; `/api/agent-runtime/subagents` surfaces completed subagent results; `/api/agent-runtime/policy-shadow` surfaces policy shadow validation metrics; `/home` shows member/role-filtered insights with seen/dismiss actions and feedback labels | Add deeper insight types from live tool/result deltas and workspace memory review signals. |
 | Harwick workspace memory | partial | `workspace_memory_documents` table, typed contract, repository, `/api/agent-runtime/workspace-memory` distillation worker, embedding persistence, semantic pgvector retrieval, and Harwick runtime prompt injection exist for routing overrides, operator feedback, objection, market, conversion, and source/channel patterns | Add higher-fidelity model-authored memory synthesis and workspace-level memory review controls. |
 | Conversation-scoped AI control | partial | `conversation_automation_states` migration and UI controls exist | Enforce before every send path and expose admin/agent-safe controls consistently. |
 | Conversations page | partial | conversation data contracts, live Harwick synthesis, in-flight agent/subagent work signals, and sandbox/test utilities exist | Finish transcript timeline parity and realtime subscription beyond polling. |
@@ -309,7 +309,7 @@ This is a parallel track to the launch spine above. It is not gated by launch �
 
 The frame: Harwick is becoming an AI agent that calls infrastructure when it needs to act, not a workflow engine that calls AI when it needs language. Progress is measured in lines deleted from the existing policy/state-machine layer, not in features added. See `AGENTS.md` north-star section for principles.
 
-Current AI-native completion estimate: **81%**.
+Current AI-native completion estimate: **84%**.
 
 Recently completed:
 
@@ -330,12 +330,13 @@ Recently completed:
 - Capability 1 broader distillation: workspace memory now learns objection, market, conversion, and source/channel patterns from real leads and conversation messages.
 - Capability 5 worker path: queued Harwick subagent tasks can be executed by a cron route with the configured small model, persisted as completed or failed, and surfaced as role/member-targeted Harwick insights.
 - Capability 2 in-flight synthesis: the conversations workspace now folds recent agent steps and queued/running subagent tasks into the Harwick synthesis strip, so operators see active tool work before a final turn lands.
+- Capability 4 shadow validation: policy shadow audit logs now aggregate into workspace metrics and team-lead insights so deterministic policy deletion has measurable readiness criteria.
 
 Still open before this becomes “fully AI native”:
 
 - Higher-fidelity model-authored workspace memory synthesis and workspace-level memory review controls.
 - Richer in-flight progressive synthesis from live tool result deltas, not only recent persisted agent steps and subagent task state.
-- Policy shadow validation metrics and deletion of deterministic policy paths once model self-gating is trusted.
+- Deletion of deterministic policy paths once model self-gating is trusted by shadow metrics.
 
 ### Step 1: Semantic listing search (pgvector)
 
