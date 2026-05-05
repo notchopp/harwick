@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { buildHarwickToolCatalogPrompt, HARWICK_AI_TOOL_NAMES } from "./harwick-ai-tool-registry.js";
 import { executeHarwickAiToolCalls, executeHarwickAiTurnWithPolicy } from "./harwick-ai-tools.js";
 
 describe("executeHarwickAiToolCalls", () => {
@@ -205,5 +206,17 @@ describe("executeHarwickAiToolCalls", () => {
       reason: "continue qualification",
       output: { messageId: "meta-2" },
     }]);
+  });
+});
+
+describe("Harwick AI tool registry", () => {
+  it("builds the prompt catalog from registered tool metadata", () => {
+    const prompt = buildHarwickToolCatalogPrompt();
+
+    expect(HARWICK_AI_TOOL_NAMES).toContain("dispatch_subagent");
+    expect(prompt).toContain("send_meta_dm");
+    expect(prompt).toContain("dispatch_subagent");
+    expect(prompt).toContain("safe internal tool");
+    expect(prompt).toContain("requires operator approval");
   });
 });

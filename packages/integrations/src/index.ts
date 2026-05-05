@@ -1,5 +1,6 @@
 export * from "./follow-up-boss.js";
 export * from "./harwick-ai-runtime.js";
+export * from "./harwick-ai-tool-registry.js";
 export * from "./harwick-ai-tools.js";
 export * from "./listing-provider.js";
 export * from "./local-reply.js";

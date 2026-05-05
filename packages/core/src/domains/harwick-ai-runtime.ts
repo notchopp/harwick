@@ -134,6 +134,7 @@ export const HarwickAiRuntimeActionSchema = z.enum([
   "route_lead",
   "handoff_to_agent",
   "pause_for_owner",
+  "dispatch_subagent",
   "do_not_reply",
 ]);
 
@@ -146,6 +147,7 @@ export const HarwickAiToolNameSchema = z.enum([
   "route_lead",
   "sync_follow_up_boss",
   "pause_automation",
+  "dispatch_subagent",
 ]);
 
 export const HarwickAiToolCallSchema = z.object({

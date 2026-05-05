@@ -52,7 +52,7 @@ Status values:
 | Workspace membership and roles | partial | workspace/member concepts exist | Complete owner/admin/team lead/agent/operator access model and API enforcement. |
 | RLS and tenant boundaries | partial | migrations and workspace scoping exist | Audit all tenant tables, add missing policies, test owner/assigned/unassigned/outsider access. |
 | Meta intake | done | webhook intake, normalization, post context, reply send, social queue exist, E2E flow verified with real IG DMs | Continue with production signature checks, OAuth connection, and real approval/send loop. |
-| Harwick AI runtime | partial | typed runtime, local/OpenAI adapters, tool contracts, automation policy, tool executor exist | Persist full turns, tool execution records, state patches, policy decisions, and production auto-send results. |
+| Harwick AI runtime | partial | typed runtime, local/OpenAI adapters, tool contracts, tool registry prompt construction, durable subagent task dispatch, automation policy, and tool executor exist | Persist full turns, tool execution records, state patches, policy decisions, production auto-send results, and worker execution for subagent tasks. |
 | Harwick proactive insight feed | partial | `harwick_work_items` exists; `/api/agent-runtime/insights` cron producer surfaces ambiguous inbound, unassigned priority leads, dormant active leads, and workspace memory patterns; `/home` shows member/role-filtered insights with seen/dismiss actions and feedback labels | Add richer model-distilled insight narratives beyond the current memory-pattern producer. |
 | Harwick workspace memory | partial | `workspace_memory_documents` table, typed contract, repository, `/api/agent-runtime/workspace-memory` distillation worker, embedding persistence, semantic pgvector retrieval, and Harwick runtime prompt injection exist for repeated routing override patterns and repeated operator feedback on Harwick work | Broaden distillation into objection, market, conversion, and source/channel patterns. |
 | Conversation-scoped AI control | partial | `conversation_automation_states` migration and UI controls exist | Enforce before every send path and expose admin/agent-safe controls consistently. |
@@ -309,7 +309,7 @@ This is a parallel track to the launch spine above. It is not gated by launch �
 
 The frame: Harwick is becoming an AI agent that calls infrastructure when it needs to act, not a workflow engine that calls AI when it needs language. Progress is measured in lines deleted from the existing policy/state-machine layer, not in features added. See `AGENTS.md` north-star section for principles.
 
-Current AI-native completion estimate: **65%**.
+Current AI-native completion estimate: **69%**.
 
 Recently completed:
 
@@ -325,13 +325,14 @@ Recently completed:
 - Capability 2 refresh: the conversations workspace silently polls while visible so the Harwick synthesis strip updates as persisted turns land.
 - Capability 1 broader distillation: workspace memory now learns repeated operator feedback on Harwick work items, not only routing overrides.
 - Capability 4 / Step 3 standing instructions: workspace settings can save manual Harwick policy narrative into `workspaces.policy_narrative`, and the existing runtime injects that prose into every turn.
+- Capability 5/6 foundation: Harwick tool prompt construction now comes from a typed registry, and `dispatch_subagent` writes durable specialist tasks for later worker execution.
 
 Still open before this becomes “fully AI native”:
 
 - Workspace-level memory distillation for objections, market context, conversion outcomes, and source/channel patterns.
 - True in-flight progressive synthesis from active tool/result events, not just persisted completed turns.
 - Policy shadow validation metrics and deletion of deterministic policy paths once model self-gating is trusted.
-- Subagent dispatch and tool registry prompt construction.
+- Worker execution and result surfacing for queued Harwick subagent tasks.
 - Richer model-distilled proactive insight narratives beyond the current workspace memory pattern producer.
 
 ### Step 1: Semantic listing search (pgvector)

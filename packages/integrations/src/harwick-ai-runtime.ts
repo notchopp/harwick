@@ -8,6 +8,7 @@ import {
   type HarwickAiTurn,
 } from "@realty-ops/core";
 import { z } from "zod";
+import { buildHarwickToolCatalogPrompt, HARWICK_AI_TOOL_NAMES } from "./harwick-ai-tool-registry.js";
 
 const OPENAI_API_BASE_URL = "https://api.openai.com/v1";
 
@@ -579,14 +580,7 @@ const HarwickAiTurnJsonSchema = {
           tool: {
             type: "string",
             enum: [
-              "send_meta_reply",
-              "send_meta_dm",
-              "check_calendar",
-              "request_showing_approval",
-              "register_open_house",
-              "route_lead",
-              "sync_follow_up_boss",
-              "pause_automation",
+              ...HARWICK_AI_TOOL_NAMES,
             ],
           },
           reason: { type: "string" },
@@ -635,19 +629,13 @@ export function createOpenAIHarwickAiRuntime(options: OpenAIHarwickAiRuntimeOpti
             "  • The loop is bounded at 6 iterations; design your sequences accordingly.",
             "",
             "TOOL CATALOG (with permission semantics):",
-            "  • send_meta_reply — POST a public reply on the original comment thread. Safe to call autonomously for short, qualification-friendly replies under workspace tone.",
-            "  • send_meta_dm — Continue the private DM thread. Safe to call autonomously when policy allows.",
-            "  • check_calendar — Look up the assigned agent's availability windows. Always safe to call. Use BEFORE proposing a showing time.",
-            "  • request_showing_approval — Queues a showing request task for an operator. ALWAYS requires operator approval; the runtime will exit the loop after this and wait for human action.",
-            "  • register_open_house — Adds the lead to an open-house list. Requires operator approval.",
-            "  • route_lead — Assigns the lead to a specific agent based on routing profiles. Requires operator approval.",
-            "  • sync_follow_up_boss — Pushes the lead to the CRM. Requires operator approval.",
-            "  • pause_automation — Pauses AI replies on this thread until a human resumes. Safe to call autonomously when the policy narrative says you should hand off.",
+            buildHarwickToolCatalogPrompt(),
             "",
             "CHAINING EXAMPLES:",
             "  • Showing request: [check_calendar with endTurn=false] → look at returned windows → [send_meta_dm proposing one window + request_showing_approval with the window] with endTurn=true.",
             "  • Qualified buyer: [send_meta_dm acknowledging + sync_follow_up_boss] with endTurn=true. The CRM sync will queue for approval; the loop exits.",
             "  • Hot handoff: [send_meta_dm with reassuring message + pause_automation] with endTurn=true if the policy narrative says to hand off legal/financing questions.",
+            "  • Parallel helper: [dispatch_subagent with subagentType='research' and endTurn=false] → keep the lead moving while a durable specialist task is tracked.",
             ...(parsed.policyNarrative ? [
               "",
               "POLICY NARRATIVE (the broker's automation preferences in plain English — self-gate against this; ignore tools the narrative says require approval):",
@@ -706,7 +694,7 @@ export function createOpenAIHarwickAiRuntime(options: OpenAIHarwickAiRuntimeOpti
             "Return ONLY valid JSON with NO markdown, comments, or extra text.",
             "Required fields for ALL responses:",
             "  • intent: choose from [listing_question, showing_request, buyer_qualification, seller_qualification, blueprint_request, financing_question, general_follow_up, handoff_needed, spam_or_unsafe]",
-            "  • nextAction: choose from [send_reply, ask_qualification, move_comment_to_dm, send_buyer_blueprint, offer_showing, request_showing_approval, register_open_house, route_lead, handoff_to_agent, pause_for_owner, do_not_reply]",
+            "  • nextAction: choose from [send_reply, ask_qualification, move_comment_to_dm, send_buyer_blueprint, offer_showing, request_showing_approval, register_open_house, route_lead, handoff_to_agent, pause_for_owner, dispatch_subagent, do_not_reply]",
             "  • missingFields: array of any of [name, phone, email, intent, timeline, budget, area, property_type, financing, buyer_or_seller]",
             "  • confidence: number between 0.0 and 1.0",
             "  • safetyFlags: array of any of [safe_to_send, needs_human_review, human_takeover, legal_advice, lending_advice, contract_advice, valuation_claim, claims_listing_availability, claims_financing_certainty, low_confidence]",

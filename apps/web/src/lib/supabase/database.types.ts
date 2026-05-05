@@ -1267,6 +1267,89 @@ export type Database = {
           },
         ]
       }
+      harwick_subagent_tasks: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          id: string
+          instructions: string
+          lead_id: string | null
+          payload: Json
+          priority: string
+          result: Json | null
+          status: string
+          step_id: string | null
+          subagent_type: string
+          title: string
+          trajectory_id: string | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          instructions: string
+          lead_id?: string | null
+          payload?: Json
+          priority?: string
+          result?: Json | null
+          status?: string
+          step_id?: string | null
+          subagent_type: string
+          title: string
+          trajectory_id?: string | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          instructions?: string
+          lead_id?: string | null
+          payload?: Json
+          priority?: string
+          result?: Json | null
+          status?: string
+          step_id?: string | null
+          subagent_type?: string
+          title?: string
+          trajectory_id?: string | null
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "harwick_subagent_tasks_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "harwick_subagent_tasks_step_id_fkey"
+            columns: ["step_id"]
+            isOneToOne: false
+            referencedRelation: "agent_steps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "harwick_subagent_tasks_trajectory_id_fkey"
+            columns: ["trajectory_id"]
+            isOneToOne: false
+            referencedRelation: "agent_trajectories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "harwick_subagent_tasks_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       integration_accounts: {
         Row: {
           account_scope: string

@@ -67,4 +67,30 @@ describe("Harwick AI runtime contracts", () => {
     expect(turn.toolCalls[0]?.tool).toBe("request_showing_approval");
     expect(turn.statePatch.currentIntent).toBe("showing_request");
   });
+
+  it("accepts durable subagent dispatch tool calls", () => {
+    const turn = HarwickAiTurnSchema.parse({
+      intent: "buyer_qualification",
+      nextAction: "dispatch_subagent",
+      missingFields: ["budget"],
+      confidence: 0.86,
+      safetyFlags: ["safe_to_send"],
+      reply: "I will keep this moving and check the right next step.",
+      statePatch: {},
+      handoffBrief: null,
+      toolCalls: [{
+        tool: "dispatch_subagent",
+        reason: "research recent matching buyer behavior before routing",
+        requiresApproval: false,
+        payload: {
+          subagentType: "research",
+          title: "Research Katy luxury buyer routing",
+          instructions: "Summarize recent successful routing patterns for similar buyers.",
+        },
+      }],
+    });
+
+    expect(turn.toolCalls[0]?.tool).toBe("dispatch_subagent");
+    expect(turn.nextAction).toBe("dispatch_subagent");
+  });
 });

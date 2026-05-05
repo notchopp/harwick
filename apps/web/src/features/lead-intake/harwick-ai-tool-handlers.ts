@@ -13,7 +13,7 @@ import type { MemberRoutingProfileRepository } from "../../lib/supabase/member-r
 import { mapRowToAgentRoutingProfile } from "../../lib/supabase/member-routing-profiles";
 import type { RealtyOpsSupabaseClient } from "../../lib/supabase/server-client";
 import type { LeadRow } from "../../lib/supabase/leads";
-import type { TablesInsert, TablesUpdate } from "../../lib/supabase/database.types";
+import type { Json, TablesInsert, TablesUpdate } from "../../lib/supabase/database.types";
 import { sendMetaReply } from "../integrations/meta-reply-send";
 import { createSupabaseMetaCredentialRepository } from "../../lib/supabase/integration-accounts";
 
@@ -47,6 +47,17 @@ export type HarwickAiToolHandlerDependencies = {
 function readPayloadString(toolCall: HarwickAiToolCall, key: string): string | null {
   const value = toolCall.payload[key];
   return typeof value === "string" && value.trim().length > 0 ? value : null;
+}
+
+function readPayloadPriority(toolCall: HarwickAiToolCall): "low" | "normal" | "high" | "urgent" {
+  const value = readPayloadString(toolCall, "priority");
+  return value === "low" || value === "high" || value === "urgent" ? value : "normal";
+}
+
+function readSubagentType(toolCall: HarwickAiToolCall): "research" | "writer" | "calendar" | "routing" {
+  const value = readPayloadString(toolCall, "subagentType") ?? readPayloadString(toolCall, "type");
+  if (value === "writer" || value === "calendar" || value === "routing") return value;
+  return "research";
 }
 
 /**
@@ -361,6 +372,48 @@ export function createHarwickAiToolHandlers(
     }
 
     return { paused: true, reason };
+  };
+
+  handlers["dispatch_subagent"] = async (toolCall) => {
+    const subagentType = readSubagentType(toolCall);
+    const title = readPayloadString(toolCall, "title") ?? `${subagentType} subagent task`;
+    const instructions = readPayloadString(toolCall, "instructions") ?? toolCall.reason;
+    const occurredAt = new Date().toISOString();
+    const insert: TablesInsert<"harwick_subagent_tasks"> = {
+      workspace_id: deps.context.workspaceId,
+      lead_id: deps.context.leadId,
+      trajectory_id: deps.context.agentTrajectoryId,
+      step_id: deps.context.agentStepId,
+      subagent_type: subagentType,
+      status: "queued",
+      priority: readPayloadPriority(toolCall),
+      title,
+      instructions,
+      payload: {
+        source: "harwick_ai_tool",
+        reason: toolCall.reason,
+        payload: toolCall.payload,
+      } as Json,
+      created_at: occurredAt,
+      updated_at: occurredAt,
+    };
+
+    const { data, error } = await deps.supabase
+      .from("harwick_subagent_tasks")
+      .insert(insert)
+      .select("id")
+      .single<{ id: string }>();
+
+    if (error !== null) {
+      throw error;
+    }
+
+    return {
+      queued: true,
+      taskId: data.id,
+      subagentType,
+      title,
+    };
   };
 
   return handlers;
