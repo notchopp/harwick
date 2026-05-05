@@ -56,7 +56,7 @@ Status values:
 | Harwick proactive insight feed | partial | `harwick_work_items` exists; `/api/agent-runtime/insights` cron producer surfaces ambiguous inbound, unassigned priority leads, dormant active leads, workspace memory patterns, and optional small-model-refined narratives; `/api/agent-runtime/subagents` surfaces completed subagent results; `/home` shows member/role-filtered insights with seen/dismiss actions and feedback labels | Add deeper insight types from live tool/result events and policy shadow signals. |
 | Harwick workspace memory | partial | `workspace_memory_documents` table, typed contract, repository, `/api/agent-runtime/workspace-memory` distillation worker, embedding persistence, semantic pgvector retrieval, and Harwick runtime prompt injection exist for routing overrides, operator feedback, objection, market, conversion, and source/channel patterns | Add higher-fidelity model-authored memory synthesis and workspace-level memory review controls. |
 | Conversation-scoped AI control | partial | `conversation_automation_states` migration and UI controls exist | Enforce before every send path and expose admin/agent-safe controls consistently. |
-| Conversations page | partial | conversation data contracts and sandbox/test utilities exist | Bind to live conversation records, realtime or polling updates, message send, takeover, resume, and transcript timeline. |
+| Conversations page | partial | conversation data contracts, live Harwick synthesis, in-flight agent/subagent work signals, and sandbox/test utilities exist | Finish transcript timeline parity and realtime subscription beyond polling. |
 | Work queue | partial | social/voice/operator queue concepts exist | Ensure every queue action is backed by a real API mutation and audit event. |
 | Leads page | partial | list/card views, detail sheets, lead timeline API, actionability contracts exist | Finish role-filtered views, consistent sheet timeline, routing actions, and persisted qualification updates. |
 | Routing engine | partial | assignment decisions and routing concepts exist | Add full member routing profiles, capacity/availability, source credit, round-robin fallback, and override audit. |
@@ -309,7 +309,7 @@ This is a parallel track to the launch spine above. It is not gated by launch �
 
 The frame: Harwick is becoming an AI agent that calls infrastructure when it needs to act, not a workflow engine that calls AI when it needs language. Progress is measured in lines deleted from the existing policy/state-machine layer, not in features added. See `AGENTS.md` north-star section for principles.
 
-Current AI-native completion estimate: **78%**.
+Current AI-native completion estimate: **81%**.
 
 Recently completed:
 
@@ -329,11 +329,12 @@ Recently completed:
 - Capability 3 richer narratives: the proactive insight cron can use the configured small model to rewrite deterministic insight cards into validated, action-oriented narratives, with deterministic fallback on failure.
 - Capability 1 broader distillation: workspace memory now learns objection, market, conversion, and source/channel patterns from real leads and conversation messages.
 - Capability 5 worker path: queued Harwick subagent tasks can be executed by a cron route with the configured small model, persisted as completed or failed, and surfaced as role/member-targeted Harwick insights.
+- Capability 2 in-flight synthesis: the conversations workspace now folds recent agent steps and queued/running subagent tasks into the Harwick synthesis strip, so operators see active tool work before a final turn lands.
 
 Still open before this becomes “fully AI native”:
 
 - Higher-fidelity model-authored workspace memory synthesis and workspace-level memory review controls.
-- True in-flight progressive synthesis from active tool/result events, not just persisted completed turns.
+- Richer in-flight progressive synthesis from live tool result deltas, not only recent persisted agent steps and subagent task state.
 - Policy shadow validation metrics and deletion of deterministic policy paths once model self-gating is trusted.
 
 ### Step 1: Semantic listing search (pgvector)

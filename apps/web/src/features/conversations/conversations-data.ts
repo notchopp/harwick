@@ -23,6 +23,7 @@ export type ConversationsInboxRepository = {
   listSocialReplyReviews(params: { workspaceId: string; leadIds: string[] }): Promise<SocialReplyReviewRow[]>;
   listConversationAutomationStates(params: { workspaceId: string; leadIds: string[] }): Promise<Array<{ leadId: string | null; automationMode: string }>>;
   listLatestAiSynthesis(params: { workspaceId: string; leadIds: string[] }): Promise<Array<ConversationAiSynthesis & { leadId: string }>>;
+  listInFlightAiSynthesis(params: { workspaceId: string; leadIds: string[] }): Promise<Array<ConversationAiSynthesis & { leadId: string }>>;
 };
 
 function initialsForName(name: string): string {
@@ -282,7 +283,7 @@ export async function loadConversationsInbox(params: {
   });
   const leadIds = leads.map((lead) => lead.id);
 
-  const [members, events, reviews, automationStates, aiSynthesisRows] = await Promise.all([
+  const [members, events, reviews, automationStates, aiSynthesisRows, inFlightAiSynthesisRows] = await Promise.all([
     params.repository.listWorkspaceMembers(params.workspaceId),
     params.repository.listLeadEvents({
       workspaceId: params.workspaceId,
@@ -298,6 +299,10 @@ export async function loadConversationsInbox(params: {
       leadIds,
     }),
     params.repository.listLatestAiSynthesis({
+      workspaceId: params.workspaceId,
+      leadIds,
+    }),
+    params.repository.listInFlightAiSynthesis({
       workspaceId: params.workspaceId,
       leadIds,
     }),
@@ -327,8 +332,11 @@ export async function loadConversationsInbox(params: {
     }
   }
 
-  for (const synthesis of aiSynthesisRows) {
-    aiSynthesisByLeadId.set(synthesis.leadId, synthesis);
+  for (const synthesis of [...aiSynthesisRows, ...inFlightAiSynthesisRows]) {
+    const existing = aiSynthesisByLeadId.get(synthesis.leadId);
+    if (existing === undefined || Date.parse(synthesis.updatedAt) > Date.parse(existing.updatedAt)) {
+      aiSynthesisByLeadId.set(synthesis.leadId, synthesis);
+    }
   }
 
   const actionableLeads = leads.filter((lead) => {

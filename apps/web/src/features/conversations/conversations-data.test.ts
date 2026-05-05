@@ -119,6 +119,7 @@ function buildRepository(overrides: Partial<ConversationsInboxRepository> = {}):
       documentUpdate: "Lead asked whether the listing is still available.",
       updatedAt: "2026-04-30T12:15:00.000Z",
     }]),
+    listInFlightAiSynthesis: vi.fn().mockResolvedValue([]),
     ...overrides,
   };
 }
@@ -156,6 +157,34 @@ describe("conversation inbox data", () => {
       "ai_action",
       "sent",
     ]);
+  });
+
+  it("uses newer in-flight Harwick synthesis while tool work is active", async () => {
+    const inbox = await loadConversationsInbox({
+      workspaceId,
+      repository: buildRepository({
+        listInFlightAiSynthesis: vi.fn().mockResolvedValue([{
+          leadId,
+          turnId: "66666666-6666-4666-8666-666666666666",
+          status: "subagent_running",
+          intent: "routing_subagent",
+          nextAction: "Review agent fit",
+          confidence: 0.65,
+          missingFields: [],
+          safetyFlags: ["in_flight", "subagent_task"],
+          handoffBrief: "Harwick is checking routing context.",
+          documentUpdate: null,
+          updatedAt: "2026-04-30T12:17:00.000Z",
+        }]),
+      }),
+    });
+
+    expect(inbox.threads[0]?.aiSynthesis).toMatchObject({
+      turnId: "66666666-6666-4666-8666-666666666666",
+      status: "subagent_running",
+      nextAction: "Review agent fit",
+      safetyFlags: ["in_flight", "subagent_task"],
+    });
   });
 
   it("creates a system placeholder when no event text exists yet", async () => {
