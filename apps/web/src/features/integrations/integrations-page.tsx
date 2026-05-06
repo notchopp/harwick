@@ -337,6 +337,9 @@ export function IntegrationsPageContent(props: IntegrationsPageContentProps) {
               <span className="harwick-pill px-2.5 py-1">request + approve</span>
               <span className="harwick-pill px-2.5 py-1">FreeBusy lookup</span>
             </div>
+            <p className="mt-3 text-[11px] leading-4 text-muted-subtle">
+              tip: connect google calendar to enable showings and memory. members who sign in with google can grant access in one step; everyone else can connect here.
+            </p>
           </IntegrationCard>
         </div>
       </div>

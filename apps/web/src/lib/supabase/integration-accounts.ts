@@ -1,5 +1,6 @@
 import type { MetaOAuthRepository } from "../../features/integrations/meta-oauth";
 import type { GoogleCalendarOAuthRepository } from "../../features/integrations/google-calendar-oauth";
+import type { CaptureGoogleCalendarRepository } from "../../features/auth/capture-google-calendar-from-session";
 import type { IntegrationAccountRow } from "./database.types";
 import type { RealtyOpsSupabaseClient } from "./server-client";
 
@@ -310,6 +311,91 @@ export function createSupabaseGoogleCalendarOAuthRepository(
         workspaceId: data.workspace_id,
         memberId: data.owner_member_id,
       };
+    },
+  };
+}
+
+export function createSupabaseCaptureGoogleCalendarRepository(
+  supabase: RealtyOpsSupabaseClient,
+): CaptureGoogleCalendarRepository {
+  return {
+    async upsertConnectionFromSession(params) {
+      const providerAccountId = params.providerAccountEmail ?? `primary:${params.calendarId}`;
+      const providerAccountName = params.providerAccountEmail ?? "Google Calendar";
+
+      const { data: existing, error: lookupError } = await supabase
+        .from("integration_accounts")
+        .select("id")
+        .eq("workspace_id", params.workspaceId)
+        .eq("owner_member_id", params.memberId)
+        .eq("provider", "google_calendar")
+        .limit(1)
+        .maybeSingle<Pick<IntegrationAccountRow, "id">>();
+
+      if (lookupError !== null) {
+        throw lookupError;
+      }
+
+      if (existing === null) {
+        const { error: insertError } = await supabase
+          .from("integration_accounts")
+          .insert({
+            workspace_id: params.workspaceId,
+            account_scope: "member",
+            owner_member_id: params.memberId,
+            provider: "google_calendar",
+            status: "connected",
+            provider_account_id: providerAccountId,
+            provider_account_ids: [params.calendarId],
+            provider_account_name: providerAccountName,
+            encrypted_credential_ref: params.encryptedCredentialRef,
+            oauth_state: null,
+            connected_at: params.syncedAt,
+            last_health_check_at: params.syncedAt,
+          });
+        if (insertError !== null) {
+          throw insertError;
+        }
+      } else {
+        const { error: updateError } = await supabase
+          .from("integration_accounts")
+          .update({
+            status: "connected",
+            provider_account_id: providerAccountId,
+            provider_account_ids: [params.calendarId],
+            provider_account_name: providerAccountName,
+            encrypted_credential_ref: params.encryptedCredentialRef,
+            oauth_state: null,
+            connected_at: params.syncedAt,
+            last_health_check_at: params.syncedAt,
+            updated_at: params.syncedAt,
+          })
+          .eq("id", existing.id);
+        if (updateError !== null) {
+          throw updateError;
+        }
+      }
+
+      const { error: connectionError } = await supabase
+        .from("workspace_member_calendar_connections")
+        .upsert({
+          workspace_id: params.workspaceId,
+          member_id: params.memberId,
+          provider: "google",
+          provider_account_email: params.providerAccountEmail,
+          calendar_id: params.calendarId,
+          status: "connected",
+          showing_mode: "request_approve",
+          timezone: params.timezone,
+          encrypted_credential_ref: params.encryptedCredentialRef,
+          last_synced_at: params.syncedAt,
+          updated_at: params.syncedAt,
+        }, {
+          onConflict: "workspace_id,member_id,provider,calendar_id",
+        });
+      if (connectionError !== null) {
+        throw connectionError;
+      }
     },
   };
 }
