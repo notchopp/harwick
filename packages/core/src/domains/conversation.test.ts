@@ -50,6 +50,13 @@ describe("conversation contracts", () => {
             safetyFlags: ["safe_to_send"],
             handoffBrief: null,
             documentUpdate: "Lead asked whether the listing is still available.",
+            toolActivity: [{
+              id: "step-1:tool:0",
+              tool: "send_meta_dm",
+              status: "executed",
+              summary: "Reply sent",
+              detail: "Sent through instagram dm",
+            }],
             updatedAt: "2026-04-30T12:15:00.000Z",
           },
           messages: [
@@ -74,6 +81,59 @@ describe("conversation contracts", () => {
 
     expect(parsed.threads[0]?.messages[1]?.kind).toBe("ai_action");
     expect(parsed.threads[0]?.aiSynthesis?.missingFields).toEqual(["timeline"]);
+    expect(parsed.threads[0]?.aiSynthesis?.toolActivity[0]?.tool).toBe("send_meta_dm");
+  });
+
+  it("defaults synthesis tool activity to an empty trail", () => {
+    const parsed = ConversationsInboxResponseSchema.parse({
+      workspaceId,
+      threads: [{
+        id: leadId,
+        workspaceId,
+        leadId,
+        reviewId: null,
+        name: "Marcus Thompson",
+        initials: "MT",
+        lastTouchLabel: "2m",
+        unread: false,
+        preview: "Is this still available?",
+        source: "instagram",
+        sourceLabel: "Instagram",
+        channelLabel: "DM",
+        sourceContext: "Instagram direct message",
+        bucket: "dms",
+        assignedTo: "Sarah Kim",
+        stageLabel: "New",
+        stageTone: "new",
+        score: 87,
+        scoreLabel: "87 / 100",
+        followUpBossContactId: null,
+        intentType: "Purchase",
+        area: "Coral Gables",
+        timeline: "Unknown",
+        budget: "Unknown",
+        listingTitle: "Buyer search · Coral Gables",
+        listingDetails: "Instagram DM · last touch 2m",
+        listingStatus: "Live conversation",
+        automationMode: null,
+        automationReason: null,
+        aiSynthesis: {
+          turnId: "44444444-4444-4444-8444-444444444444",
+          status: "auto_executed",
+          intent: "listing_question",
+          nextAction: "ask_qualification",
+          confidence: 0.91,
+          missingFields: [],
+          safetyFlags: [],
+          handoffBrief: null,
+          documentUpdate: null,
+          updatedAt: "2026-04-30T12:15:00.000Z",
+        },
+        messages: [],
+      }],
+    });
+
+    expect(parsed.threads[0]?.aiSynthesis?.toolActivity).toEqual([]);
   });
 
   it("rejects invalid conversation buckets", () => {

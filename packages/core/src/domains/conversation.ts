@@ -19,6 +19,24 @@ export const ConversationInboxMessageSchema = z.object({
   agentStepId: UuidSchema.nullish(),
 });
 
+export const ConversationAiToolActivityStatusSchema = z.enum([
+  "requested",
+  "queued",
+  "running",
+  "executed",
+  "queued_for_approval",
+  "missing_handler",
+  "failed",
+]);
+
+export const ConversationAiToolActivitySchema = z.object({
+  id: z.string().trim().min(1).max(160),
+  tool: z.string().trim().min(1).max(80),
+  status: ConversationAiToolActivityStatusSchema,
+  summary: z.string().trim().min(1).max(240),
+  detail: z.string().trim().min(1).max(500).nullable(),
+});
+
 export const ConversationAiSynthesisSchema = z.object({
   turnId: UuidSchema,
   status: z.string().trim().min(1).max(80),
@@ -29,6 +47,7 @@ export const ConversationAiSynthesisSchema = z.object({
   safetyFlags: z.array(z.string().trim().min(1).max(80)).max(12),
   handoffBrief: z.string().trim().max(1000).nullable(),
   documentUpdate: z.string().trim().max(2000).nullable(),
+  toolActivity: z.array(ConversationAiToolActivitySchema).max(12).default([]),
   updatedAt: IsoDateTimeSchema,
 });
 
@@ -76,6 +95,8 @@ export type ConversationInboxBucket = z.infer<typeof ConversationInboxBucketSche
 export type ConversationInboxStageTone = z.infer<typeof ConversationInboxStageToneSchema>;
 export type ConversationInboxMessageKind = z.infer<typeof ConversationInboxMessageKindSchema>;
 export type ConversationInboxMessage = z.infer<typeof ConversationInboxMessageSchema>;
+export type ConversationAiToolActivityStatus = z.infer<typeof ConversationAiToolActivityStatusSchema>;
+export type ConversationAiToolActivity = z.infer<typeof ConversationAiToolActivitySchema>;
 export type ConversationAiSynthesis = z.infer<typeof ConversationAiSynthesisSchema>;
 export type ConversationInboxThread = z.infer<typeof ConversationInboxThreadSchema>;
 export type ConversationsInboxResponse = z.infer<typeof ConversationsInboxResponseSchema>;

@@ -996,6 +996,24 @@ export function ConversationsPageContent(props: {
                         missing: {selectedThread.aiSynthesis.missingFields.map((field) => field.replace(/_/g, " ")).join(", ")}
                       </div>
                     )}
+                    {selectedThread.aiSynthesis.toolActivity.length === 0 ? null : (
+                      <div className="mt-2 space-y-1.5">
+                        {selectedThread.aiSynthesis.toolActivity.map((activity) => (
+                          <div
+                            className="rounded-[7px] border border-border bg-surface px-2 py-1.5 leading-5"
+                            key={activity.id}
+                          >
+                            <div className="flex items-center justify-between gap-2 text-[11px] text-foreground">
+                              <span className="font-medium">{activity.summary}</span>
+                              <span className="shrink-0 text-muted-subtle">{activity.status.replace(/_/g, " ")}</span>
+                            </div>
+                            {activity.detail === null ? null : (
+                              <div className="mt-0.5 text-[11px] text-muted">{activity.detail}</div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     {selectedThread.aiSynthesis.handoffBrief === null ? null : (
                       <div className="mt-2 rounded-[7px] border border-border bg-surface px-2 py-1.5 leading-5">
                         {selectedThread.aiSynthesis.handoffBrief}
