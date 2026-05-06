@@ -13,13 +13,14 @@ import type {
   SocialReplyReviewRow,
   WorkspaceMemberRow,
 } from "../../lib/supabase/database.types";
+import type { ConversationMessageRow } from "../../lib/supabase/conversation-messages";
 import type { LeadRow } from "../../lib/supabase/leads";
-import { buildConversationSandboxThreads } from "./conversation-sandbox";
 
 export type ConversationsInboxRepository = {
   listLeads(params: { workspaceId: string; limit: number }): Promise<LeadRow[]>;
   listWorkspaceMembers(workspaceId: string): Promise<Array<Pick<WorkspaceMemberRow, "id" | "display_name">>>;
   listLeadEvents(params: { workspaceId: string; leadIds: string[]; limit: number }): Promise<LeadEventRow[]>;
+  listConversationMessages(params: { workspaceId: string; leadIds: string[]; limit: number }): Promise<ConversationMessageRow[]>;
   listSocialReplyReviews(params: { workspaceId: string; leadIds: string[] }): Promise<SocialReplyReviewRow[]>;
   listConversationAutomationStates(params: { workspaceId: string; leadIds: string[] }): Promise<Array<{ leadId: string | null; automationMode: string }>>;
   listLatestAiSynthesis(params: { workspaceId: string; leadIds: string[] }): Promise<Array<ConversationAiSynthesis & { leadId: string }>>;
@@ -135,6 +136,124 @@ function eventSummary(row: LeadEventRow): string {
   return titleCase(row.event_type);
 }
 
+function isTranscriptEvent(row: LeadEventRow): boolean {
+  return (
+    row.event_type === "message_received"
+    || row.event_type === "comment_received"
+    || row.event_type === "reply_sent"
+  );
+}
+
+function directionForEvent(row: LeadEventRow): "inbound" | "outbound" {
+  return row.event_type === "reply_sent" ? "outbound" : "inbound";
+}
+
+function directionForConversationMessage(row: ConversationMessageRow): "inbound" | "outbound" {
+  return row.sender_type === "customer" ? "inbound" : "outbound";
+}
+
+function isDuplicateTranscriptEvent(row: LeadEventRow, conversationMessages: ConversationMessageRow[]): boolean {
+  if (row.text === null || row.text.trim().length === 0 || !isTranscriptEvent(row)) {
+    return false;
+  }
+
+  const eventText = row.text.trim();
+  const eventDirection = directionForEvent(row);
+  const eventTime = new Date(row.occurred_at).getTime();
+
+  return conversationMessages.some((message) => {
+    if (message.provider_message_id !== null && row.provider_event_id === message.provider_message_id) {
+      return true;
+    }
+    if (message.body.trim() !== eventText) {
+      return false;
+    }
+    if (directionForConversationMessage(message) !== eventDirection) {
+      return false;
+    }
+    return Math.abs(new Date(message.created_at).getTime() - eventTime) <= 5 * 60_000;
+  });
+}
+
+function conversationMessageMeta(row: ConversationMessageRow, source: string, channel: string): string {
+  const timestamp = new Date(row.created_at).toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  const statusSuffix = row.status === "failed"
+    ? " · failed"
+    : row.status === "in_progress"
+      ? " · sending"
+      : "";
+
+  if (row.sender_type === "customer") {
+    return `${timestamp} · ${source} ${channel}${statusSuffix}`;
+  }
+  if (row.sender_type === "ai") {
+    return `${timestamp} · Harwick AI via ${source} ${channel}${statusSuffix}`;
+  }
+  return `${timestamp} · Operator via ${source} ${channel}${statusSuffix}`;
+}
+
+function mapConversationMessage(params: {
+  row: ConversationMessageRow;
+  source: string;
+  channel: string;
+}): ConversationInboxMessage {
+  return {
+    id: params.row.id,
+    kind: params.row.sender_type === "customer" ? "lead" : "sent",
+    body: params.row.body.trim(),
+    meta: conversationMessageMeta(params.row, params.source, params.channel),
+    occurredAt: params.row.created_at,
+    agentTrajectoryId: params.row.agent_trajectory_id,
+    agentStepId: params.row.agent_step_id,
+  };
+}
+
+function mapLeadEventMessage(params: {
+  row: LeadEventRow;
+  source: string;
+  channel: string;
+}): ConversationInboxMessage {
+  if (params.row.event_type === "reply_sent" && params.row.text !== null && params.row.text.trim().length > 0) {
+    return {
+      id: params.row.id,
+      kind: "sent",
+      body: params.row.text.trim(),
+      meta: `${new Date(params.row.occurred_at).toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+      })} · Sent via ${params.source} ${params.channel}`,
+      occurredAt: params.row.occurred_at,
+      agentTrajectoryId: null,
+      agentStepId: null,
+    };
+  }
+
+  if (params.row.text !== null && params.row.text.trim().length > 0) {
+    return {
+      id: params.row.id,
+      kind: "lead",
+      body: params.row.text.trim(),
+      meta: formatMessageMeta(params.row.occurred_at, params.source, params.channel),
+      occurredAt: params.row.occurred_at,
+      agentTrajectoryId: null,
+      agentStepId: null,
+    };
+  }
+
+  return {
+    id: params.row.id,
+    kind: "system",
+    body: eventSummary(params.row),
+    meta: formatMessageMeta(params.row.occurred_at, params.source, params.channel),
+    occurredAt: params.row.occurred_at,
+    agentTrajectoryId: null,
+    agentStepId: null,
+  };
+}
+
 function listingTitle(lead: LeadRow): string {
   if (lead.target_area !== null && lead.lead_type !== "unknown") {
     return `${titleCase(lead.lead_type)} search · ${lead.target_area}`;
@@ -171,48 +290,21 @@ function reviewMeta(review: SocialReplyReviewRow): string {
 function buildMessages(params: {
   lead: LeadRow;
   events: LeadEventRow[];
+  conversationMessages: ConversationMessageRow[];
   review: SocialReplyReviewRow | null;
 }): ConversationInboxMessage[] {
   const source = sourceLabel(sourceFromChannel(params.lead.source_channel));
   const channel = channelLabel(params.lead.source_channel);
-  const messages = params.events.map((row): ConversationInboxMessage => {
-    if (row.event_type === "reply_sent" && row.text !== null && row.text.trim().length > 0) {
-      return {
-        id: row.id,
-        kind: "sent",
-        body: row.text.trim(),
-        meta: `${new Date(row.occurred_at).toLocaleTimeString("en-US", {
-          hour: "numeric",
-          minute: "2-digit",
-        })} · Sent via ${source} ${channel}`,
-        occurredAt: row.occurred_at,
-        agentTrajectoryId: null,
-        agentStepId: null,
-      };
-    }
+  const messages = params.conversationMessages
+    .filter((row) => row.body.trim().length > 0)
+    .map((row) => mapConversationMessage({ row, source, channel }));
 
-    if (row.text !== null && row.text.trim().length > 0) {
-      return {
-        id: row.id,
-        kind: "lead",
-        body: row.text.trim(),
-        meta: formatMessageMeta(row.occurred_at, source, channel),
-        occurredAt: row.occurred_at,
-        agentTrajectoryId: null,
-        agentStepId: null,
-      };
+  for (const row of params.events) {
+    if (isDuplicateTranscriptEvent(row, params.conversationMessages)) {
+      continue;
     }
-
-    return {
-      id: row.id,
-      kind: "system",
-      body: eventSummary(row),
-      meta: formatMessageMeta(row.occurred_at, source, channel),
-      occurredAt: row.occurred_at,
-      agentTrajectoryId: null,
-      agentStepId: null,
-    };
-  });
+    messages.push(mapLeadEventMessage({ row, source, channel }));
+  }
 
   const review = params.review;
   if (review !== null && review.suggested_reply !== null && (review.status === "pending" || review.status === "approved")) {
@@ -246,11 +338,16 @@ function buildMessages(params: {
 
 function previewFor(params: {
   events: LeadEventRow[];
+  conversationMessages: ConversationMessageRow[];
   review: SocialReplyReviewRow | null;
 }): string {
   const review = params.review;
   if (review !== null && review.suggested_reply !== null && (review.status === "pending" || review.status === "approved")) {
     return `AI action ready: ${review.suggested_reply}`;
+  }
+  const latestConversationMessage = params.conversationMessages[params.conversationMessages.length - 1];
+  if (latestConversationMessage !== undefined) {
+    return latestConversationMessage.body;
   }
   const latestEvent = params.events[params.events.length - 1];
   if (latestEvent !== undefined) {
@@ -262,13 +359,6 @@ function previewFor(params: {
 function sliceLatestEvents(events: LeadEventRow[], limit: number): LeadEventRow[] {
   if (events.length <= limit) return events;
   return events.slice(-limit);
-}
-
-export function buildFallbackConversationsInbox(workspaceId: string): ConversationsInboxResponse {
-  return ConversationsInboxResponseSchema.parse({
-    workspaceId,
-    threads: buildConversationSandboxThreads(workspaceId),
-  });
 }
 
 export async function loadConversationsInbox(params: {
@@ -283,12 +373,17 @@ export async function loadConversationsInbox(params: {
   });
   const leadIds = leads.map((lead) => lead.id);
 
-  const [members, events, reviews, automationStates, aiSynthesisRows, inFlightAiSynthesisRows] = await Promise.all([
+  const [members, events, conversationMessages, reviews, automationStates, aiSynthesisRows, inFlightAiSynthesisRows] = await Promise.all([
     params.repository.listWorkspaceMembers(params.workspaceId),
     params.repository.listLeadEvents({
       workspaceId: params.workspaceId,
       leadIds,
       limit: Math.max(limit * 12, 120),
+    }),
+    params.repository.listConversationMessages({
+      workspaceId: params.workspaceId,
+      leadIds,
+      limit: Math.max(limit * 24, 240),
     }),
     params.repository.listSocialReplyReviews({
       workspaceId: params.workspaceId,
@@ -310,6 +405,7 @@ export async function loadConversationsInbox(params: {
 
   const membersById = new Map(members.map((member) => [member.id, member.display_name]));
   const eventsByLeadId = new Map<string, LeadEventRow[]>();
+  const conversationMessagesByLeadId = new Map<string, ConversationMessageRow[]>();
   const latestReviewByLeadId = new Map<string, SocialReplyReviewRow>();
   const automationModeByLeadId = new Map<string, string>();
   const aiSynthesisByLeadId = new Map<string, ConversationAiSynthesis>();
@@ -330,6 +426,12 @@ export async function loadConversationsInbox(params: {
     if (state.leadId !== null) {
       automationModeByLeadId.set(state.leadId, state.automationMode);
     }
+  }
+
+  for (const message of conversationMessages) {
+    const bucket = conversationMessagesByLeadId.get(message.lead_id) ?? [];
+    bucket.push(message);
+    conversationMessagesByLeadId.set(message.lead_id, bucket);
   }
 
   for (const synthesis of [...aiSynthesisRows, ...inFlightAiSynthesisRows]) {
@@ -354,8 +456,10 @@ export async function loadConversationsInbox(params: {
   const threads = actionableLeads.map((lead): ConversationInboxThread => {
     const name = lead.full_name ?? lead.instagram_username ?? lead.phone ?? "Unknown lead";
     const leadEvents = sliceLatestEvents(eventsByLeadId.get(lead.id) ?? [], 12);
+    const threadConversationMessages = conversationMessagesByLeadId.get(lead.id) ?? [];
     const review = latestReviewByLeadId.get(lead.id) ?? null;
-    const lastTouchIso = lead.last_message_at ?? leadEvents[leadEvents.length - 1]?.occurred_at ?? lead.created_at;
+    const lastThreadMessageAt = threadConversationMessages[threadConversationMessages.length - 1]?.created_at;
+    const lastTouchIso = lead.last_message_at ?? lastThreadMessageAt ?? leadEvents[leadEvents.length - 1]?.occurred_at ?? lead.created_at;
     const lastTouchLabel = formatShortRelative(lastTouchIso);
 
     // Use automation_mode from conversation_automation_states if available, fallback to review
@@ -375,7 +479,11 @@ export async function loadConversationsInbox(params: {
       initials: initialsForName(name),
       lastTouchLabel,
       unread: false,
-      preview: previewFor({ events: leadEvents, review }),
+      preview: previewFor({
+        events: leadEvents,
+        conversationMessages: threadConversationMessages,
+        review,
+      }),
       source: sourceFromChannel(lead.source_channel),
       sourceLabel: sourceLabel(sourceFromChannel(lead.source_channel)),
       channelLabel: channelLabel(lead.source_channel),
@@ -397,7 +505,12 @@ export async function loadConversationsInbox(params: {
       automationMode,
       automationReason: review?.automation_reason ?? null,
       aiSynthesis: aiSynthesisByLeadId.get(lead.id) ?? null,
-      messages: buildMessages({ lead, events: leadEvents, review }),
+      messages: buildMessages({
+        lead,
+        events: leadEvents,
+        conversationMessages: threadConversationMessages,
+        review,
+      }),
     };
   });
 

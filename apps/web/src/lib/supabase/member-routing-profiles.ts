@@ -1,7 +1,9 @@
 import {
   AgentRoutingProfileSchema,
   type AgentRoutingProfile,
+  type RoutingCalendarStatus,
   type RoutingPropertyType,
+  type ShowingMode,
 } from "@realty-ops/core";
 import type {
   MemberRoutingProfileInsertRow,
@@ -36,6 +38,8 @@ export function mapRowToAgentRoutingProfile(params: {
   profile: MemberRoutingProfileRow;
   displayName: string;
   activeLeadCount: number;
+  calendarStatus?: RoutingCalendarStatus;
+  showingMode?: ShowingMode | null;
 }): AgentRoutingProfile {
   return AgentRoutingProfileSchema.parse({
     memberId: params.profile.member_id,
@@ -52,6 +56,8 @@ export function mapRowToAgentRoutingProfile(params: {
     maxActiveLeads: params.profile.max_active_leads,
     acceptsNewLeads: params.profile.accepts_new_leads,
     notificationPreference: params.profile.notification_preference,
+    calendarStatus: params.calendarStatus ?? "unknown",
+    showingMode: params.showingMode ?? null,
   });
 }
 

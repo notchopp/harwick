@@ -39,12 +39,16 @@ function trimTrailingSlash(value: string): string {
 function resolveRequiredProvisioningConfig(params: {
   environment: ServerEnvironment;
   request: ProvisionWorkspaceVoiceAgentRequest;
-}): { templateFlowId: string; voiceId: string } | null {
+}): { templateFlowId?: string; voiceId: string } | null {
   const templateFlowId = params.request.templateFlowId ?? params.environment.RETELL_CONVERSATION_FLOW_TEMPLATE_ID;
   const voiceId = params.request.voiceId ?? params.environment.RETELL_VOICE_ID;
 
-  if (!templateFlowId || !voiceId) {
+  if (!voiceId) {
     return null;
+  }
+
+  if (templateFlowId === undefined) {
+    return { voiceId };
   }
 
   return { templateFlowId, voiceId };
@@ -114,19 +118,21 @@ export async function provisionWorkspaceVoiceAgent(params: {
       clientOptions.fetchImpl = params.dependencies.fetchImpl;
     }
 
+    const provisioningConfig = {
+      workspaceId: params.workspaceId,
+      workspaceName: workspace.name,
+      timezone: "America/New_York",
+      serviceAreas: parsedRequest.data.serviceAreas,
+      transferNumber: parsedRequest.data.transferNumber,
+      voiceId: requiredConfig.voiceId,
+      voiceWebhookBaseUrl,
+      dynamicVariablesBaseUrl,
+      ...(requiredConfig.templateFlowId === undefined ? {} : { templateFlowId: requiredConfig.templateFlowId }),
+    };
+
     const provisionedAsset = await provisionRealtyRetellAgent({
       client: createRetellProvisioningClient(clientOptions),
-      config: {
-        workspaceId: params.workspaceId,
-        workspaceName: workspace.name,
-        timezone: "America/New_York",
-        serviceAreas: parsedRequest.data.serviceAreas,
-        transferNumber: parsedRequest.data.transferNumber,
-        templateFlowId: requiredConfig.templateFlowId,
-        voiceId: requiredConfig.voiceId,
-        voiceWebhookBaseUrl,
-        dynamicVariablesBaseUrl,
-      },
+      config: provisioningConfig,
       existingRetellAgentId: existingVoiceAgent?.retell_agent_id ?? null,
       existingRetellConversationFlowId: existingVoiceAgent?.retell_conversation_flow_id ?? null,
       existingPhoneNumber: existingVoiceAgent?.phone_number ?? null,

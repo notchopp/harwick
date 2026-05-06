@@ -43,6 +43,7 @@ export async function runSupabaseSql(params) {
       },
       body: JSON.stringify({
         query: params.query,
+        read_only: false,
       }),
     },
   );
@@ -54,4 +55,3 @@ export async function runSupabaseSql(params) {
 
   return response.json();
 }
-

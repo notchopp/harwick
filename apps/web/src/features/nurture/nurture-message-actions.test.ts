@@ -36,9 +36,12 @@ describe("nurture message actions", () => {
   it("queues an approved draft for delivery", async () => {
     const updateNurtureMessage = vi.fn<NurtureMessageRepository["updateNurtureMessage"]>()
       .mockResolvedValue(message({ status: "queued" }));
+    const enqueueDeliveryJob = vi.fn<NonNullable<NurtureMessageRepository["enqueueDeliveryJob"]>>()
+      .mockResolvedValue(undefined);
     const repository: NurtureMessageRepository = {
       findNurtureMessage: vi.fn().mockResolvedValue(message()),
       updateNurtureMessage,
+      enqueueDeliveryJob,
     };
 
     await actOnNurtureMessage({
@@ -54,14 +57,21 @@ describe("nurture message actions", () => {
         lastErrorCode: null,
       }) as Record<string, unknown>,
     }));
+    expect(enqueueDeliveryJob).toHaveBeenCalledWith({
+      workspaceId,
+      message: message({ status: "queued" }),
+    });
   });
 
   it("records delivery receipts without provider payload leakage", async () => {
     const updateNurtureMessage = vi.fn<NurtureMessageRepository["updateNurtureMessage"]>()
       .mockResolvedValue(message({ status: "sent", providerMessageId: "sms-1" }));
+    const recordUsageEvent = vi.fn<NonNullable<NurtureMessageRepository["recordUsageEvent"]>>()
+      .mockResolvedValue(undefined);
     const repository: NurtureMessageRepository = {
-      findNurtureMessage: vi.fn(),
+      findNurtureMessage: vi.fn().mockResolvedValue(message({ status: "queued" })),
       updateNurtureMessage,
+      recordUsageEvent,
     };
 
     await recordNurtureDeliveryReceipt({
@@ -79,5 +89,31 @@ describe("nurture message actions", () => {
         sentAt: "2026-04-29T12:30:00.000Z",
       }) as Record<string, unknown>,
     }));
+    expect(recordUsageEvent).toHaveBeenCalledWith({
+      workspaceId,
+      message: message({ status: "sent", providerMessageId: "sms-1" }),
+    });
+  });
+
+  it("does not meter duplicate sent receipts", async () => {
+    const updateNurtureMessage = vi.fn<NurtureMessageRepository["updateNurtureMessage"]>()
+      .mockResolvedValue(message({ status: "sent", providerMessageId: "sms-1" }));
+    const recordUsageEvent = vi.fn<NonNullable<NurtureMessageRepository["recordUsageEvent"]>>()
+      .mockResolvedValue(undefined);
+    const repository: NurtureMessageRepository = {
+      findNurtureMessage: vi.fn().mockResolvedValue(message({ status: "sent", providerMessageId: "sms-1" })),
+      updateNurtureMessage,
+      recordUsageEvent,
+    };
+
+    await recordNurtureDeliveryReceipt({
+      workspaceId,
+      messageId,
+      request: { status: "sent", providerMessageId: "sms-1" },
+      repository,
+      now: () => new Date("2026-04-29T12:30:00.000Z"),
+    });
+
+    expect(recordUsageEvent).not.toHaveBeenCalled();
   });
 });

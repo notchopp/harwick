@@ -1,9 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createOpenAISmallModelClient } from "@realty-ops/integrations";
 import {
-  createSmallModelProactiveInsightNarrativeClient,
   surfaceProactiveInsights,
 } from "../../../../features/agent-runtime/proactive-insights";
+import { createSmallModelHarwickWorkItemIntelligenceClient } from "../../../../features/agent-runtime/harwick-work-item-intelligence";
 import { getServerEnvironment } from "../../../../lib/server-env";
 import { createSupabaseHarwickWorkItemRepository } from "../../../../lib/supabase/harwick-work-items";
 import { createServerSupabaseClient } from "../../../../lib/supabase/server-client";
@@ -38,15 +38,17 @@ export async function POST(request: NextRequest) {
     const supabase = createServerSupabaseClient();
     const repository = createSupabaseHarwickWorkItemRepository(supabase);
     const environment = getServerEnvironment();
-    const narrativeClient = environment.OPENAI_API_KEY === undefined
+    const smallModel = environment.OPENAI_API_KEY === undefined
       ? undefined
-      : createSmallModelProactiveInsightNarrativeClient(createOpenAISmallModelClient({
+      : createOpenAISmallModelClient({
         apiKey: environment.OPENAI_API_KEY,
         model: environment.OPENAI_SMALL_MODEL,
-      }));
+      });
     const report = await surfaceProactiveInsights({
       repository,
-      ...(narrativeClient === undefined ? {} : { narrativeClient }),
+      ...(smallModel === undefined ? {} : {
+        intelligenceClient: createSmallModelHarwickWorkItemIntelligenceClient(smallModel),
+      }),
     });
     return NextResponse.json({ status: "ok", report }, { status: 200 });
   } catch (error) {

@@ -168,6 +168,54 @@ export const PlanGateResultSchema = z.object({
 
 export type PlanGateResult = z.infer<typeof PlanGateResultSchema>;
 
+export const BillingCheckoutRequestSchema = z.object({
+  planTier: BillingPlanTierSchema,
+  billingInterval: BillingIntervalSchema,
+});
+
+export const BillingCheckoutResponseSchema = z.object({
+  provider: z.literal("stripe"),
+  providerSessionId: z.string().trim().min(1).max(200),
+  checkoutUrl: z.string().trim().url(),
+});
+
+export const BillingPortalResponseSchema = z.object({
+  provider: z.literal("stripe"),
+  providerSessionId: z.string().trim().min(1).max(200),
+  portalUrl: z.string().trim().url(),
+});
+
+export const BillingSubscriptionReconciliationSchema = z.object({
+  workspaceId: UuidSchema,
+  planTier: BillingPlanTierSchema,
+  billingInterval: BillingIntervalSchema,
+  status: SubscriptionStatusSchema,
+  providerSubscriptionId: z.string().trim().min(1).max(120),
+  providerCustomerId: z.string().trim().min(1).max(120),
+  currentPeriodStart: IsoDateTimeSchema,
+  currentPeriodEnd: IsoDateTimeSchema,
+  canceledAt: IsoDateTimeSchema.nullable(),
+  cancelAtPeriodEnd: z.boolean(),
+  trialStart: IsoDateTimeSchema.nullable(),
+  trialEnd: IsoDateTimeSchema.nullable(),
+});
+
+export const BillingWebhookProcessResultSchema = z.object({
+  accepted: z.boolean(),
+  provider: z.literal("stripe"),
+  eventId: z.string().trim().min(1).max(200),
+  eventType: z.string().trim().min(1).max(120),
+  status: z.enum(["processed", "ignored", "duplicate"]),
+  workspaceId: UuidSchema.nullable(),
+  reason: z.string().trim().min(1).max(160).nullable(),
+});
+
+export type BillingCheckoutRequest = z.infer<typeof BillingCheckoutRequestSchema>;
+export type BillingCheckoutResponse = z.infer<typeof BillingCheckoutResponseSchema>;
+export type BillingPortalResponse = z.infer<typeof BillingPortalResponseSchema>;
+export type BillingSubscriptionReconciliation = z.infer<typeof BillingSubscriptionReconciliationSchema>;
+export type BillingWebhookProcessResult = z.infer<typeof BillingWebhookProcessResultSchema>;
+
 export function canAccessFeature(tier: BillingPlanTier, feature: keyof Omit<PlanCapabilities, "maxSeats" | "maxInstagramAccounts" | "maxFacebookAccounts" | "maxVoiceAgents" | "maxPhoneNumbers" | "maxListings" | "maxLeadEventsPerMonth">): boolean {
   const capabilities = getPlanCapabilities(tier);
   return Boolean(capabilities[feature]);

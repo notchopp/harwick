@@ -2,10 +2,13 @@ import type { RealtyOpsSupabaseClient } from "./server-client";
 import {
   WorkspaceSubscription,
   WorkspaceUsageSummary,
+  type BillingSubscriptionReconciliation,
+  type UsageEventType,
   getPlanCapabilities,
   checkUsageLimit,
   PlanGateResult,
 } from "@realty-ops/core";
+import type { BillingWebhookEventRow, Json, WorkspaceUsageEventInsertRow } from "./database.types";
 
 async function countQuery(query: PromiseLike<{ count: number | null; error: { message: string } | null }>): Promise<number> {
   const { count, error } = await query;
@@ -51,6 +54,136 @@ export async function getWorkspaceSubscription(
     createdAt: data.created_at,
     updatedAt: data.updated_at,
   };
+}
+
+function mapWorkspaceSubscriptionRow(data: {
+  id: string;
+  workspace_id: string;
+  plan_tier: string;
+  billing_interval: string;
+  status: string;
+  provider_subscription_id: string | null;
+  provider_customer_id: string | null;
+  current_period_start: string;
+  current_period_end: string;
+  canceled_at: string | null;
+  cancel_at_period_end: boolean;
+  trial_start: string | null;
+  trial_end: string | null;
+  created_at: string;
+  updated_at: string;
+}): WorkspaceSubscription {
+  return {
+    id: data.id,
+    workspaceId: data.workspace_id,
+    planTier: data.plan_tier as WorkspaceSubscription["planTier"],
+    billingInterval: data.billing_interval as WorkspaceSubscription["billingInterval"],
+    status: data.status as WorkspaceSubscription["status"],
+    providerSubscriptionId: data.provider_subscription_id,
+    providerCustomerId: data.provider_customer_id,
+    currentPeriodStart: data.current_period_start,
+    currentPeriodEnd: data.current_period_end,
+    canceledAt: data.canceled_at,
+    cancelAtPeriodEnd: data.cancel_at_period_end,
+    trialStart: data.trial_start,
+    trialEnd: data.trial_end,
+    createdAt: data.created_at,
+    updatedAt: data.updated_at,
+  };
+}
+
+export async function upsertWorkspaceSubscriptionFromProvider(
+  supabase: RealtyOpsSupabaseClient,
+  update: BillingSubscriptionReconciliation,
+): Promise<WorkspaceSubscription> {
+  const { data, error } = await supabase
+    .from("workspace_subscriptions")
+    .upsert({
+      workspace_id: update.workspaceId,
+      plan_tier: update.planTier,
+      billing_interval: update.billingInterval,
+      status: update.status,
+      provider_subscription_id: update.providerSubscriptionId,
+      provider_customer_id: update.providerCustomerId,
+      current_period_start: update.currentPeriodStart,
+      current_period_end: update.currentPeriodEnd,
+      canceled_at: update.canceledAt,
+      cancel_at_period_end: update.cancelAtPeriodEnd,
+      trial_start: update.trialStart,
+      trial_end: update.trialEnd,
+      updated_at: new Date().toISOString(),
+    }, {
+      onConflict: "workspace_id",
+    })
+    .select("*")
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to reconcile workspace subscription: ${error.message}`);
+  }
+
+  return mapWorkspaceSubscriptionRow(data);
+}
+
+export type BillingWebhookClaimResult =
+  | { claimed: true; event: BillingWebhookEventRow }
+  | { claimed: false; reason: "duplicate" };
+
+export async function claimBillingWebhookEvent(
+  supabase: RealtyOpsSupabaseClient,
+  params: {
+    provider: "stripe";
+    providerEventId: string;
+    eventType: string;
+    providerObjectId: string | null;
+  },
+): Promise<BillingWebhookClaimResult> {
+  const { data, error } = await supabase
+    .from("billing_webhook_events")
+    .insert({
+      provider: params.provider,
+      provider_event_id: params.providerEventId,
+      event_type: params.eventType,
+      provider_object_id: params.providerObjectId,
+      processing_status: "processing",
+    })
+    .select("*")
+    .single();
+
+  if (error) {
+    const maybeCode = "code" in error ? String(error.code) : "";
+    if (maybeCode === "23505") {
+      return { claimed: false, reason: "duplicate" };
+    }
+
+    throw new Error(`Failed to claim billing webhook event: ${error.message}`);
+  }
+
+  return { claimed: true, event: data };
+}
+
+export async function completeBillingWebhookEvent(
+  supabase: RealtyOpsSupabaseClient,
+  params: {
+    eventId: string;
+    status: "processed" | "ignored" | "failed";
+    workspaceId?: string | null;
+    errorMessage?: string | null;
+  },
+): Promise<void> {
+  const { error } = await supabase
+    .from("billing_webhook_events")
+    .update({
+      processing_status: params.status,
+      workspace_id: params.workspaceId ?? null,
+      error_message: params.errorMessage ?? null,
+      processed_at: new Date().toISOString(),
+    })
+    .eq("id", params.eventId);
+
+  if (error) {
+    throw new Error(`Failed to complete billing webhook event: ${error.message}`);
+  }
 }
 
 export async function getCurrentUsageSummary(
@@ -226,25 +359,58 @@ export async function canAccessPlanFeature(
 export async function recordUsageEvent(
   supabase: RealtyOpsSupabaseClient,
   workspaceId: string,
-  eventType: "lead_event" | "ai_turn" | "ai_message_sent" | "social_message_sent" | "voice_call_minute" | "listing_created",
+  eventType: UsageEventType,
   eventCount: number,
   billingPeriodStart: string,
   billingPeriodEnd: string,
   resourceId?: string,
   eventMetadata?: Record<string, unknown>
 ): Promise<void> {
-  const { error } = await supabase.from("workspace_usage_events").insert([{
+  const row: WorkspaceUsageEventInsertRow = {
     workspace_id: workspaceId,
     event_type: eventType,
     event_count: eventCount,
     resource_id: resourceId ?? null,
-    event_metadata: eventMetadata ?? null,
+    event_metadata: (eventMetadata ?? null) as Json,
     billing_period_start: billingPeriodStart,
     billing_period_end: billingPeriodEnd,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  }] as any);
+  };
+  const { error } = await supabase.from("workspace_usage_events").insert([row]);
 
   if (error) {
     throw new Error(`Failed to record usage event: ${error.message}`);
   }
+}
+
+export async function recordCurrentPeriodUsageEvent(
+  supabase: RealtyOpsSupabaseClient,
+  params: {
+    workspaceId: string;
+    eventType: UsageEventType;
+    eventCount?: number;
+    resourceId?: string | null;
+    eventMetadata?: Record<string, unknown> | null;
+  },
+): Promise<boolean> {
+  const subscription = await getWorkspaceSubscription(supabase, params.workspaceId);
+  if (
+    subscription === null
+    || subscription.status === "canceled"
+    || subscription.status === "incomplete_expired"
+    || subscription.status === "paused"
+  ) {
+    return false;
+  }
+
+  await recordUsageEvent(
+    supabase,
+    params.workspaceId,
+    params.eventType,
+    params.eventCount ?? 1,
+    subscription.currentPeriodStart,
+    subscription.currentPeriodEnd,
+    params.resourceId ?? undefined,
+    params.eventMetadata ?? undefined,
+  );
+  return true;
 }

@@ -252,7 +252,10 @@ describe("provisionWorkspaceVoiceAgent", () => {
       },
     });
 
-    expect(result.ok).toBe(true);
+    expect(result).toMatchObject({
+      ok: true,
+      status: 200,
+    });
     expect(getWorkspaceVoiceAgent).toHaveBeenCalledWith(workspaceId, {
       accountScope: "member",
       ownerMemberId,
@@ -266,7 +269,54 @@ describe("provisionWorkspaceVoiceAgent", () => {
     }));
   });
 
-  it("returns missing config before side effects when required Retell env is absent", async () => {
+  it("can provision from the built-in Realty Ops flow when no Retell template is configured", async () => {
+    const { repository, markError } = createRepository();
+    const environmentWithoutTemplate: ServerEnvironment = {
+      ...environment,
+    };
+    delete environmentWithoutTemplate.RETELL_CONVERSATION_FLOW_TEMPLATE_ID;
+    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
+      const url = readRequestUrl(input);
+      if (url.endsWith("/create-conversation-flow")) {
+        return Promise.resolve(createResponse({ body: { conversation_flow_id: "conversation_flow_created" } }));
+      }
+      if (url.endsWith("/create-agent")) {
+        return Promise.resolve(createResponse({ body: { agent_id: "agent_created" } }));
+      }
+      if (url.endsWith("/create-phone-number")) {
+        return Promise.resolve(createResponse({ body: { phone_number: "+17135550125" } }));
+      }
+      return Promise.resolve(createResponse({ ok: false, status: 404, text: "not found" }));
+    });
+
+    const result = await provisionWorkspaceVoiceAgent({
+      workspaceId,
+      request: {
+        serviceAreas: ["Houston"],
+        transferNumber: null,
+      },
+      dependencies: {
+        repository,
+        environment: environmentWithoutTemplate,
+        fetchImpl,
+      },
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      status: 200,
+    });
+    expect(markError).not.toHaveBeenCalled();
+    expect(fetchImpl).not.toHaveBeenCalledWith(
+      "https://api.retellai.com/get-conversation-flow/conversation_flow_template",
+      expect.anything(),
+    );
+    expect(fetchImpl).toHaveBeenCalledWith("https://api.retellai.com/create-conversation-flow", expect.objectContaining({
+      body: expect.stringContaining("\"workspace_name\":\"Houston Brokerage\"") as string,
+    }));
+  });
+
+  it("returns missing config before side effects when required Retell voice env is absent", async () => {
     const { repository, getWorkspace } = createRepository();
     const environmentWithoutProvisioningConfig: ServerEnvironment = {
       APP_ENV: environment.APP_ENV,

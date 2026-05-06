@@ -88,6 +88,48 @@ export const LeadSchema = z.object({
   updatedAt: IsoDateTimeSchema,
 });
 
+const NullableQualificationTextSchema = z.preprocess(
+  (value) => (typeof value === "string" && value.trim().length === 0 ? null : value),
+  z.string().trim().min(1).max(180).nullable(),
+);
+
+const NullableLeadTimelineSchema = z.preprocess(
+  (value) => (typeof value === "string" && value.trim().length === 0 ? null : value),
+  z.string().trim().min(1).max(120).nullable(),
+);
+
+export const UpdateLeadQualificationRequestSchema = z.object({
+  leadType: LeadTypeSchema.optional(),
+  intent: LeadIntentSchema.optional(),
+  timeline: NullableLeadTimelineSchema.optional(),
+  budget: z.preprocess(
+    (value) => (typeof value === "string" && value.trim().length === 0 ? null : value),
+    z.string().trim().min(1).max(120).nullable(),
+  ).optional(),
+  targetArea: NullableQualificationTextSchema.optional(),
+  financingStatus: FinancingStatusSchema.optional(),
+}).refine((value) => Object.keys(value).length > 0, {
+  message: "At least one qualification field is required",
+});
+
+export const UpdateLeadQualificationResponseSchema = z.object({
+  leadId: UuidSchema,
+  updated: z.literal(true),
+});
+
+export const RouteLeadRequestSchema = z.object({
+  mode: z.literal("auto").default("auto"),
+});
+
+export const RouteLeadResponseSchema = z.object({
+  leadId: UuidSchema,
+  status: z.enum(["assigned", "unrouted", "hold_for_qualification"]),
+  assignedMemberId: UuidSchema.nullable(),
+  assignedDisplayName: z.string().trim().min(1).max(120).nullable(),
+  reasons: z.array(z.string().trim().min(1)).min(1),
+  routingDecisionId: UuidSchema.nullable(),
+});
+
 export const CreateLeadInputSchema = LeadSchema.omit({
   id: true,
   score: true,
@@ -139,5 +181,9 @@ export type LeadIntent = z.infer<typeof LeadIntentSchema>;
 export type FinancingStatus = z.infer<typeof FinancingStatusSchema>;
 export type ExtractedLeadFields = z.infer<typeof ExtractedLeadFieldsSchema>;
 export type Lead = z.infer<typeof LeadSchema>;
+export type UpdateLeadQualificationRequest = z.infer<typeof UpdateLeadQualificationRequestSchema>;
+export type UpdateLeadQualificationResponse = z.infer<typeof UpdateLeadQualificationResponseSchema>;
+export type RouteLeadRequest = z.infer<typeof RouteLeadRequestSchema>;
+export type RouteLeadResponse = z.infer<typeof RouteLeadResponseSchema>;
 export type CreateLeadInput = z.infer<typeof CreateLeadInputSchema>;
 export type NormalizedLeadEvent = z.infer<typeof NormalizedLeadEventSchema>;

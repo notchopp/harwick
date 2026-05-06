@@ -16,7 +16,13 @@ export default async function Page() {
   const { membership } = await requireActiveWorkspace({ nextPath: "/listings" });
 
   return (
-    <AppShell activeItem="Listings" title="Listings" workspaceName={membership.workspaceName}>
+    <AppShell
+      activeItem="Listings"
+      memberName={membership.displayName}
+      memberRole={membership.role}
+      title="Listings"
+      workspaceName={membership.workspaceName}
+    >
       <ListingsPageContent
         workspaceId={membership.workspaceId}
         workspaceName={membership.workspaceName}

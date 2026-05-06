@@ -17,6 +17,14 @@ export type RetellLeadEventWriter = (
   events: NormalizedLeadEvent[],
 ) => Promise<RetellLeadEventWriterResult>;
 
+export type RetellVoiceUsageRecorder = (params: {
+  workspaceId: string;
+  providerAccountId: string;
+  callId: string;
+  durationMs: number;
+  billableMinutes: number;
+}) => Promise<void>;
+
 export type RetellWebhookDeliveryResponse = {
   status: 200 | 202 | 400 | 401;
   body: {
@@ -53,12 +61,34 @@ function emptyResponse(
   };
 }
 
+function readDurationMs(call: {
+  duration_ms?: number | null | undefined;
+  start_timestamp?: number | null | undefined;
+  end_timestamp?: number | null | undefined;
+}): number | null {
+  if (call.duration_ms !== null && call.duration_ms !== undefined && call.duration_ms > 0) {
+    return call.duration_ms;
+  }
+  if (
+    call.start_timestamp !== null
+    && call.start_timestamp !== undefined
+    && call.end_timestamp !== null
+    && call.end_timestamp !== undefined
+    && call.end_timestamp > call.start_timestamp
+  ) {
+    return call.end_timestamp - call.start_timestamp;
+  }
+
+  return null;
+}
+
 export async function handleRetellWebhookDelivery(params: {
   rawBody: string;
   signature: string | null;
   retellApiKey: string;
   resolveWorkspaceIdByProviderAccountId: RetellWorkspaceResolver;
   writeLeadEvents: RetellLeadEventWriter;
+  recordVoiceCallUsage?: RetellVoiceUsageRecorder;
 }): Promise<RetellWebhookDeliveryResponse> {
   const signatureValid = await verifyRetellWebhookSignature({
     rawBody: params.rawBody,
@@ -105,6 +135,25 @@ export async function handleRetellWebhookDelivery(params: {
   }
 
   const writeResult = await params.writeLeadEvents(normalizedEvents);
+  const durationMs = readDurationMs(parsedPayload.data.call);
+  if (
+    params.recordVoiceCallUsage !== undefined
+    && parsedPayload.data.event === "call_analyzed"
+    && writeResult.persistedCount > 0
+    && durationMs !== null
+  ) {
+    try {
+      await params.recordVoiceCallUsage({
+        workspaceId,
+        providerAccountId,
+        callId: parsedPayload.data.call.call_id,
+        durationMs,
+        billableMinutes: Math.max(1, Math.ceil(durationMs / 60_000)),
+      });
+    } catch (error) {
+      console.error("[retell] failed to record voice usage", error);
+    }
+  }
 
   return {
     status: 200,

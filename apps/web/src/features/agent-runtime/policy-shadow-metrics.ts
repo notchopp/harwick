@@ -1,6 +1,10 @@
 import { HarwickWorkItemCreateSchema, type HarwickWorkItemCreate } from "@realty-ops/core";
 import type { AuditLogRepository, HarwickPolicyShadowSignal } from "../../lib/supabase/audit-logs";
 import type { HarwickWorkItemRepository } from "../../lib/supabase/harwick-work-items";
+import {
+  intelligizeHarwickWorkItem,
+  type HarwickWorkItemIntelligenceClient,
+} from "./harwick-work-item-intelligence";
 
 export type PolicyShadowWorkspaceMetric = {
   workspaceId: string;
@@ -16,6 +20,7 @@ export type PolicyShadowWorkspaceMetric = {
 export type PolicyShadowMetricsDeps = {
   auditRepository: Pick<AuditLogRepository, "listPolicyShadowSignals">;
   workItemRepository: Pick<HarwickWorkItemRepository, "createWorkItem" | "findOpenInsightBySignalKey">;
+  intelligenceClient?: HarwickWorkItemIntelligenceClient;
   now?: () => Date;
   lookbackDays?: number;
   minSamples?: number;
@@ -154,10 +159,17 @@ export async function surfacePolicyShadowMetrics(
       continue;
     }
 
-    await deps.workItemRepository.createWorkItem(buildPolicyShadowWorkItem({
-      metric,
-      signalKey,
-      threshold,
+    await deps.workItemRepository.createWorkItem(await intelligizeHarwickWorkItem({
+      context: {
+        signalKey,
+        source: "policy_shadow",
+        item: buildPolicyShadowWorkItem({
+          metric,
+          signalKey,
+          threshold,
+        }),
+      },
+      ...(deps.intelligenceClient === undefined ? {} : { client: deps.intelligenceClient }),
     }));
     surfaced += 1;
   }

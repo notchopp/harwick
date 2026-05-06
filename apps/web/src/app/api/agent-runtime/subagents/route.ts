@@ -4,6 +4,7 @@ import {
   createSmallModelHarwickSubagentExecutorClient,
   executeHarwickSubagentTasks,
 } from "../../../../features/agent-runtime/execute-subagent-tasks";
+import { createSmallModelHarwickWorkItemIntelligenceClient } from "../../../../features/agent-runtime/harwick-work-item-intelligence";
 import { getServerEnvironment } from "../../../../lib/server-env";
 import { createSupabaseHarwickSubagentTaskRepository } from "../../../../lib/supabase/harwick-subagent-tasks";
 import { createSupabaseHarwickWorkItemRepository } from "../../../../lib/supabase/harwick-work-items";
@@ -37,17 +38,20 @@ export async function POST(request: NextRequest) {
 
   try {
     const environment = getServerEnvironment();
-    const executorClient = environment.OPENAI_API_KEY === undefined
+    const smallModel = environment.OPENAI_API_KEY === undefined
       ? undefined
-      : createSmallModelHarwickSubagentExecutorClient(createOpenAISmallModelClient({
+      : createOpenAISmallModelClient({
         apiKey: environment.OPENAI_API_KEY,
         model: environment.OPENAI_SMALL_MODEL,
-      }));
+      });
     const supabase = createServerSupabaseClient();
     const report = await executeHarwickSubagentTasks({
       taskRepository: createSupabaseHarwickSubagentTaskRepository(supabase),
       workItemRepository: createSupabaseHarwickWorkItemRepository(supabase),
-      ...(executorClient === undefined ? {} : { executorClient }),
+      ...(smallModel === undefined ? {} : {
+        executorClient: createSmallModelHarwickSubagentExecutorClient(smallModel),
+        intelligenceClient: createSmallModelHarwickWorkItemIntelligenceClient(smallModel),
+      }),
     });
 
     return NextResponse.json({ status: "ok", report }, { status: 200 });

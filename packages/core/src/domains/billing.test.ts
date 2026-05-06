@@ -10,6 +10,11 @@ import {
   canAccessFeature,
   checkUsageLimit,
   PlanGateResultSchema,
+  BillingCheckoutRequestSchema,
+  BillingCheckoutResponseSchema,
+  BillingPortalResponseSchema,
+  BillingSubscriptionReconciliationSchema,
+  BillingWebhookProcessResultSchema,
 } from "./billing.js";
 
 describe("BillingPlanTierSchema", () => {
@@ -319,5 +324,71 @@ describe("PlanGateResultSchema", () => {
     const result = PlanGateResultSchema.parse(gateResult);
     expect(result.allowed).toBe(true);
     expect(result.reason).toBeNull();
+  });
+});
+
+describe("billing checkout contracts", () => {
+  it("validates a checkout request", () => {
+    const request = BillingCheckoutRequestSchema.parse({
+      planTier: "team",
+      billingInterval: "month",
+    });
+
+    expect(request.planTier).toBe("team");
+  });
+
+  it("validates a Stripe checkout response without leaking secrets", () => {
+    const response = BillingCheckoutResponseSchema.parse({
+      provider: "stripe",
+      providerSessionId: "cs_test_123",
+      checkoutUrl: "https://checkout.stripe.com/c/pay/cs_test_123",
+    });
+
+    expect(response.providerSessionId).toBe("cs_test_123");
+  });
+
+  it("validates a Stripe customer portal response", () => {
+    const response = BillingPortalResponseSchema.parse({
+      provider: "stripe",
+      providerSessionId: "bps_123",
+      portalUrl: "https://billing.stripe.com/p/session/bps_123",
+    });
+
+    expect(response.portalUrl).toContain("billing.stripe.com");
+  });
+});
+
+describe("billing webhook reconciliation contracts", () => {
+  it("validates provider subscription updates before persistence", () => {
+    const update = BillingSubscriptionReconciliationSchema.parse({
+      workspaceId: "123e4567-e89b-12d3-a456-426614174000",
+      planTier: "team",
+      billingInterval: "month",
+      status: "active",
+      providerSubscriptionId: "sub_123",
+      providerCustomerId: "cus_123",
+      currentPeriodStart: "2026-05-01T00:00:00.000Z",
+      currentPeriodEnd: "2026-06-01T00:00:00.000Z",
+      canceledAt: null,
+      cancelAtPeriodEnd: false,
+      trialStart: null,
+      trialEnd: null,
+    });
+
+    expect(update.providerSubscriptionId).toBe("sub_123");
+  });
+
+  it("validates webhook process results without provider secrets", () => {
+    const result = BillingWebhookProcessResultSchema.parse({
+      accepted: true,
+      provider: "stripe",
+      eventId: "evt_123",
+      eventType: "customer.subscription.updated",
+      status: "processed",
+      workspaceId: "123e4567-e89b-12d3-a456-426614174000",
+      reason: null,
+    });
+
+    expect(result.status).toBe("processed");
   });
 });

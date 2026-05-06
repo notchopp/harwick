@@ -1,5 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { createOpenAISmallModelClient } from "@realty-ops/integrations";
 import { surfacePolicyShadowMetrics } from "../../../../features/agent-runtime/policy-shadow-metrics";
+import { createSmallModelHarwickWorkItemIntelligenceClient } from "../../../../features/agent-runtime/harwick-work-item-intelligence";
+import { getServerEnvironment } from "../../../../lib/server-env";
 import { createSupabaseAuditLogRepository } from "../../../../lib/supabase/audit-logs";
 import { createSupabaseHarwickWorkItemRepository } from "../../../../lib/supabase/harwick-work-items";
 import { createServerSupabaseClient } from "../../../../lib/supabase/server-client";
@@ -32,9 +35,19 @@ export async function POST(request: NextRequest) {
 
   try {
     const supabase = createServerSupabaseClient();
+    const environment = getServerEnvironment();
+    const smallModel = environment.OPENAI_API_KEY === undefined
+      ? undefined
+      : createOpenAISmallModelClient({
+        apiKey: environment.OPENAI_API_KEY,
+        model: environment.OPENAI_SMALL_MODEL,
+      });
     const report = await surfacePolicyShadowMetrics({
       auditRepository: createSupabaseAuditLogRepository(supabase),
       workItemRepository: createSupabaseHarwickWorkItemRepository(supabase),
+      ...(smallModel === undefined ? {} : {
+        intelligenceClient: createSmallModelHarwickWorkItemIntelligenceClient(smallModel),
+      }),
     });
     return NextResponse.json({ status: "ok", report }, { status: 200 });
   } catch (error) {

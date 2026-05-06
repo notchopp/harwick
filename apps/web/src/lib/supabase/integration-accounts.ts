@@ -1,4 +1,5 @@
 import type { MetaOAuthRepository } from "../../features/integrations/meta-oauth";
+import type { GoogleCalendarOAuthRepository } from "../../features/integrations/google-calendar-oauth";
 import type { IntegrationAccountRow } from "./database.types";
 import type { RealtyOpsSupabaseClient } from "./server-client";
 
@@ -221,6 +222,93 @@ export function createSupabaseMetaCredentialRepository(
         providerAccountId: aliasData.provider_account_id,
         providerAccountIds: aliasData.provider_account_ids,
         encryptedCredentialRef: aliasData.encrypted_credential_ref,
+      };
+    },
+  };
+}
+
+export function createSupabaseGoogleCalendarOAuthRepository(
+  supabase: RealtyOpsSupabaseClient,
+): GoogleCalendarOAuthRepository {
+  return {
+    async createPendingConnection(params) {
+      const { error } = await supabase
+        .from("integration_accounts")
+        .insert({
+          workspace_id: params.workspaceId,
+          account_scope: "member",
+          owner_member_id: params.memberId,
+          provider: "google_calendar",
+          status: "pending",
+          provider_account_id: null,
+          provider_account_ids: [],
+          provider_account_name: null,
+          encrypted_credential_ref: null,
+          oauth_state: params.oauthState,
+          connected_at: null,
+          last_health_check_at: null,
+        });
+
+      if (error !== null) {
+        throw error;
+      }
+    },
+
+    async connectCalendar(params) {
+      const connectedAt = new Date().toISOString();
+      const providerAccountId = params.providerAccountEmail ?? `primary:${params.calendarId}`;
+      const { data, error } = await supabase
+        .from("integration_accounts")
+        .update({
+          status: "connected",
+          provider_account_id: providerAccountId,
+          provider_account_ids: [params.calendarId],
+          provider_account_name: params.providerAccountEmail ?? "Google Calendar",
+          encrypted_credential_ref: params.encryptedCredentialRef,
+          oauth_state: null,
+          connected_at: connectedAt,
+          last_health_check_at: connectedAt,
+          updated_at: connectedAt,
+        })
+        .eq("provider", "google_calendar")
+        .eq("status", "pending")
+        .eq("oauth_state", params.oauthState)
+        .select("workspace_id,owner_member_id")
+        .maybeSingle<Pick<IntegrationAccountRow, "workspace_id" | "owner_member_id">>();
+
+      if (error !== null) {
+        throw error;
+      }
+
+      if (data === null || data.owner_member_id === null) {
+        return null;
+      }
+
+      const { error: upsertError } = await supabase
+        .from("workspace_member_calendar_connections")
+        .upsert({
+          workspace_id: data.workspace_id,
+          member_id: data.owner_member_id,
+          provider: "google",
+          provider_account_email: params.providerAccountEmail,
+          calendar_id: params.calendarId,
+          status: "connected",
+          showing_mode: "request_approve",
+          timezone: params.timezone,
+          encrypted_credential_ref: params.encryptedCredentialRef,
+          last_synced_at: connectedAt,
+          updated_at: connectedAt,
+        }, {
+          onConflict: "workspace_id,member_id,provider,calendar_id",
+        });
+
+      if (upsertError !== null) {
+        throw upsertError;
+      }
+
+      return {
+        workspaceId: data.workspace_id,
+        memberId: data.owner_member_id,
       };
     },
   };

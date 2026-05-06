@@ -1,166 +1,20 @@
 "use client";
 
 import { AlertCircle, Settings } from "lucide-react";
-import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
 
 import { FacebookGlyph, InstagramGlyph, ListingGlyph, PhoneGlyph, SyncGlyph } from "../../components/harwick-icons";
 import { WorkspaceTopbar } from "../../components/workspace-topbar";
 import { cn } from "../../lib/utils";
+import type { ActivityFilter, WorkspaceActivityEvent } from "./activity-data";
 
-type ActivityFilter = "all" | "lead" | "voice" | "social" | "fub" | "system";
 type ActivityDateFilter = "today" | "yesterday" | "7days" | "month";
 
-type ActivityEvent = {
-  id: string;
-  dateKey: "today" | "yesterday";
+type ActivityEventView = WorkspaceActivityEvent & {
+  dateKey: "today" | "yesterday" | "older";
   dateLabel: string;
-  time: string;
-  type: ActivityFilter;
-  icon: "instagram" | "facebook" | "voice" | "sync" | "system" | "lead" | "listing";
-  summary: ReactNode;
-  meta: string;
-  error?: boolean;
+  timeLabel: string;
 };
-
-const ACTIVITY_EVENTS: ActivityEvent[] = [
-  {
-    id: "act_1",
-    dateKey: "today",
-    dateLabel: "Today · April 29, 2026",
-    time: "10:26 AM",
-    type: "social",
-    icon: "instagram",
-    summary: (
-      <>
-        New lead <strong className="font-medium">Marcus Thompson</strong> created from Instagram comment on
-        {" "}
-        "4BR Coral Gables". Score: 87. Assigned to Sarah Kim.
-      </>
-    ),
-    meta: "Lead · Instagram · Qualification job queued",
-  },
-  {
-    id: "act_2",
-    dateKey: "today",
-    dateLabel: "Today · April 29, 2026",
-    time: "10:08 AM",
-    type: "voice",
-    icon: "voice",
-    summary: (
-      <>
-        Missed call from <strong className="font-medium">Diana Reyes</strong> (305-555-8821). Duration 0:42.
-        Callback task created and assigned to Sarah Kim.
-      </>
-    ),
-    meta: "Voice · Retell · Task ID: task_8821",
-  },
-  {
-    id: "act_3",
-    dateKey: "today",
-    dateLabel: "Today · April 29, 2026",
-    time: "9:14 AM",
-    type: "fub",
-    icon: "sync",
-    summary: (
-      <>
-        FUB sync retry queued for <strong className="font-medium">Jordan Mills</strong>. Ownership conflict:
-        Harwick shows Sarah Kim, FUB shows Unassigned. Manual resolution required.
-      </>
-    ),
-    meta: "Follow Up Boss · Sync job fub_sync_mills · Retry #1",
-  },
-  {
-    id: "act_4",
-    dateKey: "today",
-    dateLabel: "Today · April 29, 2026",
-    time: "9:01 AM",
-    type: "social",
-    icon: "facebook",
-    summary: (
-      <>
-        AI reply draft generated for <strong className="font-medium">Keisha Brown</strong> Facebook DM.
-        Pending operator approval.
-      </>
-    ),
-    meta: "Social · Facebook DM · OpenAI · Draft ID: draft_kb_04",
-  },
-  {
-    id: "act_5",
-    dateKey: "today",
-    dateLabel: "Today · April 29, 2026",
-    time: "8:50 AM",
-    type: "system",
-    icon: "system",
-    summary: (
-      <>
-        Worker heartbeat confirmed. All jobs healthy. 3 qualification jobs completed, 1 FUB sync job queued.
-      </>
-    ),
-    meta: "System · Worker health check · Interval: 5m",
-  },
-  {
-    id: "act_6",
-    dateKey: "yesterday",
-    dateLabel: "Yesterday · April 28, 2026",
-    time: "4:45 PM",
-    type: "lead",
-    icon: "lead",
-    summary: (
-      <>
-        Lead <strong className="font-medium">Keisha Brown</strong> qualified and synced to Follow Up Boss.
-        Stage: Hot Lead. Assigned to Marcus Lee.
-      </>
-    ),
-    meta: "Lead · FUB sync · Score: 91",
-  },
-  {
-    id: "act_7",
-    dateKey: "yesterday",
-    dateLabel: "Yesterday · April 28, 2026",
-    time: "4:22 PM",
-    type: "voice",
-    icon: "voice",
-    summary: (
-      <>
-        Unknown caller transferred to <strong className="font-medium">Diana Prince</strong> — investment routing
-        rule matched. Call duration 2:55.
-      </>
-    ),
-    meta: "Voice · Retell · Transfer · Rule: investment_intent",
-  },
-  {
-    id: "act_8",
-    dateKey: "yesterday",
-    dateLabel: "Yesterday · April 28, 2026",
-    time: "12:00 PM",
-    type: "system",
-    icon: "listing",
-    summary: (
-      <>
-        Listing <strong className="font-medium">1847 Brickell Ave</strong> marked as needs recheck. Last
-        verification was 8 days ago. Verify listing task created.
-      </>
-    ),
-    meta: "Listing · Auto-scheduled recheck · Task: verify_brickell",
-    error: true,
-  },
-  {
-    id: "act_9",
-    dateKey: "yesterday",
-    dateLabel: "Yesterday · April 28, 2026",
-    time: "8:00 AM",
-    type: "fub",
-    icon: "sync",
-    summary: (
-      <>
-        Back-sync completed for <strong className="font-medium">Follow Up Boss</strong>. 12 contacts reconciled.
-        0 conflicts. 2 stage updates pulled from FUB to Harwick.
-      </>
-    ),
-    meta: "FUB · Back-sync job · Duration: 3.2s",
-  },
-];
 
 function FilterChip(props: { active: boolean; children: string; onClick: () => void }) {
   return (
@@ -177,7 +31,7 @@ function FilterChip(props: { active: boolean; children: string; onClick: () => v
   );
 }
 
-function ActivityIcon(props: { icon: ActivityEvent["icon"]; error?: boolean }) {
+function ActivityIcon(props: { icon: WorkspaceActivityEvent["icon"]; error?: boolean }) {
   const baseClassName = cn(
     "flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[8px]",
     props.error && "ring-1 ring-oxblood/30",
@@ -238,13 +92,45 @@ function ActivityIcon(props: { icon: ActivityEvent["icon"]; error?: boolean }) {
   );
 }
 
-export function ActivityPageContent(props: { workspaceName: string }) {
+function formatDateLabel(date: Date, now: Date): { dateKey: ActivityEventView["dateKey"]; dateLabel: string } {
+  const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const startEventDay = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const diffDays = Math.round((startToday - startEventDay) / (24 * 60 * 60 * 1000));
+  const monthDay = new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric" }).format(date);
+
+  if (diffDays === 0) {
+    return { dateKey: "today", dateLabel: `Today · ${monthDay}` };
+  }
+  if (diffDays === 1) {
+    return { dateKey: "yesterday", dateLabel: `Yesterday · ${monthDay}` };
+  }
+  if (diffDays > 1) {
+    return { dateKey: "older", dateLabel: monthDay };
+  }
+
+  return { dateKey: "older", dateLabel: monthDay };
+}
+
+function mapActivityEventToView(event: WorkspaceActivityEvent, now: Date): ActivityEventView {
+  const date = new Date(event.occurredAt);
+  const { dateKey, dateLabel } = formatDateLabel(date, now);
+
+  return {
+    ...event,
+    dateKey,
+    dateLabel,
+    timeLabel: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(date),
+  };
+}
+
+export function ActivityPageContent(props: { workspaceName: string; events: WorkspaceActivityEvent[] }) {
   const [filterType, setFilterType] = useState<ActivityFilter>("all");
   const [dateFilter, setDateFilter] = useState<ActivityDateFilter>("today");
   const [errorsOnly, setErrorsOnly] = useState(false);
 
   const groupedEvents = useMemo(() => {
-    const visible = ACTIVITY_EVENTS.filter((event) => {
+    const now = new Date();
+    const visible = props.events.map((event) => mapActivityEventToView(event, now)).filter((event) => {
       if (filterType !== "all" && event.type !== filterType) {
         return false;
       }
@@ -261,20 +147,26 @@ export function ActivityPageContent(props: { workspaceName: string }) {
         return event.dateKey === "yesterday";
       }
 
+      const occurredAt = new Date(event.occurredAt).getTime();
+      if (dateFilter === "7days") {
+        return now.getTime() - occurredAt <= 7 * 24 * 60 * 60 * 1000;
+      }
+
+      if (dateFilter === "month") {
+        return now.getFullYear() === new Date(event.occurredAt).getFullYear()
+          && now.getMonth() === new Date(event.occurredAt).getMonth();
+      }
+
       return true;
     });
 
-    return [
-      {
-        dateLabel: "Today · April 29, 2026",
-        events: visible.filter((event) => event.dateKey === "today"),
-      },
-      {
-        dateLabel: "Yesterday · April 28, 2026",
-        events: visible.filter((event) => event.dateKey === "yesterday"),
-      },
-    ].filter((group) => group.events.length > 0);
-  }, [dateFilter, errorsOnly, filterType]);
+    const groups = new Map<string, ActivityEventView[]>();
+    for (const event of visible) {
+      groups.set(event.dateLabel, [...(groups.get(event.dateLabel) ?? []), event]);
+    }
+
+    return Array.from(groups.entries()).map(([dateLabel, events]) => ({ dateLabel, events }));
+  }, [dateFilter, errorsOnly, filterType, props.events]);
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-background">
@@ -313,6 +205,17 @@ export function ActivityPageContent(props: { workspaceName: string }) {
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-7 pb-7 pt-4">
+        {groupedEvents.length === 0 ? (
+          <div className="flex min-h-[240px] items-center justify-center rounded-[10px] border border-dashed border-border bg-surface/60 px-6 text-center">
+            <div>
+              <div className="text-[13px] font-medium text-foreground">No activity matches this view.</div>
+              <div className="mt-1 text-[12px] text-muted-subtle">
+                Real workspace events will appear here as leads, jobs, syncs, and provider checks run.
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         {groupedEvents.map((group) => (
           <div className="mb-[22px]" key={group.dateLabel}>
             <div className="mb-2 pl-0.5 text-[10px] uppercase tracking-[0.1em] text-muted-subtle">{group.dateLabel}</div>
@@ -324,10 +227,13 @@ export function ActivityPageContent(props: { workspaceName: string }) {
               >
                 <ActivityIcon error={event.error ?? false} icon={event.icon} />
                 <div className="min-w-0 flex-1">
-                  <div className="text-[12.5px] leading-[1.45] text-foreground">{event.summary}</div>
+                  <div className="text-[12.5px] font-medium leading-[1.45] text-foreground">{event.title}</div>
+                  {event.detail === null ? null : (
+                    <div className="mt-0.5 text-[12px] leading-[1.45] text-muted">{event.detail}</div>
+                  )}
                   <div className="mt-0.5 text-[11px] text-muted-subtle">{event.meta}</div>
                 </div>
-                <div className="shrink-0 pt-0.5 text-[11px] text-muted-subtle">{event.time}</div>
+                <div className="shrink-0 pt-0.5 text-[11px] text-muted-subtle">{event.timeLabel}</div>
               </div>
             ))}
           </div>

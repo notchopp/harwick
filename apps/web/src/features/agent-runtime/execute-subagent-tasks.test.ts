@@ -110,8 +110,16 @@ describe("executeHarwickSubagentTasks", () => {
     expect(created[0]).toEqual(expect.objectContaining({
       targetMemberId: null,
       targetRole: "team_lead",
+      type: "approval",
       recommendedAction: "Review routing recommendation",
     }));
+    expect(created[0]?.payload["actionPlan"]).toMatchObject({
+      proposedToolCalls: [
+        expect.objectContaining({
+          tool: "route_lead",
+        }),
+      ],
+    });
   });
 
   it("skips surfacing when an open insight already exists for the task", async () => {

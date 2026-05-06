@@ -1,6 +1,8 @@
 import { HarwickWorkItemCreateSchema, type HarwickWorkItemCreate } from "@realty-ops/core";
-import type { SmallModelClient } from "@realty-ops/integrations";
-import { z } from "zod";
+import {
+  intelligizeHarwickWorkItem,
+  type HarwickWorkItemIntelligenceClient,
+} from "./harwick-work-item-intelligence";
 
 export type AmbiguousInboundEvent = {
   id: string;
@@ -43,6 +45,14 @@ export type WorkspaceMemoryPattern = {
   updatedAt: string;
 };
 
+export type WorkspaceMemoryReviewStats = {
+  workspaceId: string;
+  pendingCount: number;
+  approvedCount: number;
+  dismissedCount: number;
+  latestObservedAt: string;
+};
+
 export type ProactiveInsightRepository = {
   listAmbiguousInboundEvents(params: {
     sinceIso: string;
@@ -59,6 +69,10 @@ export type ProactiveInsightRepository = {
     sinceIso: string;
     limit: number;
   }): Promise<WorkspaceMemoryPattern[]>;
+  listWorkspaceMemoryReviewStats(params: {
+    sinceIso: string;
+    limit: number;
+  }): Promise<WorkspaceMemoryReviewStats[]>;
   findOpenInsightBySignalKey(params: {
     workspaceId: string;
     signalKey: string;
@@ -74,26 +88,9 @@ export type ProactiveInsightReport = {
   errors: number;
 };
 
-const InsightNarrativeSchema = z.object({
-  title: z.string().trim().min(1).max(160),
-  summary: z.string().trim().min(1).max(1000),
-  recommendedAction: z.string().trim().min(1).max(160),
-  reason: z.string().trim().min(1).max(1000),
-  priority: z.enum(["low", "normal", "high", "urgent"]).optional(),
-});
-
-export type ProactiveInsightNarrative = z.infer<typeof InsightNarrativeSchema>;
-
-export type ProactiveInsightNarrativeClient = {
-  refineInsight(params: {
-    signalKey: string;
-    item: HarwickWorkItemCreate;
-  }): Promise<ProactiveInsightNarrative>;
-};
-
 export type ProactiveInsightDeps = {
   repository: ProactiveInsightRepository;
-  narrativeClient?: ProactiveInsightNarrativeClient;
+  intelligenceClient?: HarwickWorkItemIntelligenceClient;
   now?: () => Date;
   batchSize?: number;
   lookbackHours?: number;
@@ -105,36 +102,6 @@ type InsightCandidate = {
   signalKey: string;
   item: HarwickWorkItemCreate;
 };
-
-export function createSmallModelProactiveInsightNarrativeClient(
-  client: SmallModelClient,
-): ProactiveInsightNarrativeClient {
-  return {
-    async refineInsight(params) {
-      return client.classify({
-        schema: InsightNarrativeSchema,
-        temperature: 0.2,
-        maxTokens: 450,
-        instructions: [
-          "You write concise, operational Harwick insight cards for a real estate team.",
-          "Keep facts grounded only in the provided item. Do not invent names, prices, promises, or outcomes.",
-          "Make the card specific, action-oriented, and useful to the targeted workspace role.",
-          "Return JSON with title, summary, recommendedAction, reason, and optional priority.",
-        ].join("\n"),
-        input: JSON.stringify({
-          signalKey: params.signalKey,
-          title: params.item.title,
-          summary: params.item.summary,
-          recommendedAction: params.item.recommendedAction,
-          reason: params.item.reason,
-          priority: params.item.priority,
-          targetRole: params.item.targetRole,
-          payload: params.item.payload,
-        }),
-      });
-    },
-  };
-}
 
 function displayLeadName(name: string | null): string {
   const trimmed = name?.trim();
@@ -312,6 +279,62 @@ function buildWorkspaceMemoryPatternCandidate(memory: WorkspaceMemoryPattern): I
   };
 }
 
+function buildWorkspaceMemoryReviewQualityCandidate(
+  stats: WorkspaceMemoryReviewStats,
+  now: Date,
+): InsightCandidate | null {
+  const reviewedCount = stats.approvedCount + stats.dismissedCount;
+  const dismissedRatio = reviewedCount === 0 ? 0 : stats.dismissedCount / reviewedCount;
+  const hasBacklog = stats.pendingCount >= 5;
+  const hasQualityIssue = reviewedCount >= 5 && dismissedRatio >= 0.5;
+
+  if (!hasBacklog && !hasQualityIssue) {
+    return null;
+  }
+
+  const bucket = now.toISOString().slice(0, 10);
+  const signalKey = `workspace_memory_review_quality:${stats.workspaceId}:${bucket}`;
+  const priority = hasQualityIssue ? "high" : "normal";
+  const dismissedPercent = Math.round(dismissedRatio * 100);
+
+  return {
+    workspaceId: stats.workspaceId,
+    signalKey,
+    item: HarwickWorkItemCreateSchema.parse({
+      workspaceId: stats.workspaceId,
+      leadId: null,
+      routingDecisionId: null,
+      trajectoryId: null,
+      stepId: null,
+      type: "insight",
+      status: "pending",
+      targetMemberId: null,
+      targetRole: "team_lead",
+      priority,
+      title: hasQualityIssue ? "Workspace memory quality needs attention" : "Workspace memory review is backing up",
+      summary: hasQualityIssue
+        ? `${stats.dismissedCount} of ${reviewedCount} reviewed memories were dismissed in the current review window.`
+        : `${stats.pendingCount} learned workspace memories are waiting for review.`,
+      recommendedAction: hasQualityIssue ? "Review dismissed patterns" : "Review pending memories",
+      reason: hasQualityIssue
+        ? "Harwick is learning from brokerage-wide patterns, but a high dismissal rate means the distillation worker may be overfitting or surfacing noisy signals."
+        : "Pending workspace memories still inform review queues, but approved/dismissed feedback is needed to keep Harwick's brokerage memory trustworthy.",
+      payload: {
+        signalType: "workspace_memory_review_quality",
+        signalKey,
+        pendingCount: stats.pendingCount,
+        approvedCount: stats.approvedCount,
+        dismissedCount: stats.dismissedCount,
+        reviewedCount,
+        dismissedRatio,
+        dismissedPercent,
+        latestObservedAt: stats.latestObservedAt,
+      },
+      dueAt: null,
+    }),
+  };
+}
+
 async function createCandidateIfNew(
   repository: ProactiveInsightRepository,
   candidate: InsightCandidate,
@@ -329,42 +352,29 @@ async function createCandidateIfNew(
 }
 
 async function refineCandidate(
-  deps: Pick<ProactiveInsightDeps, "narrativeClient">,
+  deps: Pick<ProactiveInsightDeps, "intelligenceClient">,
   candidate: InsightCandidate,
 ): Promise<{ candidate: InsightCandidate; refined: boolean }> {
-  if (deps.narrativeClient === undefined) {
-    return { candidate, refined: false };
-  }
-
-  try {
-    const narrative = await deps.narrativeClient.refineInsight({
+  const item = await intelligizeHarwickWorkItem({
+    context: {
       signalKey: candidate.signalKey,
+      source: "proactive_insight",
       item: candidate.item,
-    });
-    return {
-      refined: true,
-      candidate: {
-        ...candidate,
-        item: HarwickWorkItemCreateSchema.parse({
-          ...candidate.item,
-          title: narrative.title,
-          summary: narrative.summary,
-          recommendedAction: narrative.recommendedAction,
-          reason: narrative.reason,
-          priority: narrative.priority ?? candidate.item.priority,
-          payload: {
-            ...candidate.item.payload,
-            narrativeSource: "small_model",
-            deterministicTitle: candidate.item.title,
-            deterministicSummary: candidate.item.summary,
-          },
-        }),
-      },
-    };
-  } catch (error) {
-    console.warn("[surfaceProactiveInsights] narrative refinement failed", candidate.signalKey, error);
-    return { candidate, refined: false };
-  }
+    },
+    ...(deps.intelligenceClient === undefined ? {} : { client: deps.intelligenceClient }),
+  });
+  const intelligence = item.payload["intelligence"];
+  const refined = typeof intelligence === "object"
+    && intelligence !== null
+    && !Array.isArray(intelligence)
+    && (intelligence as Record<string, unknown>)["source"] === "small_model";
+  return {
+    refined,
+    candidate: {
+      ...candidate,
+      item,
+    },
+  };
 }
 
 export async function surfaceProactiveInsights(
@@ -377,11 +387,12 @@ export async function surfaceProactiveInsights(
   const sinceIso = new Date(now.getTime() - lookbackHours * 3600000).toISOString();
   const dormantBeforeIso = new Date(now.getTime() - dormantLeadDays * 24 * 3600000).toISOString();
 
-  const [ambiguousEvents, unassignedLeads, dormantLeads, workspacePatterns] = await Promise.all([
+  const [ambiguousEvents, unassignedLeads, dormantLeads, workspacePatterns, memoryReviewStats] = await Promise.all([
     deps.repository.listAmbiguousInboundEvents({ sinceIso, limit: batchSize }),
     deps.repository.listUnassignedPriorityLeads({ limit: batchSize }),
     deps.repository.listDormantLeads({ beforeIso: dormantBeforeIso, limit: batchSize }),
     deps.repository.listWorkspaceMemoryPatterns({ sinceIso, limit: batchSize }),
+    deps.repository.listWorkspaceMemoryReviewStats({ sinceIso, limit: batchSize }),
   ]);
 
   const candidates = [
@@ -389,6 +400,9 @@ export async function surfaceProactiveInsights(
     ...unassignedLeads.map(buildUnassignedPriorityLeadCandidate),
     ...dormantLeads.map((lead) => buildDormantLeadCandidate(lead, now)),
     ...workspacePatterns.map(buildWorkspaceMemoryPatternCandidate),
+    ...memoryReviewStats
+      .map((stats) => buildWorkspaceMemoryReviewQualityCandidate(stats, now))
+      .filter((candidate): candidate is InsightCandidate => candidate !== null),
   ];
 
   let created = 0;

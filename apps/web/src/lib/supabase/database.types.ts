@@ -346,6 +346,53 @@ export type Database = {
           },
         ]
       }
+      billing_webhook_events: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          event_type: string
+          id: string
+          processed_at: string | null
+          processing_status: string
+          provider: string
+          provider_event_id: string
+          provider_object_id: string | null
+          workspace_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          event_type: string
+          id?: string
+          processed_at?: string | null
+          processing_status: string
+          provider: string
+          provider_event_id: string
+          provider_object_id?: string | null
+          workspace_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          event_type?: string
+          id?: string
+          processed_at?: string | null
+          processing_status?: string
+          provider?: string
+          provider_event_id?: string
+          provider_object_id?: string | null
+          workspace_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_webhook_events_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversation_activity_log: {
         Row: {
           actor_id: string | null
@@ -1267,6 +1314,145 @@ export type Database = {
           },
         ]
       }
+      harwick_loops: {
+        Row: {
+          approval_mode: string
+          created_at: string
+          created_by_member_id: string | null
+          event_type: string | null
+          id: string
+          instruction: string
+          last_run_at: string | null
+          last_run_status: string | null
+          name: string
+          next_run_at: string | null
+          output_mode: string
+          schedule_spec: string | null
+          status: string
+          tool_allowlist: string[]
+          trigger_type: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          approval_mode?: string
+          created_at?: string
+          created_by_member_id?: string | null
+          event_type?: string | null
+          id?: string
+          instruction: string
+          last_run_at?: string | null
+          last_run_status?: string | null
+          name: string
+          next_run_at?: string | null
+          output_mode?: string
+          schedule_spec?: string | null
+          status?: string
+          tool_allowlist?: string[]
+          trigger_type?: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          approval_mode?: string
+          created_at?: string
+          created_by_member_id?: string | null
+          event_type?: string | null
+          id?: string
+          instruction?: string
+          last_run_at?: string | null
+          last_run_status?: string | null
+          name?: string
+          next_run_at?: string | null
+          output_mode?: string
+          schedule_spec?: string | null
+          status?: string
+          tool_allowlist?: string[]
+          trigger_type?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "harwick_loops_created_by_member_id_fkey"
+            columns: ["created_by_member_id"]
+            isOneToOne: false
+            referencedRelation: "workspace_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "harwick_loops_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      harwick_loop_runs: {
+        Row: {
+          completed_at: string | null
+          error_message: string | null
+          id: string
+          instruction_snapshot: string
+          loop_id: string
+          metadata: Json
+          result_summary: string | null
+          started_at: string
+          status: string
+          work_item_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          error_message?: string | null
+          id?: string
+          instruction_snapshot: string
+          loop_id: string
+          metadata?: Json
+          result_summary?: string | null
+          started_at?: string
+          status: string
+          work_item_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          error_message?: string | null
+          id?: string
+          instruction_snapshot?: string
+          loop_id?: string
+          metadata?: Json
+          result_summary?: string | null
+          started_at?: string
+          status?: string
+          work_item_id?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "harwick_loop_runs_loop_id_fkey"
+            columns: ["loop_id"]
+            isOneToOne: false
+            referencedRelation: "harwick_loops"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "harwick_loop_runs_work_item_id_fkey"
+            columns: ["work_item_id"]
+            isOneToOne: false
+            referencedRelation: "harwick_work_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "harwick_loop_runs_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       harwick_subagent_tasks: {
         Row: {
           created_at: string
@@ -1500,6 +1686,11 @@ export type Database = {
       lead_tasks: {
         Row: {
           assigned_member_id: string | null
+          approved_at: string | null
+          approved_by_member_id: string | null
+          calendar_event_id: string | null
+          calendar_id: string | null
+          calendar_provider: string | null
           created_at: string
           description: string | null
           due_at: string | null
@@ -1507,6 +1698,8 @@ export type Database = {
           lead_id: string | null
           listing_id: string | null
           priority: string
+          requested_end_at: string | null
+          requested_start_at: string | null
           status: string
           task_type: string
           title: string
@@ -1515,6 +1708,11 @@ export type Database = {
         }
         Insert: {
           assigned_member_id?: string | null
+          approved_at?: string | null
+          approved_by_member_id?: string | null
+          calendar_event_id?: string | null
+          calendar_id?: string | null
+          calendar_provider?: string | null
           created_at?: string
           description?: string | null
           due_at?: string | null
@@ -1522,6 +1720,8 @@ export type Database = {
           lead_id?: string | null
           listing_id?: string | null
           priority?: string
+          requested_end_at?: string | null
+          requested_start_at?: string | null
           status?: string
           task_type: string
           title: string
@@ -1530,6 +1730,11 @@ export type Database = {
         }
         Update: {
           assigned_member_id?: string | null
+          approved_at?: string | null
+          approved_by_member_id?: string | null
+          calendar_event_id?: string | null
+          calendar_id?: string | null
+          calendar_provider?: string | null
           created_at?: string
           description?: string | null
           due_at?: string | null
@@ -1537,6 +1742,8 @@ export type Database = {
           lead_id?: string | null
           listing_id?: string | null
           priority?: string
+          requested_end_at?: string | null
+          requested_start_at?: string | null
           status?: string
           task_type?: string
           title?: string
@@ -1544,6 +1751,13 @@ export type Database = {
           workspace_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "lead_tasks_approved_by_member_id_fkey"
+            columns: ["approved_by_member_id"]
+            isOneToOne: false
+            referencedRelation: "workspace_members"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "lead_tasks_assigned_member_id_fkey"
             columns: ["assigned_member_id"]
@@ -2569,6 +2783,69 @@ export type Database = {
           },
         ]
       }
+      workspace_member_calendar_connections: {
+        Row: {
+          calendar_id: string
+          created_at: string
+          encrypted_credential_ref: string
+          id: string
+          last_synced_at: string | null
+          member_id: string
+          provider: string
+          provider_account_email: string | null
+          showing_mode: string
+          status: string
+          timezone: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          calendar_id?: string
+          created_at?: string
+          encrypted_credential_ref: string
+          id?: string
+          last_synced_at?: string | null
+          member_id: string
+          provider?: string
+          provider_account_email?: string | null
+          showing_mode?: string
+          status?: string
+          timezone?: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          calendar_id?: string
+          created_at?: string
+          encrypted_credential_ref?: string
+          id?: string
+          last_synced_at?: string | null
+          member_id?: string
+          provider?: string
+          provider_account_email?: string | null
+          showing_mode?: string
+          status?: string
+          timezone?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_member_calendar_connections_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "workspace_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workspace_member_calendar_connections_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workspace_voice_agents: {
         Row: {
           account_scope: string
@@ -3227,13 +3504,26 @@ export type HarwickWorkItemRow = Tables<"harwick_work_items">;
 export type HarwickWorkItemInsertRow = TablesInsert<"harwick_work_items">;
 export type HarwickRoutingDecisionRow = Tables<"harwick_routing_decisions">;
 export type HarwickRoutingDecisionInsertRow = TablesInsert<"harwick_routing_decisions">;
+export type HarwickLoopRow = Tables<"harwick_loops">;
+export type HarwickLoopInsertRow = TablesInsert<"harwick_loops">;
+export type HarwickLoopUpdateRow = TablesUpdate<"harwick_loops">;
+export type HarwickLoopRunRow = Tables<"harwick_loop_runs">;
+export type HarwickLoopRunInsertRow = TablesInsert<"harwick_loop_runs">;
+export type HarwickLoopRunUpdateRow = TablesUpdate<"harwick_loop_runs">;
+export type WorkspaceMemberCalendarConnectionRow = Tables<"workspace_member_calendar_connections">;
+export type WorkspaceMemberCalendarConnectionInsertRow = TablesInsert<"workspace_member_calendar_connections">;
+export type WorkspaceMemberCalendarConnectionUpdateRow = TablesUpdate<"workspace_member_calendar_connections">;
 export type MemberRoutingProfileRow = Tables<"member_routing_profiles">;
 export type MemberRoutingProfileInsertRow = TablesInsert<"member_routing_profiles">;
 export type MemberRoutingProfileUpdateRow = TablesUpdate<"member_routing_profiles">;
 export type LeadTaskRow = Tables<"lead_tasks">;
 export type NurtureMessageRow = Tables<"nurture_messages">;
 export type ProviderErrorLogRow = Tables<"provider_error_logs">;
+export type BillingWebhookEventRow = Tables<"billing_webhook_events">;
+export type BillingWebhookEventInsertRow = TablesInsert<"billing_webhook_events">;
+export type BillingWebhookEventUpdateRow = TablesUpdate<"billing_webhook_events">;
 export type WorkspaceSubscriptionRow = Tables<"workspace_subscriptions">;
+export type WorkspaceUsageEventInsertRow = TablesInsert<"workspace_usage_events">;
 export type WorkspaceUsageSummaryRow = Tables<"workspace_usage_summaries">;
 export type WorkspaceMemoryDocumentRow = Tables<"workspace_memory_documents">;
 export type WorkspaceMemoryDocumentInsertRow = TablesInsert<"workspace_memory_documents">;

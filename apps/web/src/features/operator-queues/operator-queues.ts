@@ -1,5 +1,4 @@
 import {
-  canAutomationSend,
   classifyHarwickLeadActionability,
   decideHarwickAiNextAction,
   SocialReplyQueueActionRequestSchema,
@@ -188,21 +187,6 @@ export async function actOnSocialReplyReview(params: {
         reviewedByMemberId: params.memberId,
         reviewedAt,
         dismissalReason: action.reason ?? null,
-      },
-    });
-  }
-
-  if (!canAutomationSend(review.automationMode)) {
-    return params.repository.updateSocialReplyReview({
-      workspaceId: params.workspaceId,
-      reviewId: params.reviewId,
-      values: {
-        status: "failed",
-        suggestedReply: action.reply,
-        reviewedByMemberId: params.memberId,
-        reviewedAt,
-        lastErrorCode: "automation_paused",
-        lastErrorMessage: "Harwick AI is not allowed to send while this conversation is paused or in human takeover.",
       },
     });
   }

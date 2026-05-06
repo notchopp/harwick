@@ -1,8 +1,10 @@
-import { UuidSchema } from "@realty-ops/core";
+import { UuidSchema, VoiceHandoffQueueActionRequestSchema } from "@realty-ops/core";
 import { NextResponse, type NextRequest } from "next/server";
 import { ZodError } from "zod";
 import { actOnVoiceHandoff } from "../../../../../../../features/operator-queues/operator-queues";
+import { buildVoiceHandoffQueueAuditEntry } from "../../../../../../../features/operator-queues/work-queue-audit";
 import { authorizeWorkspaceRequest } from "../../../../../../../lib/api/workspace-auth";
+import { createSupabaseAuditLogRepository } from "../../../../../../../lib/supabase/audit-logs";
 import { createSupabaseVoiceHandoffQueueRepository } from "../../../../../../../lib/supabase/operator-queues";
 import { createServerSupabaseClient } from "../../../../../../../lib/supabase/server-client";
 
@@ -34,16 +36,33 @@ export async function POST(request: NextRequest, context: RouteContext) {
   }
 
   try {
+    const parsedAction = VoiceHandoffQueueActionRequestSchema.parse(body);
+    const supabase = createServerSupabaseClient();
     const result = await actOnVoiceHandoff({
       workspaceId,
       handoffId,
       memberId: membership.memberId,
-      request: body,
-      repository: createSupabaseVoiceHandoffQueueRepository(createServerSupabaseClient()),
+      request: parsedAction,
+      repository: createSupabaseVoiceHandoffQueueRepository(supabase),
     });
 
     if (result === null) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
+    }
+
+    try {
+      await createSupabaseAuditLogRepository(supabase).insertAuditLog(buildVoiceHandoffQueueAuditEntry({
+        workspaceId,
+        actorUserId: null,
+        memberId: membership.memberId,
+        handoffId,
+        request: parsedAction,
+        result,
+        ipAddress: request.headers.get("x-forwarded-for"),
+        userAgent: request.headers.get("user-agent"),
+      }));
+    } catch (auditError) {
+      console.warn("[voice-queue] audit log failed", auditError);
     }
 
     return NextResponse.json({ item: result }, { status: 200 });

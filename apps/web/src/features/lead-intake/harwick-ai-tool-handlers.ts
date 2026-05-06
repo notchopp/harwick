@@ -1,19 +1,24 @@
 import type {
+  CalendarAvailabilityWindow,
+  GoogleCalendarCredential,
   HarwickAiToolCall,
   HarwickAiToolName,
   NormalizedLeadEvent,
+  ShowingMode,
 } from "@realty-ops/core";
-import { decideLeadRouting } from "@realty-ops/core";
-import type { HarwickAiToolHandlers } from "@realty-ops/integrations";
+import { decideLeadRouting, GoogleCalendarCredentialSchema } from "@realty-ops/core";
+import type { GoogleCalendarClient, HarwickAiToolHandlers } from "@realty-ops/integrations";
 import { createMetaMessagingClient } from "@realty-ops/integrations";
 import type { ConversationMessageRepository } from "../../lib/supabase/conversation-messages";
 import type { ConversationAutomationRepository } from "../../lib/supabase/conversation-automation";
 import type { LeadEventPersistenceRepository } from "../../lib/supabase/lead-events";
 import type { MemberRoutingProfileRepository } from "../../lib/supabase/member-routing-profiles";
+import type { MemberCalendarConnectionRepository } from "../../lib/supabase/member-calendar-connections";
 import { mapRowToAgentRoutingProfile } from "../../lib/supabase/member-routing-profiles";
 import type { RealtyOpsSupabaseClient } from "../../lib/supabase/server-client";
 import type { LeadRow } from "../../lib/supabase/leads";
 import type { Json, TablesInsert, TablesUpdate } from "../../lib/supabase/database.types";
+import { decryptCredential, encryptCredential } from "../../lib/credentials";
 import { sendMetaReply } from "../integrations/meta-reply-send";
 import { createSupabaseMetaCredentialRepository } from "../../lib/supabase/integration-accounts";
 
@@ -41,7 +46,14 @@ export type HarwickAiToolHandlerDependencies = {
   conversationAutomationRepository: ConversationAutomationRepository;
   leadEventRepository: LeadEventPersistenceRepository;
   memberRoutingRepository: MemberRoutingProfileRepository;
+  calendarConnectionRepository?: MemberCalendarConnectionRepository;
+  calendarClient?: Pick<GoogleCalendarClient, "queryFreeBusy"> & Partial<Pick<GoogleCalendarClient, "refreshAccessToken">>;
+  googleCalendarOAuth?: {
+    clientId: string;
+    clientSecret: string;
+  };
   credentialSecret: string;
+  now?: () => Date;
 };
 
 function readPayloadString(toolCall: HarwickAiToolCall, key: string): string | null {
@@ -49,9 +61,25 @@ function readPayloadString(toolCall: HarwickAiToolCall, key: string): string | n
   return typeof value === "string" && value.trim().length > 0 ? value : null;
 }
 
+function readPayloadIsoDateTime(toolCall: HarwickAiToolCall, keys: string[]): string | null {
+  for (const key of keys) {
+    const value = readPayloadString(toolCall, key);
+    if (value !== null && !Number.isNaN(Date.parse(value))) {
+      return new Date(value).toISOString();
+    }
+  }
+  return null;
+}
+
 function readPayloadPriority(toolCall: HarwickAiToolCall): "low" | "normal" | "high" | "urgent" {
   const value = readPayloadString(toolCall, "priority");
   return value === "low" || value === "high" || value === "urgent" ? value : "normal";
+}
+
+function readShowingMode(value: string | null): ShowingMode | null {
+  return value === "collect_only" || value === "request_approve" || value === "auto_book"
+    ? value
+    : null;
 }
 
 function readSubagentType(toolCall: HarwickAiToolCall): "research" | "writer" | "calendar" | "routing" {
@@ -60,27 +88,141 @@ function readSubagentType(toolCall: HarwickAiToolCall): "research" | "writer" | 
   return "research";
 }
 
-/**
- * Synthesize availability windows when no real calendar integration exists.
- * Returns the next 3 business days × {10am, 2pm, 4pm}. When Google Calendar
- * lands (paid-launch-map item 8), this synthesis is replaced by a real lookup.
- */
-function synthesizeAvailableWindows(now: Date = new Date()): string[] {
-  const windows: string[] = [];
-  const slots = ["10:00 AM", "2:00 PM", "4:00 PM"];
+function formatCalendarWindowLabel(start: Date, timezone: string): string {
+  const dateLabel = start.toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    timeZone: timezone,
+  });
+  const timeLabel = start.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: timezone,
+  });
+  return `${dateLabel} at ${timeLabel}`;
+}
+
+function buildCandidateShowingWindows(
+  now: Date = new Date(),
+  timezone = "America/New_York",
+): CalendarAvailabilityWindow[] {
+  const windows: CalendarAvailabilityWindow[] = [];
+  const slots = [10, 14, 16];
   let added = 0;
   for (let dayOffset = 1; added < 9 && dayOffset < 14; dayOffset += 1) {
     const candidate = new Date(now);
     candidate.setDate(now.getDate() + dayOffset);
     const dow = candidate.getDay();
     if (dow === 0 || dow === 6) continue;
-    const label = candidate.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
-    for (const slot of slots) {
-      windows.push(`${label} at ${slot}`);
+    for (const hour of slots) {
+      const start = new Date(candidate);
+      start.setHours(hour, 0, 0, 0);
+      const end = new Date(start);
+      end.setMinutes(start.getMinutes() + 30);
+      windows.push({
+        start: start.toISOString(),
+        end: end.toISOString(),
+        label: formatCalendarWindowLabel(start, timezone),
+      });
       added += 1;
     }
   }
   return windows;
+}
+
+function synthesizeAvailableWindows(now: Date = new Date()): string[] {
+  return buildCandidateShowingWindows(now).map((window) => window.label);
+}
+
+async function findContextSourceOwnerMemberId(
+  deps: HarwickAiToolHandlerDependencies,
+): Promise<string | null> {
+  const providerAccountId = deps.context.event.providerAccountId ?? deps.context.providerAccountId;
+  if (providerAccountId === null || providerAccountId.trim().length === 0) {
+    return null;
+  }
+
+  const { data, error } = await deps.supabase
+    .from("integration_accounts")
+    .select("owner_member_id")
+    .eq("workspace_id", deps.context.workspaceId)
+    .eq("provider", deps.context.event.provider)
+    .eq("provider_account_id", providerAccountId)
+    .eq("status", "connected")
+    .maybeSingle<{ owner_member_id: string | null }>();
+
+  if (error !== null) {
+    throw error;
+  }
+  if (data?.owner_member_id !== undefined) {
+    return data.owner_member_id;
+  }
+
+  const { data: aliasData, error: aliasError } = await deps.supabase
+    .from("integration_accounts")
+    .select("owner_member_id")
+    .eq("workspace_id", deps.context.workspaceId)
+    .eq("provider", deps.context.event.provider)
+    .contains("provider_account_ids", [providerAccountId])
+    .eq("status", "connected")
+    .maybeSingle<{ owner_member_id: string | null }>();
+
+  if (aliasError !== null) {
+    throw aliasError;
+  }
+
+  return aliasData?.owner_member_id ?? null;
+}
+
+function windowsOverlap(
+  candidate: Pick<CalendarAvailabilityWindow, "start" | "end">,
+  busy: { start: string; end: string },
+): boolean {
+  const candidateStart = new Date(candidate.start).getTime();
+  const candidateEnd = new Date(candidate.end).getTime();
+  const busyStart = new Date(busy.start).getTime();
+  const busyEnd = new Date(busy.end).getTime();
+
+  if ([candidateStart, candidateEnd, busyStart, busyEnd].some((value) => Number.isNaN(value))) {
+    return false;
+  }
+
+  return candidateStart < busyEnd && candidateEnd > busyStart;
+}
+
+function shouldRefreshGoogleCredential(credential: GoogleCalendarCredential, now: Date): boolean {
+  if (credential.refreshToken === null || credential.expiresAt === null) {
+    return false;
+  }
+
+  const expiresAt = new Date(credential.expiresAt).getTime();
+  if (Number.isNaN(expiresAt)) {
+    return false;
+  }
+
+  return expiresAt <= now.getTime() + 2 * 60 * 1000;
+}
+
+function buildGoogleCredentialFromRefresh(params: {
+  existing: GoogleCalendarCredential;
+  accessToken: string;
+  refreshToken?: string;
+  expiresIn?: number;
+  tokenType: string;
+  scope?: string;
+  now: Date;
+}): GoogleCalendarCredential {
+  return GoogleCalendarCredentialSchema.parse({
+    version: "google_calendar_oauth_v1",
+    accessToken: params.accessToken,
+    refreshToken: params.refreshToken ?? params.existing.refreshToken,
+    tokenType: params.tokenType,
+    scope: params.scope ?? params.existing.scope,
+    expiresAt: params.expiresIn === undefined
+      ? null
+      : new Date(params.now.getTime() + params.expiresIn * 1000).toISOString(),
+  });
 }
 
 export function createHarwickAiToolHandlers(
@@ -135,7 +277,8 @@ export function createHarwickAiToolHandlers(
     const requestedListing = readPayloadString(toolCall, "listing");
     const assignedAgentId = deps.context.lead?.assigned_agent_id ?? null;
     let agentName: string | null = null;
-    const availableWindows = synthesizeAvailableWindows();
+    const now = deps.now?.() ?? new Date();
+    const availableWindows = synthesizeAvailableWindows(now);
 
     if (assignedAgentId !== null) {
       const profile = await deps.memberRoutingRepository.findProfileByMemberId({
@@ -147,16 +290,94 @@ export function createHarwickAiToolHandlers(
       }
     }
 
-    // No real calendar integration yet — synthesize next-business-days slots
-    // so the model has something concrete to offer. Replaced by a real
-    // Google Calendar lookup once shift 8 (calendar) lands.
+    if (
+      assignedAgentId !== null
+      && deps.calendarConnectionRepository !== undefined
+      && deps.calendarClient !== undefined
+    ) {
+      try {
+        const connection = await deps.calendarConnectionRepository.findActiveConnection({
+          workspaceId: deps.context.workspaceId,
+          memberId: assignedAgentId,
+        });
+
+        if (connection !== null) {
+          let credential = GoogleCalendarCredentialSchema.parse(
+            decryptCredential<unknown>(connection.encryptedCredentialRef, deps.credentialSecret),
+          );
+          if (
+            shouldRefreshGoogleCredential(credential, now)
+            && credential.refreshToken !== null
+            && deps.calendarClient.refreshAccessToken !== undefined
+            && deps.googleCalendarOAuth !== undefined
+          ) {
+            const refreshed = await deps.calendarClient.refreshAccessToken({
+              clientId: deps.googleCalendarOAuth.clientId,
+              clientSecret: deps.googleCalendarOAuth.clientSecret,
+              refreshToken: credential.refreshToken,
+            });
+            credential = buildGoogleCredentialFromRefresh({
+              existing: credential,
+              accessToken: refreshed.access_token,
+              tokenType: refreshed.token_type,
+              now,
+              ...(refreshed.refresh_token === undefined ? {} : { refreshToken: refreshed.refresh_token }),
+              ...(refreshed.expires_in === undefined ? {} : { expiresIn: refreshed.expires_in }),
+              ...(refreshed.scope === undefined ? {} : { scope: refreshed.scope }),
+            });
+            await deps.calendarConnectionRepository.updateEncryptedCredential({
+              connectionId: connection.id,
+              encryptedCredentialRef: encryptCredential(credential, deps.credentialSecret),
+              syncedAt: now.toISOString(),
+            });
+          }
+          const candidates = buildCandidateShowingWindows(now, connection.timezone);
+          const timeMax = new Date(now);
+          timeMax.setDate(now.getDate() + 14);
+          const freeBusy = await deps.calendarClient.queryFreeBusy({
+            accessToken: credential.accessToken,
+            calendarIds: [connection.calendarId],
+            timeMin: now.toISOString(),
+            timeMax: timeMax.toISOString(),
+            timeZone: connection.timezone,
+          });
+          const busyWindows = freeBusy.calendars.find((calendar) =>
+            calendar.calendarId === connection.calendarId
+          )?.busy ?? [];
+          const realAvailableWindows = candidates
+            .filter((candidate) => !busyWindows.some((busy) => windowsOverlap(candidate, busy)))
+            .slice(0, 6);
+
+          return {
+            assignedAgentId,
+            agentName,
+            requestedListing,
+            source: "google_calendar",
+            provider: connection.provider,
+            calendarId: connection.calendarId,
+            showingMode: connection.showingMode,
+            timezone: connection.timezone,
+            availableWindows: realAvailableWindows.map((window) => window.label),
+            availableWindowDetails: realAvailableWindows,
+            busyWindows,
+            synthesized: false,
+            note: connection.showingMode === "auto_book"
+              ? "Calendar availability came from the agent's connected Google Calendar. Auto-booking is still gated by qualification and policy."
+              : "Calendar availability came from the agent's connected Google Calendar. Default to request + approve before confirming a showing.",
+          };
+        }
+      } catch (error) {
+        console.warn("[check_calendar] Google Calendar lookup failed; falling back to synthesized windows", error);
+      }
+    }
+
     return {
       assignedAgentId,
       agentName,
       requestedListing,
       availableWindows: availableWindows.slice(0, 6),
       synthesized: true,
-      note: "Calendar integration is not yet connected. These windows are synthesized; confirm with the agent before promising.",
+      note: "No connected agent calendar was available. These windows are synthesized; confirm with the agent before promising.",
     };
   };
 
@@ -164,6 +385,8 @@ export function createHarwickAiToolHandlers(
     const occurredAt = new Date().toISOString();
     const listing = readPayloadString(toolCall, "listing");
     const requestedTime = readPayloadString(toolCall, "requestedTime") ?? readPayloadString(toolCall, "time");
+    const requestedStart = readPayloadIsoDateTime(toolCall, ["requestedStart", "start", "startTime"]);
+    const requestedEnd = readPayloadIsoDateTime(toolCall, ["requestedEnd", "end", "endTime"]);
     const insert: TablesInsert<"lead_tasks"> = {
       workspace_id: deps.context.workspaceId,
       lead_id: deps.context.leadId,
@@ -175,8 +398,12 @@ export function createHarwickAiToolHandlers(
       description: [
         `Harwick AI requested a showing.${listing === null ? "" : ` Listing: ${listing}.`}`,
         requestedTime === null ? "" : `Requested time: ${requestedTime}.`,
+        requestedStart === null ? "" : `Requested start: ${requestedStart}.`,
+        requestedEnd === null ? "" : `Requested end: ${requestedEnd}.`,
         `Reason: ${toolCall.reason}`,
       ].filter((line) => line.length > 0).join("\n"),
+      requested_start_at: requestedStart,
+      requested_end_at: requestedEnd,
       assigned_member_id: deps.context.lead?.assigned_agent_id ?? null,
       created_at: occurredAt,
       updated_at: occurredAt,
@@ -197,6 +424,8 @@ export function createHarwickAiToolHandlers(
       status: "queued",
       listing,
       requestedTime,
+      requestedStart,
+      requestedEnd,
     };
   };
 
@@ -242,20 +471,76 @@ export function createHarwickAiToolHandlers(
       return { routed: false, reason: "lead_not_found" };
     }
 
-    const profiles = await deps.memberRoutingRepository.listProfilesForWorkspace(deps.context.workspaceId);
-    if (profiles.length === 0) {
-      return { routed: false, reason: "no_routing_profiles_configured" };
+    const [profiles, membersResult, activeLeadsResult, calendarConnectionsResult, sourceOwnerMemberId] = await Promise.all([
+      deps.memberRoutingRepository.listProfilesForWorkspace(deps.context.workspaceId),
+      deps.supabase
+        .from("workspace_members")
+        .select("id, display_name, role")
+        .eq("workspace_id", deps.context.workspaceId)
+        .eq("is_active", true)
+        .returns<Array<{ id: string; display_name: string; role: string }>>(),
+      deps.supabase
+        .from("leads")
+        .select("assigned_agent_id, status")
+        .eq("workspace_id", deps.context.workspaceId)
+        .not("assigned_agent_id", "is", null)
+        .not("status", "in", "(closed_won,closed_lost,archived)")
+        .returns<Array<Pick<LeadRow, "assigned_agent_id" | "status">>>(),
+      deps.supabase
+        .from("workspace_member_calendar_connections")
+        .select("member_id, showing_mode")
+        .eq("workspace_id", deps.context.workspaceId)
+        .eq("provider", "google")
+        .eq("status", "connected")
+        .returns<Array<{ member_id: string; showing_mode: string | null }>>(),
+      findContextSourceOwnerMemberId(deps),
+    ]);
+
+    if (membersResult.error !== null) {
+      throw membersResult.error;
+    }
+    if (activeLeadsResult.error !== null) {
+      throw activeLeadsResult.error;
+    }
+    if (calendarConnectionsResult.error !== null) {
+      throw calendarConnectionsResult.error;
     }
 
-    // Active lead counts: best-effort 0 for all (the deterministic path
-    // already passes 0 today; real capacity tracking is a separate task).
-    const agentProfiles = profiles.map((profile) =>
-      mapRowToAgentRoutingProfile({
-        profile,
-        displayName: profile.role_label,
-        activeLeadCount: 0,
-      }),
+    const activeLeadCounts: Record<string, number> = {};
+    for (const row of activeLeadsResult.data ?? []) {
+      if (row.assigned_agent_id !== null) {
+        activeLeadCounts[row.assigned_agent_id] = (activeLeadCounts[row.assigned_agent_id] ?? 0) + 1;
+      }
+    }
+
+    const members = membersResult.data ?? [];
+    const calendarSignals = new Map(
+      (calendarConnectionsResult.data ?? []).map((connection) => [
+        connection.member_id,
+        readShowingMode(connection.showing_mode),
+      ]),
     );
+    const membersById = new Map(members.map((member) => [member.id, member]));
+    const escalationMemberId = members.find((member) =>
+      member.role === "owner"
+      || member.role === "admin"
+      || member.role === "team_lead"
+      || member.role === "lead_manager"
+    )?.id ?? null;
+    const agentProfiles = profiles.flatMap((profile) => {
+      const member = membersById.get(profile.member_id);
+      if (member === undefined) {
+        return [];
+      }
+
+      return [mapRowToAgentRoutingProfile({
+        profile,
+        displayName: member.display_name,
+        activeLeadCount: activeLeadCounts[profile.member_id] ?? 0,
+        calendarStatus: calendarSignals.has(profile.member_id) ? "connected" : "missing",
+        showingMode: calendarSignals.get(profile.member_id) ?? null,
+      })];
+    });
 
     const decision = decideLeadRouting({
       qualification: {
@@ -269,17 +554,58 @@ export function createHarwickAiToolHandlers(
         timeline: lead.timeline ?? null,
         financingStatus: lead.financing_status ?? "unknown",
         score: lead.score ?? 0,
-        sourceOwnerMemberId: null,
+        sourceOwnerMemberId,
       },
       agents: agentProfiles,
-      escalationMemberId: null,
+      escalationMemberId,
       roundRobinCursorMemberId: null,
     });
+
+    const occurredAt = new Date().toISOString();
+    const routingDecisionInsert: TablesInsert<"harwick_routing_decisions"> = {
+      workspace_id: deps.context.workspaceId,
+      lead_id: lead.id,
+      trajectory_id: deps.context.agentTrajectoryId,
+      step_id: deps.context.agentStepId,
+      suggested_member_id: decision.assignedMemberId,
+      final_member_id: decision.status === "assigned" ? decision.assignedMemberId : null,
+      status: decision.status === "assigned" ? "assigned" : "suggested",
+      confidence: Math.max(0, Math.min(1, decision.matchScore / 100)),
+      reason: decision.reasons.join("; ") || decision.taskLabel,
+      evidence: {
+        mode: "harwick_tool",
+        toolReason: toolCall.reason,
+        decisionStatus: decision.status,
+        matchScore: decision.matchScore,
+        sourceOwnerMemberId: decision.sourceOwnerMemberId,
+        calendarSignals: Object.fromEntries(calendarSignals.entries()),
+        reasons: decision.reasons,
+      },
+      created_by_actor_type: "ai",
+      decided_by_member_id: null,
+      decided_at: decision.status === "assigned" ? occurredAt : null,
+      override_reason: null,
+      updated_at: occurredAt,
+    };
+    const { data: routingDecision, error: routingDecisionError } = await deps.supabase
+      .from("harwick_routing_decisions")
+      .insert(routingDecisionInsert)
+      .select("id")
+      .single<{ id: string }>();
+
+    if (routingDecisionError !== null) {
+      throw routingDecisionError;
+    }
 
     if (decision.status !== "assigned" || decision.assignedMemberId === null) {
       return {
         routed: false,
-        reason: decision.status === "hold_for_qualification" ? "hold_for_qualification" : "no_match",
+        reason: decision.status === "hold_for_qualification"
+          ? "hold_for_qualification"
+          : profiles.length === 0
+            ? "no_routing_profiles_configured"
+            : "no_match",
+        routingDecisionId: routingDecision.id,
         decision,
       };
     }
@@ -288,7 +614,7 @@ export function createHarwickAiToolHandlers(
     const leadUpdate: TablesUpdate<"leads"> = {
       assigned_agent_id: decision.assignedMemberId,
       status: "assigned",
-      updated_at: new Date().toISOString(),
+      updated_at: occurredAt,
     };
     const { error: updateError } = await deps.supabase
       .from("leads")
@@ -300,17 +626,42 @@ export function createHarwickAiToolHandlers(
       throw updateError;
     }
 
+    const auditInsert: TablesInsert<"audit_logs"> = {
+      workspace_id: deps.context.workspaceId,
+      user_id: null,
+      actor_type: "ai",
+      action: lead.assigned_agent_id === null ? "lead.assigned" : "lead.reassigned",
+      resource_type: "lead",
+      resource_id: lead.id,
+      metadata: {
+        mode: "harwick_tool",
+        routingDecisionId: routingDecision.id,
+        previousAssignedMemberId: lead.assigned_agent_id,
+        assignedMemberId: decision.assignedMemberId,
+        reasons: decision.reasons,
+        source: "route_lead",
+      },
+    };
+    const { error: auditError } = await deps.supabase
+      .from("audit_logs")
+      .insert([auditInsert]);
+
+    if (auditError !== null) {
+      throw auditError;
+    }
+
     return {
       routed: true,
+      routingDecisionId: routingDecision.id,
       assignedMemberId: decision.assignedMemberId,
       assignedDisplayName: decision.assignedDisplayName,
       reason: decision.reasons.join("; ") || toolCall.reason,
     };
   };
 
-  handlers["sync_follow_up_boss"] = async (toolCall) => {
+  handlers["sync_follow_up_boss"] = async () => {
     const occurredAt = new Date().toISOString();
-    const idempotencyKey = `harwick_ai_fub_sync:${deps.context.leadId}:${Date.now()}`;
+    const idempotencyKey = `fub_sync:${deps.context.leadId}`;
     const insert: TablesInsert<"workflow_jobs"> = {
       workspace_id: deps.context.workspaceId,
       lead_id: deps.context.leadId,
@@ -325,14 +676,15 @@ export function createHarwickAiToolHandlers(
         jobType: "fub_sync",
         workspaceId: deps.context.workspaceId,
         leadId: deps.context.leadId,
-        source: "harwick_ai_tool",
-        reason: toolCall.reason,
+        qualifiedOnly: true,
       },
     };
 
     const { error } = await deps.supabase
       .from("workflow_jobs")
-      .insert(insert);
+      .upsert(insert, {
+        onConflict: "workspace_id,idempotency_key",
+      });
 
     if (error !== null) {
       throw error;

@@ -18,33 +18,15 @@ export type FollowUpBossTestConnectionResult = {
   errorCode: string;
 };
 
-export async function testFollowUpBossConnection(params: {
-  workspaceId: string;
-  credentialSecret: string;
-  repository: FollowUpBossCredentialRepository;
+export async function verifyFollowUpBossApiKey(params: {
+  apiKey: string;
+  fetchImpl?: typeof fetch;
 }): Promise<FollowUpBossTestConnectionResult> {
-  const credential = await params.repository.findConnectedCredential(params.workspaceId);
-  
-  if (!credential) {
-    return {
-      success: false,
-      error: "No Follow Up Boss credential found for this workspace",
-      errorCode: "credential_not_found",
-    };
-  }
-
   try {
-    const decrypted = decryptCredential<{ apiKey: string }>(
-      credential.encryptedCredentialRef,
-      params.credentialSecret,
-    );
+    const client = createFollowUpBossClient(params.fetchImpl === undefined
+      ? { apiKey: params.apiKey }
+      : { apiKey: params.apiKey, fetchImpl: params.fetchImpl });
 
-    const client = createFollowUpBossClient({
-      apiKey: decrypted.apiKey,
-    });
-
-    // Test the connection by fetching a simple resource
-    // Using /teams endpoint which requires valid API key and returns basic workspace info
     await client.fetchResource("/teams");
 
     return {
@@ -53,7 +35,7 @@ export async function testFollowUpBossConnection(params: {
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    
+
     if (errorMessage.includes("401") || errorMessage.includes("unauthorized")) {
       return {
         success: false,
@@ -77,6 +59,42 @@ export async function testFollowUpBossConnection(params: {
         errorCode: "rate_limited",
       };
     }
+
+    return {
+      success: false,
+      error: `Follow Up Boss connection test failed: ${errorMessage}`,
+      errorCode: "connection_test_failed",
+    };
+  }
+}
+
+export async function testFollowUpBossConnection(params: {
+  workspaceId: string;
+  credentialSecret: string;
+  repository: FollowUpBossCredentialRepository;
+  fetchImpl?: typeof fetch;
+}): Promise<FollowUpBossTestConnectionResult> {
+  const credential = await params.repository.findConnectedCredential(params.workspaceId);
+  
+  if (!credential) {
+    return {
+      success: false,
+      error: "No Follow Up Boss credential found for this workspace",
+      errorCode: "credential_not_found",
+    };
+  }
+
+  try {
+    const decrypted = decryptCredential<{ apiKey: string }>(
+      credential.encryptedCredentialRef,
+      params.credentialSecret,
+    );
+
+    return verifyFollowUpBossApiKey(params.fetchImpl === undefined
+      ? { apiKey: decrypted.apiKey }
+      : { apiKey: decrypted.apiKey, fetchImpl: params.fetchImpl });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
 
     return {
       success: false,

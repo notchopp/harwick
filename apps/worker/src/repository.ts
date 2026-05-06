@@ -14,6 +14,7 @@ import {
 import {
   createFollowUpBossClient,
   createMetaMessagingClient,
+  createTwilioMessagingClient,
   executeHarwickAiToolCalls,
   type FollowUpBossLeadEventInput,
 } from "@realty-ops/integrations";
@@ -180,7 +181,7 @@ type RealtyOpsWorkerDatabase = {
           workspace_id: string;
           lead_id: string | null;
           listing_id: string | null;
-          task_type: "call_back" | "verify_listing" | "assign_lead" | "fub_retry" | "nurture_review";
+          task_type: "call_back" | "verify_listing" | "assign_lead" | "fub_retry" | "nurture_review" | "request_showing_approval" | "showing_approval" | "open_house_registration";
           status: "open" | "in_progress" | "completed" | "dismissed";
           priority: "low" | "normal" | "high" | "urgent";
           assigned_member_id: string | null;
@@ -193,7 +194,7 @@ type RealtyOpsWorkerDatabase = {
           workspace_id: string;
           lead_id?: string | null;
           listing_id?: string | null;
-          task_type: "call_back" | "verify_listing" | "assign_lead" | "fub_retry" | "nurture_review";
+          task_type: "call_back" | "verify_listing" | "assign_lead" | "fub_retry" | "nurture_review" | "request_showing_approval" | "showing_approval" | "open_house_registration";
           priority: "low" | "normal" | "high" | "urgent";
           title: string;
           description: string;
@@ -330,7 +331,24 @@ type RealtyOpsWorkerDatabase = {
         Relationships: [];
       };
       nurture_messages: {
-        Row: Record<string, unknown>;
+        Row: {
+          id: string;
+          workspace_id: string;
+          lead_id: string;
+          enrollment_id: string;
+          channel: "sms" | "instagram_dm" | "facebook_dm";
+          status: "queued" | "blocked" | "drafted" | "sent" | "failed";
+          step_index: number;
+          body: string | null;
+          block_reason: "opted_out" | "quiet_hours" | "missing_contact" | "sequence_complete" | null;
+          provider_message_id: string | null;
+          scheduled_for: string | null;
+          sent_at: string | null;
+          last_error_code: string | null;
+          last_error_message: string | null;
+          created_at: string;
+          updated_at: string;
+        };
         Insert: {
           workspace_id: string;
           lead_id: string;
@@ -345,7 +363,14 @@ type RealtyOpsWorkerDatabase = {
           last_error_code?: string | null;
           last_error_message?: string | null;
         };
-        Update: Record<string, never>;
+        Update: {
+          status?: "queued" | "blocked" | "drafted" | "sent" | "failed";
+          provider_message_id?: string | null;
+          sent_at?: string | null;
+          last_error_code?: string | null;
+          last_error_message?: string | null;
+          updated_at?: string;
+        };
         Relationships: [];
       };
       listing_facts: {
@@ -373,6 +398,31 @@ type RealtyOpsWorkerDatabase = {
           "id" | "created_at" | "updated_at" | "attempt_count" | "status" | "max_attempts" | "run_after" | "locked_at" | "locked_by" | "last_error_code" | "last_error_message"
         > & Partial<Pick<WorkerJobRow, "id" | "created_at" | "updated_at" | "attempt_count" | "status" | "max_attempts" | "run_after" | "locked_at" | "locked_by" | "last_error_code" | "last_error_message">>;
         Update: Partial<WorkerJobRow>;
+        Relationships: [];
+      };
+      workspace_subscriptions: {
+        Row: {
+          workspace_id: string;
+          status: "active" | "trialing" | "past_due" | "canceled" | "unpaid" | "incomplete" | "incomplete_expired" | "paused";
+          current_period_start: string;
+          current_period_end: string;
+        };
+        Insert: Record<string, never>;
+        Update: Record<string, never>;
+        Relationships: [];
+      };
+      workspace_usage_events: {
+        Row: Record<string, unknown>;
+        Insert: {
+          workspace_id: string;
+          event_type: "ai_message_sent";
+          event_count: number;
+          resource_id?: string | null;
+          event_metadata?: Record<string, unknown> | null;
+          billing_period_start: string;
+          billing_period_end: string;
+        };
+        Update: Record<string, never>;
         Relationships: [];
       };
       crm_backsync_events: {
@@ -421,6 +471,8 @@ type RealtyOpsWorkerDatabase = {
           provider_message_id: string | null;
           error_code: string | null;
           error_message: string | null;
+          agent_trajectory_id: string | null;
+          agent_step_id: string | null;
         };
         Insert: {
           lead_id: string;
@@ -434,12 +486,16 @@ type RealtyOpsWorkerDatabase = {
           provider_message_id?: string | null;
           error_code?: string | null;
           error_message?: string | null;
+          agent_trajectory_id?: string | null;
+          agent_step_id?: string | null;
         };
         Update: {
           status?: "sent" | "in_progress" | "failed";
           error_code?: string | null;
           error_message?: string | null;
           updated_at?: string;
+          agent_trajectory_id?: string | null;
+          agent_step_id?: string | null;
         };
         Relationships: [];
       };
@@ -556,6 +612,11 @@ export function createSupabaseWorkflowJobServices(
   options: {
     credentialSecret?: string | undefined;
     followUpBossApiKey?: string | undefined;
+    twilio?: {
+      accountSid: string;
+      authToken: string;
+      fromPhoneNumber: string;
+    } | undefined;
     fetchImpl?: typeof fetch;
   } = {},
 ): WorkflowJobServices {
@@ -771,6 +832,96 @@ export function createSupabaseWorkflowJobServices(
     }
 
     return data?.automation_mode ?? "ai_on";
+  }
+
+  async function resolveLatestProviderAccountId(params: {
+    workspaceId: string;
+    leadId: string;
+    channels: string[];
+  }): Promise<string | null> {
+    const { data, error } = await supabase
+      .from("lead_events")
+      .select("provider_account_id")
+      .eq("workspace_id", params.workspaceId)
+      .eq("lead_id", params.leadId)
+      .in("source_channel", params.channels)
+      .not("provider_account_id", "is", null)
+      .order("occurred_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error !== null) {
+      throw error;
+    }
+
+    return data?.provider_account_id ?? null;
+  }
+
+  async function markNurtureMessageFailed(params: {
+    workspaceId: string;
+    messageId: string;
+    code: string;
+    message: string;
+  }): Promise<void> {
+    const { error } = await supabase
+      .from("nurture_messages")
+      .update({
+        status: "failed",
+        last_error_code: params.code,
+        last_error_message: params.message.slice(0, 1000),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("workspace_id", params.workspaceId)
+      .eq("id", params.messageId);
+
+    if (error !== null) {
+      throw error;
+    }
+  }
+
+  async function recordSentNurtureUsage(params: {
+    workspaceId: string;
+    messageId: string;
+    leadId: string;
+    channel: "sms" | "instagram_dm" | "facebook_dm";
+  }): Promise<void> {
+    const { data: subscription, error: subscriptionError } = await supabase
+      .from("workspace_subscriptions")
+      .select("workspace_id,status,current_period_start,current_period_end")
+      .eq("workspace_id", params.workspaceId)
+      .maybeSingle();
+
+    if (subscriptionError !== null) {
+      throw subscriptionError;
+    }
+    if (
+      subscription === null
+      || subscription.status === "canceled"
+      || subscription.status === "incomplete_expired"
+      || subscription.status === "paused"
+    ) {
+      return;
+    }
+
+    const { error } = await supabase
+      .from("workspace_usage_events")
+      .insert({
+        workspace_id: params.workspaceId,
+        event_type: "ai_message_sent",
+        event_count: 1,
+        resource_id: params.messageId,
+        event_metadata: {
+          kind: "nurture_message",
+          leadId: params.leadId,
+          channel: params.channel,
+        },
+        billing_period_start: subscription.current_period_start,
+        billing_period_end: subscription.current_period_end,
+      });
+
+    if (error !== null) {
+      throw error;
+    }
   }
 
   function readMetaToolReply(payload: Record<string, unknown>): string | null {
@@ -1207,6 +1358,236 @@ export function createSupabaseWorkflowJobServices(
         instagramUserId: leadRow.instagram_user_id,
         sourceChannel: leadRow.source_channel,
       });
+
+      if (params.messageId !== undefined) {
+        const approvedMessageId = params.messageId;
+        const { data: messageRow, error: messageError } = await supabase
+          .from("nurture_messages")
+          .select("id,workspace_id,lead_id,enrollment_id,channel,status,step_index,body,block_reason,provider_message_id,scheduled_for,sent_at,last_error_code,last_error_message,created_at,updated_at")
+          .eq("workspace_id", params.workspaceId)
+          .eq("lead_id", params.leadId)
+          .eq("enrollment_id", params.enrollmentId)
+          .eq("id", approvedMessageId)
+          .maybeSingle();
+
+        if (messageError !== null) {
+          throw messageError;
+        }
+        if (messageRow === null) {
+          return "approved nurture message was not found";
+        }
+        if (messageRow.status === "sent") {
+          return "approved nurture message was already sent";
+        }
+        if (messageRow.status !== "queued") {
+          return `approved nurture message skipped because status is ${messageRow.status}`;
+        }
+
+        const body = messageRow.body?.trim() ?? "";
+        if (body.length === 0) {
+          await markNurtureMessageFailed({
+            workspaceId: params.workspaceId,
+            messageId: approvedMessageId,
+            code: "missing_message_body",
+            message: "Approved nurture delivery cannot send a blank message.",
+          });
+          throw new Error("Approved nurture delivery cannot send a blank message.");
+        }
+
+        let providerEventId: string;
+        let provider: "meta" | "twilio";
+        let providerAccountId: string | null;
+        let providerUserId: string | null;
+        if (messageRow.channel === "sms") {
+          if (lead.phone === null || lead.phone.trim().length === 0) {
+            await markNurtureMessageFailed({
+              workspaceId: params.workspaceId,
+              messageId: approvedMessageId,
+              code: "missing_sms_contact",
+              message: "Approved nurture delivery cannot send SMS because the lead has no phone number.",
+            });
+            throw new Error("Approved nurture delivery cannot send SMS because the lead has no phone number.");
+          }
+          if (options.twilio === undefined) {
+            await markNurtureMessageFailed({
+              workspaceId: params.workspaceId,
+              messageId: approvedMessageId,
+              code: "provider_not_configured",
+              message: "Twilio SMS credentials are not configured in the worker.",
+            });
+            throw new Error("Twilio SMS credentials are not configured in the worker.");
+          }
+
+          const twilioClient = createTwilioMessagingClient(
+            options.fetchImpl === undefined ? {} : { fetchImpl: options.fetchImpl },
+          );
+          const result = await twilioClient.sendSms({
+            accountSid: options.twilio.accountSid,
+            authToken: options.twilio.authToken,
+            from: options.twilio.fromPhoneNumber,
+            to: lead.phone,
+            body,
+          }).catch(async (error: unknown) => {
+            const message = error instanceof Error ? error.message : "Twilio SMS delivery failed.";
+            await markNurtureMessageFailed({
+              workspaceId: params.workspaceId,
+              messageId: approvedMessageId,
+              code: "provider_send_failed",
+              message,
+            });
+            throw error;
+          });
+          providerEventId = result.providerEventId;
+          provider = "twilio";
+          providerAccountId = options.twilio.fromPhoneNumber;
+          providerUserId = lead.phone;
+        } else {
+          if (lead.instagramUserId === null) {
+            await markNurtureMessageFailed({
+              workspaceId: params.workspaceId,
+              messageId: approvedMessageId,
+              code: "missing_social_contact",
+              message: "Approved nurture delivery cannot send a social DM because the lead has no provider user id.",
+            });
+            throw new Error("Approved nurture delivery cannot send a social DM because the lead has no provider user id.");
+          }
+          if (options.credentialSecret === undefined) {
+            await markNurtureMessageFailed({
+              workspaceId: params.workspaceId,
+              messageId: approvedMessageId,
+              code: "credential_secret_missing",
+              message: "Meta credentials cannot be decrypted because the worker credential secret is missing.",
+            });
+            throw new Error("Meta credentials cannot be decrypted because the worker credential secret is missing.");
+          }
+
+          const providerAccount = await resolveLatestProviderAccountId({
+            workspaceId: params.workspaceId,
+            leadId: params.leadId,
+            channels: messageRow.channel === "instagram_dm"
+              ? ["instagram_dm", "instagram_comment"]
+              : ["facebook_dm", "facebook_comment"],
+          });
+          if (providerAccount === null) {
+            await markNurtureMessageFailed({
+              workspaceId: params.workspaceId,
+              messageId: approvedMessageId,
+              code: "provider_account_missing",
+              message: "Approved nurture delivery cannot find a connected Meta provider account for this lead.",
+            });
+            throw new Error("Approved nurture delivery cannot find a connected Meta provider account for this lead.");
+          }
+
+          const connectedCredential = await findConnectedMetaCredential({
+            workspaceId: params.workspaceId,
+            providerAccountId: providerAccount,
+          });
+          if (connectedCredential === null) {
+            await markNurtureMessageFailed({
+              workspaceId: params.workspaceId,
+              messageId: approvedMessageId,
+              code: "integration_not_found",
+              message: "Meta credentials are not connected for this provider account.",
+            });
+            throw new Error("Meta credentials are not connected for this provider account.");
+          }
+
+          const metaCredential = MetaConnectedCredentialSchema.parse(
+            decryptCredential<unknown>(connectedCredential.encryptedCredentialRef, options.credentialSecret),
+          );
+          const metaClient = createMetaMessagingClient(
+            options.fetchImpl === undefined ? {} : { fetchImpl: options.fetchImpl },
+          );
+          const result = await metaClient.sendDirectMessage({
+            pageId: metaCredential.pageId,
+            recipientUserId: lead.instagramUserId,
+            accessToken: metaCredential.pageAccessToken,
+            reply: body,
+          }).catch(async (error: unknown) => {
+            const message = error instanceof Error ? error.message : "Meta DM delivery failed.";
+            await markNurtureMessageFailed({
+              workspaceId: params.workspaceId,
+              messageId: approvedMessageId,
+              code: "provider_send_failed",
+              message,
+            });
+            throw error;
+          });
+          providerEventId = result.providerEventId;
+          provider = "meta";
+          providerAccountId = connectedCredential.providerAccountId;
+          providerUserId = lead.instagramUserId;
+        }
+
+        const occurredAt = new Date().toISOString();
+        const { error: updateMessageError } = await supabase
+          .from("nurture_messages")
+          .update({
+            status: "sent",
+            provider_message_id: providerEventId,
+            sent_at: occurredAt,
+            last_error_code: null,
+            last_error_message: null,
+            updated_at: occurredAt,
+          })
+          .eq("workspace_id", params.workspaceId)
+          .eq("id", approvedMessageId);
+
+        if (updateMessageError !== null) {
+          throw updateMessageError;
+        }
+
+        const { error: leadEventError } = await supabase
+          .from("lead_events")
+          .insert({
+            workspace_id: params.workspaceId,
+            lead_id: params.leadId,
+            provider,
+            event_type: messageRow.channel === "sms" ? "sms_sent" : "reply_sent",
+            source_channel: messageRow.channel,
+            provider_event_id: providerEventId,
+            provider_account_id: providerAccountId,
+            provider_user_id: providerUserId,
+            source_post_id: null,
+            source_comment_id: null,
+            text: body,
+            occurred_at: occurredAt,
+          });
+
+        if (leadEventError !== null) {
+          throw leadEventError;
+        }
+
+        const { error: conversationMessageError } = await supabase
+          .from("conversation_messages")
+          .insert({
+            lead_id: params.leadId,
+            workspace_id: params.workspaceId,
+            sender_type: "ai",
+            sender_id: "harwick_ai",
+            body,
+            source_channel: messageRow.channel,
+            provider_message_id: providerEventId,
+            status: "sent",
+            created_at: occurredAt,
+            agent_trajectory_id: null,
+            agent_step_id: null,
+          });
+
+        if (conversationMessageError !== null) {
+          throw conversationMessageError;
+        }
+
+        await recordSentNurtureUsage({
+          workspaceId: params.workspaceId,
+          messageId: approvedMessageId,
+          leadId: params.leadId,
+          channel: messageRow.channel,
+        });
+
+        return `approved nurture ${messageRow.channel} message sent`;
+      }
+
       const decision = decideNurtureAction({
         enrollment,
         lead,
@@ -1568,8 +1949,9 @@ export function createSupabaseWorkflowJobServices(
                   provider_message_id: providerEvent.providerEventId,
                   status: "sent",
                   created_at: occurredAt,
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                } as any);
+                  agent_trajectory_id: null,
+                  agent_step_id: null,
+                });
               if (msgError !== null) {
                 throw msgError;
               }
@@ -1625,8 +2007,9 @@ export function createSupabaseWorkflowJobServices(
                   provider_message_id: providerEvent.providerEventId,
                   status: "sent",
                   created_at: occurredAt,
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                } as any);
+                  agent_trajectory_id: null,
+                  agent_step_id: null,
+                });
               if (msgError !== null) {
                 throw msgError;
               }

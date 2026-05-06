@@ -14,12 +14,18 @@
     "build:packages": "tsc --build packages/core packages/integrations packages/api-client --pretty false --force",
     "lint": "eslint .",
     "test": "vitest run",
+    "test:launch-funnel": "vitest run tests/launch/full-funnel.test.ts",
+    "test:launch-readiness": "vitest run tests/launch/full-funnel.test.ts tests/launch/runtime-readiness.test.ts",
+    "test:staging-provider-smoke": "vitest run tests/launch/staging-provider-smoke.test.ts",
+    "launch:env:audit": "node scripts/audit-vercel-env.mjs",
+    "launch:env:sources": "node scripts/audit-local-launch-env-sources.mjs",
     "test:watch": "vitest",
     "typecheck": "tsc --build --pretty false",
     "build": "npm run build:packages && npm run build --workspace @realty-ops/web",
     "supabase:migrate": "node scripts/apply-supabase-migration.mjs",
     "supabase:seed": "node scripts/seed-customer-zero.mjs",
     "supabase:test:rls": "node scripts/test-rls.mjs",
+    "launch:check": "node scripts/launch-check.mjs",
     "release:check": "npm run constraints:check && npm run typecheck && npm run lint && npm test"
   },
   "dependencies": {

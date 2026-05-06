@@ -1,6 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { ZodError } from "zod";
-import { connectWorkspaceFollowUpBossIntegration } from "../../../../../../features/integrations/follow-up-boss-connection";
+import {
+  FollowUpBossConnectionValidationError,
+  connectWorkspaceFollowUpBossIntegration,
+} from "../../../../../../features/integrations/follow-up-boss-connection";
 import { authorizeWorkspaceRequest } from "../../../../../../lib/api/workspace-auth";
 import { getServerEnvironment } from "../../../../../../lib/server-env";
 import { createSupabaseFollowUpBossCredentialRepository } from "../../../../../../lib/supabase/follow-up-boss";
@@ -51,6 +54,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
   } catch (error) {
     if (error instanceof ZodError) {
       return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+    }
+    if (error instanceof FollowUpBossConnectionValidationError) {
+      return NextResponse.json(error.result, { status: 400 });
     }
 
     throw error;

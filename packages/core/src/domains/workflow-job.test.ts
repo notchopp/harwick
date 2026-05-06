@@ -66,6 +66,21 @@ describe("WorkflowJobPayloadSchema", () => {
     });
   });
 
+  it("accepts approved draft nurture delivery jobs with a message id", () => {
+    expect(WorkflowJobPayloadSchema.parse({
+      jobType: "nurture_delivery",
+      workspaceId,
+      leadId,
+      enrollmentId,
+      messageId: "123e4567-e89b-12d3-a456-426614174007",
+      reason: "approved_draft",
+    })).toMatchObject({
+      jobType: "nurture_delivery",
+      reason: "approved_draft",
+      messageId: "123e4567-e89b-12d3-a456-426614174007",
+    });
+  });
+
   it("requires FUB jobs to be explicitly qualified-only", () => {
     expect(() => WorkflowJobPayloadSchema.parse({
       jobType: "fub_sync",

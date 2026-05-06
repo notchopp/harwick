@@ -4,6 +4,7 @@ import type { LeadUpsertRepository } from "./leads";
 import { upsertLeadFromInboundEvent } from "./leads";
 import type { RealtyOpsSupabaseClient } from "./server-client";
 import type { WorkflowJobEnqueuer } from "./workflow-jobs";
+import { recordCurrentPeriodUsageEvent } from "./billing";
 
 export type LeadEventInsertRow = {
   workspace_id: string;
@@ -111,6 +112,51 @@ type ExistingLeadEventRow = {
   provider: NormalizedLeadEvent["provider"];
   provider_event_id: string;
 };
+
+function isSocialReplySent(row: LeadEventInsertRow): boolean {
+  return row.event_type === "reply_sent"
+    && (
+      row.source_channel === "instagram_dm"
+      || row.source_channel === "instagram_comment"
+      || row.source_channel === "facebook_dm"
+      || row.source_channel === "facebook_comment"
+    );
+}
+
+async function recordLeadEventUsageSafely(
+  supabase: RealtyOpsSupabaseClient,
+  rows: LeadEventInsertRow[],
+): Promise<void> {
+  const workspaceIds = [...new Set(rows.map((row) => row.workspace_id))];
+  await Promise.all(workspaceIds.map(async (workspaceId) => {
+    const workspaceRows = rows.filter((row) => row.workspace_id === workspaceId);
+    try {
+      await recordCurrentPeriodUsageEvent(supabase, {
+        workspaceId,
+        eventType: "lead_event",
+        eventCount: workspaceRows.length,
+        eventMetadata: {
+          providers: [...new Set(workspaceRows.map((row) => row.provider))],
+          sourceChannels: [...new Set(workspaceRows.map((row) => row.source_channel))],
+        },
+      });
+
+      const socialReplyCount = workspaceRows.filter(isSocialReplySent).length;
+      if (socialReplyCount > 0) {
+        await recordCurrentPeriodUsageEvent(supabase, {
+          workspaceId,
+          eventType: "social_message_sent",
+          eventCount: socialReplyCount,
+          eventMetadata: {
+            sourceChannels: [...new Set(workspaceRows.filter(isSocialReplySent).map((row) => row.source_channel))],
+          },
+        });
+      }
+    } catch (error) {
+      console.error("[lead-events] failed to record usage event:", error);
+    }
+  }));
+}
 
 export function toLeadEventIdentityKey(identity: LeadEventIdentity): string {
   return `${identity.workspaceId}:${identity.provider}:${identity.providerEventId}`;
@@ -421,7 +467,12 @@ export function createSupabaseLeadEventRepository(
         throw error;
       }
 
-      return data ?? [];
+      const insertedRows = data ?? [];
+      if (insertedRows.length > 0) {
+        await recordLeadEventUsageSafely(supabase, rows);
+      }
+
+      return insertedRows;
     },
 
     async updateLeadsLastMessageAt(params) {

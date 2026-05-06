@@ -1,6 +1,6 @@
 # Realty Ops / Harwick
 
-Realty Ops is the internal repo name for the Harwick product surface. Harwick is a production-first AI operating layer for real estate teams and brokerages. The system captures inbound demand from social channels, public listing pages, and voice calls, holds conversations before a human is needed, qualifies leads, routes work to the right operator or agent, syncs qualified opportunities to Follow Up Boss, and keeps enough audit state for a brokerage to understand why each lead changed.
+Realty Ops is the internal repo name for the Harwick product surface. Harwick is a production-first AI operating system for real estate teams and brokerages: the brokerage's chief-of-staff across inbound demand, qualification, routing, task surfacing, and follow-through. The system captures inbound demand from social channels, public listing pages, and voice calls, holds conversations before a human is needed, qualifies leads, routes work to the right operator or agent, syncs qualified opportunities to Follow Up Boss, and keeps enough audit state for a brokerage to understand why each lead changed.
 
 This README is an internal engineering reference. It is not marketing copy and should be kept accurate as the backend evolves.
 
@@ -23,13 +23,28 @@ Instagram, Facebook, or voice call
 -> surface operator work queues and system health
 ```
 
-## Current Backend Capabilities
+## What Harwick Is Right Now
+
+Harwick is no longer just a reply generator or a DM assistant. In the current codebase it is:
+
+- a multi-tenant workspace operating system for solo agents, teams, and brokerages
+- a typed AI runtime that drives conversation turns, qualification state, routing suggestions, and tool execution
+- a workspace-memory system with semantic retrieval and review controls
+- a proactive work surface that can generate insights, scheduled loop runs, approval-first agent plans, and safe internal subagent follow-through
+- a real-data operator product with home, leads, conversations, work queue, listings, integrations, settings, and health surfaces
+- a provider-backed intake layer across Meta, public listing inquiries, open-house registrations, and Retell voice
+- a billing- and usage-aware platform with plan gates, Stripe checkout, Stripe webhook reconciliation, and metered usage events
+
+Harwick is locally much closer to paid launch than an early prototype, but it is not fully deployed-production-complete yet. The main remaining launch gap is provider-backed staging/production validation and deployed environment completion, not a missing product definition.
+
+## Current Platform Capabilities
 
 ### Harwick AI Runtime
 
 Harwick AI is no longer just a reply prompt. It is modeled as a typed runtime that returns a full conversation turn:
 
 - conversation state and isolated per-thread memory
+- workspace memory retrieval and prompt injection
 - qualification state for buyer, seller, renter, and unknown leads
 - workspace and agent tone profile inputs
 - listing context and post context inputs
@@ -37,6 +52,8 @@ Harwick AI is no longer just a reply prompt. It is modeled as a typed runtime th
 - safety flags, confidence, missing fields, and handoff brief
 - state patches for durable conversation memory
 - typed tool calls for the next action
+- persisted turn, tool, and policy decision outputs
+- approval-first loop plans and internal subagent dispatch records
 
 Runtime contracts live in `packages/core/src/domains/harwick-ai-runtime.ts`.
 
@@ -54,6 +71,15 @@ The current runtime supports tools such as:
 Tool execution is governed by `packages/core/src/domains/harwick-ai-automation-policy.ts` and `packages/integrations/src/harwick-ai-tools.ts`. The AI decides what should happen; automation policy decides whether it is allowed to auto-send; the executor performs, queues, or blocks the tool call.
 
 The current default policy allows safe, high-confidence social replies and qualification questions to auto-send. Showing approvals, routing, CRM sync, pause actions, and risky legal/lending/valuation cases remain approval-gated unless a future policy explicitly allows them.
+
+### Workspace Memory, Insights, And Loops
+
+- Workspace-scoped memory documents with semantic retrieval and review controls.
+- Distillation worker that writes reusable workspace knowledge from real operations.
+- Proactive insight production for ambiguous inbound, dormant active leads, priority follow-up, and memory-derived patterns.
+- Scheduled Harwick loops with saved instruction, cadence, approval mode, and output mode.
+- Approval-first loop execution that can queue safe internal `dispatch_subagent` follow-through without blindly enabling external writes.
+- Policy shadow metrics and reviewable work items for operator oversight.
 
 ### Social Intake
 
@@ -86,6 +112,7 @@ The current default policy allows safe, high-confidence social replies and quali
 - Deterministic scoring and qualification contracts in `packages/core`.
 - Worker job foundation for qualification, assignment, FUB sync, back-sync reconciliation, and task creation.
 - Assignment routing that can prefer source-owned/member-owned channels and balance work across eligible teammates.
+- Connected-member calendar/showing readiness as a routing signal.
 - Lead tasks for callbacks, listing verification, assignment review, FUB retry, and nurture review.
 - Nurture execution foundation with opt-out detection, quiet-hour blocking, step scheduling, durable worker jobs, and reviewable outbound drafts.
 - Conversation-scoped automation state so one lead thread can be paused or taken over without disabling AI for other leads or agents.
@@ -124,13 +151,14 @@ Repliers support exists behind an integration abstraction, but it is dormant unt
 
 ### App UI And Operations
 
-The web app is now more than the first dashboard shell:
+The web app is now a real operator product, not just the first dashboard shell:
 
-- `/home`: operator work surface with queue, routing desk, health, recent leads, and role-aware context.
-- `/leads`: list/card lead views with filters, pagination, detail sheet, automation state, and timeline-backed context.
-- `/conversations`: conversation workspace backed by conversation data contracts.
+- `/home`: role-aware work surface with queue, routing desk, readiness cards, recent leads, insights, and loop/subagent outcomes.
+- `/leads`: list/card lead views with filters, pagination, detail sheet, automation state, qualification updates, routing action, and timeline-backed context.
+- `/conversations`: conversation workspace backed by canonical conversation data, live synthesis, transcript activity trails, and no shipped sandbox fallback.
 - `/listings`: internal inventory management with list/card views, pagination, manual listing actions, CSV import, and media upload.
-- `/integrations`: customer-owned connections for Meta, Follow Up Boss, and calendar-facing setup surfaces.
+- `/integrations`: customer-owned connections for Meta, Follow Up Boss, calendar setup, and provider-key test/save surfaces.
+- `/settings`: billing, workspace memory review, Harwick loops, and workspace configuration.
 - `/login`: minimal Supabase-auth login screen.
 - shared app shell, workspace topbar, muted navigation, design tokens, and shadcn/Radix-based primitives.
 
@@ -144,6 +172,16 @@ There are two health surfaces:
 - `/api/health/systems`: product-safe systems health response for UI surfaces.
 
 The product-safe health API exposes labels such as Lead intake, Harwick AI, Voice system, Listing system, CRM sync, and Background jobs. It intentionally avoids leaking internal stack or vendor names.
+
+### Billing, Usage, And Launch Readiness
+
+- Stripe checkout, customer portal, webhook verification, and subscription reconciliation exist.
+- Plan gates and usage recording exist for lead events, AI turns, outbound sends, voice minutes, and listing counts.
+- `npm run launch:check` combines launch-readiness tests, staging smoke coverage, release checks, build, and remote RLS verification.
+- `npm run launch:env:audit` verifies deployed Vercel environment variable names without printing secrets.
+- `npm run launch:env:sources` verifies which required launch variables are already sourceable locally by exact or alias name.
+
+The current launch posture is: local product and local release proof are strong, but deployed provider validation and final staging/production environment completion are still required before calling Harwick fully live.
 
 ## Architecture
 

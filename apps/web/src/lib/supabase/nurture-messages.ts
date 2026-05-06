@@ -2,6 +2,8 @@ import type { NurtureMessage } from "@realty-ops/core";
 import type { NurtureMessageRepository } from "../../features/nurture/nurture-message-actions";
 import type { NurtureMessageRow } from "./database.types";
 import type { RealtyOpsSupabaseClient } from "./server-client";
+import { recordCurrentPeriodUsageEvent } from "./billing";
+import { createWorkflowJobEnqueuer } from "./workflow-jobs";
 
 function mapNurtureMessage(row: NurtureMessageRow): NurtureMessage {
   return {
@@ -65,6 +67,37 @@ export function createSupabaseNurtureMessageRepository(
       }
 
       return data === null ? null : mapNurtureMessage(data);
+    },
+
+    async recordUsageEvent(params) {
+      await recordCurrentPeriodUsageEvent(supabase, {
+        workspaceId: params.workspaceId,
+        eventType: "ai_message_sent",
+        resourceId: params.message.id,
+        eventMetadata: {
+          kind: "nurture_message",
+          leadId: params.message.leadId,
+          channel: params.message.channel,
+        },
+      });
+    },
+
+    async enqueueDeliveryJob(params) {
+      await createWorkflowJobEnqueuer(supabase)({
+        workspaceId: params.workspaceId,
+        leadId: params.message.leadId,
+        leadEventId: null,
+        jobType: "nurture_delivery",
+        payload: {
+          jobType: "nurture_delivery",
+          workspaceId: params.workspaceId,
+          leadId: params.message.leadId,
+          enrollmentId: params.message.enrollmentId,
+          messageId: params.message.id,
+          reason: "approved_draft",
+        },
+        idempotencyKey: `nurture_delivery:${params.message.enrollmentId}:${params.message.id}:approved`,
+      });
     },
   };
 }

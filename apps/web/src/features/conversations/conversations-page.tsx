@@ -13,15 +13,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { SearchGlyph } from "../../components/harwick-icons";
 import { WorkspaceTopbar } from "../../components/workspace-topbar";
 import { cn } from "../../lib/utils";
-import {
-  appendConversationLeadMessage,
-  conversationSandboxPromptLibrary,
-  isConversationSandboxThread,
-} from "./conversation-sandbox";
-import {
-  draftConversationSandboxReplySet,
-  type SandboxReplySet,
-} from "./conversation-sandbox-reply";
 import { useRealtimeThreadSync } from "./use-realtime-thread-sync";
 import { LeadActionToolbar } from "./lead-action-toolbar";
 
@@ -220,8 +211,6 @@ export function ConversationsPageContent(props: {
   const [selectedId, setSelectedId] = useState("");
   const [search, setSearch] = useState("");
   const [reply, setReply] = useState("");
-  const [sandboxLeadMessage, setSandboxLeadMessage] = useState("");
-  const [sandboxReplySets, setSandboxReplySets] = useState<Record<string, SandboxReplySet>>({});
   const [actionBusy, setActionBusy] = useState(false);
   const [actionStatus, setActionStatus] = useState<string | null>(null);
 
@@ -370,22 +359,15 @@ export function ConversationsPageContent(props: {
   useEffect(() => {
     if (selectedThread === null) {
       setReply("");
-      setSandboxLeadMessage("");
       return;
     }
 
     setReply(getThreadDraft(selectedThread));
-    setSandboxLeadMessage("");
     setActionStatus(null);
   }, [selectedThread?.id]);
 
   function updateThreadLocally(threadId: string, updater: (thread: ConversationInboxThread) => ConversationInboxThread) {
     setThreads((current) => current.map((thread) => (thread.id === threadId ? updater(thread) : thread)));
-  }
-
-  function applySandboxSuggestion(threadId: string, draft: string) {
-    setReply(draft);
-    updateThreadLocally(threadId, (thread) => applyLocalDraft(thread, draft));
   }
 
   async function sendLeadConversationMessage(thread: ConversationInboxThread, draft: string) {
@@ -496,18 +478,6 @@ export function ConversationsPageContent(props: {
       return;
     }
 
-    if (isConversationSandboxThread(targetThread)) {
-      const replySet = draftConversationSandboxReplySet(targetThread);
-      setSandboxReplySets((current) => ({
-        ...current,
-        [targetThread.id]: replySet,
-      }));
-      setReply(replySet.primary.reply);
-      updateThreadLocally(targetThread.id, (thread) => applyLocalDraft(thread, replySet.primary.reply));
-      setActionStatus(`Generated ${replySet.suggestions.length} sandbox suggestions.`);
-      return;
-    }
-
     try {
       setActionBusy(true);
       setActionStatus("Generating AI action...");
@@ -565,29 +535,6 @@ export function ConversationsPageContent(props: {
       setActionBusy(false);
     }
   }
-
-  async function handleSandboxLeadTurn(messageOverride?: string) {
-    if (selectedThread === null || !isConversationSandboxThread(selectedThread)) {
-      return;
-    }
-
-    const inboundMessage = (messageOverride ?? sandboxLeadMessage).trim();
-    if (inboundMessage.length === 0) {
-      setActionStatus("Write the next inbound lead message first.");
-      return;
-    }
-
-    const updatedThread = appendConversationLeadMessage(selectedThread, inboundMessage);
-    updateThreadLocally(selectedThread.id, () => updatedThread);
-    setSandboxLeadMessage("");
-    setReply("");
-    setActionStatus("Sandbox lead message added. Generating the next Harwick action...");
-    await handleGenerateAction(updatedThread);
-  }
-
-  const sandboxMode = selectedThread !== null && isConversationSandboxThread(selectedThread);
-  const activeSandboxReplySet = selectedThread === null ? null : (sandboxReplySets[selectedThread.id] ?? null);
-  const selectedSandboxThreadId = sandboxMode ? selectedThread?.id ?? null : null;
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-background">
@@ -753,95 +700,6 @@ export function ConversationsPageContent(props: {
               </div>
 
               <div className="shrink-0 border-t border-border bg-surface px-[14px] py-3">
-                {sandboxMode ? (
-                  <div className="mb-3 rounded-[10px] border border-border bg-surface-muted p-3">
-                    <div className="mb-2 text-[9.5px] font-medium uppercase tracking-[0.12em] text-muted-subtle">
-                      Sandbox lead simulator
-                    </div>
-                    <div className="mb-2 flex flex-wrap gap-2">
-                      {conversationSandboxPromptLibrary.map((prompt) => (
-                      <button
-                        className="harwick-pill px-[10px] py-[4px] text-[10.5px] font-medium text-muted transition-all hover:-translate-y-px hover:border-border-strong hover:text-foreground"
-                          key={prompt.id}
-                          onClick={() => setSandboxLeadMessage(prompt.message)}
-                          type="button"
-                        >
-                          {prompt.label}
-                        </button>
-                      ))}
-                    </div>
-                    <textarea
-                      className="harwick-control min-h-[52px] w-full resize-none px-[11px] py-[9px] text-[12px] placeholder:text-muted-subtle"
-                      onChange={(event) => setSandboxLeadMessage(event.target.value)}
-                      placeholder="Type the next inbound DM or comment you want Harwick to answer..."
-                      value={sandboxLeadMessage}
-                    />
-                    <div className="mt-2 flex items-center gap-3">
-                      <div className="flex-1 text-[11px] text-muted-subtle">
-                        This appends a local lead message and generates a full Harwick suggestion set for the next turn.
-                      </div>
-                      <button
-                        className="harwick-pill px-[11px] py-[4px] text-[11px] font-medium text-muted transition-all hover:-translate-y-px hover:border-border-strong hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
-                        disabled={actionBusy}
-                        onClick={() => void handleSandboxLeadTurn()}
-                        type="button"
-                      >
-                        Simulate Lead Message
-                      </button>
-                    </div>
-                    {activeSandboxReplySet ? (
-                      <div className="mt-3 rounded-[9px] border border-border bg-surface p-3">
-                        <div className="text-[9.5px] font-medium uppercase tracking-[0.12em] text-muted-subtle">
-                          Harwick read
-                        </div>
-                        <div className="mt-1 text-[11.5px] leading-5 text-foreground">
-                          {activeSandboxReplySet.coachNote}
-                        </div>
-                        {activeSandboxReplySet.detectedSignals.length > 0 ? (
-                          <div className="mt-2 flex flex-wrap gap-1.5">
-                            {activeSandboxReplySet.detectedSignals.map((signal) => (
-                              <span
-                                className="rounded-full border border-border bg-surface-muted px-[8px] py-[3px] text-[10px] text-muted"
-                                key={signal}
-                              >
-                                {signal}
-                              </span>
-                            ))}
-                          </div>
-                        ) : null}
-                        <div className="mt-3 grid gap-2">
-                          {activeSandboxReplySet.suggestions.map((suggestion) => {
-                            const active = reply.trim() === suggestion.reply.trim();
-                            return (
-                              <button
-                                className={cn(
-                                  "rounded-[9px] border px-3 py-2 text-left transition-colors",
-                                  active
-                                    ? "border-foreground bg-surface-muted"
-                                    : "border-border bg-white hover:border-border-strong hover:bg-surface-muted",
-                                )}
-                                key={suggestion.id}
-                                onClick={() => {
-                                  if (selectedSandboxThreadId !== null) {
-                                    applySandboxSuggestion(selectedSandboxThreadId, suggestion.reply);
-                                  }
-                                }}
-                                type="button"
-                              >
-                                <div className="mb-1 text-[10px] font-medium uppercase tracking-[0.08em] text-muted-subtle">
-                                  {suggestion.label}
-                                </div>
-                                <div className="text-[12px] leading-5 text-foreground">
-                                  {suggestion.reply}
-                                </div>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
                 <div className="mb-2 flex items-center justify-between gap-2 text-[11px] text-muted-subtle">
                   <span>{composerContextLabel(selectedThread)}</span>
                   <button

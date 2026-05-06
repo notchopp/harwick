@@ -6,6 +6,18 @@ import type { ConversationInboxThread } from "@realty-ops/core";
 import type { ConversationMessageRow } from "../../lib/supabase/conversation-messages";
 import type { LeadRow } from "../../lib/supabase/leads";
 
+function messageMetaForRealtimeRow(message: ConversationMessageRow): string {
+  const statusSuffix = message.status === "failed"
+    ? " · failed"
+    : message.status === "in_progress"
+      ? " · sending"
+      : "";
+
+  if (message.sender_type === "customer") return `Customer replied${statusSuffix}`;
+  if (message.sender_type === "ai") return `Harwick AI${statusSuffix}`;
+  return `Operator replied${statusSuffix}`;
+}
+
 /**
  * Bridge layer to sync realtime conversation updates into the page's thread state.
  * Handles:
@@ -26,66 +38,60 @@ export function useRealtimeThreadSync(
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "",
     );
 
-    // Find selected thread to get lead ID
+    const channels: ReturnType<typeof supabase.channel>[] = [];
+
+    const messagesChannel = supabase
+      .channel(`workspace-messages:${workspaceId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "conversation_messages",
+          filter: `workspace_id=eq.${workspaceId}`,
+        },
+        (payload) => {
+          const message = payload.new as ConversationMessageRow;
+
+          onThreadsUpdate((current) =>
+            current.map((thread) => {
+              if (thread.leadId !== message.lead_id) return thread;
+
+              const newMessage = {
+                id: message.id,
+                kind: message.sender_type === "customer" ? "lead" as const : "sent" as const,
+                body: message.body,
+                meta: messageMetaForRealtimeRow(message),
+                occurredAt: message.created_at,
+                agentTrajectoryId: message.agent_trajectory_id,
+                agentStepId: message.agent_step_id,
+              };
+              const messages = thread.messages.some((existing) => existing.id === message.id)
+                ? thread.messages
+                : [...thread.messages, newMessage].sort((left, right) => (
+                  Date.parse(left.occurredAt) - Date.parse(right.occurredAt)
+                ));
+
+              return {
+                ...thread,
+                messages,
+                preview: message.body,
+                lastTouchLabel: "now",
+                unread: thread.id !== selectedThreadId,
+              };
+            }),
+          );
+        },
+      )
+      .subscribe();
+
+    channels.push(messagesChannel);
+
+    // Find selected thread to get lead ID for lead-context updates.
     const selectedThread = selectedThreadId ? threads.find((t) => t.id === selectedThreadId) : null;
     const selectedLeadId = selectedThread?.leadId ?? null;
 
-    const channels: ReturnType<typeof supabase.channel>[] = [];
-
-    // Only subscribe when a thread is selected
     if (selectedLeadId) {
-      // Subscription: New messages in selected thread
-      const messagesChannel = supabase
-        .channel(`thread-messages:${selectedLeadId}`)
-        .on(
-          "postgres_changes",
-          {
-            event: "INSERT",
-            schema: "public",
-            table: "conversation_messages",
-            filter: `lead_id=eq.${selectedLeadId}`,
-          },
-          (payload) => {
-            const message = payload.new as ConversationMessageRow;
-
-            // Update the selected thread with new message
-            onThreadsUpdate((current) =>
-              current.map((thread) => {
-                if (thread.id !== selectedThreadId) return thread;
-
-                // Map conversation message to thread message format
-                const newMessage = {
-                  id: message.id,
-                  kind: (message.sender_type === "customer" ? "lead" : message.sender_type) as
-                    | "lead"
-                    | "ai_action"
-                    | "sent"
-                    | "system",
-                  body: message.body,
-                  meta:
-                    message.sender_type === "customer"
-                      ? "Customer replied"
-                      : message.sender_type === "ai"
-                        ? "Harwick AI"
-                        : "Operator replied",
-                  occurredAt: message.created_at,
-                };
-
-                return {
-                  ...thread,
-                  messages: [...thread.messages, newMessage],
-                  preview: message.body,
-                  lastTouchLabel: "now",
-                  unread: false,
-                };
-              }),
-            );
-          },
-        )
-        .subscribe();
-
-      channels.push(messagesChannel);
-
       // Subscription: Lead context updates (budget, intent, timeline, etc.)
       const leadChannel = supabase
         .channel(`thread-lead:${selectedLeadId}`)

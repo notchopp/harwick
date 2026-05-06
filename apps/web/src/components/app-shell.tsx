@@ -22,24 +22,24 @@ import { cn } from "../lib/utils";
 type AppShellProps = {
   activeItem?: string;
   children: ReactNode;
+  memberName?: string;
+  memberRole?: string;
   title?: string;
   workspaceName?: string;
 };
 
 type NavigationItem = {
-  badgeTone?: "brass" | "dim" | "oxblood";
   label: string;
-  count?: string;
   href: string;
   icon: typeof LayoutGrid;
 };
 
 const operationItems: NavigationItem[] = [
-  { label: "Work Queue", count: "7", badgeTone: "brass", href: "/home", icon: LayoutGrid },
-  { label: "Leads", count: "3", badgeTone: "oxblood", href: "/leads", icon: UsersRound },
-  { label: "Conversations", count: "12", badgeTone: "dim", href: "/conversations", icon: MessageSquare },
+  { label: "Work Queue", href: "/home", icon: LayoutGrid },
+  { label: "Leads", href: "/leads", icon: UsersRound },
+  { label: "Conversations", href: "/conversations", icon: MessageSquare },
   { label: "Listings", href: "/listings", icon: Home },
-  { label: "Voice Calls", count: "2", badgeTone: "oxblood", href: "/home", icon: Phone },
+  { label: "Voice Calls", href: "/home", icon: Phone },
 ];
 
 const systemItems: NavigationItem[] = [
@@ -87,18 +87,6 @@ function NavGroup(props: { activeItem: string; collapsed?: boolean; label: strin
                 strokeWidth={1.8} 
               />
               {props.collapsed ? null : <span className="min-w-0 flex-1 truncate">{item.label}</span>}
-              {item.count && !props.collapsed ? (
-                <span
-                  className={cn(
-                    "rounded-full px-[7px] py-px text-[10px] font-semibold leading-4",
-                    item.badgeTone === "oxblood" && "bg-oxblood text-white",
-                    item.badgeTone === "brass" && "bg-harwick-brass text-harwick-ink",
-                    item.badgeTone === "dim" && "bg-white/10 text-white/[0.45]",
-                  )}
-                >
-                  {item.count}
-                </span>
-              ) : null}
             </a>
           );
         })}
@@ -107,10 +95,20 @@ function NavGroup(props: { activeItem: string; collapsed?: boolean; label: strin
   );
 }
 
+function formatRoleLabel(value: string): string {
+  return value
+    .split("_")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ") || "Member";
+}
+
 export function AppShell(props: AppShellProps) {
   const activeItem = props.activeItem ?? "Work Queue";
-  const workspaceName = props.workspaceName ?? "Prestige Realty";
-  const [activeRole, setActiveRole] = useState<"Agent" | "Broker" | "Lead">("Agent");
+  const workspaceName = props.workspaceName ?? "Workspace";
+  const memberName = props.memberName?.trim() || "Workspace member";
+  const memberRole = formatRoleLabel(props.memberRole?.trim() || "member");
+  const workspaceInitial = workspaceName.trim().charAt(0).toUpperCase() || "W";
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const sidebarMaterial = useMemo(() => generateGreenMaterial("harwick-sidebar"), []);
 
@@ -169,25 +167,6 @@ export function AppShell(props: AppShellProps) {
           </div>
         </div>
 
-        {sidebarOpen ? (
-          <div className="relative z-10 mx-2.5 mb-3.5 flex rounded-[9px] bg-white/[0.06] p-[3px]">
-            {(["Agent", "Lead", "Broker"] as const).map((role) => (
-              <button
-                aria-pressed={activeRole === role}
-                className={cn(
-                  "flex-1 rounded-[7px] py-[5px] text-[10px] tracking-[0.02em] transition-all",
-                  activeRole === role ? "bg-white/[0.12] text-white" : "text-white/[0.38]",
-                )}
-                key={role}
-                onClick={() => setActiveRole(role)}
-                type="button"
-              >
-                {role}
-              </button>
-            ))}
-          </div>
-        ) : null}
-
         <nav aria-label="primary navigation" className="relative z-10 flex flex-1 flex-col overflow-y-auto px-2">
           <NavGroup activeItem={activeItem} collapsed={!sidebarOpen} items={operationItems} label="Operations" />
           <div className="mt-2">
@@ -201,7 +180,7 @@ export function AppShell(props: AppShellProps) {
         <div className={cn("relative z-10 mt-2 border-t border-white/[0.08] pb-5 pt-4", sidebarOpen ? "px-4" : "px-2")}>
           <button className={cn("flex w-full items-center text-left", sidebarOpen ? "gap-2.5" : "justify-center")} type="button">
             <span className="flex h-[31px] w-[31px] shrink-0 items-center justify-center rounded-[9px] bg-harwick-brass font-display text-[15px] font-semibold text-harwick-ink">
-              P
+              {workspaceInitial}
             </span>
             {sidebarOpen ? (
               <>
@@ -209,7 +188,7 @@ export function AppShell(props: AppShellProps) {
                   <span className="block truncate text-[12px] font-medium text-white/[0.72]">
                     {workspaceName}
                   </span>
-                  <span className="block truncate text-[10px] text-white/[0.28]">{activeRole} · Sarah Kim</span>
+                  <span className="block truncate text-[10px] text-white/[0.28]">{memberRole} · {memberName}</span>
                 </span>
                 <ChevronDown aria-hidden="true" className="h-3.5 w-3.5 text-white/[0.24]" strokeWidth={1.8} />
               </>

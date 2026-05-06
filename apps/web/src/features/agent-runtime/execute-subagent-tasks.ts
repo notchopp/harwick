@@ -2,6 +2,10 @@ import { HarwickWorkItemCreateSchema, type HarwickWorkItemCreate, type Workspace
 import type { SmallModelClient } from "@realty-ops/integrations";
 import { z } from "zod";
 import type { HarwickWorkItemRepository } from "../../lib/supabase/harwick-work-items";
+import {
+  intelligizeHarwickWorkItem,
+  type HarwickWorkItemIntelligenceClient,
+} from "./harwick-work-item-intelligence";
 
 export type HarwickSubagentType = "research" | "writer" | "calendar" | "routing";
 
@@ -62,6 +66,7 @@ export type HarwickSubagentExecutionDeps = {
   taskRepository: HarwickSubagentTaskRepository;
   workItemRepository: Pick<HarwickWorkItemRepository, "createWorkItem" | "findOpenInsightBySignalKey">;
   executorClient?: HarwickSubagentExecutorClient;
+  intelligenceClient?: HarwickWorkItemIntelligenceClient;
   now?: () => Date;
   batchSize?: number;
 };
@@ -219,7 +224,14 @@ export async function executeHarwickSubagentTasks(
           workspaceId: task.workspaceId,
           leadId: task.leadId,
         });
-      const workItem = buildResultWorkItem({ task, result, assignedMemberId });
+      const workItem = await intelligizeHarwickWorkItem({
+        context: {
+          signalKey,
+          source: "subagent_result",
+          item: buildResultWorkItem({ task, result, assignedMemberId }),
+        },
+        ...(deps.intelligenceClient === undefined ? {} : { client: deps.intelligenceClient }),
+      });
       await deps.workItemRepository.createWorkItem(workItem);
       surfaced += 1;
     } catch (error) {

@@ -177,7 +177,7 @@ begin
     coalesce(sum(case when event_type = 'ai_message_sent' then event_count else 0 end), 0) as ai_message_sent_count,
     coalesce(sum(case when event_type = 'social_message_sent' then event_count else 0 end), 0) as social_message_sent_count,
     coalesce(sum(case when event_type = 'voice_call_minute' then event_count else 0 end), 0) as voice_call_minutes,
-    (select count(*) from public.listings where workspace_id = p_workspace_id and status != 'archived') as listing_count,
+    (select count(*) from public.listing_facts where workspace_id = p_workspace_id and coalesce(status, 'active') != 'archived') as listing_count,
     (select count(*) from public.workspace_members where workspace_id = p_workspace_id and is_active = true) as active_seat_count,
     (select count(*) from public.integration_accounts where workspace_id = p_workspace_id and status in ('connected', 'pending')) as active_integration_account_count,
     now(),

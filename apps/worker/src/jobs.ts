@@ -89,6 +89,7 @@ export type WorkflowJobServices = {
     workspaceId: string;
     leadId: string;
     enrollmentId: string;
+    messageId?: string | undefined;
   }): Promise<string>;
   processListingRecheck?(params: {
     workspaceId: string;
@@ -283,6 +284,7 @@ export async function handleWorkflowJob(
           workspaceId: job.payload.workspaceId,
           leadId: job.payload.leadId,
           enrollmentId: job.payload.enrollmentId,
+          messageId: job.payload.messageId,
         }),
       };
     case "harwick_ai_reply":

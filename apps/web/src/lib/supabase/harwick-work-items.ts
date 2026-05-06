@@ -11,8 +11,13 @@ import type {
   DormantLead,
   UnassignedPriorityLead,
   WorkspaceMemoryPattern,
+  WorkspaceMemoryReviewStats,
 } from "../../features/agent-runtime/proactive-insights";
-import type { HarwickWorkItemInsertRow, Json, TablesUpdate } from "./database.types";
+import type {
+  HarwickLoopApprovalRepository,
+  HarwickLoopWorkItemForApproval,
+} from "../../features/agent-runtime/approve-harwick-loop-work-item";
+import type { HarwickWorkItemInsertRow, Json, TablesInsert, TablesUpdate } from "./database.types";
 import type { RealtyOpsSupabaseClient } from "./server-client";
 
 export type HarwickWorkItemFeedbackLabel =
@@ -85,6 +90,13 @@ type WorkItemActionRow = {
   payload: Json;
 };
 
+type LoopApprovalWorkItemRow = WorkItemActionRow & {
+  workspace_id: string;
+  item_type: string;
+  status: string;
+  priority: string;
+};
+
 type HomeWorkItemRow = {
   id: string;
   workspace_id: string;
@@ -100,6 +112,7 @@ type HomeWorkItemRow = {
   target_role: string | null;
   created_at: string;
   due_at: string | null;
+  payload: Json;
 };
 
 function canSeeWorkItem(
@@ -129,6 +142,7 @@ function mapHomeWorkItemRow(row: HomeWorkItemRow): HarwickHomeWorkItem {
     targetRole: row.target_role,
     createdAt: row.created_at,
     dueAt: row.due_at,
+    payload: payloadAsRecord(row.payload),
   });
 }
 
@@ -172,10 +186,36 @@ type WorkspaceMemoryPatternRow = {
   updated_at: string;
 };
 
+type WorkspaceMemoryReviewStatsRow = {
+  workspace_id: string;
+  review_status: string;
+  reviewed_at: string | null;
+  updated_at: string;
+};
+
 function payloadAsRecord(payload: Json): Record<string, unknown> {
   return typeof payload === "object" && payload !== null && !Array.isArray(payload)
     ? payload
     : {};
+}
+
+function parseWorkItemPriority(value: string): HarwickLoopWorkItemForApproval["priority"] {
+  if (value === "low" || value === "high" || value === "urgent") return value;
+  return "normal";
+}
+
+function mapLoopApprovalWorkItemRow(row: LoopApprovalWorkItemRow): HarwickLoopWorkItemForApproval {
+  return {
+    id: row.id,
+    workspaceId: row.workspace_id,
+    leadId: row.lead_id,
+    trajectoryId: row.trajectory_id,
+    stepId: row.step_id,
+    type: row.item_type,
+    status: row.status,
+    priority: parseWorkItemPriority(row.priority),
+    payload: payloadAsRecord(row.payload),
+  };
 }
 
 export function createSupabaseHarwickWorkItemRepository(
@@ -202,7 +242,6 @@ export function createSupabaseHarwickWorkItemRepository(
         .from("harwick_work_items")
         .select("id")
         .eq("workspace_id", params.workspaceId)
-        .eq("item_type", "insight")
         .in("status", ["pending", "surfaced", "seen"])
         .contains("payload", { signalKey: params.signalKey })
         .limit(1)
@@ -247,7 +286,7 @@ export function createSupabaseHarwickWorkItemRepository(
     async listVisibleHomeWorkItems(params) {
       const { data, error } = await supabase
         .from("harwick_work_items")
-        .select("id, workspace_id, lead_id, item_type, status, priority, title, summary, recommended_action, reason, target_member_id, target_role, created_at, due_at")
+        .select("id, workspace_id, lead_id, item_type, status, priority, title, summary, recommended_action, reason, target_member_id, target_role, created_at, due_at, payload")
         .eq("workspace_id", params.workspaceId)
         .in("status", ["pending", "surfaced", "seen"])
         .order("priority", { ascending: false })
@@ -400,6 +439,115 @@ export function createSupabaseHarwickWorkItemRepository(
           lastObservedAt: row.last_observed_at,
           updatedAt: row.updated_at,
         }));
+    },
+
+    async listWorkspaceMemoryReviewStats(params) {
+      const { data, error } = await supabase
+        .from("workspace_memory_documents")
+        .select("workspace_id, review_status, reviewed_at, updated_at")
+        .gte("updated_at", params.sinceIso)
+        .order("updated_at", { ascending: false })
+        .limit(params.limit * 50);
+
+      if (error !== null) {
+        throw error;
+      }
+
+      const grouped = new Map<string, WorkspaceMemoryReviewStats>();
+
+      for (const row of (data ?? []) as WorkspaceMemoryReviewStatsRow[]) {
+        const current = grouped.get(row.workspace_id) ?? {
+          workspaceId: row.workspace_id,
+          pendingCount: 0,
+          approvedCount: 0,
+          dismissedCount: 0,
+          latestObservedAt: row.reviewed_at ?? row.updated_at,
+        };
+        if (row.review_status === "pending") {
+          current.pendingCount += 1;
+        } else if (row.review_status === "approved") {
+          current.approvedCount += 1;
+        } else if (row.review_status === "dismissed") {
+          current.dismissedCount += 1;
+        }
+
+        const observedAt = row.reviewed_at ?? row.updated_at;
+        if (Date.parse(observedAt) > Date.parse(current.latestObservedAt)) {
+          current.latestObservedAt = observedAt;
+        }
+        grouped.set(row.workspace_id, current);
+      }
+
+      return [...grouped.values()]
+        .sort((a, b) => Date.parse(b.latestObservedAt) - Date.parse(a.latestObservedAt))
+        .slice(0, params.limit);
+    },
+  };
+}
+
+export function createSupabaseHarwickLoopApprovalRepository(
+  supabase: RealtyOpsSupabaseClient,
+): HarwickLoopApprovalRepository {
+  return {
+    async getLoopWorkItemForApproval(params) {
+      const { data, error } = await supabase
+        .from("harwick_work_items")
+        .select("id, workspace_id, lead_id, trajectory_id, step_id, item_type, status, priority, payload")
+        .eq("workspace_id", params.workspaceId)
+        .eq("id", params.workItemId)
+        .maybeSingle<LoopApprovalWorkItemRow>();
+
+      if (error !== null) {
+        throw error;
+      }
+
+      return data === null ? null : mapLoopApprovalWorkItemRow(data);
+    },
+
+    async enqueueLoopSubagentTask(params) {
+      const insert: TablesInsert<"harwick_subagent_tasks"> = {
+        workspace_id: params.workspaceId,
+        lead_id: params.leadId,
+        trajectory_id: params.trajectoryId,
+        step_id: params.stepId,
+        subagent_type: params.subagentType,
+        status: "queued",
+        priority: params.priority,
+        title: params.title,
+        instructions: params.instructions,
+        payload: params.payload as Json,
+        created_at: params.nowIso,
+        updated_at: params.nowIso,
+      };
+      const { data, error } = await supabase
+        .from("harwick_subagent_tasks")
+        .insert(insert)
+        .select("id")
+        .single<{ id: string }>();
+
+      if (error !== null) {
+        throw error;
+      }
+
+      return { taskId: data.id };
+    },
+
+    async completeLoopWorkItemApproval(params) {
+      const update: TablesUpdate<"harwick_work_items"> = {
+        status: "completed",
+        completed_at: params.nowIso,
+        updated_at: params.nowIso,
+        payload: params.payload as Json,
+      };
+      const { error } = await supabase
+        .from("harwick_work_items")
+        .update(update)
+        .eq("workspace_id", params.workspaceId)
+        .eq("id", params.workItemId);
+
+      if (error !== null) {
+        throw error;
+      }
     },
   };
 }

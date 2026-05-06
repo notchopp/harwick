@@ -26,6 +26,10 @@ describe("HarwickHomeWorkItemsResponseSchema", () => {
           targetRole: null,
           createdAt: "2026-05-05T12:00:00.000Z",
           dueAt: null,
+          payload: {
+            signalType: "harwick_loop_due",
+            outputMode: "agent_loop",
+          },
         }],
       }),
     ).toMatchObject({
@@ -34,6 +38,10 @@ describe("HarwickHomeWorkItemsResponseSchema", () => {
         id: workItemId,
         type: "insight",
         targetMemberId: memberId,
+        payload: {
+          signalType: "harwick_loop_due",
+          outputMode: "agent_loop",
+        },
       }],
     });
   });

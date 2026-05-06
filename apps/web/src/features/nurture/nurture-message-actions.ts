@@ -24,6 +24,14 @@ export type NurtureMessageRepository = {
       lastErrorMessage?: string | null;
     };
   }): Promise<NurtureMessage | null>;
+  recordUsageEvent?(params: {
+    workspaceId: string;
+    message: NurtureMessage;
+  }): Promise<void>;
+  enqueueDeliveryJob?(params: {
+    workspaceId: string;
+    message: NurtureMessage;
+  }): Promise<void>;
 };
 
 export async function actOnNurtureMessage(params: {
@@ -54,7 +62,7 @@ export async function actOnNurtureMessage(params: {
     });
   }
 
-  return params.repository.updateNurtureMessage({
+  const updated = await params.repository.updateNurtureMessage({
     workspaceId: params.workspaceId,
     messageId: params.messageId,
     values: {
@@ -63,6 +71,15 @@ export async function actOnNurtureMessage(params: {
       lastErrorMessage: null,
     },
   });
+
+  if (updated !== null && params.repository.enqueueDeliveryJob !== undefined) {
+    await params.repository.enqueueDeliveryJob({
+      workspaceId: params.workspaceId,
+      message: updated,
+    });
+  }
+
+  return updated;
 }
 
 export async function recordNurtureDeliveryReceipt(params: {
@@ -85,6 +102,10 @@ export async function recordNurtureDeliveryReceipt(params: {
     });
   }
 
+  const existingMessage = await params.repository.findNurtureMessage({
+    workspaceId: params.workspaceId,
+    messageId: params.messageId,
+  });
   const updated = await params.repository.updateNurtureMessage({
     workspaceId: params.workspaceId,
     messageId: params.messageId,
@@ -96,6 +117,21 @@ export async function recordNurtureDeliveryReceipt(params: {
       lastErrorMessage: null,
     },
   });
+
+  if (
+    updated !== null
+    && existingMessage?.status !== "sent"
+    && params.repository.recordUsageEvent !== undefined
+  ) {
+    try {
+      await params.repository.recordUsageEvent({
+        workspaceId: params.workspaceId,
+        message: updated,
+      });
+    } catch (error) {
+      console.error("[nurture] failed to record sent-message usage", error);
+    }
+  }
 
   return updated === null ? null : NurtureMessageSchema.parse(updated);
 }

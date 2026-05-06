@@ -7,6 +7,7 @@ import {
   type ProactiveInsightRepository,
   type UnassignedPriorityLead,
   type WorkspaceMemoryPattern,
+  type WorkspaceMemoryReviewStats,
 } from "./proactive-insights";
 
 const workspaceId = "00000000-0000-0000-0000-000000000001";
@@ -20,6 +21,7 @@ function createRepository(params: {
   unassignedLeads?: UnassignedPriorityLead[];
   dormantLeads?: DormantLead[];
   workspacePatterns?: WorkspaceMemoryPattern[];
+  memoryReviewStats?: WorkspaceMemoryReviewStats[];
   existingSignalKeys?: Set<string>;
   created?: HarwickWorkItemCreate[];
 }): ProactiveInsightRepository {
@@ -28,6 +30,7 @@ function createRepository(params: {
     listUnassignedPriorityLeads: vi.fn(() => Promise.resolve(params.unassignedLeads ?? [])),
     listDormantLeads: vi.fn(() => Promise.resolve(params.dormantLeads ?? [])),
     listWorkspaceMemoryPatterns: vi.fn(() => Promise.resolve(params.workspacePatterns ?? [])),
+    listWorkspaceMemoryReviewStats: vi.fn(() => Promise.resolve(params.memoryReviewStats ?? [])),
     findOpenInsightBySignalKey: vi.fn((input: { workspaceId: string; signalKey: string }) =>
       Promise.resolve(params.existingSignalKeys?.has(input.signalKey) === true ? { id: "existing-item" } : null)
     ),
@@ -88,6 +91,13 @@ describe("surfaceProactiveInsights", () => {
         lastObservedAt: "2026-05-05T10:00:00.000Z",
         updatedAt: "2026-05-05T10:05:00.000Z",
       }],
+      memoryReviewStats: [{
+        workspaceId,
+        pendingCount: 6,
+        approvedCount: 2,
+        dismissedCount: 0,
+        latestObservedAt: "2026-05-05T11:30:00.000Z",
+      }],
     });
 
     const report = await surfaceProactiveInsights({
@@ -98,8 +108,8 @@ describe("surfaceProactiveInsights", () => {
     });
 
     expect(report).toEqual({
-      scanned: 4,
-      created: 4,
+      scanned: 5,
+      created: 5,
       refined: 0,
       skippedExisting: 0,
       errors: 0,
@@ -112,24 +122,31 @@ describe("surfaceProactiveInsights", () => {
         title: "Review ambiguous inbound",
       }),
       expect.objectContaining({
-        type: "insight",
+        type: "approval",
         targetRole: "team_lead",
         targetMemberId: null,
         priority: "high",
         title: "Priority lead needs assignment",
       }),
       expect.objectContaining({
-        type: "insight",
+        type: "approval",
         targetRole: null,
         targetMemberId: agentId,
         title: "Lead has gone quiet",
       }),
       expect.objectContaining({
-        type: "insight",
+        type: "approval",
         targetRole: "team_lead",
         targetMemberId: null,
         priority: "high",
         title: "Workspace pattern needs review",
+      }),
+      expect.objectContaining({
+        type: "insight",
+        targetRole: "team_lead",
+        targetMemberId: null,
+        priority: "normal",
+        title: "Workspace memory review is backing up",
       }),
     ]);
     expect(created.map((item) => item.payload["signalType"])).toEqual([
@@ -137,6 +154,7 @@ describe("surfaceProactiveInsights", () => {
       "unassigned_priority_lead",
       "dormant_active_lead",
       "workspace_memory_pattern",
+      "workspace_memory_review_quality",
     ]);
   });
 
@@ -189,19 +207,26 @@ describe("surfaceProactiveInsights", () => {
         lastMessageAt: "2026-05-05T11:00:00.000Z",
       }],
     });
-    const narrativeClient = {
-      refineInsight: vi.fn(() => Promise.resolve({
+    const intelligenceClient = {
+      refineWorkItem: vi.fn(() => Promise.resolve({
         title: "Route Sarah while the signal is warm",
         summary: "Sarah is hot, scored 82, and has no assigned agent.",
         recommendedAction: "Pick the best available Katy agent",
         reason: "The lead is qualified enough to route now.",
         priority: "urgent" as const,
+        targetRole: "team_lead" as const,
+        notification: {
+          level: "interrupt" as const,
+          mode: "interrupt_now" as const,
+          reason: "This hot unassigned lead should interrupt the routing owner.",
+        },
+        audienceReason: "This belongs with the team lead because assignment is still unresolved.",
       })),
     };
 
     const report = await surfaceProactiveInsights({
       repository,
-      narrativeClient,
+      intelligenceClient,
       now: () => new Date("2026-05-05T12:00:00.000Z"),
     });
 
@@ -213,12 +238,55 @@ describe("surfaceProactiveInsights", () => {
       errors: 0,
     });
     expect(created[0]).toEqual(expect.objectContaining({
+      type: "approval",
       title: "Route Sarah while the signal is warm",
       summary: "Sarah is hot, scored 82, and has no assigned agent.",
       recommendedAction: "Pick the best available Katy agent",
       reason: "The lead is qualified enough to route now.",
       priority: "urgent",
     }));
-    expect(created[0]?.payload["narrativeSource"]).toBe("small_model");
+    expect(created[0]?.payload["intelligence"]).toMatchObject({
+      source: "small_model",
+      notification: {
+        mode: "interrupt_now",
+      },
+    });
+  });
+
+  it("surfaces high workspace memory dismissal rates as quality insights", async () => {
+    const created: HarwickWorkItemCreate[] = [];
+    const repository = createRepository({
+      created,
+      memoryReviewStats: [{
+        workspaceId,
+        pendingCount: 1,
+        approvedCount: 2,
+        dismissedCount: 4,
+        latestObservedAt: "2026-05-05T11:30:00.000Z",
+      }],
+    });
+
+    const report = await surfaceProactiveInsights({
+      repository,
+      now: () => new Date("2026-05-05T12:00:00.000Z"),
+    });
+
+    expect(report).toEqual({
+      scanned: 1,
+      created: 1,
+      refined: 0,
+      skippedExisting: 0,
+      errors: 0,
+    });
+    const item = created[0];
+    expect(item).toBeDefined();
+    if (item === undefined) {
+      throw new Error("Expected a workspace memory quality insight");
+    }
+    expect(item.title).toBe("Workspace memory quality needs attention");
+    expect(item.priority).toBe("high");
+    expect(item.targetRole).toBe("team_lead");
+    expect(item.payload["signalType"]).toBe("workspace_memory_review_quality");
+    expect(item.payload["dismissedPercent"]).toBe(67);
   });
 });

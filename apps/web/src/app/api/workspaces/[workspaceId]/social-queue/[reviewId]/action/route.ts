@@ -4,13 +4,16 @@ import { NextResponse, type NextRequest } from "next/server";
 import { ZodError } from "zod";
 import { sendMetaReply } from "../../../../../../../features/integrations/meta-reply-send";
 import { actOnSocialReplyReview } from "../../../../../../../features/operator-queues/operator-queues";
+import { buildSocialReplyQueueAuditEntry } from "../../../../../../../features/operator-queues/work-queue-audit";
 import { recordAgentOutcome } from "../../../../../../../features/agent-runtime/record-agent-outcome";
 import { getServerEnvironment } from "../../../../../../../lib/server-env";
 import { authorizeWorkspaceRequest } from "../../../../../../../lib/api/workspace-auth";
 import { createSupabaseAgentTrajectoryStore } from "../../../../../../../lib/supabase/agent-trajectory-store";
+import { createSupabaseAuditLogRepository } from "../../../../../../../lib/supabase/audit-logs";
 import { createSupabaseMetaCredentialRepository } from "../../../../../../../lib/supabase/integration-accounts";
 import { createSupabaseLeadEventRepository } from "../../../../../../../lib/supabase/lead-events";
 import { createSupabaseSocialReplyQueueRepository } from "../../../../../../../lib/supabase/operator-queues";
+import { createSupabaseConversationMessageRepository } from "../../../../../../../lib/supabase/conversation-messages";
 import { createServerSupabaseClient } from "../../../../../../../lib/supabase/server-client";
 
 export const runtime = "nodejs";
@@ -52,6 +55,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
             credentialRepository: createSupabaseMetaCredentialRepository(supabase),
             leadEventRepository: createSupabaseLeadEventRepository(supabase),
             metaClient: createMetaMessagingClient(),
+            conversationMessageRepository: createSupabaseConversationMessageRepository(supabase),
+            senderType: "operator",
+            senderId: membership.memberId,
           });
         }
       : undefined;
@@ -97,6 +103,21 @@ export async function POST(request: NextRequest, context: RouteContext) {
           },
         });
       }
+    }
+
+    try {
+      await createSupabaseAuditLogRepository(supabase).insertAuditLog(buildSocialReplyQueueAuditEntry({
+        workspaceId,
+        actorUserId: null,
+        memberId: membership.memberId,
+        reviewId,
+        request: parsedAction,
+        result,
+        ipAddress: request.headers.get("x-forwarded-for"),
+        userAgent: request.headers.get("user-agent"),
+      }));
+    } catch (auditError) {
+      console.warn("[social-queue] audit log failed", auditError);
     }
 
     return NextResponse.json({ item: result }, { status: 200 });

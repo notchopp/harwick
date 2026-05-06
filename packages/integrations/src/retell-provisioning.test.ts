@@ -175,6 +175,45 @@ describe("provisionRealtyRetellAgent", () => {
     }));
   });
 
+  it("creates a Realty Ops flow without requiring a template flow", async () => {
+    const configWithoutTemplate: RealtyRetellProvisioningConfig = {
+      ...config,
+    };
+    delete configWithoutTemplate.templateFlowId;
+    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
+      const url = readRequestUrl(input);
+      if (url.endsWith("/create-conversation-flow")) {
+        return Promise.resolve(createResponse({ body: { conversation_flow_id: "conversation_flow_created" } }));
+      }
+      if (url.endsWith("/create-agent")) {
+        return Promise.resolve(createResponse({ body: { agent_id: "agent_created" } }));
+      }
+      if (url.endsWith("/create-phone-number")) {
+        return Promise.resolve(createResponse({ body: { phone_number: "+17135550123" } }));
+      }
+      return Promise.resolve(createResponse({ ok: false, status: 404, text: "not found" }));
+    });
+    const client = createRetellProvisioningClient({
+      apiKey: "retell-api-key",
+      fetchImpl,
+    });
+
+    await expect(provisionRealtyRetellAgent({ config: configWithoutTemplate, client })).resolves.toMatchObject({
+      conversationFlowId: "conversation_flow_created",
+      agentId: "agent_created",
+      created: true,
+    });
+
+    expect(fetchImpl).not.toHaveBeenCalledWith(
+      "https://api.retellai.com/get-conversation-flow/conversation_flow_template",
+      expect.anything(),
+    );
+    expect(fetchImpl).toHaveBeenCalledWith("https://api.retellai.com/create-conversation-flow", expect.objectContaining({
+      method: "POST",
+      body: expect.stringContaining("\"global_prompt\"") as string,
+    }));
+  });
+
   it("updates existing flow and agent without creating duplicates", async () => {
     const fetchImpl = vi.fn((input: RequestInfo | URL) => {
       const url = readRequestUrl(input);

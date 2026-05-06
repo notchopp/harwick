@@ -1,5 +1,7 @@
 import {
+  FollowUpBossConflictActionRequestSchema,
   FollowUpBossConflictQueueResponseSchema,
+  type FollowUpBossConflictActionRequest,
   type FollowUpBossConflictItem,
   type FollowUpBossConflictQueueResponse,
 } from "@realty-ops/core";
@@ -9,6 +11,15 @@ export type FollowUpBossConflictRepository = {
     workspaceId: string;
     limit: number;
   }): Promise<FollowUpBossConflictItem[]>;
+  ignoreConflict(params: {
+    workspaceId: string;
+    backsyncEventId: string;
+    reason: string | null;
+  }): Promise<FollowUpBossConflictItem | null>;
+  replayConflict(params: {
+    workspaceId: string;
+    backsyncEventId: string;
+  }): Promise<FollowUpBossConflictItem | null>;
 };
 
 export async function loadFollowUpBossConflictQueue(params: {
@@ -23,4 +34,24 @@ export async function loadFollowUpBossConflictQueue(params: {
       limit: Math.min(params.limit ?? 50, 100),
     }),
   });
+}
+
+export async function actOnFollowUpBossConflict(params: {
+  workspaceId: string;
+  backsyncEventId: string;
+  request: unknown;
+  repository: FollowUpBossConflictRepository;
+}): Promise<FollowUpBossConflictItem | null> {
+  const action: FollowUpBossConflictActionRequest = FollowUpBossConflictActionRequestSchema.parse(params.request);
+
+  return action.action === "ignore"
+    ? params.repository.ignoreConflict({
+      workspaceId: params.workspaceId,
+      backsyncEventId: params.backsyncEventId,
+      reason: action.reason ?? null,
+    })
+    : params.repository.replayConflict({
+      workspaceId: params.workspaceId,
+      backsyncEventId: params.backsyncEventId,
+    });
 }

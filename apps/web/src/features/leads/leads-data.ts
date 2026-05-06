@@ -20,11 +20,14 @@ export type LeadPageItem = {
   stageLabel: string;
   cardKind: LeadPageCardKind;
   intent: string;
+  leadType: LeadRow["lead_type"];
+  intentLevel: LeadRow["intent"];
   score: number;
   budget: string;
   area: string;
   timeline: string;
   propertyType: string;
+  financingStatus: LeadRow["financing_status"];
   assignedTo: string;
   sourceOwner: string;
   lastTouch: string;
@@ -197,11 +200,14 @@ export async function loadLeadsPageData(params: {
       stageLabel: stageLabel(stage, lead),
       cardKind: lead.lead_type === "seller" ? "seller" : firstListing === "no listing matched" ? "area" : "listing",
       intent: lead.lead_type,
+      leadType: lead.lead_type,
+      intentLevel: lead.intent,
       score: lead.score,
       budget: formatBudget(lead),
       area: lead.target_area ?? "unknown",
       timeline: lead.timeline ?? "unknown",
       propertyType: lead.lead_type === "renter" ? "lease" : lead.lead_type === "seller" ? "seller" : "home search",
+      financingStatus: lead.financing_status,
       assignedTo: assignedMember?.display_name ?? (lead.assigned_agent_id === null ? "owner review" : "assigned agent"),
       sourceOwner: "workspace",
       lastTouch: relativeLastTouch(lead),

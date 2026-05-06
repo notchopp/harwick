@@ -1,6 +1,7 @@
 export * from "./domains/audit-log.js";
 export * from "./domains/auth.js";
 export * from "./domains/billing.js";
+export * from "./domains/calendar.js";
 export * from "./domains/common.js";
 export * from "./domains/conversation.js";
 export * from "./domains/conversation-automation.js";
@@ -9,7 +10,9 @@ export * from "./domains/harwick-ai.js";
 export * from "./domains/harwick-ai-automation-policy.js";
 export * from "./domains/harwick-ai-persistence.js";
 export * from "./domains/harwick-ai-runtime.js";
+export * from "./domains/harwick-loop.js";
 export * from "./domains/harwick-work-item.js";
+export * from "./domains/harwick-work-item-intelligence.js";
 export * from "./domains/home-data.js";
 export * from "./domains/environment.js";
 export * from "./domains/integration.js";

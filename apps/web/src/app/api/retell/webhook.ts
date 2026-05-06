@@ -1,9 +1,11 @@
 import {
   handleRetellWebhookDelivery,
   type RetellLeadEventWriter,
+  type RetellVoiceUsageRecorder,
   type RetellWorkspaceResolver,
 } from "../../../features/call-intake/retell-webhook";
 import { getServerEnvironment } from "../../../lib/server-env";
+import { recordCurrentPeriodUsageEvent } from "../../../lib/supabase/billing";
 import {
   createLeadEventWriter,
   createRetellWorkspaceResolver,
@@ -21,6 +23,7 @@ export type RetellWebhookPostRequest = {
 export type RetellWebhookPostDependencies = {
   resolveWorkspaceIdByProviderAccountId: RetellWorkspaceResolver;
   writeLeadEvents: RetellLeadEventWriter;
+  recordVoiceCallUsage: RetellVoiceUsageRecorder;
 };
 
 export async function postRetellWebhook(
@@ -35,6 +38,7 @@ export async function postRetellWebhook(
     retellApiKey: environment.RETELL_API_KEY,
     resolveWorkspaceIdByProviderAccountId: dependencies.resolveWorkspaceIdByProviderAccountId,
     writeLeadEvents: dependencies.writeLeadEvents,
+    recordVoiceCallUsage: dependencies.recordVoiceCallUsage,
   });
 }
 
@@ -49,5 +53,17 @@ export function createRetellWebhookPostDependencies(): RetellWebhookPostDependen
       leadUpsertRepository,
       enqueueWorkflowJob: createWorkflowJobEnqueuer(supabase),
     }),
+    recordVoiceCallUsage: (params) => recordCurrentPeriodUsageEvent(supabase, {
+      workspaceId: params.workspaceId,
+      eventType: "voice_call_minute",
+      eventCount: params.billableMinutes,
+      resourceId: null,
+      eventMetadata: {
+        provider: "retell",
+        providerAccountId: params.providerAccountId,
+        callId: params.callId,
+        durationMs: params.durationMs,
+      },
+    }).then(() => undefined),
   };
 }

@@ -3,6 +3,7 @@ import {
   HarwickRoutingDecisionCreateSchema,
   HarwickWorkItemCreateSchema,
 } from "./harwick-work-item.js";
+import { HarwickWorkItemIntelligenceSchema } from "./harwick-work-item-intelligence.js";
 
 const workspaceId = "00000000-0000-0000-0000-000000000001";
 const leadId = "00000000-0000-0000-0000-000000000002";
@@ -60,5 +61,47 @@ describe("Harwick work item contracts", () => {
 
     expect(decision.confidence).toBe(0.86);
     expect(decision.evidence).toMatchObject({ activeLeadCount: 2 });
+  });
+
+  it("validates typed intelligence metadata for notifications and approval-safe action plans", () => {
+    const intelligence = HarwickWorkItemIntelligenceSchema.parse({
+      audience: {
+        targetRole: "team_lead",
+        targetMemberId: null,
+        reason: "This needs routing oversight because no assigned agent owns the lead yet.",
+      },
+      notification: {
+        level: "interrupt",
+        mode: "interrupt_now",
+        reason: "The lead is hot and unassigned, so Harwick should actively interrupt the routing owner.",
+      },
+      actionPlan: {
+        executionBrief: "Review fit, queue routing research, and hold the final route behind approval.",
+        requiresApproval: true,
+        internalSafeOnly: false,
+        proposedToolCalls: [
+          {
+            tool: "dispatch_subagent",
+            reason: "Gather best-fit routing context before final assignment.",
+            requiresApproval: true,
+            payload: {
+              subagentType: "routing",
+            },
+          },
+          {
+            tool: "route_lead",
+            reason: "Assign the lead after the team lead confirms the recommendation.",
+            requiresApproval: true,
+            payload: {
+              assignedMemberId: memberId,
+            },
+          },
+        ],
+      },
+      source: "small_model",
+    });
+
+    expect(intelligence.notification.mode).toBe("interrupt_now");
+    expect(intelligence.actionPlan?.proposedToolCalls).toHaveLength(2);
   });
 });

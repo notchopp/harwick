@@ -8,7 +8,7 @@ export const RealtyRetellProvisioningConfigSchema = z.object({
   timezone: z.string().trim().min(1).max(80).default("America/New_York"),
   serviceAreas: z.array(z.string().trim().min(1).max(120)).default([]),
   transferNumber: z.string().trim().min(1).max(32).nullable().default(null),
-  templateFlowId: z.string().trim().min(1),
+  templateFlowId: z.string().trim().min(1).optional(),
   voiceId: z.string().trim().min(1),
   voiceWebhookBaseUrl: z.string().trim().url(),
   dynamicVariablesBaseUrl: z.string().trim().url(),
@@ -769,7 +769,9 @@ export async function provisionRealtyRetellAgent(params: ProvisionRealtyRetellAg
     });
   }
 
-  const templateFlow = await params.client.getConversationFlow(config.templateFlowId);
+  const templateFlow = config.templateFlowId === undefined
+    ? {}
+    : await params.client.getConversationFlow(config.templateFlowId);
   const conversationFlowId = await params.client.createConversationFlow(
     buildRealtyConversationFlowBody({
       templateFlow,

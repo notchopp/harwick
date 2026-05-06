@@ -23,6 +23,15 @@ const repository = createSupabaseWorkflowJobRepository(supabase);
 const services = createSupabaseWorkflowJobServices(supabase, {
   credentialSecret: environment.CREDENTIAL_ENCRYPTION_KEY,
   followUpBossApiKey: environment.FOLLOWUPBOSS_API_KEY,
+  twilio: environment.TWILIO_ACCOUNT_SID === undefined
+    || environment.TWILIO_AUTH_TOKEN === undefined
+    || environment.TWILIO_PHONE_NUMBER === undefined
+    ? undefined
+    : {
+        accountSid: environment.TWILIO_ACCOUNT_SID,
+        authToken: environment.TWILIO_AUTH_TOKEN,
+        fromPhoneNumber: environment.TWILIO_PHONE_NUMBER,
+      },
 });
 
 let shuttingDown = false;

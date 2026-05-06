@@ -8,6 +8,10 @@ import {
   checkIntegrationAccountLimit,
   canAccessPlanFeature,
   recordUsageEvent,
+  recordCurrentPeriodUsageEvent,
+  upsertWorkspaceSubscriptionFromProvider,
+  claimBillingWebhookEvent,
+  completeBillingWebhookEvent,
 } from "./billing.js";
 import type { WorkspaceSubscriptionRow, WorkspaceUsageSummaryRow } from "./database.types";
 
@@ -546,6 +550,264 @@ describe("billing service", () => {
           "2026-06-01T00:00:00Z"
         )
       ).rejects.toThrow("Failed to record usage event: Insert failed");
+    });
+  });
+
+  describe("recordCurrentPeriodUsageEvent", () => {
+    it("records usage against the active subscription period", async () => {
+      let insertedData: Record<string, unknown>[] | null = null;
+
+      const mockSupabase = {
+        from: (table: string) => {
+          if (table === "workspace_subscriptions") {
+            return {
+              select: () => ({
+                eq: () => ({
+                  maybeSingle: () => Promise.resolve({
+                    data: {
+                      id: "sub-123",
+                      workspace_id: "workspace-123",
+                      plan_tier: "team",
+                      billing_interval: "month",
+                      status: "active",
+                      provider_subscription_id: "sub_123",
+                      provider_customer_id: "cus_123",
+                      current_period_start: "2026-05-01T00:00:00Z",
+                      current_period_end: "2026-06-01T00:00:00Z",
+                      canceled_at: null,
+                      cancel_at_period_end: false,
+                      trial_start: null,
+                      trial_end: null,
+                      created_at: "2026-05-01T00:00:00Z",
+                      updated_at: "2026-05-01T00:00:00Z",
+                    },
+                    error: null,
+                  }),
+                }),
+              }),
+            };
+          }
+
+          expect(table).toBe("workspace_usage_events");
+          return {
+            insert: (data: Record<string, unknown>[]) => {
+              insertedData = data;
+              return Promise.resolve({ error: null });
+            },
+          };
+        },
+      } as unknown as RealtyOpsSupabaseClient;
+
+      await expect(recordCurrentPeriodUsageEvent(mockSupabase, {
+        workspaceId: "workspace-123",
+        eventType: "ai_turn",
+        resourceId: "123e4567-e89b-12d3-a456-426614174099",
+        eventMetadata: { channel: "instagram_dm" },
+      })).resolves.toBe(true);
+
+      expect(insertedData).toEqual([{
+        workspace_id: "workspace-123",
+        event_type: "ai_turn",
+        event_count: 1,
+        resource_id: "123e4567-e89b-12d3-a456-426614174099",
+        event_metadata: { channel: "instagram_dm" },
+        billing_period_start: "2026-05-01T00:00:00Z",
+        billing_period_end: "2026-06-01T00:00:00Z",
+      }]);
+    });
+
+    it("skips usage recording when no active billing period exists", async () => {
+      const mockSupabase = {
+        from: (table: string) => {
+          expect(table).toBe("workspace_subscriptions");
+          return {
+            select: () => ({
+              eq: () => ({
+                maybeSingle: () => Promise.resolve({ data: null, error: null }),
+              }),
+            }),
+          };
+        },
+      } as unknown as RealtyOpsSupabaseClient;
+
+      await expect(recordCurrentPeriodUsageEvent(mockSupabase, {
+        workspaceId: "workspace-123",
+        eventType: "lead_event",
+      })).resolves.toBe(false);
+    });
+  });
+
+  describe("provider subscription reconciliation", () => {
+    it("upserts the Stripe subscription by workspace id", async () => {
+      let upserted: Record<string, unknown> | null = null;
+      let onConflict: string | undefined;
+
+      const mockSupabase = {
+        from: (table: string) => {
+          expect(table).toBe("workspace_subscriptions");
+          return {
+            upsert: (row: Record<string, unknown>, options: { onConflict: string }) => {
+              upserted = row;
+              onConflict = options.onConflict;
+              return {
+                select: () => ({
+                  single: () => Promise.resolve({
+                    data: {
+                      id: "sub-row-123",
+                      workspace_id: "123e4567-e89b-12d3-a456-426614174000",
+                      plan_tier: "team",
+                      billing_interval: "month",
+                      status: "active",
+                      provider_subscription_id: "sub_123",
+                      provider_customer_id: "cus_123",
+                      current_period_start: "2026-01-01T00:00:00.000Z",
+                      current_period_end: "2026-02-01T00:00:00.000Z",
+                      canceled_at: null,
+                      cancel_at_period_end: false,
+                      trial_start: null,
+                      trial_end: null,
+                      created_at: "2026-01-01T00:00:00.000Z",
+                      updated_at: "2026-01-01T00:00:00.000Z",
+                    },
+                    error: null,
+                  }),
+                }),
+              };
+            },
+          };
+        },
+      } as unknown as RealtyOpsSupabaseClient;
+
+      const result = await upsertWorkspaceSubscriptionFromProvider(mockSupabase, {
+        workspaceId: "123e4567-e89b-12d3-a456-426614174000",
+        planTier: "team",
+        billingInterval: "month",
+        status: "active",
+        providerSubscriptionId: "sub_123",
+        providerCustomerId: "cus_123",
+        currentPeriodStart: "2026-01-01T00:00:00.000Z",
+        currentPeriodEnd: "2026-02-01T00:00:00.000Z",
+        canceledAt: null,
+        cancelAtPeriodEnd: false,
+        trialStart: null,
+        trialEnd: null,
+      });
+
+      expect(onConflict).toBe("workspace_id");
+      expect(upserted).toMatchObject({
+        workspace_id: "123e4567-e89b-12d3-a456-426614174000",
+        provider_subscription_id: "sub_123",
+        provider_customer_id: "cus_123",
+      });
+      expect(result.providerSubscriptionId).toBe("sub_123");
+    });
+  });
+
+  describe("billing webhook event ledger", () => {
+    it("claims a new provider event", async () => {
+      let inserted: Record<string, unknown> | null = null;
+      const mockSupabase = {
+        from: (table: string) => {
+          expect(table).toBe("billing_webhook_events");
+          return {
+            insert: (row: Record<string, unknown>) => {
+              inserted = row;
+              return {
+                select: () => ({
+                  single: () => Promise.resolve({
+                    data: {
+                      id: "ledger-123",
+                      workspace_id: null,
+                      provider: "stripe",
+                      provider_event_id: "evt_123",
+                      event_type: "customer.subscription.updated",
+                      provider_object_id: "sub_123",
+                      processing_status: "processing",
+                      error_message: null,
+                      processed_at: null,
+                      created_at: "2026-01-01T00:00:00.000Z",
+                    },
+                    error: null,
+                  }),
+                }),
+              };
+            },
+          };
+        },
+      } as unknown as RealtyOpsSupabaseClient;
+
+      const result = await claimBillingWebhookEvent(mockSupabase, {
+        provider: "stripe",
+        providerEventId: "evt_123",
+        eventType: "customer.subscription.updated",
+        providerObjectId: "sub_123",
+      });
+
+      expect(result.claimed).toBe(true);
+      expect(inserted).toMatchObject({
+        provider: "stripe",
+        provider_event_id: "evt_123",
+        processing_status: "processing",
+      });
+    });
+
+    it("treats unique constraint errors as duplicate events", async () => {
+      const mockSupabase = {
+        from: () => ({
+          insert: () => ({
+            select: () => ({
+              single: () => Promise.resolve({
+                data: null,
+                error: { code: "23505", message: "duplicate key" },
+              }),
+            }),
+          }),
+        }),
+      } as unknown as RealtyOpsSupabaseClient;
+
+      const result = await claimBillingWebhookEvent(mockSupabase, {
+        provider: "stripe",
+        providerEventId: "evt_123",
+        eventType: "customer.subscription.updated",
+        providerObjectId: "sub_123",
+      });
+
+      expect(result).toEqual({ claimed: false, reason: "duplicate" });
+    });
+
+    it("marks a claimed event complete", async () => {
+      let update: Record<string, unknown> | null = null;
+      let id: string | null = null;
+      const mockSupabase = {
+        from: (table: string) => {
+          expect(table).toBe("billing_webhook_events");
+          return {
+            update: (row: Record<string, unknown>) => {
+              update = row;
+              return {
+                eq: (column: string, value: string) => {
+                  expect(column).toBe("id");
+                  id = value;
+                  return Promise.resolve({ error: null });
+                },
+              };
+            },
+          };
+        },
+      } as unknown as RealtyOpsSupabaseClient;
+
+      await completeBillingWebhookEvent(mockSupabase, {
+        eventId: "ledger-123",
+        status: "processed",
+        workspaceId: "123e4567-e89b-12d3-a456-426614174000",
+      });
+
+      expect(id).toBe("ledger-123");
+      expect(update).toMatchObject({
+        processing_status: "processed",
+        workspace_id: "123e4567-e89b-12d3-a456-426614174000",
+        error_message: null,
+      });
     });
   });
 });

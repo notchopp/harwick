@@ -72,12 +72,6 @@ export async function POST(request: NextRequest) {
   }
 
   const signatureHeader = request.headers.get("x-hub-signature-256");
-  console.log("[WEBHOOK SIGNATURE DEBUG]", {
-    signatureHeader: signatureHeader?.substring(0, 20) + "...",
-    appSecret: environment.META_APP_SECRET?.substring(0, 10) + "...",
-    rawBodyLength: rawBody.length,
-    rawBodyStart: rawBody.substring(0, 50),
-  });
 
   try {
     if (!verifyMetaWebhookSignature({
@@ -85,7 +79,6 @@ export async function POST(request: NextRequest) {
       appSecret: environment.META_APP_SECRET,
       signatureHeader,
     })) {
-      console.log("[WEBHOOK SIGNATURE FAILED]");
       return NextResponse.json(
         {
           accepted: false,
@@ -99,8 +92,7 @@ export async function POST(request: NextRequest) {
         { status: 403 },
       );
     }
-  } catch (sigError) {
-    console.log("[WEBHOOK SIGNATURE ERROR]", sigError);
+  } catch {
     return NextResponse.json(
       {
         accepted: false,

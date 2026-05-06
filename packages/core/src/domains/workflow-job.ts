@@ -66,7 +66,8 @@ export const ListingRecheckJobPayloadSchema = WorkflowJobPayloadBaseSchema.exten
 export const NurtureDeliveryJobPayloadSchema = WorkflowJobPayloadBaseSchema.extend({
   jobType: z.literal("nurture_delivery"),
   enrollmentId: UuidSchema,
-  reason: z.enum(["scheduled_followup", "quiet_hour_resume", "manual_review"]),
+  messageId: UuidSchema.optional(),
+  reason: z.enum(["scheduled_followup", "quiet_hour_resume", "manual_review", "approved_draft"]),
 });
 
 export const HarwickAiReplyJobPayloadSchema = WorkflowJobPayloadBaseSchema.extend({

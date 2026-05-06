@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ShowingModeSchema } from "./calendar.js";
 import { UuidSchema } from "./common.js";
 import { LeadTypeSchema } from "./lead.js";
 
@@ -17,6 +18,8 @@ export const RoutingDecisionStatusSchema = z.enum([
   "unrouted",
   "hold_for_qualification",
 ]);
+
+export const RoutingCalendarStatusSchema = z.enum(["connected", "missing", "unknown"]);
 
 export const LeadRoutingQualificationSchema = z.object({
   leadId: UuidSchema,
@@ -45,6 +48,8 @@ export const AgentRoutingProfileSchema = z.object({
   maxActiveLeads: z.number().int().positive(),
   acceptsNewLeads: z.boolean().default(true),
   notificationPreference: z.enum(["sms", "email", "app"]).default("app"),
+  calendarStatus: RoutingCalendarStatusSchema.default("unknown"),
+  showingMode: ShowingModeSchema.nullable().default(null),
 });
 
 export const LeadRoutingInputSchema = z.object({
@@ -66,6 +71,7 @@ export const LeadRoutingDecisionSchema = z.object({
 });
 
 export type RoutingPropertyType = z.infer<typeof RoutingPropertyTypeSchema>;
+export type RoutingCalendarStatus = z.infer<typeof RoutingCalendarStatusSchema>;
 export type LeadRoutingQualification = z.infer<typeof LeadRoutingQualificationSchema>;
 export type AgentRoutingProfile = z.infer<typeof AgentRoutingProfileSchema>;
 export type LeadRoutingInput = z.infer<typeof LeadRoutingInputSchema>;
@@ -119,6 +125,39 @@ function hasEnoughQualification(qualification: LeadRoutingQualification): boolea
 function capacityScore(agent: AgentRoutingProfile): number {
   const remaining = Math.max(agent.maxActiveLeads - agent.activeLeadCount, 0);
   return Math.round((remaining / agent.maxActiveLeads) * 20);
+}
+
+function calendarReadinessScore(agent: AgentRoutingProfile): number {
+  if (agent.calendarStatus !== "connected") {
+    return 0;
+  }
+
+  if (agent.showingMode === "auto_book") {
+    return 6;
+  }
+
+  if (agent.showingMode === "request_approve") {
+    return 5;
+  }
+
+  return 2;
+}
+
+function calendarReadinessReason(agent: AgentRoutingProfile): string | null {
+  if (agent.calendarStatus !== "connected") {
+    return null;
+  }
+
+  switch (agent.showingMode) {
+    case "auto_book":
+      return "calendar connected for qualified auto-booking";
+    case "request_approve":
+      return "calendar connected for request + approve showings";
+    case "collect_only":
+      return "calendar connected for collect-only showing follow-up";
+    case null:
+      return "calendar connected";
+  }
 }
 
 function rotateMatchedAgents(
@@ -192,9 +231,16 @@ export function decideLeadRouting(input: LeadRoutingInput): LeadRoutingDecision 
         reasons.push(`${agent.maxActiveLeads - agent.activeLeadCount} lead capacity open`);
       }
 
+      const agentCalendarReadinessScore = calendarReadinessScore(agent);
+      matchScore += agentCalendarReadinessScore;
+      const calendarReason = calendarReadinessReason(agent);
+      if (calendarReason !== null) {
+        reasons.push(calendarReason);
+      }
+
       return {
         agent,
-        matchScore,
+        matchScore: Math.min(matchScore, 100),
         reasons,
       };
     })

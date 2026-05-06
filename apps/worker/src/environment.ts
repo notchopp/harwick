@@ -44,7 +44,21 @@ function findNearestLocalEnv(startDirectory: string): string | null {
   return null;
 }
 
+function shouldUseLocalEnvFallback(input: NodeJS.ProcessEnv): boolean {
+  const appEnv = input["APP_ENV"]?.trim().toLowerCase();
+  const nodeEnv = input["NODE_ENV"]?.trim().toLowerCase();
+
+  return appEnv === undefined
+    || appEnv.length === 0
+    || appEnv === "development"
+    || nodeEnv === "test";
+}
+
 export function mergeLocalEnvFallback(input: NodeJS.ProcessEnv = process.env): Record<string, string | undefined> {
+  if (!shouldUseLocalEnvFallback(input)) {
+    return input;
+  }
+
   const localEnvPath = findNearestLocalEnv(process.cwd());
   if (localEnvPath === null) {
     return input;
@@ -67,6 +81,9 @@ export const WorkerEnvironmentSchema = z.object({
   WORKER_POLL_INTERVAL_MS: z.coerce.number().int().min(250).max(60_000).default(5_000),
   WORKER_BATCH_SIZE: z.coerce.number().int().min(1).max(50).default(10),
   FOLLOWUPBOSS_API_KEY: z.string().trim().min(1).optional(),
+  TWILIO_ACCOUNT_SID: z.string().trim().min(1).optional(),
+  TWILIO_AUTH_TOKEN: z.string().trim().min(1).optional(),
+  TWILIO_PHONE_NUMBER: z.string().trim().min(1).optional(),
 });
 
 export type WorkerEnvironment = z.infer<typeof WorkerEnvironmentSchema>;

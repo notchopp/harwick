@@ -10,6 +10,7 @@ import type {
   SocialReplyReviewRow,
   WorkspaceMemberRow,
 } from "./database.types";
+import type { ConversationMessageRow } from "./conversation-messages";
 import type { LeadRow } from "./leads";
 import type { RealtyOpsSupabaseClient } from "./server-client";
 
@@ -303,17 +304,6 @@ export function createSupabaseConversationsInboxRepository(
         throw error;
       }
 
-      console.log("[CONVERSATIONS DEBUG]", {
-        workspaceId: params.workspaceId,
-        foundCount: (data ?? []).length,
-        leads: data?.map(d => ({
-          id: d.id,
-          last_message_at: d.last_message_at,
-          status: d.status,
-          instagram_user_id: d.instagram_user_id,
-        })),
-      });
-
       return data ?? [];
     },
 
@@ -345,6 +335,27 @@ export function createSupabaseConversationsInboxRepository(
         .order("occurred_at", { ascending: true })
         .limit(params.limit)
         .returns<LeadEventRow[]>();
+
+      if (error !== null) {
+        throw error;
+      }
+
+      return data ?? [];
+    },
+
+    async listConversationMessages(params) {
+      if (params.leadIds.length === 0) {
+        return [];
+      }
+
+      const { data, error } = await supabase
+        .from("conversation_messages")
+        .select("*")
+        .eq("workspace_id", params.workspaceId)
+        .in("lead_id", params.leadIds)
+        .order("created_at", { ascending: true })
+        .limit(params.limit)
+        .returns<ConversationMessageRow[]>();
 
       if (error !== null) {
         throw error;

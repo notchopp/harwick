@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { UuidSchema } from "./common.js";
 
 export const ListingFactSourceSchema = z.enum(["manual", "idx", "repliers", "mls_grid", "fub", "website"]);
 export const ListingVerificationStatusSchema = z.enum(["unverified", "verified", "needs_recheck"]);
@@ -94,10 +95,53 @@ export const PublicListingInquiryRequestSchema = z.object({
   fullName: z.string().trim().min(1).max(160),
   email: z.string().trim().email().max(254),
   phone: z.string().trim().min(10).max(20),
+  intent: z.enum(["general", "question", "showing", "open_house"]).default("general"),
   message: z.string().trim().min(1).max(2000).nullable().optional(),
   propertyType: z.string().trim().min(1).max(120).nullable().optional(),
   budget: z.number().int().nonnegative().nullable().optional(),
   timeline: z.string().trim().max(120).nullable().optional(),
+  requestedStartAt: z.string().datetime().nullable().optional(),
+  requestedEndAt: z.string().datetime().nullable().optional(),
+}).superRefine((value, context) => {
+  if (value.requestedStartAt === null || value.requestedStartAt === undefined) {
+    return;
+  }
+  if (value.requestedEndAt === null || value.requestedEndAt === undefined) {
+    return;
+  }
+  if (Date.parse(value.requestedEndAt) <= Date.parse(value.requestedStartAt)) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "requestedEndAt must be after requestedStartAt",
+      path: ["requestedEndAt"],
+    });
+  }
+});
+
+export const OpenHouseAttendeeSchema = z.object({
+  taskId: UuidSchema,
+  workspaceId: UuidSchema,
+  listingId: UuidSchema,
+  leadId: UuidSchema.nullable(),
+  status: z.string().trim().min(1).max(80),
+  attendeeName: z.string().trim().min(1).max(160).nullable(),
+  attendeeEmail: z.string().trim().email().nullable(),
+  attendeePhone: z.string().trim().min(1).max(40).nullable(),
+  requestedArrivalAt: z.string().datetime({ offset: true }).nullable(),
+  createdAt: z.string().datetime({ offset: true }),
+});
+
+export const OpenHouseAttendeesResponseSchema = z.object({
+  attendees: z.array(OpenHouseAttendeeSchema),
+});
+
+export const OpenHouseReminderProductionReportSchema = z.object({
+  scanned: z.number().int().min(0),
+  remindersDrafted: z.number().int().min(0),
+  remindersAlreadyPresent: z.number().int().min(0),
+  remindersBlocked: z.number().int().min(0),
+  skipped: z.number().int().min(0),
+  errors: z.number().int().min(0),
 });
 
 export type ListingFact = z.infer<typeof ListingFactSchema>;
@@ -111,3 +155,6 @@ export type ManualListingQuickUpdateRequest = z.infer<typeof ManualListingQuickU
 export type ManualListingVerifyRequest = z.infer<typeof ManualListingVerifyRequestSchema>;
 export type ManualListingCsvImportRequest = z.infer<typeof ManualListingCsvImportRequestSchema>;
 export type PublicListingInquiryRequest = z.infer<typeof PublicListingInquiryRequestSchema>;
+export type OpenHouseAttendee = z.infer<typeof OpenHouseAttendeeSchema>;
+export type OpenHouseAttendeesResponse = z.infer<typeof OpenHouseAttendeesResponseSchema>;
+export type OpenHouseReminderProductionReport = z.infer<typeof OpenHouseReminderProductionReportSchema>;

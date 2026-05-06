@@ -21,11 +21,12 @@ import {
   User,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
 
 import { cn } from "../../lib/utils";
 
-type Listing = {
+export type PublicListingCardData = {
+  id: string;
   slug: string;
   label: string;
   badgeTone: "prime" | "new" | "reduced";
@@ -56,221 +57,21 @@ type Listing = {
 type ListingFilter = "all" | "new" | "reduced" | "open-house" | "waterfront";
 
 type PublicListingsCopy = {
-  phone: string;
+  phone: string | null;
   activeListingsLabel: string;
   headline: string;
   subheadline: string;
 };
 
-type InquiryIntent = "general" | "question" | "showing";
+type InquiryIntent = "general" | "question" | "showing" | "open_house";
 
 const pageCopy: PublicListingsCopy = {
-  phone: "(949) 555-0187",
+  phone: null,
   activeListingsLabel: "all listings",
   headline: "listings ready to send.",
   subheadline: "A live inventory surface for buyers who want the right listing link, current availability, and a fast answer from Harwick.",
 };
 
-const listings: Listing[] = [
-  {
-    slug: "coral-gables-villa",
-    label: "Prime Pick",
-    badgeTone: "prime",
-    filter: "all",
-    imageUrl: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1100&q=88",
-    photos: [
-      "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1400&q=90",
-      "https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?auto=format&fit=crop&w=900&q=86",
-      "https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&w=900&q=86",
-      "https://images.unsplash.com/photo-1600566752355-35792bedcfea?auto=format&fit=crop&w=900&q=86",
-    ],
-    price: "$2,450,000",
-    priceValue: 2450000,
-    shortAddress: "1234 Ocean View Dr",
-    address: "Coral Gables, FL 33134",
-    neighborhood: "Coral Gables",
-    mls: "MLS OC25123456",
-    beds: "4",
-    baths: "3.5",
-    area: "2,820 sqft",
-    type: "single family",
-    yearBuilt: "2019",
-    lot: "0.34 acres",
-    features: ["garden courtyard", "pool-ready yard", "chef kitchen", "covered terrace"],
-    agent: "Sarah K.",
-    updated: "2h ago",
-    description:
-      "Mediterranean-inspired home with layered garden views, generous entertaining space, and a quiet outdoor setting minutes from Coral Gables dining.",
-    openHouse: "Sunday, 1-4 PM",
-    monthlyHoa: 450,
-    annualTaxRate: 1.12,
-  },
-  {
-    slug: "brickell-glass-house",
-    label: "New",
-    badgeTone: "new",
-    filter: "new",
-    imageUrl: "https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&w=1100&q=88",
-    photos: [
-      "https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&w=1400&q=90",
-      "https://images.unsplash.com/photo-1600210491369-e753d80a41f3?auto=format&fit=crop&w=900&q=86",
-      "https://images.unsplash.com/photo-1600566752229-250ed79470f8?auto=format&fit=crop&w=900&q=86",
-      "https://images.unsplash.com/photo-1600607688969-a5bfcd646154?auto=format&fit=crop&w=900&q=86",
-    ],
-    price: "$1,895,000",
-    priceValue: 1895000,
-    shortAddress: "5678 Maple St",
-    address: "Brickell, FL 33131",
-    neighborhood: "Brickell",
-    mls: "MLS NP25098765",
-    beds: "3",
-    baths: "2.5",
-    area: "1,650 sqft",
-    type: "modern villa",
-    yearBuilt: "2022",
-    lot: "0.21 acres",
-    features: ["pool", "floor-to-ceiling glass", "smart home", "two-car garage"],
-    agent: "Diana R.",
-    updated: "today",
-    description:
-      "Clean modern residence with glassy living areas, pool-facing entertaining spaces, and quick access to Brickell offices and waterfront dining.",
-    openHouse: "By appointment",
-    monthlyHoa: 620,
-    annualTaxRate: 1.05,
-  },
-  {
-    slug: "sunset-harbor",
-    label: "Price Reduced",
-    badgeTone: "reduced",
-    filter: "reduced",
-    imageUrl: "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1100&q=88",
-    photos: [
-      "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1400&q=90",
-      "https://images.unsplash.com/photo-1600566753376-12c8ab7fb75b?auto=format&fit=crop&w=900&q=86",
-      "https://images.unsplash.com/photo-1600607687644-c7171b42498b?auto=format&fit=crop&w=900&q=86",
-      "https://images.unsplash.com/photo-1600566752734-0f0b7a0e160f?auto=format&fit=crop&w=900&q=86",
-    ],
-    price: "$3,250,000",
-    priceValue: 3250000,
-    shortAddress: "910 Sunset Blvd",
-    address: "Miami Beach, FL 33139",
-    neighborhood: "Miami Beach",
-    mls: "MLS LG25076543",
-    beds: "5",
-    baths: "4",
-    area: "3,450 sqft",
-    type: "waterfront",
-    yearBuilt: "2020",
-    lot: "0.42 acres",
-    features: ["waterfront", "private terrace", "chef kitchen", "sunset views"],
-    agent: "Marcus T.",
-    updated: "1d ago",
-    description:
-      "Architectural waterfront home with private outdoor terraces, open chef's kitchen, and strong sunset views from the main living level.",
-    openHouse: "Saturday, 12-3 PM",
-    monthlyHoa: 820,
-    annualTaxRate: 1.18,
-  },
-  {
-    slug: "coconut-grove-cottage",
-    label: "Open House",
-    badgeTone: "prime",
-    filter: "open-house",
-    imageUrl: "https://images.unsplash.com/photo-1570129477492-45c003edd2be?auto=format&fit=crop&w=1100&q=88",
-    photos: [
-      "https://images.unsplash.com/photo-1570129477492-45c003edd2be?auto=format&fit=crop&w=1400&q=90",
-      "https://images.unsplash.com/photo-1600566753104-685f4f24cb4d?auto=format&fit=crop&w=900&q=86",
-      "https://images.unsplash.com/photo-1600566752547-33f5c2b63eea?auto=format&fit=crop&w=900&q=86",
-      "https://images.unsplash.com/photo-1600585152915-d208bec867a1?auto=format&fit=crop&w=900&q=86",
-    ],
-    price: "$875,000",
-    priceValue: 875000,
-    shortAddress: "246 Palm Ave",
-    address: "Coconut Grove, FL 33133",
-    neighborhood: "Coconut Grove",
-    mls: "MLS OC25111223",
-    beds: "2",
-    baths: "1",
-    area: "980 sqft",
-    type: "bungalow",
-    yearBuilt: "1948",
-    lot: "0.12 acres",
-    features: ["open house", "renovated kitchen", "shaded lot", "walkable village"],
-    agent: "Keisha B.",
-    updated: "3d ago",
-    description:
-      "Charming Grove bungalow with a practical single-level plan, renovated interiors, and a shaded lot near neighborhood cafes.",
-    openHouse: "Sunday, 2-5 PM",
-    monthlyHoa: 180,
-    annualTaxRate: 1.03,
-  },
-  {
-    slug: "key-biscayne-retreat",
-    label: "Waterfront",
-    badgeTone: "prime",
-    filter: "waterfront",
-    imageUrl: "https://images.unsplash.com/photo-1600047509807-ba8f99d2cdde?auto=format&fit=crop&w=1100&q=88",
-    photos: [
-      "https://images.unsplash.com/photo-1600047509807-ba8f99d2cdde?auto=format&fit=crop&w=1400&q=90",
-      "https://images.unsplash.com/photo-1600566752447-f4c9f32bfa67?auto=format&fit=crop&w=900&q=86",
-      "https://images.unsplash.com/photo-1600607688066-890987f18a86?auto=format&fit=crop&w=900&q=86",
-      "https://images.unsplash.com/photo-1600566753151-384129cf4e3e?auto=format&fit=crop&w=900&q=86",
-    ],
-    price: "$4,100,000",
-    priceValue: 4100000,
-    shortAddress: "44 Harbor Point",
-    address: "Key Biscayne, FL 33149",
-    neighborhood: "Key Biscayne",
-    mls: "MLS KB44001992",
-    beds: "5",
-    baths: "5.5",
-    area: "4,120 sqft",
-    type: "waterfront estate",
-    yearBuilt: "2021",
-    lot: "0.51 acres",
-    features: ["dock access", "summer kitchen", "guest suite", "pool"],
-    agent: "Sarah K.",
-    updated: "4d ago",
-    description:
-      "Private waterfront retreat with open entertaining spaces, a resort-style pool, and calm bay access minutes from village amenities.",
-    openHouse: "Private tours only",
-    monthlyHoa: 950,
-    annualTaxRate: 1.2,
-  },
-  {
-    slug: "south-miami-townhome",
-    label: "New",
-    badgeTone: "new",
-    filter: "new",
-    imageUrl: "https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&w=1100&q=88",
-    photos: [
-      "https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&w=1400&q=90",
-      "https://images.unsplash.com/photo-1600210492493-0946911123ea?auto=format&fit=crop&w=900&q=86",
-      "https://images.unsplash.com/photo-1600566752355-35792bedcfea?auto=format&fit=crop&w=900&q=86",
-      "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=900&q=86",
-    ],
-    price: "$1,150,000",
-    priceValue: 1150000,
-    shortAddress: "78 Banyan Row",
-    address: "South Miami, FL 33143",
-    neighborhood: "South Miami",
-    mls: "MLS SM78123411",
-    beds: "3",
-    baths: "3",
-    area: "2,020 sqft",
-    type: "townhome",
-    yearBuilt: "2018",
-    lot: "0.08 acres",
-    features: ["private patio", "garage", "walkable shops", "updated interiors"],
-    agent: "Diana R.",
-    updated: "5d ago",
-    description:
-      "Low-maintenance townhome near South Miami shops with a private patio, flexible guest room, and bright open-plan living.",
-    openHouse: "Saturday, 11 AM-1 PM",
-    monthlyHoa: 390,
-    annualTaxRate: 1.08,
-  },
-];
 
 const filters: Array<{ key: ListingFilter; label: string }> = [
   { key: "all", label: "all listings" },
@@ -287,10 +88,15 @@ function formatWorkspaceName(workspaceSlug: string) {
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
 
-  return name.length === 0 ? "Prestige Realty" : name;
+  return name.length === 0 ? "Workspace" : name;
 }
 
-function ListingBadge(props: { listing: Listing }) {
+function readFormString(formData: FormData, key: string) {
+  const value = formData.get(key);
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function ListingBadge(props: { listing: PublicListingCardData }) {
   return (
     <div
       className={cn(
@@ -308,6 +114,25 @@ function ListingBadge(props: { listing: Listing }) {
   );
 }
 
+function ListingImage(props: { alt: string; className: string; loading?: "eager" | "lazy"; src: string | undefined }) {
+  if (props.src === undefined || props.src.trim().length === 0) {
+    return (
+      <div className={cn(props.className, "flex items-center justify-center bg-[radial-gradient(circle_at_35%_20%,rgba(183,150,91,0.22),transparent_34%),linear-gradient(135deg,#213228,#111a15)]")}>
+        <Building2 aria-hidden="true" className="h-10 w-10 text-white/45" strokeWidth={1.5} />
+      </div>
+    );
+  }
+
+  return (
+    <img
+      alt={props.alt}
+      className={props.className}
+      loading={props.loading}
+      src={props.src}
+    />
+  );
+}
+
 function Stat(props: { icon: typeof BedDouble; value: string; label: string }) {
   const Icon = props.icon;
 
@@ -322,9 +147,9 @@ function Stat(props: { icon: typeof BedDouble; value: string; label: string }) {
 
 function ListingCard(props: {
   isFavorite: boolean;
-  listing: Listing;
-  onOpen: (listing: Listing) => void;
-  onToggleFavorite: (listing: Listing) => void;
+  listing: PublicListingCardData;
+  onOpen: (listing: PublicListingCardData) => void;
+  onToggleFavorite: (listing: PublicListingCardData) => void;
   priority?: boolean;
 }) {
   return (
@@ -340,7 +165,7 @@ function ListingCard(props: {
       role="button"
       tabIndex={0}
     >
-      <img
+      <ListingImage
         alt={`${props.listing.shortAddress} exterior`}
         className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-[1.035]"
         loading={props.priority === true ? "eager" : "lazy"}
@@ -408,7 +233,7 @@ function formatMoney(value: number) {
   }).format(value);
 }
 
-function CostCalculator(props: { listing: Listing }) {
+function CostCalculator(props: { listing: PublicListingCardData }) {
   const downPayment = Math.round(props.listing.priceValue * 0.2);
   const loanAmount = props.listing.priceValue - downPayment;
   const monthlyPrincipal = Math.round((loanAmount * 0.0675) / 12);
@@ -442,19 +267,25 @@ function CostCalculator(props: { listing: Listing }) {
 }
 
 function InquiryDialog(props: {
+  canSubmitListingScopedInquiries: boolean;
   intent: InquiryIntent;
-  listing: Listing | null;
+  listing: PublicListingCardData | null;
   onClose: () => void;
+  workspaceSlug: string;
   workspaceName: string;
 }) {
-  const { intent, listing, onClose, workspaceName } = props;
+  const { canSubmitListingScopedInquiries, intent, listing, onClose, workspaceName, workspaceSlug } = props;
   const listingLabel = listing?.shortAddress ?? "the inventory";
   const messageSeed = intent === "showing"
     ? `I would like to schedule a showing for ${listingLabel}.`
+    : intent === "open_house"
+      ? `I would like to register for the open house at ${listingLabel}.`
     : intent === "question"
       ? `I have a question about ${listingLabel}.`
       : "I would like help with the current listings.";
   const [message, setMessage] = useState(messageSeed);
+  const [submitState, setSubmitState] = useState<"idle" | "submitting" | "sent" | "failed">("idle");
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   useEffect(() => {
     setMessage(messageSeed);
@@ -470,6 +301,50 @@ function InquiryDialog(props: {
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [onClose]);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSubmitState("submitting");
+    setSubmitError(null);
+
+    const formData = new FormData(event.currentTarget);
+    const preferredStartRaw = readFormString(formData, "preferredStart");
+    const preferredStart = preferredStartRaw.length === 0 ? null : new Date(preferredStartRaw);
+    const requestedStartAt = preferredStart === null || Number.isNaN(preferredStart.getTime())
+      ? null
+      : preferredStart.toISOString();
+    const requestedEndAt = preferredStart === null || Number.isNaN(preferredStart.getTime())
+      ? null
+      : new Date(preferredStart.getTime() + 30 * 60 * 1000).toISOString();
+    const listingIsPersisted = listing !== null && canSubmitListingScopedInquiries;
+    const submittedIntent = (intent === "showing" || intent === "open_house") && !listingIsPersisted ? "general" : intent;
+    const url = new URL(`/${workspaceSlug}/api/listings/inquiry`, window.location.origin);
+    if (listingIsPersisted) {
+      url.searchParams.set("listingId", listing.id);
+    }
+
+    const response = await fetch(`${url.pathname}${url.search}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        fullName: readFormString(formData, "fullName"),
+        phone: readFormString(formData, "phone"),
+        email: readFormString(formData, "email"),
+        intent: submittedIntent,
+        message,
+        requestedStartAt,
+        requestedEndAt,
+      }),
+    });
+
+    if (!response.ok) {
+      setSubmitState("failed");
+      setSubmitError("Harwick could not save this request. Try again or call the agent.");
+      return;
+    }
+
+    setSubmitState("sent");
+  }
 
   return (
     <div
@@ -501,8 +376,7 @@ function InquiryDialog(props: {
         <form
           className="space-y-4 p-6"
           onSubmit={(event) => {
-            event.preventDefault();
-            onClose();
+            void handleSubmit(event);
           }}
         >
           <label className="block text-[12px] font-semibold text-foreground" htmlFor="inquiry-name">
@@ -512,7 +386,7 @@ function InquiryDialog(props: {
               <input
                 className="min-w-0 flex-1 bg-transparent text-[14px] font-normal outline-none placeholder:text-muted-subtle"
                 id="inquiry-name"
-                name="name"
+                name="fullName"
                 placeholder="your name"
                 required
               />
@@ -528,7 +402,8 @@ function InquiryDialog(props: {
                   className="min-w-0 flex-1 bg-transparent text-[14px] font-normal outline-none placeholder:text-muted-subtle"
                   id="inquiry-phone"
                   name="phone"
-                  placeholder="(555) 000-0000"
+                  placeholder="Phone number"
+                  required
                   type="tel"
                 />
               </span>
@@ -543,6 +418,7 @@ function InquiryDialog(props: {
                   id="inquiry-email"
                   name="email"
                   placeholder="you@example.com"
+                  required
                   type="email"
                 />
               </span>
@@ -562,6 +438,21 @@ function InquiryDialog(props: {
             </span>
           </label>
 
+          {intent === "showing" || intent === "open_house" ? (
+            <label className="block text-[12px] font-semibold text-foreground" htmlFor="inquiry-preferred-start">
+              {intent === "open_house" ? "preferred arrival time" : "preferred showing time"}
+              <span className="mt-2 flex items-center gap-2 rounded-2xl border border-border bg-surface px-3 py-2.5 focus-within:border-border-strong focus-within:ring-2 focus-within:ring-harwick-brass/20">
+                <Calendar aria-hidden="true" className="h-4 w-4 text-muted-subtle" />
+                <input
+                  className="min-w-0 flex-1 bg-transparent text-[14px] font-normal outline-none placeholder:text-muted-subtle"
+                  id="inquiry-preferred-start"
+                  name="preferredStart"
+                  type="datetime-local"
+                />
+              </span>
+            </label>
+          ) : null}
+
           <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end">
             <button
               className="rounded-2xl border border-border bg-surface px-4 py-2.5 text-[13px] font-semibold text-muted transition hover:border-border-strong hover:text-foreground"
@@ -570,11 +461,26 @@ function InquiryDialog(props: {
             >
               cancel
             </button>
-            <button className="inline-flex items-center justify-center gap-2 rounded-2xl bg-harwick-ink px-4 py-2.5 text-[13px] font-semibold text-white transition hover:bg-harwick-ink-soft" type="submit">
+            <button
+              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-harwick-ink px-4 py-2.5 text-[13px] font-semibold text-white transition hover:bg-harwick-ink-soft disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={submitState === "submitting" || submitState === "sent"}
+              type="submit"
+            >
               <Send aria-hidden="true" className="h-4 w-4" />
-              send to Harwick
+              {submitState === "submitting" ? "sending" : submitState === "sent" ? "sent" : "send to Harwick"}
             </button>
           </div>
+
+          {submitState === "sent" ? (
+            <div className="rounded-2xl border border-sage/25 bg-sage/10 px-4 py-3 text-[12px] font-medium text-foreground">
+              Harwick saved the request and routed it into the workspace.
+            </div>
+          ) : null}
+          {submitState === "failed" && submitError !== null ? (
+            <div className="rounded-2xl border border-oxblood/20 bg-oxblood/10 px-4 py-3 text-[12px] font-medium text-foreground">
+              {submitError}
+            </div>
+          ) : null}
 
           <div className="flex items-center justify-center gap-2 border-t border-border pt-4 text-[11px] text-muted-subtle">
             <span className="flex h-5 w-5 items-center justify-center rounded-md bg-harwick-ink font-display text-[11px] text-harwick-brass">H</span>
@@ -587,9 +493,9 @@ function InquiryDialog(props: {
 }
 
 function ListingViewer(props: {
-  listing: Listing | null;
+  listing: PublicListingCardData | null;
   onClose: () => void;
-  onInquire: (intent: InquiryIntent, listing: Listing) => void;
+  onInquire: (intent: InquiryIntent, listing: PublicListingCardData) => void;
 }) {
   const { listing, onClose, onInquire } = props;
 
@@ -622,9 +528,6 @@ function ListingViewer(props: {
               all listings
             </button>
             <div className="flex items-center gap-2">
-              <a className="hidden rounded-full border border-border px-3.5 py-2 text-[12px] font-semibold transition hover:border-border-strong sm:inline-flex" href="tel:+19495550187">
-                call agent
-              </a>
               <button className="rounded-full bg-harwick-ink px-3.5 py-2 text-[12px] font-semibold text-white transition hover:bg-harwick-ink-soft" onClick={() => onInquire("question", listing)} type="button">
                 inquire
               </button>
@@ -638,7 +541,7 @@ function ListingViewer(props: {
             <section>
               <div className="grid gap-3 md:grid-cols-[1.35fr_0.65fr]">
                 <div className="relative min-h-[460px] overflow-hidden rounded-[30px] bg-harwick-ink">
-                  <img alt={`${listing.shortAddress} main view`} className="h-full min-h-[460px] w-full object-cover" src={listing.photos[0]} />
+                  <ListingImage alt={`${listing.shortAddress} main view`} className="h-full min-h-[460px] w-full object-cover" src={listing.photos[0] ?? listing.imageUrl} />
                   <div className="absolute left-5 top-5">
                     <ListingBadge listing={listing} />
                   </div>
@@ -745,6 +648,9 @@ function ListingViewer(props: {
                   <Calendar aria-hidden="true" className="h-4 w-4" />
                   {listing.openHouse}
                 </div>
+                <button className="mt-4 w-full rounded-2xl border border-border px-4 py-3 text-[13px] font-semibold transition hover:border-border-strong hover:bg-surface-muted" onClick={() => onInquire("open_house", listing)} type="button">
+                  register
+                </button>
               </div>
 
               <CostCalculator listing={listing} />
@@ -756,10 +662,12 @@ function ListingViewer(props: {
   );
 }
 
-export function PublicListingsPage(props: { workspaceSlug: string }) {
+export function PublicListingsPage(props: { listings?: PublicListingCardData[]; workspaceSlug: string }) {
   const workspaceName = formatWorkspaceName(props.workspaceSlug);
+  const listings = props.listings ?? [];
+  const hasListings = listings.length > 0;
   const [selectedListingSlug, setSelectedListingSlug] = useState<string | null>(null);
-  const [inquiryState, setInquiryState] = useState<{ intent: InquiryIntent; listing: Listing | null } | null>(null);
+  const [inquiryState, setInquiryState] = useState<{ intent: InquiryIntent; listing: PublicListingCardData | null } | null>(null);
   const [favoriteSlugs, setFavoriteSlugs] = useState<string[]>([]);
   const [activeFilter, setActiveFilter] = useState<ListingFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -786,11 +694,11 @@ export function PublicListingsPage(props: { workspaceSlug: string }) {
       return matchesFilter && matchesQuery;
     });
   }, [activeFilter, searchQuery]);
-  const featuredListing = listings[0] as Listing;
-  const openInquiry = (intent: InquiryIntent, listing: Listing | null = selectedListing) => {
+  const featuredListing = listings[0] ?? null;
+  const openInquiry = (intent: InquiryIntent, listing: PublicListingCardData | null = selectedListing) => {
     setInquiryState({ intent, listing });
   };
-  const toggleFavorite = (listing: Listing) => {
+  const toggleFavorite = (listing: PublicListingCardData) => {
     setFavoriteSlugs((currentFavorites) => currentFavorites.includes(listing.slug)
       ? currentFavorites.filter((slug) => slug !== listing.slug)
       : [...currentFavorites, listing.slug]);
@@ -815,13 +723,15 @@ export function PublicListingsPage(props: { workspaceSlug: string }) {
             <a className="rounded-lg px-3.5 py-2 text-foreground transition hover:bg-surface-muted" href="#listings">listings</a>
             <a className="rounded-lg px-3.5 py-2 transition hover:bg-surface-muted hover:text-foreground" href="#contact">inquire</a>
           </nav>
-          <a
-            className="ml-auto hidden h-9 items-center gap-2 rounded-lg border border-border bg-surface/80 px-3.5 text-[13px] font-medium shadow-sm transition hover:border-border-strong md:flex"
-            href="tel:+19495550187"
-          >
-            <Phone aria-hidden="true" className="h-4 w-4 text-qualified" />
-            {pageCopy.phone}
-          </a>
+          {pageCopy.phone === null ? null : (
+            <a
+              className="ml-auto hidden h-9 items-center gap-2 rounded-lg border border-border bg-surface/80 px-3.5 text-[13px] font-medium shadow-sm transition hover:border-border-strong md:flex"
+              href={`tel:${pageCopy.phone.replace(/[^+\d]/g, "")}`}
+            >
+              <Phone aria-hidden="true" className="h-4 w-4 text-qualified" />
+              {pageCopy.phone}
+            </a>
+          )}
           <button
             className="inline-flex min-w-[108px] items-center justify-center rounded-lg bg-harwick-ink px-4 py-2.5 text-center text-[13px] font-semibold text-white shadow-[0_14px_34px_rgba(26,42,32,0.18)] transition hover:bg-harwick-ink-soft"
             onClick={() => openInquiry("general", null)}
@@ -866,13 +776,25 @@ export function PublicListingsPage(props: { workspaceSlug: string }) {
             </div>
           </div>
 
-          <ListingCard
-            isFavorite={favoriteSlugs.includes(featuredListing.slug)}
-            listing={featuredListing}
-            onOpen={(listing) => setSelectedListingSlug(listing.slug)}
-            onToggleFavorite={toggleFavorite}
-            priority
-          />
+          {featuredListing === null ? (
+            <div className="flex min-h-[520px] items-center justify-center rounded-[34px] border border-dashed border-border bg-surface/70 p-8 text-center shadow-[0_24px_70px_rgba(24,30,24,0.08)]">
+              <div>
+                <Building2 aria-hidden="true" className="mx-auto h-8 w-8 text-muted-subtle" strokeWidth={1.6} />
+                <div className="mt-4 font-display text-[30px] font-medium text-harwick-ink">No public listings yet.</div>
+                <p className="mx-auto mt-3 max-w-[360px] text-[14px] leading-6 text-muted">
+                  Verified workspace listings will appear here as soon as the team publishes inventory.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <ListingCard
+              isFavorite={favoriteSlugs.includes(featuredListing.slug)}
+              listing={featuredListing}
+              onOpen={(listing) => setSelectedListingSlug(listing.slug)}
+              onToggleFavorite={toggleFavorite}
+              priority
+            />
+          )}
         </div>
       </section>
 
@@ -881,7 +803,7 @@ export function PublicListingsPage(props: { workspaceSlug: string }) {
           <div>
             <h2 className="font-display text-[31px] font-medium leading-none">{pageCopy.activeListingsLabel}</h2>
             <p className="mt-2 text-[14px] text-muted">
-              showing {visibleListings.length} homes from {workspaceName}.
+              showing {visibleListings.length} {visibleListings.length === 1 ? "listing" : "listings"} from {workspaceName}.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -944,10 +866,12 @@ export function PublicListingsPage(props: { workspaceSlug: string }) {
               <div className="mt-1 text-[13px] text-muted">Ask Harwick for details, showing times, similar homes, or current availability from {workspaceName}.</div>
             </div>
           </div>
-          <a className="flex items-center justify-center gap-2 rounded-2xl border border-border px-5 py-3 text-[13px] font-semibold transition hover:border-border-strong hover:bg-surface-muted" href="tel:+19495550187">
-            <Phone aria-hidden="true" className="h-4 w-4" />
-            call or text
-          </a>
+          {pageCopy.phone === null ? null : (
+            <a className="flex items-center justify-center gap-2 rounded-2xl border border-border px-5 py-3 text-[13px] font-semibold transition hover:border-border-strong hover:bg-surface-muted" href={`tel:${pageCopy.phone.replace(/[^+\d]/g, "")}`}>
+              <Phone aria-hidden="true" className="h-4 w-4" />
+              call or text
+            </a>
+          )}
           <button className="flex items-center justify-center gap-2 rounded-2xl bg-harwick-ink px-5 py-3 text-[13px] font-semibold text-white transition hover:bg-harwick-ink-soft" onClick={() => openInquiry("general", null)} type="button">
             <ArrowUpRight aria-hidden="true" className="h-4 w-4" />
             inquire now
@@ -965,12 +889,14 @@ export function PublicListingsPage(props: { workspaceSlug: string }) {
                 Live listing support for buyers who need availability, showing windows, and a fast route to the right agent.
               </p>
             </div>
-            <div>
-              <div className="text-[12px] text-white/48">reach the team</div>
-              <a className="mt-1 block font-display text-[24px] text-white transition hover:text-harwick-brass" href="tel:+19495550187">
-                {pageCopy.phone}
-              </a>
-            </div>
+            {pageCopy.phone === null ? null : (
+              <div>
+                <div className="text-[12px] text-white/48">reach the team</div>
+                <a className="mt-1 block font-display text-[24px] text-white transition hover:text-harwick-brass" href={`tel:${pageCopy.phone.replace(/[^+\d]/g, "")}`}>
+                  {pageCopy.phone}
+                </a>
+              </div>
+            )}
           </div>
 
           <div className="flex flex-col gap-4 pt-6 text-[11px] text-white/30 md:flex-row md:items-center md:justify-between">
@@ -995,9 +921,11 @@ export function PublicListingsPage(props: { workspaceSlug: string }) {
       />
       {inquiryState === null ? null : (
         <InquiryDialog
+          canSubmitListingScopedInquiries={hasListings}
           intent={inquiryState.intent}
           listing={inquiryState.listing}
           onClose={() => setInquiryState(null)}
+          workspaceSlug={props.workspaceSlug}
           workspaceName={workspaceName}
         />
       )}

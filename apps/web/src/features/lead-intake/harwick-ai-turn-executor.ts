@@ -10,6 +10,7 @@ import {
 } from "@realty-ops/core";
 import {
   createOpenAIEmbeddingClient,
+  createGoogleCalendarClient,
   createOpenAIHarwickAiRuntime,
   createOpenAISmallModelClient,
   runHarwickAiAgenticLoop,
@@ -31,6 +32,7 @@ import { createSupabaseConversationMessageRepository } from "../../lib/supabase/
 import { createSupabaseConversationAutomationRepository } from "../../lib/supabase/conversation-automation";
 import { createSupabaseLeadDocumentRepository } from "../../lib/supabase/lead-document";
 import { createSupabaseMemberRoutingProfileRepository } from "../../lib/supabase/member-routing-profiles";
+import { createSupabaseMemberCalendarConnectionRepository } from "../../lib/supabase/member-calendar-connections";
 import { createSupabaseWorkspacePolicyNarrativeRepository } from "../../lib/supabase/workspace-policy-narrative";
 import { createSupabaseWorkspaceMemoryRepository, type WorkspaceMemoryRepository } from "../../lib/supabase/workspace-memory";
 import { createSupabaseAgentTrajectoryStore, findSimilarTrajectories } from "../../lib/supabase/agent-trajectory-store";
@@ -130,6 +132,7 @@ export async function generateAndExecuteHarwickAiTurnSync(
   const leadDocumentRepo = createSupabaseLeadDocumentRepository(deps.supabase);
   const workspaceMemoryRepo = createSupabaseWorkspaceMemoryRepository(deps.supabase);
   const memberRoutingRepo = createSupabaseMemberRoutingProfileRepository(deps.supabase);
+  const calendarConnectionRepo = createSupabaseMemberCalendarConnectionRepository(deps.supabase);
   const auditLogRepo = createSupabaseAuditLogRepository(deps.supabase);
 
   let trajectoryId: string | null = null;
@@ -238,6 +241,15 @@ export async function generateAndExecuteHarwickAiTurnSync(
       agentStepId: null,
     };
 
+    const environment = getServerEnvironment();
+    const googleCalendarOAuth = environment.GOOGLE_CALENDAR_CLIENT_ID === undefined
+      || environment.GOOGLE_CALENDAR_CLIENT_SECRET === undefined
+      ? undefined
+      : {
+          clientId: environment.GOOGLE_CALENDAR_CLIENT_ID,
+          clientSecret: environment.GOOGLE_CALENDAR_CLIENT_SECRET,
+        };
+
     const handlers: HarwickAiToolHandlers = createHarwickAiToolHandlers({
       supabase: deps.supabase,
       context: toolContext,
@@ -245,6 +257,9 @@ export async function generateAndExecuteHarwickAiTurnSync(
       conversationAutomationRepository: conversationAutomationRepo,
       leadEventRepository: deps.leadEventRepository,
       memberRoutingRepository: memberRoutingRepo,
+      calendarConnectionRepository: calendarConnectionRepo,
+      calendarClient: createGoogleCalendarClient(),
+      ...(googleCalendarOAuth === undefined ? {} : { googleCalendarOAuth }),
       credentialSecret: deps.credentialSecret,
     });
 
@@ -271,11 +286,29 @@ export async function generateAndExecuteHarwickAiTurnSync(
         toolCalls: turn.toolCalls,
         approvedTools: automationDecision.approvedTools,
         blockedTools: automationDecision.blockedTools,
+      }).map((toolCall, index) => {
+        const result = step.results[index];
+        if (result === undefined) {
+          return toolCall;
+        }
+
+        return {
+          ...toolCall,
+          executionStatus: result.status,
+          executionOutput: result.output,
+          errorCode: result.errorCode ?? null,
+          errorMessage: result.errorMessage ?? null,
+        };
       });
+      const allToolCallsExecuted = turn.toolCalls.length > 0
+        && step.results.length === turn.toolCalls.length
+        && step.results.every((result) => result.status === "executed");
       const persistenceStatus = deriveHarwickAiTurnPersistenceStatus({
         automationDecision,
-        isExecuted: step.results.some((result) => result.status === "executed"),
-        hasExecutionFailure: step.results.some((result) => result.status === "failed"),
+        isExecuted: allToolCallsExecuted,
+        hasExecutionFailure: step.results.some((result) =>
+          result.status === "failed" || result.status === "missing_handler"
+        ),
       });
 
       const persistedTurn: HarwickAiPersistedTurn = {
@@ -381,7 +414,7 @@ export async function generateAndExecuteHarwickAiTurnSync(
         }
       }
 
-      if (automationDecision.canAutoExecute && step.results.some((result) => result.status === "executed")) {
+      if (automationDecision.canAutoExecute && allToolCallsExecuted) {
         await deps.turnRepository.updateTurnStatus(turnId, "auto_executed");
       }
     }

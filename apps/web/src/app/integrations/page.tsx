@@ -15,7 +15,13 @@ export default async function Page() {
   });
 
   return (
-    <AppShell activeItem="Integrations" title="Integrations" workspaceName={membership.workspaceName}>
+    <AppShell
+      activeItem="Integrations"
+      memberName={membership.displayName}
+      memberRole={membership.role}
+      title="Integrations"
+      workspaceName={membership.workspaceName}
+    >
       <IntegrationsPageContent
         data={data}
         workspaceId={membership.workspaceId}

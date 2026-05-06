@@ -74,6 +74,7 @@ export const HarwickHomeWorkItemSchema = z.object({
   targetRole: WorkspaceRoleSchema.nullable(),
   createdAt: IsoDateTimeSchema,
   dueAt: IsoDateTimeSchema.nullable(),
+  payload: z.record(z.string(), z.unknown()).default({}),
 });
 
 export const HarwickHomeWorkItemsResponseSchema = z.object({

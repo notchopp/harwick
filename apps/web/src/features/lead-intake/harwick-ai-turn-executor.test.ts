@@ -310,8 +310,11 @@ describe("generateAndExecuteHarwickAiTurnSync", () => {
       runTurn,
     };
 
+    const insertTurn = vi.fn<HarwickAiTurnPersistenceRepository["insertTurn"]>(() =>
+      Promise.resolve({ turnId: "00000000-0000-0000-0000-000000000020" })
+    );
     const turnRepository: HarwickAiTurnPersistenceRepository = {
-      insertTurn: vi.fn().mockResolvedValue({ turnId: "00000000-0000-0000-0000-000000000020" }),
+      insertTurn,
       getTurnById: vi.fn(),
       updateTurnStatus: vi.fn().mockResolvedValue(undefined),
     };
@@ -368,6 +371,17 @@ describe("generateAndExecuteHarwickAiTurnSync", () => {
     const runTurnCalls = runTurn.mock.calls as Array<[HarwickAiRuntimeInput]>;
     expect(runTurnCalls[0]?.[0].workspaceMemory).toContain("Noah closes high-budget Katy buyers");
     expect(mocks.sendMetaReply).toHaveBeenCalledTimes(1);
+    expect(insertTurn).toHaveBeenCalledTimes(1);
+    const insertedTurn = insertTurn.mock.calls[0]?.[0];
+    expect(insertedTurn?.status).toBe("auto_executed");
+    expect(insertedTurn?.toolCalls[0]).toMatchObject({
+      tool: "send_meta_dm",
+      executionStatus: "executed",
+    });
+    expect(insertedTurn?.toolCalls[0]?.executionOutput).toMatchObject({
+      sent: true,
+      providerEventId: "meta-message-1",
+    });
     expect(mocks.conversationRepo.insertMessage).toHaveBeenCalledWith(
       expect.objectContaining({
         sender_type: "ai",

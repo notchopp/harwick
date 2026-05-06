@@ -3,9 +3,13 @@ import { NextResponse, type NextRequest } from "next/server";
 import { loadRecentLeads } from "../../../features/home/recent-leads";
 import { loadRoutingDesk } from "../../../features/home/routing-desk";
 import { loadTeamPresence } from "../../../features/home/team-presence";
+import { loadOperationsFailureQueue } from "../../../features/operations/failure-operations";
+import { loadFollowUpBossConflictQueue } from "../../../features/operations/follow-up-boss-conflicts";
 import { loadOperationsQueueSummary, loadWorkspaceReadiness } from "../../../features/operations/workspace-operations";
 import { loadSocialReplyQueue, loadVoiceHandoffQueue } from "../../../features/operator-queues/operator-queues";
 import { authorizeWorkspaceRequest } from "../../../lib/api/workspace-auth";
+import { createSupabaseFailureOperationsRepository } from "../../../lib/supabase/failure-operations";
+import { createSupabaseFollowUpBossConflictRepository } from "../../../lib/supabase/follow-up-boss-conflicts";
 import { createServerSupabaseClient } from "../../../lib/supabase/server-client";
 import { createSupabaseWorkspaceOperationsRepository } from "../../../lib/supabase/operations";
 import { createSupabaseSocialReplyQueueRepository, createSupabaseVoiceHandoffQueueRepository } from "../../../lib/supabase/operator-queues";
@@ -34,6 +38,8 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = createServerSupabaseClient();
+    const canManageFubConflicts = new Set<string>(["owner", "admin", "team_lead", "lead_manager", "operator"])
+      .has(membership.role);
     const [
       teamPresence,
       operations,
@@ -43,6 +49,8 @@ export async function GET(request: NextRequest) {
       recentLeads,
       routingDesk,
       harwickWorkItems,
+      fubConflicts,
+      operationsFailures,
     ] = await Promise.all([
       loadTeamPresence({
         workspaceId,
@@ -106,6 +114,26 @@ export async function GET(request: NextRequest) {
         console.error("GET /api/home Harwick work items error:", error);
         return [];
       }),
+      canManageFubConflicts
+        ? loadFollowUpBossConflictQueue({
+          workspaceId,
+          repository: createSupabaseFollowUpBossConflictRepository(supabase),
+          limit: 5,
+        }).catch((error: unknown) => {
+          console.error("GET /api/home FUB conflicts error:", error);
+          return null;
+        })
+        : Promise.resolve(null),
+      canManageFubConflicts
+        ? loadOperationsFailureQueue({
+          workspaceId,
+          repository: createSupabaseFailureOperationsRepository(supabase),
+          limit: 5,
+        }).catch((error: unknown) => {
+          console.error("GET /api/home operations failures error:", error);
+          return null;
+        })
+        : Promise.resolve(null),
     ]);
 
     return NextResponse.json({
@@ -121,6 +149,8 @@ export async function GET(request: NextRequest) {
         workspaceId,
         items: harwickWorkItems,
       },
+      fubConflicts,
+      operationsFailures,
     });
   } catch (error) {
     console.error("GET /api/home error:", error);

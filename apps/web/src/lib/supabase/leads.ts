@@ -3,7 +3,18 @@ import {
   parseBudgetRangeText,
   type ExtractedLeadFields,
   type NormalizedLeadEvent,
+  type RoutingCalendarStatus,
+  type ShowingMode,
 } from "@realty-ops/core";
+import type {
+  HarwickRoutingDecisionInsertRow,
+  HarwickRoutingDecisionRow,
+  IntegrationAccountRow,
+  LeadEventRow,
+  MemberRoutingProfileRow,
+  WorkspaceMemberRow,
+  WorkspaceMemberCalendarConnectionRow,
+} from "./database.types";
 import type { RealtyOpsSupabaseClient } from "./server-client";
 
 export type LeadRow = {
@@ -56,10 +67,85 @@ export type LeadUpsertResult = {
   created: boolean;
 };
 
+export type LeadQualificationEditableRow = Pick<
+  LeadRow,
+  | "id"
+  | "workspace_id"
+  | "assigned_agent_id"
+  | "lead_type"
+  | "intent"
+  | "timeline"
+  | "budget_min"
+  | "budget_max"
+  | "target_area"
+  | "financing_status"
+>;
+
+export type LeadRoutingActionLeadRow = Pick<
+  LeadRow,
+  | "id"
+  | "workspace_id"
+  | "status"
+  | "assigned_agent_id"
+  | "lead_type"
+  | "intent"
+  | "timeline"
+  | "budget_min"
+  | "budget_max"
+  | "target_area"
+  | "financing_status"
+  | "score"
+>;
+
+export type LeadRoutingActionMemberRow = Pick<
+  WorkspaceMemberRow,
+  "id" | "display_name" | "role" | "is_active"
+>;
+
+export type LeadRoutingActionDecisionRow = Pick<HarwickRoutingDecisionRow, "id">;
+
+export type LeadRoutingCalendarSignal = {
+  calendarStatus: RoutingCalendarStatus;
+  showingMode: ShowingMode | null;
+};
+
 export type LeadUpsertRepository = {
   findExistingLead(lookup: LeadLookup): Promise<Pick<LeadRow, "id"> | null>;
   insertLead(row: LeadInsertRow): Promise<Pick<LeadRow, "id">>;
   updateLead(leadId: string, row: LeadUpdateRow): Promise<Pick<LeadRow, "id">>;
+};
+
+export type LeadQualificationRepository = {
+  findLeadForQualificationUpdate(params: {
+    workspaceId: string;
+    leadId: string;
+  }): Promise<LeadQualificationEditableRow | null>;
+  updateLeadQualification(params: {
+    workspaceId: string;
+    leadId: string;
+    row: LeadUpdateRow;
+  }): Promise<Pick<LeadRow, "id">>;
+};
+
+export type LeadRoutingActionRepository = {
+  findLeadForRoutingAction(params: {
+    workspaceId: string;
+    leadId: string;
+  }): Promise<LeadRoutingActionLeadRow | null>;
+  listRoutingProfiles(workspaceId: string): Promise<MemberRoutingProfileRow[]>;
+  listActiveWorkspaceMembers(workspaceId: string): Promise<LeadRoutingActionMemberRow[]>;
+  listAssignedActiveLeadCounts(workspaceId: string): Promise<Record<string, number>>;
+  listCalendarRoutingSignals(workspaceId: string): Promise<Record<string, LeadRoutingCalendarSignal>>;
+  findLeadSourceOwnerMemberId(params: {
+    workspaceId: string;
+    leadId: string;
+  }): Promise<string | null>;
+  updateLeadAssignment(params: {
+    workspaceId: string;
+    leadId: string;
+    assignedMemberId: string;
+  }): Promise<Pick<LeadRow, "id">>;
+  insertRoutingDecision(row: HarwickRoutingDecisionInsertRow): Promise<LeadRoutingActionDecisionRow>;
 };
 
 export function buildLeadLookupFromEvent(event: NormalizedLeadEvent): LeadLookup {
@@ -278,6 +364,230 @@ export function createSupabaseLeadUpsertRepository(
         .eq("id", leadId)
         .select("id")
         .single<Pick<LeadRow, "id">>();
+
+      if (error !== null) {
+        throw error;
+      }
+
+      return data;
+    },
+  };
+}
+
+export function createSupabaseLeadQualificationRepository(
+  supabase: RealtyOpsSupabaseClient,
+): LeadQualificationRepository {
+  return {
+    async findLeadForQualificationUpdate(params) {
+      const { data, error } = await supabase
+        .from("leads")
+        .select("id, workspace_id, assigned_agent_id, lead_type, intent, timeline, budget_min, budget_max, target_area, financing_status")
+        .eq("workspace_id", params.workspaceId)
+        .eq("id", params.leadId)
+        .maybeSingle<LeadQualificationEditableRow>();
+
+      if (error !== null) {
+        throw error;
+      }
+
+      return data ?? null;
+    },
+
+    async updateLeadQualification(params) {
+      const { data, error } = await supabase
+        .from("leads")
+        .update(params.row)
+        .eq("workspace_id", params.workspaceId)
+        .eq("id", params.leadId)
+        .select("id")
+        .single<Pick<LeadRow, "id">>();
+
+      if (error !== null) {
+        throw error;
+      }
+
+      return data;
+    },
+  };
+}
+
+export function createSupabaseLeadRoutingActionRepository(
+  supabase: RealtyOpsSupabaseClient,
+): LeadRoutingActionRepository {
+  return {
+    async findLeadForRoutingAction(params) {
+      const { data, error } = await supabase
+        .from("leads")
+        .select("id, workspace_id, status, assigned_agent_id, lead_type, intent, timeline, budget_min, budget_max, target_area, financing_status, score")
+        .eq("workspace_id", params.workspaceId)
+        .eq("id", params.leadId)
+        .maybeSingle<LeadRoutingActionLeadRow>();
+
+      if (error !== null) {
+        throw error;
+      }
+
+      return data ?? null;
+    },
+
+    async listRoutingProfiles(workspaceId) {
+      const { data, error } = await supabase
+        .from("member_routing_profiles")
+        .select("*")
+        .eq("workspace_id", workspaceId)
+        .order("created_at", { ascending: true })
+        .returns<MemberRoutingProfileRow[]>();
+
+      if (error !== null) {
+        throw error;
+      }
+
+      return data ?? [];
+    },
+
+    async listActiveWorkspaceMembers(workspaceId) {
+      const { data, error } = await supabase
+        .from("workspace_members")
+        .select("id, display_name, role, is_active")
+        .eq("workspace_id", workspaceId)
+        .eq("is_active", true)
+        .returns<LeadRoutingActionMemberRow[]>();
+
+      if (error !== null) {
+        throw error;
+      }
+
+      return data ?? [];
+    },
+
+    async listAssignedActiveLeadCounts(workspaceId) {
+      const { data, error } = await supabase
+        .from("leads")
+        .select("assigned_agent_id, status")
+        .eq("workspace_id", workspaceId)
+        .not("assigned_agent_id", "is", null)
+        .not("status", "in", "(closed_won,closed_lost,archived)")
+        .returns<Array<Pick<LeadRow, "assigned_agent_id" | "status">>>();
+
+      if (error !== null) {
+        throw error;
+      }
+
+      const counts: Record<string, number> = {};
+      for (const row of data ?? []) {
+        if (row.assigned_agent_id !== null) {
+          counts[row.assigned_agent_id] = (counts[row.assigned_agent_id] ?? 0) + 1;
+        }
+      }
+
+      return counts;
+    },
+
+    async listCalendarRoutingSignals(workspaceId) {
+      const { data, error } = await supabase
+        .from("workspace_member_calendar_connections")
+        .select("member_id, showing_mode")
+        .eq("workspace_id", workspaceId)
+        .eq("provider", "google")
+        .eq("status", "connected")
+        .returns<Array<Pick<WorkspaceMemberCalendarConnectionRow, "member_id" | "showing_mode">>>();
+
+      if (error !== null) {
+        throw error;
+      }
+
+      const signals: Record<string, LeadRoutingCalendarSignal> = {};
+      for (const row of data ?? []) {
+        const showingMode = row.showing_mode === "collect_only"
+          || row.showing_mode === "request_approve"
+          || row.showing_mode === "auto_book"
+          ? row.showing_mode
+          : null;
+        signals[row.member_id] = {
+          calendarStatus: "connected",
+          showingMode,
+        };
+      }
+
+      return signals;
+    },
+
+    async findLeadSourceOwnerMemberId(params) {
+      const { data: event, error: eventError } = await supabase
+        .from("lead_events")
+        .select("provider, provider_account_id")
+        .eq("workspace_id", params.workspaceId)
+        .eq("lead_id", params.leadId)
+        .not("provider_account_id", "is", null)
+        .order("occurred_at", { ascending: false })
+        .limit(1)
+        .maybeSingle<Pick<LeadEventRow, "provider" | "provider_account_id">>();
+
+      if (eventError !== null) {
+        throw eventError;
+      }
+      if (event?.provider_account_id === null || event?.provider_account_id === undefined) {
+        return null;
+      }
+
+      const { data, error } = await supabase
+        .from("integration_accounts")
+        .select("owner_member_id")
+        .eq("workspace_id", params.workspaceId)
+        .eq("provider", event.provider)
+        .eq("provider_account_id", event.provider_account_id)
+        .eq("status", "connected")
+        .maybeSingle<Pick<IntegrationAccountRow, "owner_member_id">>();
+
+      if (error !== null) {
+        throw error;
+      }
+      if (data?.owner_member_id !== undefined) {
+        return data.owner_member_id;
+      }
+
+      const { data: aliasData, error: aliasError } = await supabase
+        .from("integration_accounts")
+        .select("owner_member_id")
+        .eq("workspace_id", params.workspaceId)
+        .eq("provider", event.provider)
+        .contains("provider_account_ids", [event.provider_account_id])
+        .eq("status", "connected")
+        .maybeSingle<Pick<IntegrationAccountRow, "owner_member_id">>();
+
+      if (aliasError !== null) {
+        throw aliasError;
+      }
+
+      return aliasData?.owner_member_id ?? null;
+    },
+
+    async updateLeadAssignment(params) {
+      const { data, error } = await supabase
+        .from("leads")
+        .update({
+          assigned_agent_id: params.assignedMemberId,
+          status: "assigned",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("workspace_id", params.workspaceId)
+        .eq("id", params.leadId)
+        .select("id")
+        .single<Pick<LeadRow, "id">>();
+
+      if (error !== null) {
+        throw error;
+      }
+
+      return data;
+    },
+
+    async insertRoutingDecision(row) {
+      const { data, error } = await supabase
+        .from("harwick_routing_decisions")
+        .insert(row)
+        .select("id")
+        .single<LeadRoutingActionDecisionRow>();
 
       if (error !== null) {
         throw error;

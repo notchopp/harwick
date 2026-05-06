@@ -51,9 +51,25 @@ const ServerEnvironmentBaseSchema = z.object({
   // Defaults to gpt-4o-mini if unset; brokerages can swap to Haiku 3.5 or
   // a Llama-via-Groq deployment by setting this env.
   OPENAI_SMALL_MODEL: z.string().trim().min(1).default("gpt-4o-mini"),
+  GOOGLE_CALENDAR_CLIENT_ID: OptionalNonEmptyStringSchema,
+  GOOGLE_CALENDAR_CLIENT_SECRET: OptionalNonEmptyStringSchema,
+  GOOGLE_CALENDAR_OAUTH_REDIRECT_URI: OptionalNonEmptyUrlSchema,
+  TWILIO_ACCOUNT_SID: OptionalNonEmptyStringSchema,
+  TWILIO_AUTH_TOKEN: OptionalNonEmptyStringSchema,
+  TWILIO_PHONE_NUMBER: OptionalNonEmptyStringSchema,
   LISTING_PROVIDER: OptionalListingProviderSchema,
   REPLIERS_API_KEY: OptionalNonEmptyStringSchema,
   REPLIERS_BOARD_ID: OptionalPositiveIntegerSchema,
+  STRIPE_SECRET_KEY: OptionalNonEmptyStringSchema,
+  STRIPE_WEBHOOK_SECRET: OptionalNonEmptyStringSchema,
+  STRIPE_SOLO_MONTHLY_PRICE_ID: OptionalNonEmptyStringSchema,
+  STRIPE_SOLO_YEARLY_PRICE_ID: OptionalNonEmptyStringSchema,
+  STRIPE_TEAM_MONTHLY_PRICE_ID: OptionalNonEmptyStringSchema,
+  STRIPE_TEAM_YEARLY_PRICE_ID: OptionalNonEmptyStringSchema,
+  STRIPE_BROKERAGE_MONTHLY_PRICE_ID: OptionalNonEmptyStringSchema,
+  STRIPE_BROKERAGE_YEARLY_PRICE_ID: OptionalNonEmptyStringSchema,
+  AGENT_RECONCILE_CRON_SECRET: OptionalNonEmptyStringSchema,
+  CRON_SECRET: OptionalNonEmptyStringSchema,
   NEXT_PUBLIC_SUPABASE_URL: z.string().trim().url(),
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().trim().min(1),
   SUPABASE_SERVICE_ROLE_KEY: z.string().trim().min(1),
@@ -109,11 +125,62 @@ export function validateProductionReadiness(environment: ServerEnvironment): str
   if (environment.OPENAI_API_KEY === undefined) {
     missing.push("OPENAI_API_KEY");
   }
-  if (environment.RETELL_CONVERSATION_FLOW_TEMPLATE_ID === undefined) {
-    missing.push("RETELL_CONVERSATION_FLOW_TEMPLATE_ID");
-  }
   if (environment.RETELL_VOICE_ID === undefined) {
     missing.push("RETELL_VOICE_ID");
+  }
+  if (environment.STRIPE_SECRET_KEY === undefined) {
+    missing.push("STRIPE_SECRET_KEY");
+  }
+  if (environment.STRIPE_WEBHOOK_SECRET === undefined) {
+    missing.push("STRIPE_WEBHOOK_SECRET");
+  }
+  if (environment.STRIPE_SOLO_MONTHLY_PRICE_ID === undefined) {
+    missing.push("STRIPE_SOLO_MONTHLY_PRICE_ID");
+  }
+  if (environment.STRIPE_SOLO_YEARLY_PRICE_ID === undefined) {
+    missing.push("STRIPE_SOLO_YEARLY_PRICE_ID");
+  }
+  if (environment.STRIPE_TEAM_MONTHLY_PRICE_ID === undefined) {
+    missing.push("STRIPE_TEAM_MONTHLY_PRICE_ID");
+  }
+  if (environment.STRIPE_TEAM_YEARLY_PRICE_ID === undefined) {
+    missing.push("STRIPE_TEAM_YEARLY_PRICE_ID");
+  }
+  if (environment.STRIPE_BROKERAGE_MONTHLY_PRICE_ID === undefined) {
+    missing.push("STRIPE_BROKERAGE_MONTHLY_PRICE_ID");
+  }
+  if (environment.STRIPE_BROKERAGE_YEARLY_PRICE_ID === undefined) {
+    missing.push("STRIPE_BROKERAGE_YEARLY_PRICE_ID");
+  }
+  if (environment.APP_ENV === "staging" && environment.STRIPE_SECRET_KEY !== undefined && !environment.STRIPE_SECRET_KEY.startsWith("sk_test_")) {
+    missing.push("STRIPE_SECRET_KEY_TEST_MODE");
+  }
+  if (environment.APP_ENV === "production" && environment.STRIPE_SECRET_KEY !== undefined && !environment.STRIPE_SECRET_KEY.startsWith("sk_live_")) {
+    missing.push("STRIPE_SECRET_KEY_LIVE_MODE");
+  }
+  if (environment.META_OAUTH_REDIRECT_URI === undefined) {
+    missing.push("META_OAUTH_REDIRECT_URI");
+  }
+  if (environment.GOOGLE_CALENDAR_CLIENT_ID === undefined) {
+    missing.push("GOOGLE_CALENDAR_CLIENT_ID");
+  }
+  if (environment.GOOGLE_CALENDAR_CLIENT_SECRET === undefined) {
+    missing.push("GOOGLE_CALENDAR_CLIENT_SECRET");
+  }
+  if (environment.GOOGLE_CALENDAR_OAUTH_REDIRECT_URI === undefined) {
+    missing.push("GOOGLE_CALENDAR_OAUTH_REDIRECT_URI");
+  }
+  if (environment.TWILIO_ACCOUNT_SID === undefined) {
+    missing.push("TWILIO_ACCOUNT_SID");
+  }
+  if (environment.TWILIO_AUTH_TOKEN === undefined) {
+    missing.push("TWILIO_AUTH_TOKEN");
+  }
+  if (environment.TWILIO_PHONE_NUMBER === undefined) {
+    missing.push("TWILIO_PHONE_NUMBER");
+  }
+  if (environment.AGENT_RECONCILE_CRON_SECRET === undefined && environment.CRON_SECRET === undefined) {
+    missing.push("AGENT_RECONCILE_CRON_SECRET_OR_CRON_SECRET");
   }
   if (environment.NEXT_PUBLIC_APP_URL.includes("localhost")) {
     missing.push("NEXT_PUBLIC_APP_URL_PUBLIC_HOST");

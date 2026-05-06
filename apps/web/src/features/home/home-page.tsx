@@ -2,7 +2,9 @@
 
 import {
   automationModeLabel,
+  FollowUpBossConflictQueueResponseSchema,
   HarwickHomeWorkItemsResponseSchema,
+  OperationsFailureQueueResponseSchema,
   RecentLeadsResponseSchema,
   RoutingDeskResponseSchema,
   TeamPresenceResponseSchema,
@@ -31,6 +33,22 @@ type Tone = "green" | "red" | "amber" | "stone";
 type QueueFilter = "all" | "instagram" | "facebook" | "calls" | "insights" | "verify" | "crm";
 type WorkItem = { kind: "reply"; item: Reply } | { kind: "task"; item: Task };
 
+type LoopToolCallDetail = {
+  tool: string;
+  reason: string;
+  requiresApproval: boolean;
+};
+
+type LoopDetail = {
+  outputMode?: string;
+  draftBody?: string;
+  agentLoopBrief?: string;
+  audienceReason?: string;
+  notificationMode?: string;
+  notificationReason?: string;
+  proposedToolCalls: LoopToolCallDetail[];
+};
+
 type Reply = {
   workspaceId?: string;
   reviewId?: string;
@@ -49,8 +67,15 @@ type Reply = {
 type Task = {
   workspaceId?: string;
   handoffId?: string;
+  backsyncEventId?: string;
+  followUpBossContactId?: string;
+  fubEventType?: string;
+  operationsFailureResourceId?: string;
+  operationsFailureItemType?: "workflow_job" | "crm_sync" | "provider_error";
+  operationsFailureRetryable?: boolean;
   workItemId?: string;
   leadId?: string;
+  workItemType?: HarwickHomeWorkItem["type"];
   type: "callback" | "listing" | "crm" | "insight";
   label: string;
   title: string;
@@ -60,6 +85,7 @@ type Task = {
   action: string;
   tone: Tone;
   icon: typeof Phone;
+  loopDetail?: LoopDetail;
 };
 
 type CoAgentPresence = TeamPresenceMember;
@@ -145,6 +171,64 @@ function readNumber(record: Record<string, unknown>, key: string): number | null
   return typeof value === "number" ? value : null;
 }
 
+function readBoolean(record: Record<string, unknown>, key: string): boolean | null {
+  const value = record[key];
+  return typeof value === "boolean" ? value : null;
+}
+
+function mapHarwickLoopPayloadToDetail(payload: Record<string, unknown>): LoopDetail | null {
+  const signalType = readString(payload, "signalType");
+  const actionPlan = readObject(payload["actionPlan"]);
+  const intelligence = readObject(payload["intelligence"]);
+  const audience = readObject(intelligence?.["audience"] ?? null);
+  const notification = readObject(intelligence?.["notification"] ?? null);
+  const outputMode = readString(payload, "outputMode");
+  const draftBody = readString(payload, "draftBody");
+  const agentLoopBrief = readString(actionPlan ?? {}, "executionBrief") ?? readString(payload, "agentLoopBrief");
+  const proposedRaw = Array.isArray(actionPlan?.["proposedToolCalls"])
+    ? actionPlan["proposedToolCalls"]
+    : Array.isArray(payload["proposedToolCalls"])
+      ? payload["proposedToolCalls"]
+      : [];
+  const proposedToolCalls = proposedRaw.flatMap((item): LoopToolCallDetail[] => {
+    const record = readObject(item);
+    if (record === null) return [];
+    const tool = readString(record, "tool");
+    if (tool === null) return [];
+
+    return [{
+      tool,
+      reason: readString(record, "reason") ?? "proposed Harwick step",
+      requiresApproval: readBoolean(record, "requiresApproval") ?? true,
+    }];
+  });
+  const audienceReason = readString(audience ?? {}, "reason");
+  const notificationMode = readString(notification ?? {}, "mode");
+  const notificationReason = readString(notification ?? {}, "reason");
+
+  if (
+    signalType === null
+    && outputMode === null
+    && draftBody === null
+    && agentLoopBrief === null
+    && proposedToolCalls.length === 0
+    && audienceReason === null
+    && notificationReason === null
+  ) {
+    return null;
+  }
+
+  return {
+    ...(outputMode === null ? {} : { outputMode }),
+    ...(draftBody === null ? {} : { draftBody }),
+    ...(agentLoopBrief === null ? {} : { agentLoopBrief }),
+    ...(audienceReason === null ? {} : { audienceReason }),
+    ...(notificationMode === null ? {} : { notificationMode }),
+    ...(notificationReason === null ? {} : { notificationReason }),
+    proposedToolCalls,
+  };
+}
+
 function mapHomePayloadToMetrics(payload: Record<string, unknown>): DashboardMetric[] | null {
   const operations = readObject(payload["operations"]);
   if (operations === null) return null;
@@ -191,6 +275,8 @@ function mapHomePayloadToWorkItems(payload: Record<string, unknown>): WorkItem[]
   const socialItems = Array.isArray(socialQueue?.["items"]) ? socialQueue["items"] : [];
   const voiceItems = Array.isArray(voiceQueue?.["items"]) ? voiceQueue["items"] : [];
   const harwickWorkItemsParsed = HarwickHomeWorkItemsResponseSchema.safeParse(payload["harwickWorkItems"]);
+  const fubConflictsParsed = FollowUpBossConflictQueueResponseSchema.safeParse(payload["fubConflicts"]);
+  const operationsFailuresParsed = OperationsFailureQueueResponseSchema.safeParse(payload["operationsFailures"]);
 
   const mappedSocial: WorkItem[] = socialItems.flatMap((item) => {
     const row = readObject(item);
@@ -249,8 +335,68 @@ function mapHomePayloadToWorkItems(payload: Record<string, unknown>): WorkItem[]
     ? harwickWorkItemsParsed.data.items.map(mapHarwickWorkItemToQueueItem)
     : [];
 
-  return mappedHarwick.length > 0 || mappedSocial.length > 0 || mappedVoice.length > 0
-    ? [...mappedHarwick, ...mappedSocial, ...mappedVoice]
+  const mappedFubConflicts: WorkItem[] = fubConflictsParsed.success
+    ? fubConflictsParsed.data.items.map((item): WorkItem => {
+      const backsyncEventId = item.id.startsWith("fub_conflict:")
+        ? item.id.slice("fub_conflict:".length)
+        : item.id;
+
+      return {
+        kind: "task",
+        item: {
+          workspaceId: item.workspaceId,
+          leadId: item.leadId,
+          backsyncEventId,
+          workItemId: item.id,
+          followUpBossContactId: item.followUpBossContactId,
+          fubEventType: item.eventType,
+          type: "crm",
+          label: "FUB conflict",
+          title: `Follow Up Boss ${item.eventType}`,
+          detail: item.detail ?? `Contact ${item.followUpBossContactId} changed in Follow Up Boss while this lead is assigned.`,
+          reason: "Replay queues the back-sync reconciler; ignore keeps this CRM event out of the operator queue.",
+          time: item.occurredAt,
+          action: "Replay sync",
+          tone: item.status === "failed" ? "red" : "amber",
+          icon: GitBranch,
+        },
+      };
+    })
+    : [];
+
+  const mappedOperationsFailures: WorkItem[] = operationsFailuresParsed.success
+    ? operationsFailuresParsed.data.items.map((item): WorkItem => {
+      const [prefix, ...rest] = item.id.split(":");
+      const resourceId = rest.join(":") || item.id;
+      const label = item.itemType === "crm_sync"
+        ? "CRM retry"
+        : item.itemType === "workflow_job"
+          ? "Worker failure"
+          : "Provider error";
+      return {
+        kind: "task",
+        item: {
+          workspaceId: item.workspaceId ?? operationsFailuresParsed.data.workspaceId,
+          workItemId: item.id,
+          operationsFailureResourceId: resourceId,
+          operationsFailureItemType: item.itemType,
+          operationsFailureRetryable: item.retryable,
+          type: "crm",
+          label,
+          title: item.title,
+          detail: item.detail ?? `${item.provider ?? "Provider"} ${item.operation ?? prefix} needs review.`,
+          reason: `Status: ${item.status}${item.provider === null ? "" : ` / Provider: ${item.provider}`}${item.operation === null ? "" : ` / Operation: ${item.operation}`}`,
+          time: item.occurredAt,
+          action: item.retryable ? "Retry now" : "Review",
+          tone: item.retryable ? "red" : "amber",
+          icon: GitBranch,
+        },
+      };
+    })
+    : [];
+
+  return mappedHarwick.length > 0 || mappedSocial.length > 0 || mappedVoice.length > 0 || mappedFubConflicts.length > 0 || mappedOperationsFailures.length > 0
+    ? [...mappedHarwick, ...mappedOperationsFailures, ...mappedFubConflicts, ...mappedSocial, ...mappedVoice]
     : null;
 }
 
@@ -262,14 +408,20 @@ function toneFromHarwickPriority(priority: HarwickHomeWorkItem["priority"]): Ton
 }
 
 function mapHarwickWorkItemToQueueItem(item: HarwickHomeWorkItem): WorkItem {
+  const loopDetail = mapHarwickLoopPayloadToDetail(item.payload);
   return {
     kind: "task",
     item: {
       workspaceId: item.workspaceId,
       workItemId: item.id,
       ...(item.leadId === null ? {} : { leadId: item.leadId }),
+      workItemType: item.type,
       type: "insight",
-      label: item.priority === "urgent" ? "Urgent Harwick insight" : "Harwick insight",
+      label: item.type === "approval"
+        ? "Harwick approval"
+        : item.priority === "urgent"
+          ? "Urgent Harwick insight"
+          : "Harwick insight",
       title: item.title,
       detail: item.summary,
       reason: item.reason,
@@ -277,6 +429,7 @@ function mapHarwickWorkItemToQueueItem(item: HarwickHomeWorkItem): WorkItem {
       action: item.recommendedAction,
       tone: toneFromHarwickPriority(item.priority),
       icon: ListChecks,
+      ...(loopDetail === null ? {} : { loopDetail }),
     },
   };
 }
@@ -620,6 +773,7 @@ function TaskCard(props: { task: Task; onOpen: () => void }) {
           className={cn(
             props.task.type === "crm" ? outlinePillClass : darkPillClass,
           )}
+          onClick={props.onOpen}
           variant="ghost"
         >
           {props.task.action}
@@ -879,6 +1033,55 @@ function TaskDetail(props: {
             </div>
           )}
         </div>
+        {props.task.loopDetail === undefined ? null : (
+          <div className="mt-3 space-y-2">
+            {props.task.loopDetail.draftBody === undefined ? null : (
+              <div className="rounded-[11px] border border-border bg-surface px-3 py-3">
+                <div className="mb-1 text-[10px] uppercase tracking-[0.12em] text-muted-subtle">draft output</div>
+                <div className="whitespace-pre-wrap text-[12px] leading-5 text-foreground">{props.task.loopDetail.draftBody}</div>
+              </div>
+            )}
+            {props.task.loopDetail.agentLoopBrief === undefined ? null : (
+              <div className="rounded-[11px] border border-border bg-surface px-3 py-3">
+                <div className="mb-1 text-[10px] uppercase tracking-[0.12em] text-muted-subtle">execution brief</div>
+                <div className="text-[12px] leading-5 text-foreground">{props.task.loopDetail.agentLoopBrief}</div>
+              </div>
+            )}
+            {props.task.loopDetail.audienceReason === undefined ? null : (
+              <div className="rounded-[11px] border border-border bg-surface px-3 py-3">
+                <div className="mb-1 text-[10px] uppercase tracking-[0.12em] text-muted-subtle">owner logic</div>
+                <div className="text-[12px] leading-5 text-foreground">{props.task.loopDetail.audienceReason}</div>
+              </div>
+            )}
+            {props.task.loopDetail.notificationReason === undefined ? null : (
+              <div className="rounded-[11px] border border-border bg-surface px-3 py-3">
+                <div className="mb-1 text-[10px] uppercase tracking-[0.12em] text-muted-subtle">notification</div>
+                <div className="text-[12px] leading-5 text-foreground">
+                  {props.task.loopDetail.notificationReason}
+                  {props.task.loopDetail.notificationMode === undefined ? null : ` (${props.task.loopDetail.notificationMode.replace(/_/g, " ")})`}
+                </div>
+              </div>
+            )}
+            {props.task.loopDetail.proposedToolCalls.length === 0 ? null : (
+              <div className="rounded-[11px] border border-border bg-surface px-3 py-3">
+                <div className="mb-2 text-[10px] uppercase tracking-[0.12em] text-muted-subtle">proposed tools</div>
+                <div className="space-y-2">
+                  {props.task.loopDetail.proposedToolCalls.map((toolCall, index) => (
+                    <div className="flex items-start justify-between gap-3 text-[12px]" key={`${toolCall.tool}-${index}`}>
+                      <div>
+                        <div className="font-medium text-foreground">{toolCall.tool}</div>
+                        <div className="mt-0.5 text-[11.5px] leading-5 text-muted">{toolCall.reason}</div>
+                      </div>
+                      <span className="shrink-0 rounded-full border border-border bg-surface-muted px-2 py-[2px] text-[10px] text-muted">
+                        {toolCall.requiresApproval ? "approval" : "internal"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
         <div className="mt-4 grid gap-2 sm:grid-cols-3">
           <div className="rounded-[11px] border border-border px-3 py-2">
             <div className="text-[10px] uppercase tracking-[0.12em] text-muted-subtle">lead</div>
@@ -913,22 +1116,26 @@ function TaskDetail(props: {
           </Button>
           <Button
             className={cn(outlinePillClass, "flex-1 min-w-[80px]")}
-            disabled={props.task.type === "insight" && props.task.leadId === undefined}
+            disabled={(props.task.type === "insight" || props.task.type === "crm") && props.task.leadId === undefined}
             onClick={() => {
-              if (props.task.type === "insight" && props.task.leadId !== undefined) {
+              if ((props.task.type === "insight" || props.task.type === "crm") && props.task.leadId !== undefined) {
                 window.location.href = `/leads?leadId=${props.task.leadId}`;
               }
             }}
             variant="ghost"
           >
-            {props.task.type === "insight" ? props.task.leadId === undefined ? "Workspace" : "Open lead" : "Assign"}
+            {props.task.type === "insight" || props.task.type === "crm" ? props.task.leadId === undefined ? "Workspace" : "Open lead" : "Assign"}
           </Button>
           <Button 
             className={cn(outlinePillClass, "flex-1 min-w-[80px]")} 
             onClick={() => props.onTaskAction("dismiss", props.task)} 
             variant="ghost"
           >
-            Dismiss
+            {props.task.type === "crm"
+              ? props.task.backsyncEventId === undefined
+                ? props.task.operationsFailureItemType === "workflow_job" ? "Dismiss" : "Review"
+                : "Ignore"
+              : "Dismiss"}
           </Button>
         </div>
       </DetailSection>
@@ -1446,7 +1653,9 @@ export function HomePage(props: HomePageProps) {
           headers: { "content-type": "application/json" },
           body: JSON.stringify(action === "dismiss"
             ? { action: "dismiss", feedbackLabel: "not_relevant" }
-            : { action: "mark_seen", feedbackLabel: "useful" }),
+            : task.workItemType === "approval"
+              ? { action: "approve", feedbackLabel: "useful" }
+              : { action: "mark_seen", feedbackLabel: "useful" }),
         });
 
         if (response.status === 403) {
@@ -1459,10 +1668,96 @@ export function HomePage(props: HomePageProps) {
           return;
         }
 
-        setActionStatus(action === "dismiss" ? "Harwick insight dismissed." : "Harwick insight marked seen.");
+        setActionStatus(action === "dismiss"
+          ? "Harwick insight dismissed."
+          : task.workItemType === "approval"
+            ? "Harwick loop approved and queued."
+            : "Harwick insight marked seen.");
         await refreshHomeData();
       } catch {
         setActionStatus("could not reach the Harwick insight endpoint.");
+      }
+      return;
+    }
+
+    if (task.type === "crm") {
+      if (task.operationsFailureItemType !== undefined) {
+        if (task.workspaceId === undefined || task.operationsFailureResourceId === undefined) {
+          setActionStatus("this operations item is missing its backend failure row.");
+          return;
+        }
+
+        if (task.operationsFailureItemType === "provider_error" || task.operationsFailureRetryable === false) {
+          setActionStatus("provider errors are surfaced here for visibility; resolve the provider config or retry the linked job when one exists.");
+          return;
+        }
+
+        if (action === "dismiss" && task.operationsFailureItemType !== "workflow_job") {
+          setActionStatus("CRM sync failures cannot be ignored from home. Retry the sync or resolve it from the operations queue.");
+          return;
+        }
+
+        const endpoint = task.operationsFailureItemType === "workflow_job"
+          ? `/api/workspaces/${task.workspaceId}/operations/workflow-jobs/${task.operationsFailureResourceId}/action`
+          : `/api/workspaces/${task.workspaceId}/operations/crm-syncs/${task.operationsFailureResourceId}/action`;
+
+        try {
+          setActionStatus("working...");
+          const response = await fetch(endpoint, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(action === "dismiss" ? { action: "dismiss" } : { action: "retry_now" }),
+          });
+
+          if (response.status === 403) {
+            setActionStatus("auth is required to update this operations failure.");
+            return;
+          }
+
+          if (!response.ok) {
+            setActionStatus("the backend rejected this operations action.");
+            return;
+          }
+
+          setActionStatus(action === "dismiss" ? "workflow job dismissed." : "retry queued.");
+          await refreshHomeData();
+        } catch {
+          setActionStatus("could not reach the operations failure endpoint.");
+        }
+        return;
+      }
+
+      if (task.workspaceId === undefined || task.backsyncEventId === undefined) {
+        setActionStatus("this FUB conflict is missing its backend event row.");
+        return;
+      }
+
+      try {
+        setActionStatus("working...");
+        const response = await fetch(`/api/workspaces/${task.workspaceId}/operations/fub-conflicts/${task.backsyncEventId}/action`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(action === "dismiss"
+            ? { action: "ignore", reason: "operator ignored from the home work queue" }
+            : { action: "replay" }),
+        });
+
+        if (response.status === 403) {
+          setActionStatus("auth is required to resolve this Follow Up Boss conflict.");
+          return;
+        }
+
+        if (!response.ok) {
+          setActionStatus("the backend rejected this Follow Up Boss conflict action.");
+          return;
+        }
+
+        setActionStatus(action === "dismiss"
+          ? "Follow Up Boss conflict ignored."
+          : "Follow Up Boss replay queued.");
+        await refreshHomeData();
+      } catch {
+        setActionStatus("could not reach the Follow Up Boss conflict endpoint.");
       }
       return;
     }
@@ -1523,7 +1818,13 @@ export function HomePage(props: HomePageProps) {
   }, []);
 
   return (
-    <AppShell activeItem="Work Queue" title={props.workspaceName} workspaceName={props.workspaceName}>
+    <AppShell
+      activeItem="Work Queue"
+      memberName={props.operatorName}
+      memberRole={props.operatorRole}
+      title={props.workspaceName}
+      workspaceName={props.workspaceName}
+    >
       <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-background">
         <WorkspaceTopbar context={`work queue · ${filteredWorkItems.length} open`} workspaceName={props.workspaceName}>
           <StatusPillsDisplay pills={statusPills} />

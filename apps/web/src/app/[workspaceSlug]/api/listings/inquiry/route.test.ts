@@ -26,6 +26,49 @@ describe("PublicListingInquiryRequest schema", () => {
 
     const result = PublicListingInquiryRequestSchema.safeParse(minimalData);
     expect(result.success).toBe(true);
+    expect(result.success && result.data.intent).toBe("general");
+  });
+
+  it("should accept showing intent with a requested time window", () => {
+    const showingData = {
+      fullName: "Jane Smith",
+      email: "jane@example.com",
+      phone: "+1987654321",
+      intent: "showing",
+      requestedStartAt: "2026-05-07T14:00:00.000Z",
+      requestedEndAt: "2026-05-07T14:30:00.000Z",
+    };
+
+    const result = PublicListingInquiryRequestSchema.safeParse(showingData);
+    expect(result.success).toBe(true);
+  });
+
+  it("should accept open-house registration intent", () => {
+    const openHouseData = {
+      fullName: "Jane Smith",
+      email: "jane@example.com",
+      phone: "+1987654321",
+      intent: "open_house",
+      message: "Please register us for the open house.",
+      requestedStartAt: "2026-05-10T18:00:00.000Z",
+    };
+
+    const result = PublicListingInquiryRequestSchema.safeParse(openHouseData);
+    expect(result.success).toBe(true);
+  });
+
+  it("should reject showing windows where the end is before the start", () => {
+    const showingData = {
+      fullName: "Jane Smith",
+      email: "jane@example.com",
+      phone: "+1987654321",
+      intent: "showing",
+      requestedStartAt: "2026-05-07T14:30:00.000Z",
+      requestedEndAt: "2026-05-07T14:00:00.000Z",
+    };
+
+    const result = PublicListingInquiryRequestSchema.safeParse(showingData);
+    expect(result.success).toBe(false);
   });
 
   it("should reject invalid email", () => {

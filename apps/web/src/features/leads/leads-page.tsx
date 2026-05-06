@@ -3,6 +3,10 @@
 import {
   automationModeLabel,
   type ConversationAutomationMode,
+  type FinancingStatus,
+  type LeadIntent,
+  type RouteLeadResponse,
+  type LeadType,
 } from "@realty-ops/core";
 import {
   Bot,
@@ -35,6 +39,15 @@ import type { LeadPageItem, LeadPageSource, LeadPageStage } from "./leads-data";
 type LeadStatus = "new" | "qualified" | "nurture" | "lost";
 type SortBy = "newest" | "score" | "uncontacted";
 type LeadsViewMode = "list" | "cards";
+type LeadsLoadState = "loading" | "ready" | "error";
+type QualificationFormState = {
+  leadType: LeadType;
+  intentLevel: LeadIntent;
+  timeline: string;
+  budget: string;
+  targetArea: string;
+  financingStatus: FinancingStatus;
+};
 
 type LeadRecord = LeadPageItem & {
   automationMode: ConversationAutomationMode;
@@ -48,163 +61,9 @@ type LeadRecord = LeadPageItem & {
   timelineItems: string[];
 };
 
-const demoWorkspaceId = "123e4567-e89b-12d3-a456-426614174000";
-
-const fallbackLeads: LeadRecord[] = [
-  {
-    id: "1",
-    workspaceId: demoWorkspaceId,
-    name: "Marcus Thompson",
-    initials: "MT",
-    phone: null,
-    source: "instagram",
-    sourceDetail: 'comment on "4BR Coral Gables"',
-    stage: "hot",
-    stageLabel: "hot buyer",
-    cardKind: "listing",
-    intent: "purchase",
-    score: 87,
-    budget: "unknown",
-    area: "Coral Gables",
-    timeline: "unknown",
-    propertyType: "home search",
-    assignedTo: "Sarah Kim",
-    sourceOwner: "workspace",
-    lastTouch: "2m ago",
-    routeReason: "high-intent inquiry with open agent coverage in Coral Gables",
-    listing: "4BR Coral Gables",
-    message: "Is this still available? We've been looking in this area for months 👀",
-    reviewId: null,
-    automationMode: "ai_on",
-    automationReason: "safe listing reply with one missing qualification field",
-    displayStatus: "new",
-    draft:
-      "Hi Marcus — yes, still available! This one just had a price adjustment last week. Happy to send full details and schedule a walkthrough at your convenience. What's your timeline?",
-    helperSuggestion: "If Marcus answers under 90 days, route immediately and offer two showing windows.",
-    primaryAction: "send action",
-    secondaryAction: "take over",
-    subStatus: "Not contacted",
-    timelineItems: [
-      "instagram comment captured",
-      "purchase intent detected from listing inquiry",
-      "routing matched Sarah Kim by area coverage",
-    ],
-  },
-  {
-    id: "2",
-    workspaceId: demoWorkspaceId,
-    name: "Diana Reyes",
-    initials: "DR",
-    phone: "+13055550182",
-    source: "voice",
-    sourceDetail: "voice call",
-    stage: "callback",
-    stageLabel: "callback",
-    cardKind: "area",
-    intent: "renter",
-    score: 72,
-    budget: "$3k-$4k",
-    area: "Brickell",
-    timeline: "now",
-    propertyType: "lease",
-    assignedTo: "Sarah Kim",
-    sourceOwner: "workspace",
-    lastTouch: "18m ago",
-    routeReason: "callback queue because the lead requested a live agent after a missed call",
-    listing: "3BR rental search",
-    message: "Inbound call · 3BR rental $3,500/mo · Missed — callback needed",
-    reviewId: null,
-    automationMode: "paused_by_rule",
-    automationReason: "callback intent needs human contact before more automation",
-    displayStatus: "new",
-    draft: "Call Diana back first. Confirm move-in date, pets, and whether she has already toured any Brickell rentals.",
-    helperSuggestion: "Call first, then let Harwick summarize and prepare the next action.",
-    primaryAction: "call back",
-    secondaryAction: "resume ai",
-    subStatus: "Callback due",
-    timelineItems: [
-      "voice transcript summarized",
-      "rental budget extracted",
-      "callback task created for assigned agent",
-    ],
-  },
-  {
-    id: "3",
-    workspaceId: demoWorkspaceId,
-    name: "Keisha Brown",
-    initials: "KB",
-    phone: null,
-    source: "facebook",
-    sourceDetail: 'facebook dm on "Coconut Grove Open House"',
-    stage: "qualified",
-    stageLabel: "qualified",
-    cardKind: "listing",
-    intent: "purchase",
-    score: 91,
-    budget: "$850k-$950k",
-    area: "Coconut Grove",
-    timeline: "30-45 days",
-    propertyType: "home search",
-    assignedTo: "Marcus Lee",
-    sourceOwner: "workspace",
-    lastTouch: "41m ago",
-    routeReason: "open-house inquiry already matched to the listing owner",
-    listing: "Coconut Grove Open House",
-    message: "What time does the open house start this Sunday? Can I bring my husband?",
-    reviewId: null,
-    automationMode: "ai_on",
-    automationReason: "open house details are verified and safe to send",
-    displayStatus: "qualified",
-    draft: "Hi Keisha! The open house is Sunday 1–4 PM — absolutely bring your husband. Let me know if you'd like a private showing beforehand too.",
-    helperSuggestion: "Register Keisha and her husband before asking for a private showing.",
-    primaryAction: "register attendee",
-    secondaryAction: "take over",
-    subStatus: "FUB synced",
-    timelineItems: [
-      "facebook dm linked to open house",
-      "high-intent spouse attendance captured",
-      "crm sync completed",
-    ],
-  },
-  {
-    id: "4",
-    workspaceId: demoWorkspaceId,
-    name: "Tonya Williams",
-    initials: "TW",
-    phone: null,
-    source: "instagram",
-    sourceDetail: "story reply",
-    stage: "nurture",
-    stageLabel: "nurture",
-    cardKind: "area",
-    intent: "browse",
-    score: 44,
-    budget: "unknown",
-    area: "Waterfront",
-    timeline: "6+ months",
-    propertyType: "home search",
-    assignedTo: "Diana Prince",
-    sourceOwner: "workspace",
-    lastTouch: "3h ago",
-    routeReason: "kept in nurture until timeline and budget are stronger",
-    listing: "Waterfront search",
-    message: "Love this property! Is there a showing this week?",
-    reviewId: null,
-    automationMode: "ai_on",
-    automationReason: "soft nurture reply can continue collecting preferences",
-    displayStatus: "nurture",
-    draft: "Happy to send more waterfront options. Are you mostly just browsing, or is there a timeframe you’re hoping to move within?",
-    helperSuggestion: "Ask only one follow-up question next so the thread stays warm and easy to answer.",
-    primaryAction: "send action",
-    secondaryAction: "take over",
-    subStatus: "Follow-up due",
-    timelineItems: [
-      "story reply captured",
-      "nurture lane preserved because timeline is long-range",
-      "follow-up reminder still active",
-    ],
-  },
-];
+const leadTypeOptions: LeadType[] = ["buyer", "seller", "renter", "investor", "unknown"];
+const intentLevelOptions: LeadIntent[] = ["high", "medium", "low", "unknown"];
+const financingStatusOptions: FinancingStatus[] = ["preapproved", "cash", "needs_lender", "unknown"];
 
 const statusStyles: Record<LeadStatus, string> = {
   new: "bg-brass-soft text-warm",
@@ -354,6 +213,22 @@ function mapLeadPageItemToRecord(item: LeadPageItem): LeadRecord {
   };
 }
 
+function qualificationFormForLead(lead: LeadRecord): QualificationFormState {
+  return {
+    leadType: lead.leadType,
+    intentLevel: lead.intentLevel,
+    timeline: lead.timeline === "unknown" ? "" : lead.timeline,
+    budget: lead.budget === "unknown" ? "" : lead.budget,
+    targetArea: lead.area === "unknown" ? "" : lead.area,
+    financingStatus: lead.financingStatus,
+  };
+}
+
+function nullableEditableValue(value: string): string | null {
+  const trimmed = value.trim();
+  return trimmed.length === 0 || trimmed.toLowerCase() === "unknown" ? null : trimmed;
+}
+
 function isLeadPageItem(value: unknown): value is LeadPageItem {
   if (typeof value !== "object" || value === null) {
     return false;
@@ -372,11 +247,14 @@ function isLeadPageItem(value: unknown): value is LeadPageItem {
     && typeof item["stageLabel"] === "string"
     && typeof item["cardKind"] === "string"
     && typeof item["intent"] === "string"
+    && typeof item["leadType"] === "string"
+    && typeof item["intentLevel"] === "string"
     && typeof item["score"] === "number"
     && typeof item["budget"] === "string"
     && typeof item["area"] === "string"
     && typeof item["timeline"] === "string"
     && typeof item["propertyType"] === "string"
+    && typeof item["financingStatus"] === "string"
     && typeof item["assignedTo"] === "string"
     && typeof item["sourceOwner"] === "string"
     && typeof item["lastTouch"] === "string"
@@ -678,6 +556,86 @@ function LeadDetailSheet(props: {
   onOpenChange: (open: boolean) => void;
 }) {
   const lead = props.lead;
+  const [qualificationForm, setQualificationForm] = useState<QualificationFormState | null>(null);
+  const [qualificationStatus, setQualificationStatus] = useState<string | null>(null);
+  const [routingStatus, setRoutingStatus] = useState<string | null>(null);
+
+  useEffect(() => {
+    setQualificationForm(lead === null ? null : qualificationFormForLead(lead));
+    setQualificationStatus(null);
+    setRoutingStatus(null);
+  }, [lead]);
+
+  async function handleSaveQualification() {
+    if (lead === null || qualificationForm === null) {
+      return;
+    }
+
+    setQualificationStatus("Saving qualification...");
+
+    try {
+      const response = await fetch(`/api/workspaces/${lead.workspaceId}/leads/${lead.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          leadType: qualificationForm.leadType,
+          intent: qualificationForm.intentLevel,
+          timeline: nullableEditableValue(qualificationForm.timeline),
+          budget: nullableEditableValue(qualificationForm.budget),
+          targetArea: nullableEditableValue(qualificationForm.targetArea),
+          financingStatus: qualificationForm.financingStatus,
+        }),
+      });
+
+      if (!response.ok) {
+        setQualificationStatus("Qualification update failed.");
+        return;
+      }
+
+      setQualificationStatus("Qualification saved.");
+      void props.onChanged?.();
+    } catch (error) {
+      console.error(error);
+      setQualificationStatus("Network error saving qualification.");
+    }
+  }
+
+  async function handleRouteLead() {
+    if (lead === null) {
+      return;
+    }
+
+    setRoutingStatus("Harwick is checking routing profiles...");
+
+    try {
+      const response = await fetch(`/api/workspaces/${lead.workspaceId}/leads/${lead.id}/routing`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ mode: "auto" }),
+      });
+
+      if (!response.ok) {
+        setRoutingStatus(response.status === 403
+          ? "You do not have permission to route this lead."
+          : "Routing failed. Check backend logs.");
+        return;
+      }
+
+      const result = await response.json() as RouteLeadResponse;
+      if (result.status === "assigned" && result.assignedDisplayName !== null) {
+        setRoutingStatus(`Assigned to ${result.assignedDisplayName}. ${result.reasons[0] ?? "Decision saved."}`);
+        void props.onChanged?.();
+        return;
+      }
+
+      setRoutingStatus(result.status === "hold_for_qualification"
+        ? "Harwick held this lead for more qualification before assignment."
+        : "No routing profile matched. Owner review remains the right next step.");
+    } catch (error) {
+      console.error(error);
+      setRoutingStatus("Network error routing lead.");
+    }
+  }
 
   return (
     <Sheet onOpenChange={props.onOpenChange} open={lead !== null}>
@@ -750,6 +708,19 @@ function LeadDetailSheet(props: {
                     <KeyValue label="route reason" value={lead.routeReason} />
                     <KeyValue label="next action" value={lead.primaryAction} />
                   </div>
+                  <div className="mt-4 border-t border-border pt-4">
+                    <Button
+                      className="w-full rounded-full bg-harwick-ink px-4 text-[11px] text-white"
+                      onClick={() => void handleRouteLead()}
+                      size="sm"
+                      type="button"
+                    >
+                      route with Harwick
+                    </Button>
+                    {routingStatus !== null ? (
+                      <div className="mt-2 text-[11px] leading-5 text-muted-subtle">{routingStatus}</div>
+                    ) : null}
+                  </div>
                 </div>
 
                 <div className="rounded-[22px] border border-border bg-surface p-5">
@@ -770,6 +741,106 @@ function LeadDetailSheet(props: {
                       </div>
                     ))}
                   </div>
+                  {qualificationForm !== null ? (
+                    <div className="mt-4 space-y-3 border-t border-border pt-4">
+                      <div className="grid grid-cols-2 gap-2">
+                        <label className="text-[11px] font-medium text-muted">
+                          lead type
+                          <select
+                            className="mt-1 w-full rounded-[12px] border border-border bg-background px-3 py-2 text-[12px] text-foreground outline-none focus:border-border-strong"
+                            onChange={(event) => setQualificationForm((current) => current === null ? current : {
+                              ...current,
+                              leadType: event.target.value as LeadType,
+                            })}
+                            value={qualificationForm.leadType}
+                          >
+                            {leadTypeOptions.map((option) => (
+                              <option key={option} value={option}>{option.replace("_", " ")}</option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="text-[11px] font-medium text-muted">
+                          intent
+                          <select
+                            className="mt-1 w-full rounded-[12px] border border-border bg-background px-3 py-2 text-[12px] text-foreground outline-none focus:border-border-strong"
+                            onChange={(event) => setQualificationForm((current) => current === null ? current : {
+                              ...current,
+                              intentLevel: event.target.value as LeadIntent,
+                            })}
+                            value={qualificationForm.intentLevel}
+                          >
+                            {intentLevelOptions.map((option) => (
+                              <option key={option} value={option}>{option}</option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
+                      <label className="block text-[11px] font-medium text-muted">
+                        area
+                        <input
+                          className="mt-1 w-full rounded-[12px] border border-border bg-background px-3 py-2 text-[12px] text-foreground outline-none placeholder:text-muted-subtle focus:border-border-strong"
+                          onChange={(event) => setQualificationForm((current) => current === null ? current : {
+                            ...current,
+                            targetArea: event.target.value,
+                          })}
+                          placeholder="Katy, Heights, Coral Gables"
+                          value={qualificationForm.targetArea}
+                        />
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <label className="text-[11px] font-medium text-muted">
+                          budget
+                          <input
+                            className="mt-1 w-full rounded-[12px] border border-border bg-background px-3 py-2 text-[12px] text-foreground outline-none placeholder:text-muted-subtle focus:border-border-strong"
+                            onChange={(event) => setQualificationForm((current) => current === null ? current : {
+                              ...current,
+                              budget: event.target.value,
+                            })}
+                            placeholder="$450k-$575k"
+                            value={qualificationForm.budget}
+                          />
+                        </label>
+                        <label className="text-[11px] font-medium text-muted">
+                          timeline
+                          <input
+                            className="mt-1 w-full rounded-[12px] border border-border bg-background px-3 py-2 text-[12px] text-foreground outline-none placeholder:text-muted-subtle focus:border-border-strong"
+                            onChange={(event) => setQualificationForm((current) => current === null ? current : {
+                              ...current,
+                              timeline: event.target.value,
+                            })}
+                            placeholder="30-60 days"
+                            value={qualificationForm.timeline}
+                          />
+                        </label>
+                      </div>
+                      <label className="block text-[11px] font-medium text-muted">
+                        financing
+                        <select
+                          className="mt-1 w-full rounded-[12px] border border-border bg-background px-3 py-2 text-[12px] text-foreground outline-none focus:border-border-strong"
+                          onChange={(event) => setQualificationForm((current) => current === null ? current : {
+                            ...current,
+                            financingStatus: event.target.value as FinancingStatus,
+                          })}
+                          value={qualificationForm.financingStatus}
+                        >
+                          {financingStatusOptions.map((option) => (
+                            <option key={option} value={option}>{option.replace("_", " ")}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-h-4 text-[11px] text-muted-subtle">{qualificationStatus}</div>
+                        <Button
+                          className="rounded-full bg-harwick-ink px-4 text-[11px] text-white"
+                          onClick={() => void handleSaveQualification()}
+                          size="sm"
+                          type="button"
+                        >
+                          save qualification
+                        </Button>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
 
                 <DetailSection title="Harwick note">
@@ -803,7 +874,8 @@ export function LeadsPageContent(props: { workspaceId: string; workspaceName: st
   const [viewMode, setViewMode] = useState<LeadsViewMode>("list");
   const [currentPage, setCurrentPage] = useState(1);
   const [search, setSearch] = useState("");
-  const [leadRecords, setLeadRecords] = useState<LeadRecord[]>(fallbackLeads);
+  const [leadRecords, setLeadRecords] = useState<LeadRecord[]>([]);
+  const [leadsLoadState, setLeadsLoadState] = useState<LeadsLoadState>("loading");
   const [selectedLead, setSelectedLead] = useState<LeadRecord | null>(null);
   const [actionStatus, setActionStatus] = useState<string | null>(null);
 
@@ -853,12 +925,16 @@ export function LeadsPageContent(props: { workspaceId: string; workspaceName: st
   }
 
   const refreshLeads = useCallback(async () => {
+    setLeadsLoadState((current) => (current === "ready" ? current : "loading"));
+
     try {
       const response = await fetch(`/api/leads?workspaceId=${props.workspaceId}&limit=50`, {
         cache: "no-store",
       });
 
       if (!response.ok) {
+        setLeadRecords([]);
+        setLeadsLoadState("error");
         return;
       }
 
@@ -868,11 +944,11 @@ export function LeadsPageContent(props: { workspaceId: string; workspaceName: st
           ? ((body as { items: unknown[] }).items.filter(isLeadPageItem).map(mapLeadPageItemToRecord))
           : [];
 
-      if (items.length > 0) {
-        setLeadRecords(items);
-      }
+      setLeadRecords(items);
+      setLeadsLoadState("ready");
     } catch {
-      // Keep local fallback rows until workspace auth/seed data is available.
+      setLeadRecords([]);
+      setLeadsLoadState("error");
     }
   }, [props.workspaceId]);
 
@@ -889,7 +965,7 @@ export function LeadsPageContent(props: { workspaceId: string; workspaceName: st
     }
 
     const matchedLead = leadRecords.find((lead) => lead.id === leadIdParam) ?? null;
-    if (matchedLead?.id !== selectedLead?.id) {
+    if (matchedLead !== selectedLead) {
       setSelectedLead(matchedLead);
     }
   }, [leadIdParam, leadRecords, selectedLead]);
@@ -935,6 +1011,23 @@ export function LeadsPageContent(props: { workspaceId: string; workspaceName: st
     () => filtered.slice((safeCurrentPage - 1) * leadsPageSize, safeCurrentPage * leadsPageSize),
     [filtered, safeCurrentPage],
   );
+  const hasActiveFilters = activeTab !== "all" || sourceFilter !== "all" || search.trim().length > 0;
+  const emptyTitle =
+    leadsLoadState === "loading"
+      ? "Loading leads"
+      : leadsLoadState === "error"
+        ? "Leads could not be loaded"
+        : hasActiveFilters
+          ? "No leads match this view"
+          : "No active leads yet";
+  const emptyBody =
+    leadsLoadState === "loading"
+      ? "Fetching the current workspace lead list."
+      : leadsLoadState === "error"
+        ? "The API did not return a usable lead list. Retry or check system health before launch validation."
+        : hasActiveFilters
+          ? "Clear filters to return to the full workspace lead list."
+          : "New qualified inbound, voice, and public listing leads will appear here once Harwick captures them.";
 
   useEffect(() => {
     setCurrentPage(1);
@@ -1038,140 +1131,175 @@ export function LeadsPageContent(props: { workspaceId: string; workspaceName: st
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-7 pb-7 pt-4">
-        {viewMode === "cards" ? (
-          <div className="grid gap-4 xl:grid-cols-2 min-[1700px]:grid-cols-3">
-            {pagedLeads.map((lead) => (
-              <button
-                className="group relative min-h-[260px] overflow-hidden rounded-[26px] bg-harwick-ink p-4 text-left text-white shadow-[0_24px_76px_rgba(18,26,20,0.18)] ring-1 ring-black/[0.04] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_34px_88px_rgba(18,26,20,0.22)]"
-                key={lead.id}
-                onClick={() => {
-                  setSelectedLead(lead);
-                  replaceLeadQuery(lead.id);
-                }}
-                type="button"
-              >
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_12%,rgba(255,255,255,0.16),transparent_26%),linear-gradient(145deg,#0c1711_0%,#233829_54%,#07100a_100%)]" />
-                <div className="absolute inset-x-0 bottom-0 h-[70%] bg-[linear-gradient(180deg,transparent_0%,rgba(5,10,7,0.86)_100%)]" />
-                <div className="relative z-10 flex h-full flex-col">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex flex-wrap gap-2">
-                      <span className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/12 px-2.5 py-1 text-[11px] font-medium backdrop-blur">
-                        <SourceGlyph source={lead.source} />
-                        {sourceLabel(lead.source)}
-                      </span>
-                      <span className="rounded-full border border-white/12 bg-white/10 px-2.5 py-1 text-[11px] font-medium text-white/82">
-                        {lead.stageLabel}
-                      </span>
-                    </div>
-                    <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white/90 font-display text-[20px] font-medium text-harwick-ink">
-                      {lead.score}
-                    </span>
-                  </div>
-                  <div className="mt-auto rounded-[20px] border border-white/10 bg-[#07100a]/58 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.1)] backdrop-blur-[10px]">
-                    <div className="flex items-start gap-3">
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/16 bg-white/10 text-[12px] font-semibold">
-                        {lead.initials}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="truncate text-[20px] font-semibold">{lead.name}</div>
-                        <div className="mt-1 truncate text-[12px] text-white/52">{lead.sourceDetail}</div>
-                      </div>
-                    </div>
-                    <div className="mt-4 line-clamp-2 rounded-[14px] border border-white/10 bg-black/18 px-3 py-2 text-[12px] italic leading-5 text-white/70">
-                      "{lead.message}"
-                    </div>
-                    <div className="mt-4 grid grid-cols-3 gap-3 border-t border-white/14 pt-4 text-[12px]">
-                      <div>
-                        <div className="text-white/38">area</div>
-                        <div className="mt-1 font-semibold text-white/86">{lead.area}</div>
-                      </div>
-                      <div>
-                        <div className="text-white/38">range</div>
-                        <div className="mt-1 font-semibold text-white/86">{lead.budget}</div>
-                      </div>
-                      <div>
-                        <div className="text-white/38">timeline</div>
-                        <div className="mt-1 font-semibold text-white/86">{lead.timeline}</div>
-                      </div>
-                    </div>
-                    <div className="mt-4 flex items-center justify-between border-t border-white/14 pt-3 text-[12px] text-white/52">
-                      <span>to <span className="font-semibold text-white/78">{lead.assignedTo}</span></span>
-                      <span>{lead.lastTouch}</span>
-                    </div>
-                  </div>
-                </div>
-              </button>
-            ))}
+        {filtered.length === 0 ? (
+          <div className="harwick-card flex min-h-[320px] flex-col items-center justify-center px-6 py-12 text-center">
+            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-surface-muted text-muted">
+              <MessageSquare aria-hidden="true" className="h-5 w-5" strokeWidth={1.8} />
+            </div>
+            <div className="mt-4 text-[15px] font-semibold text-foreground">{emptyTitle}</div>
+            <div className="mt-2 max-w-[420px] text-[12px] leading-5 text-muted">{emptyBody}</div>
+            {actionStatus ? <div className="mt-3 text-[11px] leading-5 text-muted-subtle">{actionStatus}</div> : null}
+            <div className="mt-5 flex flex-wrap justify-center gap-2">
+              {leadsLoadState === "error" ? (
+                <Button className="rounded-full px-4 text-[11px]" onClick={() => void refreshLeads()} size="sm" type="button">
+                  Retry
+                </Button>
+              ) : null}
+              {hasActiveFilters ? (
+                <Button
+                  className="rounded-full px-4 text-[11px]"
+                  onClick={() => {
+                    setActiveTab("all");
+                    setSourceFilter("all");
+                    setSearch("");
+                  }}
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                >
+                  Clear filters
+                </Button>
+              ) : null}
+            </div>
           </div>
         ) : (
-          pagedLeads.map((lead) => (
-            <div
-              className="harwick-card mb-2 flex cursor-pointer items-center gap-[14px] px-4 py-[13px] transition-all duration-150 hover:-translate-y-0.5 hover:border-border-strong"
-              key={lead.id}
-              onClick={() => {
-                setSelectedLead(lead);
-                replaceLeadQuery(lead.id);
-              }}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault();
-                  setSelectedLead(lead);
-                  replaceLeadQuery(lead.id);
-                }
-              }}
-              role="button"
-              tabIndex={0}
-            >
-              <div className={cn("flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[9px]", sourceBoxStyles[lead.source])}>
-                <SourceGlyph source={lead.source} />
+          <>
+            {viewMode === "cards" ? (
+              <div className="grid gap-4 xl:grid-cols-2 min-[1700px]:grid-cols-3">
+                {pagedLeads.map((lead) => (
+                  <button
+                    className="group relative min-h-[260px] overflow-hidden rounded-[26px] bg-harwick-ink p-4 text-left text-white shadow-[0_24px_76px_rgba(18,26,20,0.18)] ring-1 ring-black/[0.04] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_34px_88px_rgba(18,26,20,0.22)]"
+                    key={lead.id}
+                    onClick={() => {
+                      setSelectedLead(lead);
+                      replaceLeadQuery(lead.id);
+                    }}
+                    type="button"
+                  >
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_12%,rgba(255,255,255,0.16),transparent_26%),linear-gradient(145deg,#0c1711_0%,#233829_54%,#07100a_100%)]" />
+                    <div className="absolute inset-x-0 bottom-0 h-[70%] bg-[linear-gradient(180deg,transparent_0%,rgba(5,10,7,0.86)_100%)]" />
+                    <div className="relative z-10 flex h-full flex-col">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex flex-wrap gap-2">
+                          <span className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/12 px-2.5 py-1 text-[11px] font-medium backdrop-blur">
+                            <SourceGlyph source={lead.source} />
+                            {sourceLabel(lead.source)}
+                          </span>
+                          <span className="rounded-full border border-white/12 bg-white/10 px-2.5 py-1 text-[11px] font-medium text-white/82">
+                            {lead.stageLabel}
+                          </span>
+                        </div>
+                        <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white/90 font-display text-[20px] font-medium text-harwick-ink">
+                          {lead.score}
+                        </span>
+                      </div>
+                      <div className="mt-auto rounded-[20px] border border-white/10 bg-[#07100a]/58 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.1)] backdrop-blur-[10px]">
+                        <div className="flex items-start gap-3">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/16 bg-white/10 text-[12px] font-semibold">
+                            {lead.initials}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="truncate text-[20px] font-semibold">{lead.name}</div>
+                            <div className="mt-1 truncate text-[12px] text-white/52">{lead.sourceDetail}</div>
+                          </div>
+                        </div>
+                        <div className="mt-4 line-clamp-2 rounded-[14px] border border-white/10 bg-black/18 px-3 py-2 text-[12px] italic leading-5 text-white/70">
+                          "{lead.message}"
+                        </div>
+                        <div className="mt-4 grid grid-cols-3 gap-3 border-t border-white/14 pt-4 text-[12px]">
+                          <div>
+                            <div className="text-white/38">area</div>
+                            <div className="mt-1 font-semibold text-white/86">{lead.area}</div>
+                          </div>
+                          <div>
+                            <div className="text-white/38">range</div>
+                            <div className="mt-1 font-semibold text-white/86">{lead.budget}</div>
+                          </div>
+                          <div>
+                            <div className="text-white/38">timeline</div>
+                            <div className="mt-1 font-semibold text-white/86">{lead.timeline}</div>
+                          </div>
+                        </div>
+                        <div className="mt-4 flex items-center justify-between border-t border-white/14 pt-3 text-[12px] text-white/52">
+                          <span>to <span className="font-semibold text-white/78">{lead.assignedTo}</span></span>
+                          <span>{lead.lastTouch}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                ))}
               </div>
+            ) : (
+              pagedLeads.map((lead) => (
+                <div
+                  className="harwick-card mb-2 flex cursor-pointer items-center gap-[14px] px-4 py-[13px] transition-all duration-150 hover:-translate-y-0.5 hover:border-border-strong"
+                  key={lead.id}
+                  onClick={() => {
+                    setSelectedLead(lead);
+                    replaceLeadQuery(lead.id);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      setSelectedLead(lead);
+                      replaceLeadQuery(lead.id);
+                    }
+                  }}
+                  role="button"
+                  tabIndex={0}
+                >
+                  <div className={cn("flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[9px]", sourceBoxStyles[lead.source])}>
+                    <SourceGlyph source={lead.source} />
+                  </div>
 
-              <div className="min-w-0 flex-1">
-                <div className="mb-0.5 flex items-center gap-[7px]">
-                  <span className="text-[13.5px] font-medium">{lead.name}</span>
-                  <span className={cn("rounded-full px-[7px] py-0.5 text-[10px] font-medium", statusStyles[lead.displayStatus])}>
-                    {lead.displayStatus.charAt(0).toUpperCase() + lead.displayStatus.slice(1)}
-                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-0.5 flex items-center gap-[7px]">
+                      <span className="text-[13.5px] font-medium">{lead.name}</span>
+                      <span className={cn("rounded-full px-[7px] py-0.5 text-[10px] font-medium", statusStyles[lead.displayStatus])}>
+                        {lead.displayStatus.charAt(0).toUpperCase() + lead.displayStatus.slice(1)}
+                      </span>
+                    </div>
+                    <div className="truncate text-[12px] text-muted">{lead.message}</div>
+                  </div>
+
+                  <div className="hidden min-w-[130px] text-[11px] text-muted-subtle md:block">
+                    <div className="truncate text-muted">{lead.area}</div>
+                    <div className="mt-0.5 truncate">{lead.budget} · {lead.timeline}</div>
+                  </div>
+
+                  <div className="flex w-[44px] shrink-0 flex-col items-center gap-[3px]">
+                    <div className="font-display text-[20px] font-medium leading-none">{lead.score}</div>
+                    <div className="text-[9px] uppercase tracking-[0.1em] text-muted-subtle">Score</div>
+                  </div>
+
+                  <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-surface-muted text-[10px] font-medium text-muted">
+                    {lead.assignedTo
+                      .split(" ")
+                      .filter(Boolean)
+                      .map((part) => part[0])
+                      .slice(0, 2)
+                      .join("")
+                      .toUpperCase()}
+                  </div>
+
+                  <div className="min-w-[88px] shrink-0 text-right text-[11px] text-muted-subtle">
+                    <div>{lead.lastTouch}</div>
+                    <div className={cn("mt-0.5 text-[10px]", subStatusStyles[lead.subStatus] ?? "text-muted-subtle")}>
+                      {lead.subStatus}
+                    </div>
+                  </div>
                 </div>
-                <div className="truncate text-[12px] text-muted">{lead.message}</div>
-              </div>
-
-              <div className="hidden min-w-[130px] text-[11px] text-muted-subtle md:block">
-                <div className="truncate text-muted">{lead.area}</div>
-                <div className="mt-0.5 truncate">{lead.budget} · {lead.timeline}</div>
-              </div>
-
-              <div className="flex w-[44px] shrink-0 flex-col items-center gap-[3px]">
-                <div className="font-display text-[20px] font-medium leading-none">{lead.score}</div>
-                <div className="text-[9px] uppercase tracking-[0.1em] text-muted-subtle">Score</div>
-              </div>
-
-              <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-surface-muted text-[10px] font-medium text-muted">
-                {lead.assignedTo
-                  .split(" ")
-                  .filter(Boolean)
-                  .map((part) => part[0])
-                  .slice(0, 2)
-                  .join("")
-                  .toUpperCase()}
-              </div>
-
-              <div className="min-w-[88px] shrink-0 text-right text-[11px] text-muted-subtle">
-                <div>{lead.lastTouch}</div>
-                <div className={cn("mt-0.5 text-[10px]", subStatusStyles[lead.subStatus] ?? "text-muted-subtle")}>
-                  {lead.subStatus}
-                </div>
-              </div>
-            </div>
-          ))
+              ))
+            )}
+            <LeadsPaginationFooter
+              currentPage={safeCurrentPage}
+              itemCount={filtered.length}
+              pageCount={pageCount}
+              pageSize={leadsPageSize}
+              onPageChange={setCurrentPage}
+            />
+          </>
         )}
-        <LeadsPaginationFooter
-          currentPage={safeCurrentPage}
-          itemCount={filtered.length}
-          pageCount={pageCount}
-          pageSize={leadsPageSize}
-          onPageChange={setCurrentPage}
-        />
       </div>
 
       <LeadDetailSheet

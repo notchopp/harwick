@@ -1,15 +1,21 @@
 import { UuidSchema } from "@realty-ops/core";
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
+import { approveHarwickLoopWorkItem } from "../../../../../../../features/agent-runtime/approve-harwick-loop-work-item";
+import { buildHarwickWorkItemAuditEntry } from "../../../../../../../features/operator-queues/work-queue-audit";
 import { authorizeWorkspaceRequest } from "../../../../../../../lib/api/workspace-auth";
 import { createSupabaseAgentTrajectoryStore, type AgentOutcomeInsert } from "../../../../../../../lib/supabase/agent-trajectory-store";
-import { createSupabaseHarwickWorkItemRepository } from "../../../../../../../lib/supabase/harwick-work-items";
+import { createSupabaseAuditLogRepository } from "../../../../../../../lib/supabase/audit-logs";
+import {
+  createSupabaseHarwickLoopApprovalRepository,
+  createSupabaseHarwickWorkItemRepository,
+} from "../../../../../../../lib/supabase/harwick-work-items";
 import { createServerSupabaseClient } from "../../../../../../../lib/supabase/server-client";
 
 export const runtime = "nodejs";
 
 const WorkItemActionRequestSchema = z.object({
-  action: z.enum(["mark_seen", "dismiss", "complete"]),
+  action: z.enum(["mark_seen", "dismiss", "complete", "approve"]),
   feedbackLabel: z.enum(["useful", "not_relevant", "wrong_person", "already_handled", "needs_more_context"]).optional(),
   feedbackNote: z.string().trim().max(1000).optional(),
 });
@@ -18,6 +24,7 @@ const actionToStatus = {
   mark_seen: "seen",
   dismiss: "dismissed",
   complete: "completed",
+  approve: "completed",
 } as const;
 
 function feedbackLabelToSignalType(
@@ -56,6 +63,51 @@ export async function POST(
 
   try {
     const supabase = createServerSupabaseClient();
+    if (parsedBody.data.action === "approve") {
+      const approval = await approveHarwickLoopWorkItem({
+        workspaceId: workspaceId.data,
+        workItemId: workItemId.data,
+        actorMemberId: membership.memberId,
+        repository: createSupabaseHarwickLoopApprovalRepository(supabase),
+      });
+
+      if (approval.status === "not_found") {
+        return NextResponse.json({ error: "not_found", reason: approval.reason }, { status: 404 });
+      }
+      if (approval.status !== "approved") {
+        return NextResponse.json(
+          { error: approval.status, reason: approval.reason },
+          { status: approval.status === "already_resolved" ? 409 : 400 },
+        );
+      }
+
+      try {
+        await createSupabaseAuditLogRepository(supabase).insertAuditLog(buildHarwickWorkItemAuditEntry({
+          workspaceId: workspaceId.data,
+          actorUserId: null,
+          memberId: membership.memberId,
+          workItemId: approval.workItemId,
+          action: "approve",
+          resultStatus: "completed",
+          leadId: null,
+          feedbackLabel: parsedBody.data.feedbackLabel ?? null,
+          feedbackNote: parsedBody.data.feedbackNote ?? null,
+          ipAddress: request.headers.get("x-forwarded-for"),
+          userAgent: request.headers.get("user-agent"),
+        }));
+      } catch (auditError) {
+        console.warn("[harwick-work-items] audit log failed", auditError);
+      }
+
+      return NextResponse.json({
+        status: "ok",
+        workItemId: approval.workItemId,
+        loopId: approval.loopId,
+        loopName: approval.loopName,
+        executed: approval.executed,
+      });
+    }
+
     const repository = createSupabaseHarwickWorkItemRepository(supabase);
     const result = await repository.updateWorkItemStatus({
       workspaceId: workspaceId.data,
@@ -83,6 +135,24 @@ export async function POST(
           memberId: membership.memberId,
         },
       });
+    }
+
+    try {
+      await createSupabaseAuditLogRepository(supabase).insertAuditLog(buildHarwickWorkItemAuditEntry({
+        workspaceId: workspaceId.data,
+        actorUserId: null,
+        memberId: membership.memberId,
+        workItemId: result.workItemId,
+        action: parsedBody.data.action,
+        resultStatus: actionToStatus[parsedBody.data.action],
+        leadId: result.leadId,
+        feedbackLabel: parsedBody.data.feedbackLabel ?? null,
+        feedbackNote: parsedBody.data.feedbackNote ?? null,
+        ipAddress: request.headers.get("x-forwarded-for"),
+        userAgent: request.headers.get("user-agent"),
+      }));
+    } catch (auditError) {
+      console.warn("[harwick-work-items] audit log failed", auditError);
     }
 
     return NextResponse.json({ status: "ok", workItemId: result.workItemId });

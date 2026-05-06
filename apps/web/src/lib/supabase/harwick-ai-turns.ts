@@ -15,6 +15,7 @@ import type {
   Json,
 } from "./database.types";
 import type { RealtyOpsSupabaseClient } from "./server-client";
+import { recordCurrentPeriodUsageEvent } from "./billing";
 
 export type HarwickAiTurnPersistenceRepository = {
   insertTurn(params: HarwickAiPersistedTurn): Promise<{ turnId: string }>;
@@ -34,6 +35,44 @@ function toJsonObject(value: unknown): Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value)
     ? value as Record<string, unknown>
     : {};
+}
+
+async function recordHarwickTurnUsageSafely(
+  supabase: RealtyOpsSupabaseClient,
+  params: {
+    workspaceId: string;
+    turnId: string;
+    channel: string;
+    status: string;
+    toolNames: string[];
+  },
+): Promise<void> {
+  try {
+    await recordCurrentPeriodUsageEvent(supabase, {
+      workspaceId: params.workspaceId,
+      eventType: "ai_turn",
+      resourceId: params.turnId,
+      eventMetadata: {
+        channel: params.channel,
+        status: params.status,
+        tools: params.toolNames,
+      },
+    });
+
+    if (params.status === "auto_executed") {
+      await recordCurrentPeriodUsageEvent(supabase, {
+        workspaceId: params.workspaceId,
+        eventType: "ai_message_sent",
+        resourceId: params.turnId,
+        eventMetadata: {
+          channel: params.channel,
+          tools: params.toolNames,
+        },
+      });
+    }
+  } catch (error) {
+    console.error("[harwick-ai-turns] failed to record usage event:", error);
+  }
 }
 
 export function createSupabaseHarwickAiTurnRepository(
@@ -97,6 +136,14 @@ export function createSupabaseHarwickAiTurnRepository(
           throw toolError;
         }
       }
+
+      await recordHarwickTurnUsageSafely(supabase, {
+        workspaceId: parsed.workspaceId,
+        turnId: data.id,
+        channel: parsed.channel,
+        status: parsed.status,
+        toolNames: parsed.toolCalls.map((toolCall) => toolCall.tool),
+      });
 
       return { turnId: data.id };
     },

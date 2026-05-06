@@ -43,7 +43,21 @@ function findNearestLocalEnv(startDirectory: string): string | null {
   return null;
 }
 
+function shouldUseLocalEnvFallback(input: NodeJS.ProcessEnv): boolean {
+  const appEnv = input["APP_ENV"]?.trim().toLowerCase();
+  const nodeEnv = input["NODE_ENV"]?.trim().toLowerCase();
+
+  return appEnv === undefined
+    || appEnv.length === 0
+    || appEnv === "development"
+    || nodeEnv === "test";
+}
+
 export function mergeLocalEnvFallback(input: NodeJS.ProcessEnv = process.env): Record<string, string | undefined> {
+  if (!shouldUseLocalEnvFallback(input)) {
+    return input;
+  }
+
   const localEnvPath = findNearestLocalEnv(process.cwd());
   if (localEnvPath === null) {
     return input;

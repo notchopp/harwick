@@ -20,6 +20,8 @@ const sarahProfile: AgentRoutingProfile = {
   maxActiveLeads: 12,
   acceptsNewLeads: true,
   notificationPreference: "sms",
+  calendarStatus: "unknown",
+  showingMode: null,
 };
 
 const agents: AgentRoutingProfile[] = [
@@ -37,6 +39,8 @@ const agents: AgentRoutingProfile[] = [
     maxActiveLeads: 10,
     acceptsNewLeads: true,
     notificationPreference: "app",
+    calendarStatus: "unknown",
+    showingMode: null,
   },
 ];
 
@@ -153,5 +157,48 @@ describe("decideLeadRouting", () => {
       assignedMemberId: ariId,
       assignedDisplayName: "Ari M.",
     });
+  });
+
+  it("uses connected calendar readiness as a final routing signal without blocking missing calendars", () => {
+    const tiedAgents: AgentRoutingProfile[] = [
+      {
+        ...sarahProfile,
+        calendarStatus: "missing",
+        showingMode: null,
+      },
+      {
+        ...sarahProfile,
+        memberId: ariId,
+        displayName: "Ari M.",
+        calendarStatus: "connected",
+        showingMode: "request_approve",
+      },
+    ];
+
+    const decision = decideLeadRouting({
+      qualification: {
+        leadId,
+        workspaceId,
+        leadType: "buyer",
+        targetArea: "Katy",
+        propertyType: "new_construction",
+        budgetMin: 450_000,
+        budgetMax: 520_000,
+        timeline: "60 days",
+        financingStatus: "preapproved",
+        score: 82,
+        sourceOwnerMemberId: ademolaId,
+      },
+      agents: tiedAgents,
+      escalationMemberId: ademolaId,
+      roundRobinCursorMemberId: null,
+    });
+
+    expect(decision).toMatchObject({
+      status: "assigned",
+      assignedMemberId: ariId,
+      assignedDisplayName: "Ari M.",
+    });
+    expect(decision.reasons).toContain("calendar connected for request + approve showings");
   });
 });

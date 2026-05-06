@@ -16,7 +16,7 @@ import { WorkspaceTopbar } from "../../components/workspace-topbar";
 import { cn } from "../../lib/utils";
 import type { IntegrationsPageData, WorkspaceIntegrationAccount } from "./integrations-data";
 
-type IntegrationAction = "meta" | "fub" | null;
+type IntegrationAction = "meta" | "fub" | "fub_test" | "calendar" | null;
 
 type IntegrationsPageContentProps = {
   data: IntegrationsPageData;
@@ -147,6 +147,7 @@ export function IntegrationsPageContent(props: IntegrationsPageContentProps) {
   const [message, setMessage] = useState<string | null>(null);
   const metaAccount = useMemo(() => newestAccount(props.data.accounts, "meta"), [props.data.accounts]);
   const fubAccount = useMemo(() => newestAccount(props.data.accounts, "follow_up_boss"), [props.data.accounts]);
+  const calendarAccount = useMemo(() => newestAccount(props.data.accounts, "google_calendar"), [props.data.accounts]);
 
   async function connectMeta() {
     setBusyAction("meta");
@@ -191,6 +192,39 @@ export function IntegrationsPageContent(props: IntegrationsPageContentProps) {
     window.location.reload();
   }
 
+  async function testFub() {
+    setBusyAction("fub_test");
+    setMessage(null);
+    const response = await fetch(`/api/workspaces/${props.workspaceId}/integrations/follow-up-boss/test`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    const body = await response.json().catch(() => null) as { message?: string; error?: string } | null;
+    setBusyAction(null);
+    setMessage(response.ok
+      ? body?.message ?? "Follow Up Boss connection is healthy."
+      : body?.error ?? "Follow Up Boss connection test failed.");
+  }
+
+  async function connectCalendar() {
+    setBusyAction("calendar");
+    setMessage(null);
+    const response = await fetch(`/api/workspaces/${props.workspaceId}/integrations/google-calendar/start`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    const body = await response.json().catch(() => null) as { authorizationUrl?: string; error?: string } | null;
+    if (!response.ok || body?.authorizationUrl === undefined) {
+      setBusyAction(null);
+      setMessage(body?.error ?? "Google Calendar OAuth could not start.");
+      return;
+    }
+
+    window.location.href = body.authorizationUrl;
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-background">
       <WorkspaceTopbar context="integrations" workspaceName={props.workspaceName}>
@@ -211,6 +245,7 @@ export function IntegrationsPageContent(props: IntegrationsPageContentProps) {
           </div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <SummaryStat label="Meta channels" tone="good" value={String(props.data.health.metaConnectedCount)} />
+            <SummaryStat label="Calendars" tone={calendarAccount?.status === "connected" ? "good" : "warn"} value={calendarAccount?.status === "connected" ? "1" : "0"} />
             <SummaryStat label="FUB webhooks" value={`${props.data.health.fubActiveWebhooks}/${props.data.health.fubWebhookCount}`} />
             <SummaryStat label="Sync failures" tone={props.data.health.crmFailedSyncs > 0 ? "warn" : "good"} value={String(props.data.health.crmFailedSyncs)} />
           </div>
@@ -254,12 +289,6 @@ export function IntegrationsPageContent(props: IntegrationsPageContentProps) {
 
           <IntegrationCard
             account={fubAccount}
-            action={
-              <Button className="px-4 text-[12px]" disabled={busyAction !== null || fubApiKey.trim().length === 0} onClick={() => { void connectFub(); }} type="button">
-                {busyAction === "fub" ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <KeyRound className="mr-2 h-3.5 w-3.5" />}
-                save key
-              </Button>
-            }
             description="Follow Up Boss remains the CRM of record. Harwick syncs qualified leads, activity, assignments, and conflict state here."
             icon={<DatabaseZap className="h-5 w-5" strokeWidth={1.7} />}
             meta="Follow Up Boss"
@@ -274,34 +303,41 @@ export function IntegrationsPageContent(props: IntegrationsPageContentProps) {
                 type="password"
                 value={fubApiKey}
               />
-              <div className="harwick-control px-3 py-2 text-[11px] text-muted-subtle">
-                {props.data.health.fubActiveWebhooks} active back-sync subscriptions
+              <div className="grid gap-2">
+                <Button className="h-10 px-4 text-[12px]" disabled={busyAction !== null || fubApiKey.trim().length === 0} onClick={() => { void connectFub(); }} type="button">
+                  {busyAction === "fub" ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <KeyRound className="mr-2 h-3.5 w-3.5" />}
+                  save key
+                </Button>
+                <Button className="h-10 px-4 text-[12px]" disabled={busyAction !== null || fubAccount === null} onClick={() => { void testFub(); }} type="button" variant="outline">
+                  {busyAction === "fub_test" ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <DatabaseZap className="mr-2 h-3.5 w-3.5" />}
+                  test saved key
+                </Button>
+                <div className="harwick-control px-3 py-2 text-[11px] text-muted-subtle">
+                  {props.data.health.fubActiveWebhooks} active back-sync subscriptions
+                </div>
               </div>
             </div>
           </IntegrationCard>
 
-          <div className="grid gap-4 lg:grid-cols-2">
-            <section className="harwick-card p-5">
-              <div className="flex items-start gap-4">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] border border-border bg-[linear-gradient(180deg,#fffefa_0%,#efebe3_100%)] text-harwick-ink shadow-[var(--shadow-control)]">
-                  <CalendarDays className="h-5 w-5" strokeWidth={1.7} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between gap-3">
-                    <h2 className="font-display text-[19px] font-medium leading-none">Google Calendar</h2>
-                    <span className="harwick-pill px-2.5 py-1 text-[11px] text-muted">not connected</span>
-                  </div>
-                  <p className="mt-2 text-[12.5px] leading-5 text-muted">
-                    Used for showing availability, request + approve booking, and open house reminders once calendar OAuth is added.
-                  </p>
-                  <Button className="mt-4 px-4 text-[12px]" disabled type="button" variant="outline">
-                    <CalendarDays className="mr-2 h-3.5 w-3.5" />
-                    OAuth route needed
-                  </Button>
-                </div>
-              </div>
-            </section>
-          </div>
+          <IntegrationCard
+            account={calendarAccount}
+            action={
+              <Button className="px-4 text-[12px]" disabled={busyAction !== null} onClick={() => { void connectCalendar(); }} type="button" variant="outline">
+                {busyAction === "calendar" ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <CalendarDays className="mr-2 h-3.5 w-3.5" />}
+                connect calendar
+              </Button>
+            }
+            description="Member-scoped Google Calendar connection for showing availability. Harwick uses this before proposing request-and-approve showing windows."
+            icon={<CalendarDays className="h-5 w-5" strokeWidth={1.7} />}
+            meta="Google Calendar"
+            title="Google Calendar"
+          >
+            <div className="flex flex-wrap gap-2 text-[11px] text-muted">
+              <span className="harwick-pill px-2.5 py-1">member availability</span>
+              <span className="harwick-pill px-2.5 py-1">request + approve</span>
+              <span className="harwick-pill px-2.5 py-1">FreeBusy lookup</span>
+            </div>
+          </IntegrationCard>
         </div>
       </div>
     </div>

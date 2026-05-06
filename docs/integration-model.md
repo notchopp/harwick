@@ -35,12 +35,31 @@ Rules:
 - Every sync attempt writes a `crm_sync_log`.
 - Never treat FUB as the only source of lead conversation history.
 
+## Google Calendar
+
+Purpose:
+
+- check member availability before Harwick proposes showing times
+- support request-and-approve showing workflows first, then opt-in auto-booking later
+- keep showing automation tied to the assigned workspace member, not only workspace-level availability
+
+Rules:
+
+- Calendar credentials are member-scoped and encrypted server-side.
+- Availability lookups use Google Calendar FreeBusy and must not expose access tokens to the browser.
+- Booking writes use Google Calendar Events insert only after an approved showing task; Harwick's default path remains request + approve.
+- Google OAuth requests both FreeBusy and Events scopes. Existing calendars connected before Events scope was added may need reconnect before booking writes succeed.
+- Default private showing mode is request + approve.
+- Auto-booking must remain opt-in and qualification-gated.
+- If a connected calendar is missing or lookup fails, Harwick may surface synthesized candidate windows only as unconfirmed options.
+
 ## Twilio
 
 Purpose:
 
 - support broader two-way SMS, outbound nurture, and SMS delivery persistence when Retell's in-call SMS is not enough
 - optionally own/import phone numbers later if a customer needs custom telephony outside Retell-managed numbers
+- deliver operator-approved nurture and open-house reminder drafts from the worker
 
 Rules:
 
@@ -48,6 +67,7 @@ Rules:
 - Normalize phone numbers before lookup.
 - Support opt-out states before nurture production.
 - Separate staging and production numbers.
+- Worker-side sends must persist provider message IDs, mirror the transcript, and fail the workflow job if provider delivery fails.
 
 ## Retell
 

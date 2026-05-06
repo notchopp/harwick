@@ -10,7 +10,9 @@
     "vitest.config.ts",
     "apps/**/*.ts",
     "apps/**/*.tsx",
-    "packages/**/*.ts"
+    "packages/**/*.ts",
+    "scripts/**/*.d.mts",
+    "tests/**/*.ts"
   ],
   "exclude": ["**/dist/**", "node_modules"]
 }

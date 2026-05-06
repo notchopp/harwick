@@ -206,9 +206,9 @@ describe("operator queues", () => {
     }));
   });
 
-  it("blocks social sends when automation is paused", async () => {
+  it("allows operator social sends when automation is paused", async () => {
     const updateSocialReplyReview = vi.fn<SocialReplyQueueRepository["updateSocialReplyReview"]>()
-      .mockResolvedValue(socialItem({ status: "failed", automationMode: "human_takeover" }));
+      .mockResolvedValue(socialItem({ status: "sent", automationMode: "human_takeover", providerEventId: "mid.1" }));
     const repository: SocialReplyQueueRepository = {
       materializePendingSocialReplies: vi.fn(),
       listSocialReplyReviews: vi.fn(),
@@ -218,7 +218,10 @@ describe("operator queues", () => {
       setConversationAutomationForReview: vi.fn(),
       listSocialConversationThread: vi.fn(),
     };
-    const sendReply = vi.fn();
+    const sendReply = vi.fn().mockResolvedValue({
+      status: 200,
+      body: { providerEventId: "mid.1" },
+    });
 
     await actOnSocialReplyReview({
       workspaceId,
@@ -229,11 +232,14 @@ describe("operator queues", () => {
       sendReply,
     });
 
-    expect(sendReply).not.toHaveBeenCalled();
+    expect(sendReply).toHaveBeenCalledWith(expect.objectContaining({
+      automationMode: "human_takeover",
+      reply: "Sending details.",
+    }));
     expect(updateSocialReplyReview).toHaveBeenCalledWith(expect.objectContaining({
       values: expect.objectContaining({
-        status: "failed",
-        lastErrorCode: "automation_paused",
+        status: "sent",
+        providerEventId: "mid.1",
       }) as Record<string, unknown>,
     }));
   });

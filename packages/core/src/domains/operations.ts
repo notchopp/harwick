@@ -90,6 +90,14 @@ export const FollowUpBossConflictQueueResponseSchema = z.object({
   items: z.array(FollowUpBossConflictItemSchema),
 });
 
+export const FollowUpBossConflictActionRequestSchema = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("replay") }),
+  z.object({
+    action: z.literal("ignore"),
+    reason: z.string().trim().max(500).optional(),
+  }),
+]);
+
 export type WorkspaceReadinessStatus = z.infer<typeof WorkspaceReadinessStatusSchema>;
 export type WorkspaceReadinessItem = z.infer<typeof WorkspaceReadinessItemSchema>;
 export type WorkspaceReadinessSummary = z.infer<typeof WorkspaceReadinessSummarySchema>;
@@ -102,3 +110,4 @@ export type WorkflowJobActionRequest = z.infer<typeof WorkflowJobActionRequestSc
 export type CrmSyncActionRequest = z.infer<typeof CrmSyncActionRequestSchema>;
 export type FollowUpBossConflictItem = z.infer<typeof FollowUpBossConflictItemSchema>;
 export type FollowUpBossConflictQueueResponse = z.infer<typeof FollowUpBossConflictQueueResponseSchema>;
+export type FollowUpBossConflictActionRequest = z.infer<typeof FollowUpBossConflictActionRequestSchema>;
