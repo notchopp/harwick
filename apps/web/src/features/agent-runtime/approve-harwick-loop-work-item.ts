@@ -92,6 +92,74 @@ export type HarwickRouteLeadApprovalAdapter = {
   }>;
 };
 
+export type HarwickSyncFubApprovalAdapter = {
+  executeSyncFollowUpBoss(params: {
+    workspaceId: string;
+    leadId: string;
+    approverMemberId: string;
+    callPayload: Record<string, unknown>;
+    nowIso: string;
+  }): Promise<{
+    status: "executed" | "skipped";
+    workflowJobId: string | null;
+    idempotencyKey: string;
+    reason: string;
+  }>;
+};
+
+export type HarwickShowingApprovalAdapter = {
+  executeRequestShowingApproval(params: {
+    workspaceId: string;
+    leadId: string;
+    approverMemberId: string;
+    callPayload: Record<string, unknown>;
+    nowIso: string;
+  }): Promise<{
+    status: "executed";
+    taskId: string;
+    listing: string | null;
+    requestedStart: string | null;
+    requestedEnd: string | null;
+  }>;
+};
+
+export type HarwickOpenHouseApprovalAdapter = {
+  executeRegisterOpenHouse(params: {
+    workspaceId: string;
+    leadId: string;
+    approverMemberId: string;
+    callPayload: Record<string, unknown>;
+    nowIso: string;
+  }): Promise<{
+    status: "executed";
+    taskId: string;
+    listing: string | null;
+    eventDate: string | null;
+  }>;
+};
+
+export type HarwickPauseAutomationApprovalAdapter = {
+  executePauseAutomation(params: {
+    workspaceId: string;
+    leadId: string;
+    approverMemberId: string;
+    callPayload: Record<string, unknown>;
+    nowIso: string;
+  }): Promise<{
+    status: "executed";
+    automationStateId: string;
+    reason: string;
+  }>;
+};
+
+export type HarwickApprovalAdapters = {
+  routeLead?: HarwickRouteLeadApprovalAdapter | null;
+  syncFollowUpBoss?: HarwickSyncFubApprovalAdapter | null;
+  requestShowingApproval?: HarwickShowingApprovalAdapter | null;
+  registerOpenHouse?: HarwickOpenHouseApprovalAdapter | null;
+  pauseAutomation?: HarwickPauseAutomationApprovalAdapter | null;
+};
+
 export type HarwickLoopApprovalResult =
   | {
       status: "approved";
@@ -201,7 +269,13 @@ function parseApprovalPayload(payload: Record<string, unknown>): ParsedApprovalP
   };
 }
 
-const APPROVAL_OPENED_EXTERNAL_TOOLS = new Set(["route_lead"]);
+const APPROVAL_OPENED_EXTERNAL_TOOLS = new Set([
+  "route_lead",
+  "sync_follow_up_boss",
+  "request_showing_approval",
+  "register_open_house",
+  "pause_automation",
+]);
 
 function canExecuteApprovedTool(call: LoopProposedToolCall, payload: ParsedApprovalPayload): boolean {
   if (!call.requiresApproval) return false;
@@ -213,13 +287,18 @@ function canExecuteApprovedTool(call: LoopProposedToolCall, payload: ParsedAppro
 
 async function executeApprovedToolCall(params: {
   repository: HarwickLoopApprovalRepository;
-  routeLeadAdapter: HarwickRouteLeadApprovalAdapter | null;
+  adapters: HarwickApprovalAdapters;
   workItem: HarwickLoopWorkItemForApproval;
   payload: ParsedApprovalPayload;
   call: LoopProposedToolCall;
   actorMemberId: string;
   nowIso: string;
 }): Promise<HarwickLoopApprovedToolExecution> {
+  const routeLeadAdapter = params.adapters.routeLead ?? null;
+  const syncFubAdapter = params.adapters.syncFollowUpBoss ?? null;
+  const showingAdapter = params.adapters.requestShowingApproval ?? null;
+  const openHouseAdapter = params.adapters.registerOpenHouse ?? null;
+  const pauseAdapter = params.adapters.pauseAutomation ?? null;
   if (!canExecuteApprovedTool(params.call, params.payload)) {
     return {
       tool: params.call.tool,
@@ -230,7 +309,7 @@ async function executeApprovedToolCall(params: {
   }
 
   if (params.call.tool === "route_lead") {
-    if (params.routeLeadAdapter === null || params.workItem.leadId === null) {
+    if (routeLeadAdapter === null || params.workItem.leadId === null) {
       return {
         tool: params.call.tool,
         status: "skipped",
@@ -241,7 +320,7 @@ async function executeApprovedToolCall(params: {
       };
     }
 
-    const result = await params.routeLeadAdapter.executeRouteLead({
+    const result = await routeLeadAdapter.executeRouteLead({
       workspaceId: params.workItem.workspaceId,
       leadId: params.workItem.leadId,
       approverMemberId: params.actorMemberId,
@@ -267,6 +346,131 @@ async function executeApprovedToolCall(params: {
       execution.routingDecisionId = result.routingDecisionId;
     }
     return execution;
+  }
+
+  if (params.call.tool === "sync_follow_up_boss") {
+    if (syncFubAdapter === null || params.workItem.leadId === null) {
+      return {
+        tool: params.call.tool,
+        status: "skipped",
+        reason: params.workItem.leadId === null
+          ? "Cannot execute sync_follow_up_boss: work item is not bound to a lead."
+          : "Cannot execute sync_follow_up_boss: adapter is not wired in this environment.",
+        output: { proposedPayload: params.call.payload },
+      };
+    }
+    const result = await syncFubAdapter.executeSyncFollowUpBoss({
+      workspaceId: params.workItem.workspaceId,
+      leadId: params.workItem.leadId,
+      approverMemberId: params.actorMemberId,
+      callPayload: params.call.payload,
+      nowIso: params.nowIso,
+    });
+    return {
+      tool: params.call.tool,
+      status: result.status,
+      reason: result.status === "executed" ? params.call.reason : result.reason,
+      output: {
+        leadId: params.workItem.leadId,
+        workflowJobId: result.workflowJobId,
+        idempotencyKey: result.idempotencyKey,
+      },
+    };
+  }
+
+  if (params.call.tool === "request_showing_approval") {
+    if (showingAdapter === null || params.workItem.leadId === null) {
+      return {
+        tool: params.call.tool,
+        status: "skipped",
+        reason: params.workItem.leadId === null
+          ? "Cannot execute request_showing_approval: work item is not bound to a lead."
+          : "Cannot execute request_showing_approval: adapter is not wired in this environment.",
+        output: { proposedPayload: params.call.payload },
+      };
+    }
+    const result = await showingAdapter.executeRequestShowingApproval({
+      workspaceId: params.workItem.workspaceId,
+      leadId: params.workItem.leadId,
+      approverMemberId: params.actorMemberId,
+      callPayload: params.call.payload,
+      nowIso: params.nowIso,
+    });
+    return {
+      tool: params.call.tool,
+      status: result.status,
+      reason: params.call.reason,
+      taskId: result.taskId,
+      output: {
+        leadId: params.workItem.leadId,
+        taskId: result.taskId,
+        listing: result.listing,
+        requestedStart: result.requestedStart,
+        requestedEnd: result.requestedEnd,
+      },
+    };
+  }
+
+  if (params.call.tool === "register_open_house") {
+    if (openHouseAdapter === null || params.workItem.leadId === null) {
+      return {
+        tool: params.call.tool,
+        status: "skipped",
+        reason: params.workItem.leadId === null
+          ? "Cannot execute register_open_house: work item is not bound to a lead."
+          : "Cannot execute register_open_house: adapter is not wired in this environment.",
+        output: { proposedPayload: params.call.payload },
+      };
+    }
+    const result = await openHouseAdapter.executeRegisterOpenHouse({
+      workspaceId: params.workItem.workspaceId,
+      leadId: params.workItem.leadId,
+      approverMemberId: params.actorMemberId,
+      callPayload: params.call.payload,
+      nowIso: params.nowIso,
+    });
+    return {
+      tool: params.call.tool,
+      status: result.status,
+      reason: params.call.reason,
+      taskId: result.taskId,
+      output: {
+        leadId: params.workItem.leadId,
+        taskId: result.taskId,
+        listing: result.listing,
+        eventDate: result.eventDate,
+      },
+    };
+  }
+
+  if (params.call.tool === "pause_automation") {
+    if (pauseAdapter === null || params.workItem.leadId === null) {
+      return {
+        tool: params.call.tool,
+        status: "skipped",
+        reason: params.workItem.leadId === null
+          ? "Cannot execute pause_automation: work item is not bound to a lead."
+          : "Cannot execute pause_automation: adapter is not wired in this environment.",
+        output: { proposedPayload: params.call.payload },
+      };
+    }
+    const result = await pauseAdapter.executePauseAutomation({
+      workspaceId: params.workItem.workspaceId,
+      leadId: params.workItem.leadId,
+      approverMemberId: params.actorMemberId,
+      callPayload: params.call.payload,
+      nowIso: params.nowIso,
+    });
+    return {
+      tool: params.call.tool,
+      status: result.status,
+      reason: params.call.reason,
+      output: {
+        leadId: params.workItem.leadId,
+        automationStateId: result.automationStateId,
+        pauseReason: result.reason,
+      },
+    };
   }
 
   if (params.call.tool !== "dispatch_subagent") {
@@ -321,6 +525,8 @@ export async function approveHarwickLoopWorkItem(params: {
   workItemId: string;
   actorMemberId: string;
   repository: HarwickLoopApprovalRepository;
+  adapters?: HarwickApprovalAdapters;
+  /** @deprecated Use `adapters.routeLead` instead. */
   routeLeadAdapter?: HarwickRouteLeadApprovalAdapter | null;
   now?: () => Date;
 }): Promise<HarwickLoopApprovalResult> {
@@ -360,12 +566,15 @@ export async function approveHarwickLoopWorkItem(params: {
   }
 
   const nowIso = (params.now?.() ?? new Date()).toISOString();
-  const routeLeadAdapter = params.routeLeadAdapter ?? null;
+  const adapters: HarwickApprovalAdapters = {
+    ...(params.adapters ?? {}),
+    routeLead: params.adapters?.routeLead ?? params.routeLeadAdapter ?? null,
+  };
   const executed = payload.actionPlan.proposedToolCalls.length > 0
     ? await Promise.all(payload.actionPlan.proposedToolCalls.map((call) =>
         executeApprovedToolCall({
           repository: params.repository,
-          routeLeadAdapter,
+          adapters,
           workItem,
           payload,
           call,

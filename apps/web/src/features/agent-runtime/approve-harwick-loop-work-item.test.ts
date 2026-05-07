@@ -3,7 +3,11 @@ import {
   approveHarwickLoopWorkItem,
   type HarwickLoopApprovalRepository,
   type HarwickLoopWorkItemForApproval,
+  type HarwickOpenHouseApprovalAdapter,
+  type HarwickPauseAutomationApprovalAdapter,
   type HarwickRouteLeadApprovalAdapter,
+  type HarwickShowingApprovalAdapter,
+  type HarwickSyncFubApprovalAdapter,
 } from "./approve-harwick-loop-work-item";
 
 const workspaceId = "00000000-0000-0000-0000-000000000001";
@@ -320,5 +324,240 @@ describe("approveHarwickLoopWorkItem", () => {
         }),
       ],
     });
+  });
+
+  it("executes sync_follow_up_boss via the adapter and reports the workflow job id", async () => {
+    const leadId = "00000000-0000-0000-0000-000000000030";
+    const workflowJobId = "00000000-0000-0000-0000-000000000031";
+    const repo = repository(workItem({
+      leadId,
+      payload: {
+        signalType: "qualified_lead_ready_to_sync",
+        signalKey: `qualified_lead:${leadId}`,
+        actionPlan: {
+          executionBrief: "Sync the qualified lead to FUB.",
+          requiresApproval: true,
+          internalSafeOnly: false,
+          proposedToolCalls: [{
+            tool: "sync_follow_up_boss",
+            reason: "Lead is now qualified; push to CRM.",
+            requiresApproval: true,
+            payload: { note: "qualified-by-harwick" },
+          }],
+        },
+      },
+    }));
+    const calls: unknown[] = [];
+    const syncFollowUpBoss: HarwickSyncFubApprovalAdapter = {
+      executeSyncFollowUpBoss(params) {
+        calls.push(params);
+        return Promise.resolve({
+          status: "executed",
+          workflowJobId,
+          idempotencyKey: `fub_sync:${leadId}`,
+          reason: "FUB sync job enqueued.",
+        });
+      },
+    };
+    const result = await approveHarwickLoopWorkItem({
+      workspaceId,
+      workItemId,
+      actorMemberId: memberId,
+      repository: repo,
+      adapters: { syncFollowUpBoss },
+    });
+    expect(result.status).toBe("approved");
+    if (result.status !== "approved") throw new Error("expected approval");
+    expect(calls).toHaveLength(1);
+    expect(result.executed[0]).toMatchObject({
+      tool: "sync_follow_up_boss",
+      status: "executed",
+      output: { workflowJobId, idempotencyKey: `fub_sync:${leadId}` },
+    });
+  });
+
+  it("executes request_showing_approval via the adapter and surfaces the lead task id", async () => {
+    const leadId = "00000000-0000-0000-0000-000000000040";
+    const taskId = "00000000-0000-0000-0000-000000000041";
+    const repo = repository(workItem({
+      leadId,
+      payload: {
+        signalType: "showing_proposal_ready",
+        signalKey: `showing_proposal:${leadId}`,
+        actionPlan: {
+          executionBrief: "Request a showing approval task.",
+          requiresApproval: true,
+          internalSafeOnly: false,
+          proposedToolCalls: [{
+            tool: "request_showing_approval",
+            reason: "Buyer wants to tour Saturday at 11am.",
+            requiresApproval: true,
+            payload: {
+              listing: "123 Maple",
+              requestedStart: "2026-05-09T15:00:00.000Z",
+              requestedEnd: "2026-05-09T15:45:00.000Z",
+            },
+          }],
+        },
+      },
+    }));
+    const requestShowingApproval: HarwickShowingApprovalAdapter = {
+      executeRequestShowingApproval() {
+        return Promise.resolve({
+          status: "executed",
+          taskId,
+          listing: "123 Maple",
+          requestedStart: "2026-05-09T15:00:00.000Z",
+          requestedEnd: "2026-05-09T15:45:00.000Z",
+        });
+      },
+    };
+    const result = await approveHarwickLoopWorkItem({
+      workspaceId,
+      workItemId,
+      actorMemberId: memberId,
+      repository: repo,
+      adapters: { requestShowingApproval },
+    });
+    expect(result.status).toBe("approved");
+    if (result.status !== "approved") throw new Error("expected approval");
+    expect(result.executed[0]).toMatchObject({
+      tool: "request_showing_approval",
+      status: "executed",
+      taskId,
+    });
+  });
+
+  it("executes register_open_house via the adapter", async () => {
+    const leadId = "00000000-0000-0000-0000-000000000050";
+    const taskId = "00000000-0000-0000-0000-000000000051";
+    const repo = repository(workItem({
+      leadId,
+      payload: {
+        signalType: "open_house_invite",
+        signalKey: `open_house:${leadId}`,
+        actionPlan: {
+          executionBrief: "Register the lead for the upcoming open house.",
+          requiresApproval: true,
+          internalSafeOnly: false,
+          proposedToolCalls: [{
+            tool: "register_open_house",
+            reason: "Lead asked to attend Sunday's open house.",
+            requiresApproval: true,
+            payload: { listing: "456 Oak", eventDate: "2026-05-10" },
+          }],
+        },
+      },
+    }));
+    const registerOpenHouse: HarwickOpenHouseApprovalAdapter = {
+      executeRegisterOpenHouse() {
+        return Promise.resolve({
+          status: "executed",
+          taskId,
+          listing: "456 Oak",
+          eventDate: "2026-05-10",
+        });
+      },
+    };
+    const result = await approveHarwickLoopWorkItem({
+      workspaceId,
+      workItemId,
+      actorMemberId: memberId,
+      repository: repo,
+      adapters: { registerOpenHouse },
+    });
+    expect(result.status).toBe("approved");
+    if (result.status !== "approved") throw new Error("expected approval");
+    expect(result.executed[0]).toMatchObject({
+      tool: "register_open_house",
+      status: "executed",
+      taskId,
+    });
+  });
+
+  it("executes pause_automation via the adapter and records the automation state id", async () => {
+    const leadId = "00000000-0000-0000-0000-000000000060";
+    const automationStateId = "00000000-0000-0000-0000-000000000061";
+    const repo = repository(workItem({
+      leadId,
+      payload: {
+        signalType: "needs_human",
+        signalKey: `needs_human:${leadId}`,
+        actionPlan: {
+          executionBrief: "Pause Harwick on this conversation.",
+          requiresApproval: true,
+          internalSafeOnly: false,
+          proposedToolCalls: [{
+            tool: "pause_automation",
+            reason: "Lead asked to speak with a human.",
+            requiresApproval: true,
+            payload: { reason: "Lead requested a human." },
+          }],
+        },
+      },
+    }));
+    const pauseAutomation: HarwickPauseAutomationApprovalAdapter = {
+      executePauseAutomation(params) {
+        expect(params.callPayload["reason"]).toBe("Lead requested a human.");
+        return Promise.resolve({
+          status: "executed",
+          automationStateId,
+          reason: "Lead requested a human.",
+        });
+      },
+    };
+    const result = await approveHarwickLoopWorkItem({
+      workspaceId,
+      workItemId,
+      actorMemberId: memberId,
+      repository: repo,
+      adapters: { pauseAutomation },
+    });
+    expect(result.status).toBe("approved");
+    if (result.status !== "approved") throw new Error("expected approval");
+    expect(result.executed[0]).toMatchObject({
+      tool: "pause_automation",
+      status: "executed",
+      output: { automationStateId },
+    });
+  });
+
+  it("skips newly opened tools cleanly when no adapter is wired", async () => {
+    const leadId = "00000000-0000-0000-0000-000000000070";
+    const repo = repository(workItem({
+      leadId,
+      payload: {
+        signalType: "needs_action",
+        signalKey: `needs_action:${leadId}`,
+        actionPlan: {
+          executionBrief: "Multiple actions proposed.",
+          requiresApproval: true,
+          internalSafeOnly: false,
+          proposedToolCalls: [
+            {
+              tool: "sync_follow_up_boss",
+              reason: "Sync to CRM.",
+              requiresApproval: true,
+              payload: {},
+            },
+            {
+              tool: "register_open_house",
+              reason: "Register for open house.",
+              requiresApproval: true,
+              payload: {},
+            },
+          ],
+        },
+      },
+    }));
+    const result = await approveHarwickLoopWorkItem({
+      workspaceId,
+      workItemId,
+      actorMemberId: memberId,
+      repository: repo,
+    });
+    expect(result.status).toBe("approved");
+    if (result.status !== "approved") throw new Error("expected approval");
+    expect(result.executed.every((e) => e.status === "skipped")).toBe(true);
   });
 });
