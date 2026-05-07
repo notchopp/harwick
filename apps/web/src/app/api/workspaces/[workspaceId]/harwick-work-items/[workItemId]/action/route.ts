@@ -1,8 +1,12 @@
 import { UuidSchema } from "@realty-ops/core";
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
-import { approveHarwickLoopWorkItem } from "../../../../../../../features/agent-runtime/approve-harwick-loop-work-item";
+import {
+  approveHarwickLoopWorkItem,
+  type HarwickRouteLeadApprovalAdapter,
+} from "../../../../../../../features/agent-runtime/approve-harwick-loop-work-item";
 import { buildHarwickWorkItemAuditEntry } from "../../../../../../../features/operator-queues/work-queue-audit";
+import { routeLeadWithHarwick } from "../../../../../../../features/leads/lead-routing-action";
 import { authorizeWorkspaceRequest } from "../../../../../../../lib/api/workspace-auth";
 import { createSupabaseAgentTrajectoryStore, type AgentOutcomeInsert } from "../../../../../../../lib/supabase/agent-trajectory-store";
 import { createSupabaseAuditLogRepository } from "../../../../../../../lib/supabase/audit-logs";
@@ -10,7 +14,48 @@ import {
   createSupabaseHarwickLoopApprovalRepository,
   createSupabaseHarwickWorkItemRepository,
 } from "../../../../../../../lib/supabase/harwick-work-items";
+import { createSupabaseLeadRoutingActionRepository } from "../../../../../../../lib/supabase/leads";
 import { createServerSupabaseClient } from "../../../../../../../lib/supabase/server-client";
+
+const ROUTE_LEAD_UNDO_WINDOW_MINUTES = 10;
+
+function buildRouteLeadAdapter(params: {
+  supabase: ReturnType<typeof createServerSupabaseClient>;
+  approverRole: "owner" | "admin" | "team_lead" | "lead_manager" | "operator" | "agent" | "viewer";
+}): HarwickRouteLeadApprovalAdapter {
+  return {
+    async executeRouteLead({ workspaceId, leadId, approverMemberId, callPayload, nowIso }) {
+      const undoExpiresAt = new Date(
+        Date.parse(nowIso) + ROUTE_LEAD_UNDO_WINDOW_MINUTES * 60_000,
+      ).toISOString();
+      const result = await routeLeadWithHarwick({
+        workspaceId,
+        leadId,
+        viewer: { memberId: approverMemberId, role: params.approverRole },
+        input: callPayload,
+        repository: createSupabaseLeadRoutingActionRepository(params.supabase),
+        auditRepository: createSupabaseAuditLogRepository(params.supabase),
+        auditSource: "harwick_approval",
+      });
+      if (result.status === "forbidden" || result.status === "not_found") {
+        return {
+          status: "forbidden",
+          routingDecisionId: null,
+          assignedMemberId: null,
+          reasons: [],
+          undoExpiresAt,
+        };
+      }
+      return {
+        status: result.status === "routed" ? "executed" : "no_assignment",
+        routingDecisionId: result.response.routingDecisionId,
+        assignedMemberId: result.response.assignedMemberId,
+        reasons: result.response.reasons,
+        undoExpiresAt,
+      };
+    },
+  };
+}
 
 export const runtime = "nodejs";
 
@@ -69,6 +114,7 @@ export async function POST(
         workItemId: workItemId.data,
         actorMemberId: membership.memberId,
         repository: createSupabaseHarwickLoopApprovalRepository(supabase),
+        routeLeadAdapter: buildRouteLeadAdapter({ supabase, approverRole: membership.role }),
       });
 
       if (approval.status === "not_found") {

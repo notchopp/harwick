@@ -67,6 +67,7 @@ async function insertRoutingDecision(params: {
   lead: LeadRoutingActionLeadRow;
   decision: LeadRoutingDecision;
   viewer: Pick<AuthWorkspaceMembership, "memberId">;
+  auditSource: "leads_page" | "harwick_approval";
 }): Promise<string> {
   const now = new Date().toISOString();
   const row = await params.repository.insertRoutingDecision({
@@ -81,9 +82,11 @@ async function insertRoutingDecision(params: {
     reason: decisionReasons(params.decision).join("; "),
     evidence: {
       mode: "auto",
+      source: params.auditSource,
       decisionStatus: params.decision.status,
       matchScore: params.decision.matchScore,
       sourceOwnerMemberId: params.decision.sourceOwnerMemberId,
+      previousAssignedMemberId: params.lead.assigned_agent_id,
       leadSnapshot: {
         leadType: params.lead.lead_type,
         intent: params.lead.intent,
@@ -104,6 +107,8 @@ async function insertRoutingDecision(params: {
   return row.id;
 }
 
+export type LeadRoutingAuditSource = "leads_page" | "harwick_approval";
+
 export async function routeLeadWithHarwick(params: {
   workspaceId: string;
   leadId: string;
@@ -111,12 +116,15 @@ export async function routeLeadWithHarwick(params: {
   input: unknown;
   repository: LeadRoutingActionRepository;
   auditRepository: LeadRoutingAuditWriter;
+  auditSource?: LeadRoutingAuditSource;
 }): Promise<RouteLeadActionResult> {
   RouteLeadRequestSchema.parse(params.input);
 
   if (!canRouteLead(params.viewer)) {
     return { status: "forbidden" };
   }
+
+  const auditSource: LeadRoutingAuditSource = params.auditSource ?? "leads_page";
 
   const lead = await params.repository.findLeadForRoutingAction({
     workspaceId: params.workspaceId,
@@ -178,6 +186,7 @@ export async function routeLeadWithHarwick(params: {
     lead,
     decision,
     viewer: params.viewer,
+    auditSource,
   });
 
   const response = responseFromDecision({
@@ -209,7 +218,8 @@ export async function routeLeadWithHarwick(params: {
       previousAssignedMemberId: lead.assigned_agent_id,
       assignedMemberId: decision.assignedMemberId,
       reasons: decisionReasons(decision),
-      source: "leads_page",
+      source: auditSource,
+      approverMemberId: params.viewer.memberId,
     },
   });
 

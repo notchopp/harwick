@@ -597,3 +597,100 @@ export function createSupabaseLeadRoutingActionRepository(
     },
   };
 }
+
+type RoutingDecisionUndoLookupRow = Pick<
+  HarwickRoutingDecisionRow,
+  "lead_id" | "final_member_id" | "decided_at" | "evidence" | "reason"
+>;
+
+function readPreviousAssignedFromEvidence(evidence: unknown): string | null {
+  if (evidence === null || typeof evidence !== "object" || Array.isArray(evidence)) {
+    return null;
+  }
+  const value = (evidence as Record<string, unknown>)["previousAssignedMemberId"];
+  return typeof value === "string" ? value : null;
+}
+
+export function createSupabaseLeadRoutingUndoRepository(supabase: RealtyOpsSupabaseClient) {
+  return {
+    async findRoutingDecisionForUndo(params: { workspaceId: string; routingDecisionId: string }) {
+      const { data, error } = await supabase
+        .from("harwick_routing_decisions")
+        .select("lead_id,final_member_id,decided_at,evidence,reason")
+        .eq("workspace_id", params.workspaceId)
+        .eq("id", params.routingDecisionId)
+        .maybeSingle<RoutingDecisionUndoLookupRow>();
+      if (error !== null) {
+        throw error;
+      }
+      if (data === null) {
+        return null;
+      }
+      return {
+        workspaceId: params.workspaceId,
+        leadId: data.lead_id,
+        finalMemberId: data.final_member_id,
+        decidedAt: data.decided_at,
+        previousAssignedMemberId: readPreviousAssignedFromEvidence(data.evidence),
+        reason: data.reason,
+      };
+    },
+
+    async setLeadAssignment(params: { workspaceId: string; leadId: string; assignedMemberId: string | null }) {
+      const { error } = await supabase
+        .from("leads")
+        .update({
+          assigned_agent_id: params.assignedMemberId,
+          status: params.assignedMemberId === null ? "new" : "assigned",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("workspace_id", params.workspaceId)
+        .eq("id", params.leadId);
+      if (error !== null) {
+        throw error;
+      }
+    },
+
+    async insertReversalDecision(params: {
+      workspaceId: string;
+      leadId: string;
+      originalDecisionId: string;
+      revertedFromMemberId: string | null;
+      restoredAssignedMemberId: string | null;
+      actorMemberId: string;
+      nowIso: string;
+      reason: string;
+    }) {
+      const { data, error } = await supabase
+        .from("harwick_routing_decisions")
+        .insert({
+          workspace_id: params.workspaceId,
+          lead_id: params.leadId,
+          trajectory_id: null,
+          step_id: null,
+          suggested_member_id: params.restoredAssignedMemberId,
+          final_member_id: params.restoredAssignedMemberId,
+          status: "overridden",
+          confidence: null,
+          reason: params.reason,
+          evidence: {
+            mode: "undo",
+            originalDecisionId: params.originalDecisionId,
+            revertedFromMemberId: params.revertedFromMemberId,
+            restoredAssignedMemberId: params.restoredAssignedMemberId,
+          },
+          created_by_actor_type: "member",
+          decided_by_member_id: params.actorMemberId,
+          decided_at: params.nowIso,
+          override_reason: `undo:${params.originalDecisionId}`,
+          updated_at: params.nowIso,
+        })
+        .select("id")
+        .single<LeadRoutingActionDecisionRow>();
+      if (error !== null) {
+        throw error;
+      }
+      return { id: data.id };
+    },
+  };
+}

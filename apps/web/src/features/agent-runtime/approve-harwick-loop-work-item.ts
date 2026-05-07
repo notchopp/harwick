@@ -67,10 +67,29 @@ export type HarwickLoopApprovalRepository = {
 
 export type HarwickLoopApprovedToolExecution = {
   tool: string;
-  status: "queued" | "skipped";
+  status: "queued" | "skipped" | "executed" | "no_assignment" | "forbidden";
   reason: string;
   taskId?: string;
+  routingDecisionId?: string;
+  assignedMemberId?: string | null;
+  undoExpiresAt?: string;
   output: Record<string, unknown>;
+};
+
+export type HarwickRouteLeadApprovalAdapter = {
+  executeRouteLead(params: {
+    workspaceId: string;
+    leadId: string;
+    approverMemberId: string;
+    callPayload: Record<string, unknown>;
+    nowIso: string;
+  }): Promise<{
+    status: "executed" | "no_assignment" | "forbidden";
+    routingDecisionId: string | null;
+    assignedMemberId: string | null;
+    reasons: string[];
+    undoExpiresAt: string;
+  }>;
 };
 
 export type HarwickLoopApprovalResult =
@@ -182,18 +201,23 @@ function parseApprovalPayload(payload: Record<string, unknown>): ParsedApprovalP
   };
 }
 
+const APPROVAL_OPENED_EXTERNAL_TOOLS = new Set(["route_lead"]);
+
 function canExecuteApprovedTool(call: LoopProposedToolCall, payload: ParsedApprovalPayload): boolean {
   if (!call.requiresApproval) return false;
   if (call.tool === "dispatch_subagent") return true;
+  if (APPROVAL_OPENED_EXTERNAL_TOOLS.has(call.tool)) return true;
   if (payload.actionPlan.internalSafeOnly) return false;
   return payload.toolAllowlist.includes(call.tool);
 }
 
 async function executeApprovedToolCall(params: {
   repository: HarwickLoopApprovalRepository;
+  routeLeadAdapter: HarwickRouteLeadApprovalAdapter | null;
   workItem: HarwickLoopWorkItemForApproval;
   payload: ParsedApprovalPayload;
   call: LoopProposedToolCall;
+  actorMemberId: string;
   nowIso: string;
 }): Promise<HarwickLoopApprovedToolExecution> {
   if (!canExecuteApprovedTool(params.call, params.payload)) {
@@ -203,6 +227,46 @@ async function executeApprovedToolCall(params: {
       reason: "This Harwick tool call was not approval-marked or allowed for safe execution.",
       output: { proposedPayload: params.call.payload },
     };
+  }
+
+  if (params.call.tool === "route_lead") {
+    if (params.routeLeadAdapter === null || params.workItem.leadId === null) {
+      return {
+        tool: params.call.tool,
+        status: "skipped",
+        reason: params.workItem.leadId === null
+          ? "Cannot execute route_lead: work item is not bound to a lead."
+          : "Cannot execute route_lead: adapter is not wired in this environment.",
+        output: { proposedPayload: params.call.payload },
+      };
+    }
+
+    const result = await params.routeLeadAdapter.executeRouteLead({
+      workspaceId: params.workItem.workspaceId,
+      leadId: params.workItem.leadId,
+      approverMemberId: params.actorMemberId,
+      callPayload: params.call.payload,
+      nowIso: params.nowIso,
+    });
+
+    const execution: HarwickLoopApprovedToolExecution = {
+      tool: params.call.tool,
+      status: result.status,
+      reason: params.call.reason,
+      assignedMemberId: result.assignedMemberId,
+      undoExpiresAt: result.undoExpiresAt,
+      output: {
+        leadId: params.workItem.leadId,
+        routingDecisionId: result.routingDecisionId,
+        assignedMemberId: result.assignedMemberId,
+        reasons: result.reasons,
+        undoExpiresAt: result.undoExpiresAt,
+      },
+    };
+    if (result.routingDecisionId !== null) {
+      execution.routingDecisionId = result.routingDecisionId;
+    }
+    return execution;
   }
 
   if (params.call.tool !== "dispatch_subagent") {
@@ -257,6 +321,7 @@ export async function approveHarwickLoopWorkItem(params: {
   workItemId: string;
   actorMemberId: string;
   repository: HarwickLoopApprovalRepository;
+  routeLeadAdapter?: HarwickRouteLeadApprovalAdapter | null;
   now?: () => Date;
 }): Promise<HarwickLoopApprovalResult> {
   const workItem = await params.repository.getLoopWorkItemForApproval({
@@ -295,13 +360,16 @@ export async function approveHarwickLoopWorkItem(params: {
   }
 
   const nowIso = (params.now?.() ?? new Date()).toISOString();
+  const routeLeadAdapter = params.routeLeadAdapter ?? null;
   const executed = payload.actionPlan.proposedToolCalls.length > 0
     ? await Promise.all(payload.actionPlan.proposedToolCalls.map((call) =>
         executeApprovedToolCall({
           repository: params.repository,
+          routeLeadAdapter,
           workItem,
           payload,
           call,
+          actorMemberId: params.actorMemberId,
           nowIso,
         })
       ))

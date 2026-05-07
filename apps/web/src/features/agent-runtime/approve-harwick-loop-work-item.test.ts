@@ -3,6 +3,7 @@ import {
   approveHarwickLoopWorkItem,
   type HarwickLoopApprovalRepository,
   type HarwickLoopWorkItemForApproval,
+  type HarwickRouteLeadApprovalAdapter,
 } from "./approve-harwick-loop-work-item";
 
 const workspaceId = "00000000-0000-0000-0000-000000000001";
@@ -155,6 +156,108 @@ describe("approveHarwickLoopWorkItem", () => {
       repository: repository(workItem({ payload: { signalType: "not_loop" } })),
     });
     expect(invalid.status).toBe("invalid_payload");
+  });
+
+  it("executes route_lead when an adapter is wired and the work item has a leadId", async () => {
+    const leadId = "00000000-0000-0000-0000-000000000020";
+    const routingDecisionId = "00000000-0000-0000-0000-000000000021";
+    const newlyAssignedMemberId = "00000000-0000-0000-0000-000000000022";
+    const repo = repository(workItem({
+      leadId,
+      payload: {
+        signalType: "unassigned_priority_lead",
+        signalKey: `unassigned_priority_lead:${leadId}:hot`,
+        actionPlan: {
+          executionBrief: "Assign this lead to the best-fit available agent.",
+          requiresApproval: true,
+          internalSafeOnly: false,
+          proposedToolCalls: [{
+            tool: "route_lead",
+            reason: "Assign the lead now that a qualified agent has capacity.",
+            requiresApproval: true,
+            payload: {},
+          }],
+        },
+      },
+    }));
+    const adapterCalls: unknown[] = [];
+    const routeLeadAdapter: HarwickRouteLeadApprovalAdapter = {
+      executeRouteLead(params) {
+        adapterCalls.push(params);
+        return Promise.resolve({
+          status: "executed",
+          routingDecisionId,
+          assignedMemberId: newlyAssignedMemberId,
+          reasons: ["best capacity match", "primary area overlap"],
+          undoExpiresAt: "2026-05-06T12:55:00.000Z",
+        });
+      },
+    };
+
+    const result = await approveHarwickLoopWorkItem({
+      workspaceId,
+      workItemId,
+      actorMemberId: memberId,
+      repository: repo,
+      routeLeadAdapter,
+      now: () => new Date("2026-05-06T12:45:00.000Z"),
+    });
+
+    expect(result.status).toBe("approved");
+    if (result.status !== "approved") throw new Error("expected approval result");
+    expect(adapterCalls).toHaveLength(1);
+    expect(adapterCalls[0]).toMatchObject({
+      workspaceId,
+      leadId,
+      approverMemberId: memberId,
+      nowIso: "2026-05-06T12:45:00.000Z",
+    });
+    expect(result.executed[0]).toMatchObject({
+      tool: "route_lead",
+      status: "executed",
+      routingDecisionId,
+      assignedMemberId: newlyAssignedMemberId,
+      undoExpiresAt: "2026-05-06T12:55:00.000Z",
+    });
+  });
+
+  it("skips route_lead when the work item has no leadId, even with an adapter wired", async () => {
+    const repo = repository(workItem({
+      leadId: null,
+      payload: {
+        signalType: "unassigned_priority_lead",
+        signalKey: "unassigned_priority_lead:none",
+        actionPlan: {
+          executionBrief: "Route this lead.",
+          requiresApproval: true,
+          internalSafeOnly: false,
+          proposedToolCalls: [{
+            tool: "route_lead",
+            reason: "Route the lead.",
+            requiresApproval: true,
+            payload: {},
+          }],
+        },
+      },
+    }));
+    const routeLeadAdapter: HarwickRouteLeadApprovalAdapter = {
+      executeRouteLead() {
+        throw new Error("adapter should not be invoked when leadId is null");
+      },
+    };
+    const result = await approveHarwickLoopWorkItem({
+      workspaceId,
+      workItemId,
+      actorMemberId: memberId,
+      repository: repo,
+      routeLeadAdapter,
+    });
+    expect(result.status).toBe("approved");
+    if (result.status !== "approved") throw new Error("expected approval result");
+    expect(result.executed[0]).toMatchObject({
+      tool: "route_lead",
+      status: "skipped",
+    });
   });
 
   it("records generic approval plans and only executes internal-safe follow-through", async () => {
