@@ -100,9 +100,9 @@ function IntegrationCard(props: {
   title: string;
 }) {
   return (
-    <section className="harwick-card p-5">
-      <div className="flex items-start gap-4">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] border border-border bg-[linear-gradient(180deg,#fffefa_0%,#efebe3_100%)] text-harwick-ink shadow-[var(--shadow-control)]">
+      <section className="harwick-card p-5">
+        <div className="flex items-start gap-4">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] border border-border bg-harwick-paper text-harwick-ink shadow-[0_1px_0_rgba(255,255,255,0.5)]">
           {props.icon}
         </div>
         <div className="min-w-0 flex-1">

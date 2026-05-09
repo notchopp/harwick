@@ -1,0 +1,408 @@
+- generic [active] [ref=e1]:
+  - main [ref=e2]:
+    - generic [ref=e4]:
+      - link "Harwick home" [ref=e5] [cursor=pointer]:
+        - /url: /
+        - img [ref=e7]
+        - generic [ref=e9]: Harwick
+      - navigation [ref=e10]:
+        - link "Product" [ref=e11] [cursor=pointer]:
+          - /url: "#product"
+        - link "System" [ref=e12] [cursor=pointer]:
+          - /url: "#system"
+        - link "Pricing" [ref=e13] [cursor=pointer]:
+          - /url: "#plans"
+        - link "Contact" [ref=e14] [cursor=pointer]:
+          - /url: "#request-access"
+      - generic [ref=e15]:
+        - link "Log in" [ref=e16] [cursor=pointer]:
+          - /url: /login
+        - link "Create account" [ref=e17] [cursor=pointer]:
+          - /url: "#request-access"
+    - generic [ref=e20]:
+      - generic [ref=e23]:
+        - generic [ref=e24]:
+          - img [ref=e25]
+          - text: AI chief of staff for real estate teams
+        - heading "Your lead desk, always on." [level=1] [ref=e28]
+        - paragraph [ref=e29]: Harwick captures every inbound, drafts the next move, and waits for approval before anything leaves the house.
+        - generic [ref=e30]:
+          - link "Create account" [ref=e31] [cursor=pointer]:
+            - /url: "#request-access"
+          - link "Log in" [ref=e32] [cursor=pointer]:
+            - /url: /login
+          - link "Approval-first automation" [ref=e33] [cursor=pointer]:
+            - /url: "#system"
+            - text: Approval-first automation
+            - img [ref=e34]
+      - generic "Animated engraved house opening into Harwick" [ref=e38]
+    - generic [ref=e40]:
+      - heading "A new species of real estate ops tool. Purpose-built for AI-native lead work, approval gates, and brokerage memory." [level=2] [ref=e41]
+      - generic [ref=e42]:
+        - article [ref=e43]:
+          - generic [ref=e44]: fig 0.2
+          - img [ref=e48]
+          - heading "Capture every channel" [level=3] [ref=e55]
+          - paragraph [ref=e56]: Instagram DMs and comments, Facebook, public listings, SMS, and voice land as one lead stream.
+        - article [ref=e57]:
+          - generic [ref=e58]: fig 0.3
+          - img [ref=e62]
+          - heading "Think with the brokerage" [level=3] [ref=e65]
+          - paragraph [ref=e66]: Harwick reads policy, lead memory, listing facts, workspace knowledge, routing profiles, and conversation history.
+        - article [ref=e67]:
+          - generic [ref=e68]: fig 0.4
+          - img [ref=e72]
+          - heading "Ask before external writes" [level=3] [ref=e74]
+          - paragraph [ref=e75]: Replies, routing, calendar writes, and Follow Up Boss syncs stay gated until the operator approves.
+    - generic [ref=e76]:
+      - generic [ref=e77]:
+        - heading "Make brokerage operations self-driving" [level=2] [ref=e79]
+        - generic [ref=e80]:
+          - paragraph [ref=e81]: Turn conversations, listing questions, and voice calls into routed work your team can trust.
+          - link "1.0 Intake" [ref=e82] [cursor=pointer]:
+            - /url: "#request-access"
+            - text: 1.0 Intake
+            - img [ref=e83]
+      - generic [ref=e85]:
+        - generic [ref=e87]:
+          - generic [ref=e88]:
+            - generic [ref=e89]:
+              - text: Todo
+              - generic [ref=e91]: "12"
+            - generic [ref=e92]:
+              - generic [ref=e93]: HW-140
+              - generic [ref=e94]: Route Katy buyer
+              - generic [ref=e95]: Instagram
+            - generic [ref=e96]:
+              - generic [ref=e97]: HW-141
+              - generic [ref=e98]: Call back after 4pm
+              - generic [ref=e99]: Voice
+            - generic [ref=e100]:
+              - generic [ref=e101]: HW-142
+              - generic [ref=e102]: Confirm Sunday showing
+              - generic [ref=e103]: Calendar
+          - generic [ref=e104]:
+            - generic [ref=e105]:
+              - text: In progress
+              - generic [ref=e107]: "3"
+            - generic [ref=e108]:
+              - generic [ref=e109]: HW-240
+              - generic [ref=e110]: Route Katy buyer
+              - generic [ref=e111]: Instagram
+            - generic [ref=e112]:
+              - generic [ref=e113]: HW-241
+              - generic [ref=e114]: Call back after 4pm
+              - generic [ref=e115]: Voice
+            - generic [ref=e116]:
+              - generic [ref=e117]: HW-242
+              - generic [ref=e118]: Confirm Sunday showing
+              - generic [ref=e119]: Calendar
+          - generic [ref=e120]:
+            - generic [ref=e121]:
+              - text: Approved
+              - generic [ref=e123]: "8"
+            - generic [ref=e124]:
+              - generic [ref=e125]: HW-340
+              - generic [ref=e126]: Route Katy buyer
+              - generic [ref=e127]: Instagram
+            - generic [ref=e128]:
+              - generic [ref=e129]: HW-341
+              - generic [ref=e130]: Call back after 4pm
+              - generic [ref=e131]: Voice
+            - generic [ref=e132]:
+              - generic [ref=e133]: HW-342
+              - generic [ref=e134]: Confirm Sunday showing
+              - generic [ref=e135]: Calendar
+        - generic [ref=e136]:
+          - generic [ref=e137]:
+            - generic [ref=e138]: "Thread in #leads"
+            - generic [ref=e139]: ...
+          - generic [ref=e140]:
+            - generic [ref=e141]:
+              - generic [ref=e142]: L
+              - generic [ref=e143]:
+                - generic [ref=e144]:
+                  - generic [ref=e145]: lead
+                  - generic [ref=e146]: 3:24 AM
+                - paragraph [ref=e147]: Is 4126 Maple still open? We are pre-approved and can tour this weekend.
+            - generic [ref=e148]:
+              - generic [ref=e149]: O
+              - generic [ref=e150]:
+                - generic [ref=e151]:
+                  - generic [ref=e152]: operator
+                  - generic [ref=e153]: 3:25 AM
+                - paragraph [ref=e154]: "@Harwick qualify and route this if it is real."
+            - generic [ref=e155]:
+              - generic [ref=e156]: H
+              - generic [ref=e157]:
+                - generic [ref=e158]:
+                  - generic [ref=e159]: Harwick
+                  - generic [ref=e160]: 3:25 AM
+                - paragraph [ref=e161]: "Created 2 actions: draft reply for approval, route to Noah after confirmation."
+            - generic [ref=e162]:
+              - generic [ref=e163]: Harwick output
+              - paragraph [ref=e164]: Route to Noah. Ask for Saturday 11:00 or 1:30. Do not sync to FUB until the lead confirms tour intent.
+        - generic [ref=e165]:
+          - generic [ref=e166]: approval plan
+          - generic [ref=e167]:
+            - generic [ref=e168]:
+              - img [ref=e169]
+              - generic [ref=e178]:
+                - generic [ref=e179]: Workspace memory
+                - generic [ref=e180]: Cross-lead patterns become brokerage knowledge instead of living in one operator's head.
+            - generic [ref=e181]:
+              - img [ref=e182]
+              - generic [ref=e185]:
+                - generic [ref=e186]: Live synthesis
+                - generic [ref=e187]: Intent, confidence, missing fields, next action, tool work, and handoff brief update while the thread moves.
+            - generic [ref=e188]:
+              - img [ref=e189]
+              - generic [ref=e193]:
+                - generic [ref=e194]: Tool registry
+                - generic [ref=e195]: FUB, calendar, listings, voice, and social register as capabilities Harwick can reason through.
+    - generic [ref=e197]:
+      - generic [ref=e198]:
+        - heading "Everything Harwick needs to run the desk." [level=2] [ref=e199]
+        - paragraph [ref=e200]: Not a chatbot bolted onto a CRM. A brokerage operating loop with intake, memory, tools, approval, and receipts.
+      - generic [ref=e201]:
+        - article [ref=e202]:
+          - generic [ref=e203]: fig 1.1
+          - img [ref=e205]
+          - heading "One intake object" [level=3] [ref=e214]
+          - paragraph [ref=e215]: Instagram DMs, comments, voice, SMS, and listing inquiries collapse into one lead stream with source and context preserved.
+        - article [ref=e216]:
+          - generic [ref=e217]: fig 1.2
+          - img [ref=e219]
+          - heading "The model owns the loop" [level=3] [ref=e234]
+          - paragraph [ref=e235]: Harwick reasons through memory, listing facts, policy, tool results, and conversation history before proposing work.
+        - article [ref=e236]:
+          - generic [ref=e237]: fig 1.3
+          - img [ref=e239]
+          - heading "External writes stay gated" [level=3] [ref=e257]
+          - paragraph [ref=e258]: Replies, calendar writes, assignments, nurture, and FUB sync wait behind an explicit operator approval surface.
+      - generic [ref=e259]:
+        - navigation [ref=e260]:
+          - heading "Inbound" [level=3] [ref=e261]
+          - link "Instagram DM" [ref=e262] [cursor=pointer]:
+            - /url: "#request-access"
+          - link "Instagram comments" [ref=e263] [cursor=pointer]:
+            - /url: "#request-access"
+          - link "Facebook" [ref=e264] [cursor=pointer]:
+            - /url: "#request-access"
+          - link "Voice calls" [ref=e265] [cursor=pointer]:
+            - /url: "#request-access"
+          - link "SMS" [ref=e266] [cursor=pointer]:
+            - /url: "#request-access"
+          - link "Public listings" [ref=e267] [cursor=pointer]:
+            - /url: "#request-access"
+        - navigation [ref=e268]:
+          - heading "Agent loop" [level=3] [ref=e269]
+          - link "Live synthesis" [ref=e270] [cursor=pointer]:
+            - /url: "#request-access"
+          - link "Tool registry" [ref=e271] [cursor=pointer]:
+            - /url: "#request-access"
+          - link "Subagent dispatch" [ref=e272] [cursor=pointer]:
+            - /url: "#request-access"
+          - link "Scheduled loops" [ref=e273] [cursor=pointer]:
+            - /url: "#request-access"
+          - link "Cost-tiered cognition" [ref=e274] [cursor=pointer]:
+            - /url: "#request-access"
+        - navigation [ref=e275]:
+          - heading "Brokerage OS" [level=3] [ref=e276]
+          - link "Workspace memory" [ref=e277] [cursor=pointer]:
+            - /url: "#request-access"
+          - link "Team routing" [ref=e278] [cursor=pointer]:
+            - /url: "#request-access"
+          - link "Calendar showings" [ref=e279] [cursor=pointer]:
+            - /url: "#request-access"
+          - link "Open house reminders" [ref=e280] [cursor=pointer]:
+            - /url: "#request-access"
+          - link "Lead documents" [ref=e281] [cursor=pointer]:
+            - /url: "#request-access"
+        - navigation [ref=e282]:
+          - heading "Controls" [level=3] [ref=e283]
+          - link "Approval queue" [ref=e284] [cursor=pointer]:
+            - /url: "#request-access"
+          - link "Human takeover" [ref=e285] [cursor=pointer]:
+            - /url: "#request-access"
+          - link "Audit trail" [ref=e286] [cursor=pointer]:
+            - /url: "#request-access"
+          - link "Provider receipts" [ref=e287] [cursor=pointer]:
+            - /url: "#request-access"
+          - link "Plan gates" [ref=e288] [cursor=pointer]:
+            - /url: "#request-access"
+    - generic [ref=e290]:
+      - generic [ref=e291]:
+        - generic [ref=e292]:
+          - heading "Pricing" [level=2] [ref=e293]
+          - paragraph [ref=e294]: Launch plans are simple on purpose. Provider costs pass through where applicable. Harwick is software, not legal, lending, or brokerage advice.
+        - link "Need a brokerage rollout" [ref=e295] [cursor=pointer]:
+          - /url: "#request-access"
+          - text: Need a brokerage rollout
+          - img [ref=e296]
+      - generic [ref=e298]:
+        - article [ref=e299]:
+          - generic [ref=e300]: Solo
+          - generic [ref=e301]: $299
+          - paragraph [ref=e302]: For one agent running a serious desk.
+          - list [ref=e303]:
+            - listitem [ref=e304]:
+              - img [ref=e305]
+              - generic [ref=e307]: 1 workspace seat
+            - listitem [ref=e308]:
+              - img [ref=e309]
+              - generic [ref=e311]: social intake
+            - listitem [ref=e312]:
+              - img [ref=e313]
+              - generic [ref=e315]: AI reply drafting
+            - listitem [ref=e316]:
+              - img [ref=e317]
+              - generic [ref=e319]: FUB sync
+            - listitem [ref=e320]:
+              - img [ref=e321]
+              - generic [ref=e323]: 25 listings
+          - link "Request access" [ref=e324] [cursor=pointer]:
+            - /url: "#request-access"
+        - article [ref=e325]:
+          - generic [ref=e326]: Most teams
+          - generic [ref=e327]: Team
+          - generic [ref=e328]: $799
+          - paragraph [ref=e329]: For a small team with one operator.
+          - list [ref=e330]:
+            - listitem [ref=e331]:
+              - img [ref=e332]
+              - generic [ref=e334]: up to 8 seats
+            - listitem [ref=e335]:
+              - img [ref=e336]
+              - generic [ref=e338]: routing profiles
+            - listitem [ref=e339]:
+              - img [ref=e340]
+              - generic [ref=e342]: calendar and showings
+            - listitem [ref=e343]:
+              - img [ref=e344]
+              - generic [ref=e346]: workspace memory
+            - listitem [ref=e347]:
+              - img [ref=e348]
+              - generic [ref=e350]: voice-ready
+          - link "Request access" [ref=e351] [cursor=pointer]:
+            - /url: "#request-access"
+        - article [ref=e352]:
+          - generic [ref=e353]: Brokerage
+          - generic [ref=e354]: Custom
+          - paragraph [ref=e355]: For multi-agent operations.
+          - list [ref=e356]:
+            - listitem [ref=e357]:
+              - img [ref=e358]
+              - generic [ref=e360]: expanded seats
+            - listitem [ref=e361]:
+              - img [ref=e362]
+              - generic [ref=e364]: many connected accounts
+            - listitem [ref=e365]:
+              - img [ref=e366]
+              - generic [ref=e368]: ops visibility
+            - listitem [ref=e369]:
+              - img [ref=e370]
+              - generic [ref=e372]: white-glove setup
+            - listitem [ref=e373]:
+              - img [ref=e374]
+              - generic [ref=e376]: priority support
+          - link "Request access" [ref=e377] [cursor=pointer]:
+            - /url: "#request-access"
+    - generic [ref=e379]:
+      - generic [ref=e380]:
+        - generic [ref=e381]:
+          - img [ref=e382]
+          - text: Private access
+        - heading "Built for serious teams. Available by launch fit." [level=2] [ref=e386]
+        - paragraph [ref=e387]: Harwick is invite-first while production provider validation finishes. Send your team size, lead sources, and CRM setup. We will respond with the right launch path.
+        - generic [ref=e388]:
+          - generic [ref=e389]: No auto-send by default
+          - generic [ref=e390]: Operator approval on external writes
+          - generic [ref=e391]: Built for teams of 1-40
+      - generic [ref=e393]:
+        - generic [ref=e394]:
+          - text: name
+          - textbox "name" [ref=e395]:
+            - /placeholder: your name
+        - generic [ref=e396]:
+          - text: brokerage
+          - textbox "brokerage" [ref=e397]:
+            - /placeholder: team or brokerage
+        - generic [ref=e398]:
+          - text: email
+          - textbox "email" [ref=e399]:
+            - /placeholder: you@brokerage.com
+        - generic [ref=e400]:
+          - text: what are you trying to fix?
+          - textbox "what are you trying to fix?" [ref=e401]:
+            - /placeholder: Instagram DMs, voice calls, FUB sync, routing, showings...
+        - button "Send request" [ref=e402]:
+          - text: Send request
+          - img
+        - paragraph [ref=e403]:
+          - text: By requesting access you agree to the
+          - link "terms" [ref=e404] [cursor=pointer]:
+            - /url: /terms
+          - text: ", acknowledge the"
+          - link "privacy policy" [ref=e405] [cursor=pointer]:
+            - /url: /privacy
+          - text: ", and can request deletion through"
+          - link "data deletion" [ref=e406] [cursor=pointer]:
+            - /url: /data-deletion
+          - text: .
+    - generic [ref=e407]:
+      - generic [ref=e408]:
+        - generic [ref=e409]:
+          - generic [ref=e410]:
+            - img [ref=e412]
+            - generic [ref=e414]: Harwick
+          - paragraph [ref=e415]: AI chief of staff for real estate teams. Built as a multi-tenant brokerage platform with approval-first automation.
+        - navigation [ref=e416]:
+          - generic [ref=e417]: Product
+          - link "Intake" [ref=e418] [cursor=pointer]:
+            - /url: "#product"
+          - link "Operating system" [ref=e419] [cursor=pointer]:
+            - /url: "#system"
+          - link "Features" [ref=e420] [cursor=pointer]:
+            - /url: "#features"
+          - link "Pricing" [ref=e421] [cursor=pointer]:
+            - /url: "#plans"
+          - link "Access" [ref=e422] [cursor=pointer]:
+            - /url: "#request-access"
+        - navigation [ref=e423]:
+          - generic [ref=e424]: Features
+          - link "Workspace memory" [ref=e425] [cursor=pointer]:
+            - /url: "#features"
+          - link "Approval gates" [ref=e426] [cursor=pointer]:
+            - /url: "#features"
+          - link "FUB sync" [ref=e427] [cursor=pointer]:
+            - /url: "#features"
+          - link "Calendar showings" [ref=e428] [cursor=pointer]:
+            - /url: "#features"
+          - link "Voice handoffs" [ref=e429] [cursor=pointer]:
+            - /url: "#features"
+        - navigation [ref=e430]:
+          - generic [ref=e431]: Company
+          - link "Contact" [ref=e432] [cursor=pointer]:
+            - /url: mailto:support@harwick.lol
+          - link "Private access" [ref=e433] [cursor=pointer]:
+            - /url: "#request-access"
+          - link "Log in" [ref=e434] [cursor=pointer]:
+            - /url: /login
+          - link "Dashboard" [ref=e435] [cursor=pointer]:
+            - /url: /home
+        - navigation [ref=e436]:
+          - generic [ref=e437]: Legal
+          - link "Terms" [ref=e438] [cursor=pointer]:
+            - /url: /terms
+          - link "Privacy" [ref=e439] [cursor=pointer]:
+            - /url: /privacy
+          - link "Data deletion" [ref=e440] [cursor=pointer]:
+            - /url: /data-deletion
+      - generic [ref=e441]:
+        - generic [ref=e442]:
+          - img [ref=e443]
+          - generic [ref=e446]: Terms, privacy, and Meta data deletion routes are live.
+        - generic [ref=e447]: © 2026 Harwick. All rights reserved.
+  - button "Open Next.js Dev Tools" [ref=e453] [cursor=pointer]:
+    - img [ref=e454]

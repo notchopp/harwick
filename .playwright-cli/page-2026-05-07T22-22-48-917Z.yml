@@ -1,0 +1,27 @@
+- generic [active] [ref=e1]:
+  - main [ref=e2]:
+    - generic [ref=e8]:
+      - generic [ref=e10]: Harwick
+      - generic [ref=e11]:
+        - generic [ref=e12]:
+          - heading "sign in" [level=1] [ref=e13]
+          - paragraph [ref=e14]: use the account your workspace owner invited.
+        - button "continue with google" [ref=e15]
+        - generic [ref=e18]: or
+        - generic [ref=e20]:
+          - generic [ref=e21]:
+            - generic [ref=e22]:
+              - img [ref=e23]
+              - text: email
+            - textbox "email" [ref=e26]
+          - generic [ref=e27]:
+            - generic [ref=e28]:
+              - img [ref=e29]
+              - text: password
+            - generic [ref=e33]:
+              - textbox "password Show password" [ref=e34]
+              - button "Show password" [ref=e35]:
+                - img [ref=e36]
+          - button "sign in" [ref=e39]
+  - button "Open Next.js Dev Tools" [ref=e45] [cursor=pointer]:
+    - img [ref=e46]

@@ -1,48 +1,107 @@
-import type { ComponentPropsWithoutRef } from "react";
+import * as React from "react";
+import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "../../lib/utils";
 
-function Card({ className, ...props }: ComponentPropsWithoutRef<"div">) {
+const cardVariants = cva(
+  "flex flex-col gap-6 rounded-xl border bg-card py-6 text-card-foreground shadow-sm",
+  {
+    variants: {
+      size: {
+        default: "",
+        sm: "gap-4 py-4",
+      },
+    },
+    defaultVariants: {
+      size: "default",
+    },
+  },
+);
+
+function Card({
+  className,
+  size,
+  ...props
+}: React.ComponentProps<"div"> & VariantProps<typeof cardVariants>) {
   return (
     <div
-      className={cn(
-        "rounded-[18px] border border-border bg-[linear-gradient(180deg,#fffefa_0%,#f8f5ef_100%)] text-card-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.78),0_16px_45px_rgba(31,42,34,0.055)]",
-        className,
-      )}
+      className={cn(cardVariants({ size }), className)}
+      data-size={size ?? "default"}
       data-slot="card"
       {...props}
     />
   );
 }
 
-function CardHeader({ className, ...props }: ComponentPropsWithoutRef<"div">) {
+function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
-      className={cn("flex items-center gap-3 border-b border-border px-[18px] py-3", className)}
+      className={cn(
+        "@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-1.5 px-6 has-[data-slot=card-action]:grid-cols-[1fr_auto] [.border-b]:pb-6",
+        className,
+      )}
       data-slot="card-header"
       {...props}
     />
   );
 }
 
-function CardContent({ className, ...props }: ComponentPropsWithoutRef<"div">) {
+function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
-      className={cn("px-[18px] py-3.5", className)}
-      data-slot="card-content"
-      {...props}
-    />
-  );
-}
-
-function CardTitle({ className, ...props }: ComponentPropsWithoutRef<"div">) {
-  return (
-    <div
-      className={cn("text-base font-medium text-foreground", className)}
+      className={cn("leading-none font-semibold", className)}
       data-slot="card-title"
       {...props}
     />
   );
 }
 
-export { Card, CardContent, CardHeader, CardTitle };
+function CardDescription({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      className={cn("text-muted-foreground text-sm", className)}
+      data-slot="card-description"
+      {...props}
+    />
+  );
+}
+
+function CardAction({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      className={cn("col-start-2 row-span-2 row-start-1 self-start justify-self-end", className)}
+      data-slot="card-action"
+      {...props}
+    />
+  );
+}
+
+function CardContent({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      className={cn("px-6", className)}
+      data-slot="card-content"
+      {...props}
+    />
+  );
+}
+
+function CardFooter({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      className={cn("flex items-center px-6 [.border-t]:pt-6", className)}
+      data-slot="card-footer"
+      {...props}
+    />
+  );
+}
+
+export {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+};

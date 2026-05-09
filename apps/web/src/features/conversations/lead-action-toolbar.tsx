@@ -13,11 +13,13 @@ export type LeadActionToolbarProps = {
   automationMode: ConversationAutomationMode;
   assignedMemberId: string | null;
   currentMemberId: string;
+  appearance?: "light" | "dark";
   draft?: string | null;
   reviewId?: string | null;
   onDraftChange?: (next: string) => void;
   onChanged?: () => void | Promise<void>;
   className?: string;
+  showAgentSteps?: boolean;
 };
 
 type ButtonState = "idle" | "busy";
@@ -41,6 +43,16 @@ export function LeadActionToolbar(props: LeadActionToolbarProps) {
   const isAssignedToOther = props.assignedMemberId !== null && !isAssignedToMe;
   const busy = state === "busy";
   const draftToSend = (composer ?? "").trim();
+  const dark = props.appearance === "dark";
+  const primaryClass = dark
+    ? "h-8 rounded-full bg-white px-4 text-[12px] font-medium text-[#07100b] hover:bg-white/86 disabled:opacity-60"
+    : PRIMARY;
+  const outlineClass = dark
+    ? "h-8 rounded-full border border-white/[0.09] bg-white/[0.04] px-4 text-[12px] font-medium text-white/68 hover:bg-white/[0.08] hover:text-white disabled:opacity-60"
+    : OUTLINE;
+  const dangerClass = dark
+    ? "h-8 rounded-full border border-oxblood/35 bg-oxblood/12 px-4 text-[12px] font-medium text-[#f2a8a8] hover:bg-oxblood/18 disabled:opacity-60"
+    : DANGER;
 
 function announce(message: string) {
   setStatus(message);
@@ -198,15 +210,24 @@ function errorMessageFromBody(value: unknown): string {
 
   return (
     <div className={cn("space-y-2", props.className)}>
-      <AgentStepsPanel
-        workspaceId={props.workspaceId}
-        leadId={props.leadId}
-      />
+      {props.showAgentSteps === false ? null : (
+        <AgentStepsPanel
+          workspaceId={props.workspaceId}
+          leadId={props.leadId}
+          {...(props.appearance === undefined ? {} : { appearance: props.appearance })}
+        />
+      )}
 
-      <div className="rounded-[12px] border border-border bg-surface">
+      <div className={cn(
+        "rounded-[12px] border",
+        dark ? "border-white/[0.08] bg-[#0a0f0c]" : "border-border bg-surface",
+      )}>
         <textarea
           aria-label="Reply"
-          className="block min-h-[68px] w-full resize-y bg-transparent px-3 py-2 text-[13px] leading-5 text-foreground outline-none placeholder:text-muted-subtle"
+          className={cn(
+            "block min-h-[68px] w-full resize-y bg-transparent px-3 py-2 text-[13px] leading-5 outline-none",
+            dark ? "text-white/82 placeholder:text-white/28" : "text-foreground placeholder:text-muted-subtle",
+          )}
           onChange={(event) => {
             const next = event.target.value;
             setComposer(next);
@@ -219,7 +240,7 @@ function errorMessageFromBody(value: unknown): string {
 
       <div className="flex flex-wrap gap-2">
         <Button
-          className={PRIMARY}
+          className={primaryClass}
           disabled={busy || draftToSend.length === 0}
           onClick={() => void handleSend()}
           type="button"
@@ -230,38 +251,38 @@ function errorMessageFromBody(value: unknown): string {
         </Button>
 
         {aiOn ? (
-          <Button className={OUTLINE} disabled={busy} onClick={() => void handlePause()} type="button" variant="ghost">
+          <Button className={outlineClass} disabled={busy} onClick={() => void handlePause()} type="button" variant="ghost">
             <Pause aria-hidden="true" className="h-3.5 w-3.5" />
             pause ai
           </Button>
         ) : (
-          <Button className={OUTLINE} disabled={busy} onClick={() => void handleResume()} type="button" variant="ghost">
+          <Button className={outlineClass} disabled={busy} onClick={() => void handleResume()} type="button" variant="ghost">
             <Play aria-hidden="true" className="h-3.5 w-3.5" />
             resume ai
           </Button>
         )}
 
         {isAssignedToMe ? (
-          <Button className={OUTLINE} disabled={busy} onClick={() => void handleRelease()} type="button" variant="ghost">
+          <Button className={outlineClass} disabled={busy} onClick={() => void handleRelease()} type="button" variant="ghost">
             <LogOut aria-hidden="true" className="h-3.5 w-3.5" />
             release
           </Button>
         ) : (
-          <Button className={OUTLINE} disabled={busy} onClick={() => void handleTakeOver()} type="button" variant="ghost">
+          <Button className={outlineClass} disabled={busy} onClick={() => void handleTakeOver()} type="button" variant="ghost">
             <UserPlus aria-hidden="true" className="h-3.5 w-3.5" />
             {isAssignedToOther ? "claim from teammate" : "take over"}
           </Button>
         )}
 
         {props.reviewId ? (
-          <Button className={DANGER} disabled={busy} onClick={() => void handleDismiss()} type="button" variant="ghost">
+          <Button className={dangerClass} disabled={busy} onClick={() => void handleDismiss()} type="button" variant="ghost">
             <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
             dismiss
           </Button>
         ) : null}
       </div>
 
-      <div className="flex items-center gap-2 text-[11px] text-muted-subtle">
+      <div className={cn("flex items-center gap-2 text-[11px]", dark ? "text-white/40" : "text-muted-subtle")}>
         {aiOn ? (
           <>
             <Bot aria-hidden="true" className="h-3 w-3 text-qualified" />
@@ -276,7 +297,10 @@ function errorMessageFromBody(value: unknown): string {
       </div>
 
       {status === null ? null : (
-        <div className="rounded-[10px] border border-border bg-surface px-3 py-1.5 text-[11.5px] text-muted">
+        <div className={cn(
+          "rounded-[10px] border px-3 py-1.5 text-[11.5px]",
+          dark ? "border-white/[0.08] bg-white/[0.035] text-white/52" : "border-border bg-surface text-muted",
+        )}>
           {status}
         </div>
       )}

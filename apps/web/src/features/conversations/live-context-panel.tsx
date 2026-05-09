@@ -75,7 +75,7 @@ export function LiveContextPanel({ lead }: LiveContextPanelProps) {
           <div className="flex items-center gap-2">
             <div className="w-16 bg-gray-200 rounded-full h-2">
               <div
-                className="bg-gradient-to-r from-yellow-400 to-green-500 h-2 rounded-full"
+                className="h-2 rounded-full bg-gradient-to-r from-[color:var(--harwick-brass)] to-emerald-500"
                 style={{ width: `${Math.min(lead.score, 100)}%` }}
               />
             </div>

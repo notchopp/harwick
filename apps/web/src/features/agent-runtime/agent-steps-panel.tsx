@@ -30,6 +30,7 @@ type AgentTrajectoryView = {
 export type AgentStepsPanelProps = {
   workspaceId: string;
   leadId: string;
+  appearance?: "light" | "dark";
   className?: string;
 };
 
@@ -45,6 +46,17 @@ export function AgentStepsPanel(props: AgentStepsPanelProps) {
   const [tagged, setTagged] = useState<Record<string, "positive" | "negative" | "note">>({});
   const [noteDraft, setNoteDraft] = useState<Record<string, string>>({});
   const [showNoteFor, setShowNoteFor] = useState<string | null>(null);
+  const dark = props.appearance === "dark";
+
+  const tagButtonClass = dark
+    ? "h-7 rounded-full border border-white/[0.08] bg-white/[0.04] px-2.5 text-[11px] font-medium text-white/70 hover:bg-white/[0.08] disabled:opacity-50"
+    : TAG_BUTTON;
+  const tagPositiveClass = dark
+    ? "h-7 rounded-full border border-sage/25 bg-sage/12 px-2.5 text-[11px] font-medium text-sage hover:bg-sage/18 disabled:opacity-50"
+    : TAG_POSITIVE;
+  const tagNegativeClass = dark
+    ? "h-7 rounded-full border border-oxblood/35 bg-oxblood/12 px-2.5 text-[11px] font-medium text-[#f2a8a8] hover:bg-oxblood/18 disabled:opacity-50"
+    : TAG_NEGATIVE;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -95,8 +107,12 @@ export function AgentStepsPanel(props: AgentStepsPanelProps) {
 
   if (loading) {
     return (
-      <div className={cn("rounded-[12px] border border-border bg-surface px-3 py-2.5", props.className)}>
-        <div className="flex items-center gap-2 text-[12px] text-muted">
+      <div className={cn(
+        "rounded-[12px] px-3 py-2.5",
+        dark ? "border border-white/[0.08] bg-[#0b100d]" : "border border-border bg-surface",
+        props.className,
+      )}>
+        <div className={cn("flex items-center gap-2 text-[12px]", dark ? "text-white/46" : "text-muted")}>
           <Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin" />
           loading agent steps…
         </div>
@@ -106,7 +122,11 @@ export function AgentStepsPanel(props: AgentStepsPanelProps) {
 
   if (error !== null) {
     return (
-      <div className={cn("rounded-[12px] border border-oxblood/30 bg-oxblood-soft px-3 py-2.5 text-[12px] text-hot", props.className)}>
+      <div className={cn(
+        "rounded-[12px] px-3 py-2.5 text-[12px]",
+        dark ? "border border-oxblood/35 bg-oxblood/12 text-[#f2a8a8]" : "border border-oxblood/30 bg-oxblood-soft text-hot",
+        props.className,
+      )}>
         {error}
       </div>
     );
@@ -114,7 +134,11 @@ export function AgentStepsPanel(props: AgentStepsPanelProps) {
 
   if (trajectories.length === 0) {
     return (
-      <div className={cn("rounded-[12px] border border-border bg-surface px-3 py-2.5 text-[12px] text-muted", props.className)}>
+      <div className={cn(
+        "rounded-[12px] px-3 py-2.5 text-[12px]",
+        dark ? "border border-white/[0.08] bg-[#0b100d] text-white/46" : "border border-border bg-surface text-muted",
+        props.className,
+      )}>
         no agent steps yet for this lead. they appear here once the AI runs against this thread.
       </div>
     );
@@ -123,18 +147,26 @@ export function AgentStepsPanel(props: AgentStepsPanelProps) {
   return (
     <div className={cn("space-y-3", props.className)}>
       {trajectories.map((traj) => (
-        <div key={traj.trajectoryId} className="rounded-[12px] border border-border bg-surface">
-          <div className="flex items-center justify-between border-b border-border px-3 py-2">
+        <div key={traj.trajectoryId} className={cn(
+          "rounded-[12px]",
+          dark ? "border border-white/[0.08] bg-[#0b100d]" : "border border-border bg-surface",
+        )}>
+          <div className={cn(
+            "flex items-center justify-between px-3 py-2",
+            dark ? "border-b border-white/[0.08]" : "border-b border-border",
+          )}>
             <div className="flex items-center gap-2">
-              <Bot aria-hidden="true" className="h-3.5 w-3.5 text-qualified" />
-              <span className="text-[11.5px] font-medium text-foreground">trajectory · {traj.steps.length} step{traj.steps.length === 1 ? "" : "s"}</span>
+              <Bot aria-hidden="true" className={cn("h-3.5 w-3.5", dark ? "text-sage" : "text-qualified")} />
+              <span className={cn("text-[11.5px] font-medium", dark ? "text-white/74" : "text-foreground")}>trajectory · {traj.steps.length} step{traj.steps.length === 1 ? "" : "s"}</span>
             </div>
             <span className={cn(
-              "harwick-pill px-2 py-0.5 text-[10px]",
-              traj.trajectoryOutcomeLabel === "positive" && "bg-sage-soft text-qualified",
-              traj.trajectoryOutcomeLabel === "negative" && "bg-oxblood-soft text-hot",
-              traj.trajectoryOutcomeLabel === "neutral" && "bg-surface-muted text-muted-subtle",
-              (traj.trajectoryOutcomeLabel === "pending" || traj.trajectoryOutcomeLabel === null) && "bg-brass-soft text-warm",
+              "px-2 py-0.5 text-[10px]",
+              dark && "rounded-full border border-white/[0.08]",
+              !dark && "harwick-pill",
+              traj.trajectoryOutcomeLabel === "positive" && (dark ? "bg-sage/12 text-sage" : "bg-sage-soft text-qualified"),
+              traj.trajectoryOutcomeLabel === "negative" && (dark ? "bg-oxblood/12 text-[#f2a8a8]" : "bg-oxblood-soft text-hot"),
+              traj.trajectoryOutcomeLabel === "neutral" && (dark ? "bg-white/[0.05] text-white/46" : "bg-surface-muted text-muted-subtle"),
+              (traj.trajectoryOutcomeLabel === "pending" || traj.trajectoryOutcomeLabel === null) && (dark ? "bg-warm/10 text-warm/80" : "bg-brass-soft text-warm"),
             )}>
               {traj.trajectoryOutcomeLabel ?? "pending"}
             </span>
@@ -145,13 +177,16 @@ export function AgentStepsPanel(props: AgentStepsPanelProps) {
               const isBusy = busyStepId === step.stepId;
               const noteOpen = showNoteFor === step.stepId;
               return (
-                <div key={step.stepId} className="rounded-[10px] border border-border bg-surface-muted/40 px-3 py-2.5">
-                  <div className="flex items-center justify-between text-[10.5px] uppercase tracking-[0.06em] text-muted-subtle">
+                <div key={step.stepId} className={cn(
+                  "rounded-[10px] px-3 py-2.5",
+                  dark ? "border border-white/[0.08] bg-white/[0.03]" : "border border-border bg-surface-muted/40",
+                )}>
+                  <div className={cn("flex items-center justify-between text-[10.5px] uppercase tracking-[0.06em]", dark ? "text-white/30" : "text-muted-subtle")}>
                     <span>step {step.iteration} · {step.intent ?? "unknown"} → {step.nextAction ?? "—"}</span>
                     <span>{new Date(step.createdAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}</span>
                   </div>
                   {step.reply !== null && step.reply.length > 0 ? (
-                    <div className="mt-1.5 text-[12.5px] leading-[1.5] text-foreground">
+                    <div className={cn("mt-1.5 text-[12.5px] leading-[1.5]", dark ? "text-white/76" : "text-foreground")}>
                       {step.reply}
                     </div>
                   ) : null}
@@ -161,10 +196,11 @@ export function AgentStepsPanel(props: AgentStepsPanelProps) {
                         <span
                           key={`${step.stepId}-${tx.tool}-${tx.status}`}
                           className={cn(
-                            "harwick-pill px-2 py-0.5 text-[10px]",
-                            tx.status === "executed" && "bg-sage-soft text-qualified",
-                            tx.status === "queued_for_approval" && "bg-brass-soft text-warm",
-                            tx.status === "failed" && "bg-oxblood-soft text-hot",
+                            "px-2 py-0.5 text-[10px]",
+                            dark ? "rounded-full border border-white/[0.08]" : "harwick-pill",
+                            tx.status === "executed" && (dark ? "bg-sage/12 text-sage" : "bg-sage-soft text-qualified"),
+                            tx.status === "queued_for_approval" && (dark ? "bg-warm/10 text-warm/80" : "bg-brass-soft text-warm"),
+                            tx.status === "failed" && (dark ? "bg-oxblood/12 text-[#f2a8a8]" : "bg-oxblood-soft text-hot"),
                           )}
                         >
                           {tx.tool} · {tx.status}
@@ -173,19 +209,22 @@ export function AgentStepsPanel(props: AgentStepsPanelProps) {
                     </div>
                   ) : null}
                   {step.documentUpdate !== null && step.documentUpdate.length > 0 ? (
-                    <div className="mt-1.5 rounded-[8px] border border-dashed border-border bg-surface px-2 py-1.5 text-[11.5px] italic text-muted">
+                    <div className={cn(
+                      "mt-1.5 rounded-[8px] px-2 py-1.5 text-[11.5px] italic",
+                      dark ? "border border-dashed border-white/[0.08] bg-[#0a0f0c] text-white/42" : "border border-dashed border-border bg-surface text-muted",
+                    )}>
                       doc → {step.documentUpdate}
                     </div>
                   ) : null}
                   {step.selfGateAutoExecute === false && step.selfGateReason !== null ? (
-                    <div className="mt-1.5 text-[10.5px] text-muted">
+                    <div className={cn("mt-1.5 text-[10.5px]", dark ? "text-white/42" : "text-muted")}>
                       self-gate held: {step.selfGateReason}
                     </div>
                   ) : null}
 
                   <div className="mt-2 flex flex-wrap items-center gap-1.5">
                     <Button
-                      className={taggedValue === "positive" ? TAG_POSITIVE : TAG_BUTTON}
+                      className={taggedValue === "positive" ? tagPositiveClass : tagButtonClass}
                       disabled={isBusy || taggedValue === "positive"}
                       onClick={() => void tagStep({ trajectoryId: traj.trajectoryId, stepId: step.stepId, tag: "positive" })}
                       type="button"
@@ -195,7 +234,7 @@ export function AgentStepsPanel(props: AgentStepsPanelProps) {
                       good
                     </Button>
                     <Button
-                      className={taggedValue === "negative" ? TAG_NEGATIVE : TAG_BUTTON}
+                      className={taggedValue === "negative" ? tagNegativeClass : tagButtonClass}
                       disabled={isBusy || taggedValue === "negative"}
                       onClick={() => void tagStep({ trajectoryId: traj.trajectoryId, stepId: step.stepId, tag: "negative" })}
                       type="button"
@@ -205,7 +244,7 @@ export function AgentStepsPanel(props: AgentStepsPanelProps) {
                       bad
                     </Button>
                     <Button
-                      className={TAG_BUTTON}
+                      className={tagButtonClass}
                       disabled={isBusy}
                       onClick={() => setShowNoteFor((prev) => (prev === step.stepId ? null : step.stepId))}
                       type="button"
@@ -214,19 +253,24 @@ export function AgentStepsPanel(props: AgentStepsPanelProps) {
                       <MessageSquare aria-hidden="true" className="h-3 w-3" />
                       note
                     </Button>
-                    {taggedValue === "note" ? <span className="text-[10.5px] text-muted-subtle">note saved</span> : null}
+                    {taggedValue === "note" ? <span className={cn("text-[10.5px]", dark ? "text-white/30" : "text-muted-subtle")}>note saved</span> : null}
                   </div>
                   {noteOpen ? (
                     <div className="mt-2 space-y-1.5">
                       <textarea
-                        className="block min-h-[48px] w-full resize-y rounded-[8px] border border-border bg-surface px-2.5 py-1.5 text-[11.5px] leading-[1.4] text-foreground outline-none placeholder:text-muted-subtle"
+                        className={cn(
+                          "block min-h-[48px] w-full resize-y rounded-[8px] px-2.5 py-1.5 text-[11.5px] leading-[1.4] outline-none",
+                          dark
+                            ? "border border-white/[0.08] bg-[#0a0f0c] text-white/74 placeholder:text-white/24"
+                            : "border border-border bg-surface text-foreground placeholder:text-muted-subtle",
+                        )}
                         placeholder="why was this step good or bad? helps the next training round."
                         value={noteDraft[step.stepId] ?? ""}
                         onChange={(event) => setNoteDraft((prev) => ({ ...prev, [step.stepId]: event.target.value }))}
                       />
                       <div className="flex items-center gap-1.5">
                         <Button
-                          className={TAG_BUTTON}
+                          className={tagButtonClass}
                           disabled={isBusy || (noteDraft[step.stepId] ?? "").trim().length === 0}
                           onClick={() => void tagStep({ trajectoryId: traj.trajectoryId, stepId: step.stepId, tag: "note", note: (noteDraft[step.stepId] ?? "").trim() })}
                           type="button"
@@ -235,7 +279,7 @@ export function AgentStepsPanel(props: AgentStepsPanelProps) {
                           save note
                         </Button>
                         <Button
-                          className={TAG_BUTTON}
+                          className={tagButtonClass}
                           disabled={isBusy}
                           onClick={() => setShowNoteFor(null)}
                           type="button"

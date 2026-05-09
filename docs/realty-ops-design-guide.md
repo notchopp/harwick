@@ -9,6 +9,7 @@ This is the design standard for the web app. The product should feel quiet, prem
 - Avoid heavy brand color, loud gradients, oversized marketing panels, and decorative dashboard noise.
 - Let hierarchy come from spacing, type weight, borders, subtle elevation, and state clarity.
 - Use restrained accent color only for status, selected state, and primary action.
+- Ship the product light-first. Do not maintain a dark theme unless it materially improves readability and preserves Harwick's premium operating feel.
 
 ## Palette
 
@@ -41,6 +42,7 @@ Usage rules:
 - Sage is reserved for healthy, qualified, ready, or complete states.
 - Clay is reserved for warm/manual/nurture work.
 - Status colors should work as small chips, dots, rings, icon backgrounds, and table indicators. Never let them dominate the screen.
+- Backgrounds and cards should read as paper, stone, and ink. Avoid glossy cream gradients, near-black console surfaces, or decorative color haze that hurts scanability.
 
 ## Component Stack
 

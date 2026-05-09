@@ -3,9 +3,6 @@
 import {
   automationModeLabel,
   type ConversationAutomationMode,
-  type FinancingStatus,
-  type LeadIntent,
-  type RouteLeadResponse,
   type LeadType,
 } from "@realty-ops/core";
 import {
@@ -13,42 +10,34 @@ import {
   CalendarClock,
   ChevronLeft,
   ChevronRight,
-  CheckCircle2,
-  CircleDollarSign,
-  ClipboardCheck,
-  Grid2X2,
-  List,
-  MapPin,
+  Clock,
+  ExternalLink,
+  Mail,
   MessageSquare,
-  PauseCircle,
+  Pause,
   Phone,
-  Route,
+  Play,
+  Plus,
+  Search,
+  SortAsc,
+  UserPlus,
+  Users,
+  X,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { FacebookGlyph, InstagramGlyph, PhoneGlyph, SearchGlyph } from "../../components/harwick-icons";
+import { FacebookGlyph, InstagramGlyph, PhoneGlyph } from "../../components/harwick-icons";
+import { Avatar, AvatarFallback } from "../../components/ui/avatar";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "../../components/ui/sheet";
-import { WorkspaceTopbar } from "../../components/workspace-topbar";
 import { cn } from "../../lib/utils";
-import { LeadActionToolbar } from "../conversations/lead-action-toolbar";
 import type { LeadPageItem, LeadPageSource, LeadPageStage } from "./leads-data";
 
 type LeadStatus = "new" | "qualified" | "nurture" | "lost";
+type LeadQualificationFilter = "all" | "buyer" | "seller" | "unqualified";
 type SortBy = "newest" | "score" | "uncontacted";
-type LeadsViewMode = "list" | "cards";
 type LeadsLoadState = "loading" | "ready" | "error";
-type QualificationFormState = {
-  leadType: LeadType;
-  intentLevel: LeadIntent;
-  timeline: string;
-  budget: string;
-  targetArea: string;
-  financingStatus: FinancingStatus;
-};
-
 type LeadRecord = LeadPageItem & {
   automationMode: ConversationAutomationMode;
   automationReason: string;
@@ -61,32 +50,6 @@ type LeadRecord = LeadPageItem & {
   timelineItems: string[];
 };
 
-const leadTypeOptions: LeadType[] = ["buyer", "seller", "renter", "investor", "unknown"];
-const intentLevelOptions: LeadIntent[] = ["high", "medium", "low", "unknown"];
-const financingStatusOptions: FinancingStatus[] = ["preapproved", "cash", "needs_lender", "unknown"];
-
-const statusStyles: Record<LeadStatus, string> = {
-  new: "bg-brass-soft text-warm",
-  qualified: "bg-sage-soft text-qualified",
-  nurture: "bg-surface-muted text-muted-subtle",
-  lost: "bg-oxblood-soft text-hot",
-};
-
-const sourceBoxStyles: Record<LeadPageSource, string> = {
-  instagram: "bg-[#F0E5F5] text-[#5B2D7B]",
-  facebook: "bg-[#E5EBF5] text-[#1A3A6B]",
-  voice: "bg-sage-soft text-qualified",
-};
-
-const subStatusStyles: Record<string, string> = {
-  "Not contacted": "text-muted-subtle",
-  "Callback due": "text-hot",
-  "FUB synced": "text-qualified",
-  "Owner review": "text-warm",
-  "Follow-up due": "text-muted-subtle",
-  "Showing ready": "text-qualified",
-};
-
 const leadsPageSize = 12;
 
 function clampPage(page: number, pageCount: number) {
@@ -95,18 +58,6 @@ function clampPage(page: number, pageCount: number) {
 
 function sourceLabel(source: LeadPageSource) {
   return source === "voice" ? "Voice" : source.charAt(0).toUpperCase() + source.slice(1);
-}
-
-function stageTone(stage: LeadPageStage) {
-  if (stage === "qualified" || stage === "showing") {
-    return "qualified" as const;
-  }
-
-  if (stage === "nurture") {
-    return "warm" as const;
-  }
-
-  return "hot" as const;
 }
 
 function deriveDisplayStatus(stage: LeadPageStage): LeadStatus {
@@ -213,22 +164,6 @@ function mapLeadPageItemToRecord(item: LeadPageItem): LeadRecord {
   };
 }
 
-function qualificationFormForLead(lead: LeadRecord): QualificationFormState {
-  return {
-    leadType: lead.leadType,
-    intentLevel: lead.intentLevel,
-    timeline: lead.timeline === "unknown" ? "" : lead.timeline,
-    budget: lead.budget === "unknown" ? "" : lead.budget,
-    targetArea: lead.area === "unknown" ? "" : lead.area,
-    financingStatus: lead.financingStatus,
-  };
-}
-
-function nullableEditableValue(value: string): string | null {
-  const trimmed = value.trim();
-  return trimmed.length === 0 || trimmed.toLowerCase() === "unknown" ? null : trimmed;
-}
-
 function isLeadPageItem(value: unknown): value is LeadPageItem {
   if (typeof value !== "object" || value === null) {
     return false;
@@ -293,218 +228,6 @@ function FilterChip(props: { active: boolean; children: string; onClick: () => v
   );
 }
 
-function DetailSection(props: { children: React.ReactNode; title: string }) {
-  return (
-    <div className="harwick-card px-4 py-4">
-      <div className="mb-3 text-[10px] font-semibold uppercase tracking-[0.13em] text-muted-subtle">
-        {props.title}
-      </div>
-      {props.children}
-    </div>
-  );
-}
-
-function KeyValue(props: { label: string; value: string }) {
-  return (
-    <div className="border-b border-border pb-2.5 last:border-b-0 last:pb-0">
-      <div className="text-[10px] uppercase tracking-[0.1em] text-muted-subtle">{props.label}</div>
-      <div className="mt-1 text-[12px] font-semibold text-foreground">{props.value}</div>
-    </div>
-  );
-}
-
-function LeadConversationPanel(props: {
-  lead: LeadRecord;
-  mode: ConversationAutomationMode;
-  workspaceId: string;
-  currentMemberId: string;
-  onChanged?: () => void | Promise<void>;
-}) {
-  const aiPaused = props.mode !== "ai_on";
-  const modeTone = props.mode === "ai_on"
-    ? "border-sage/25 bg-sage-soft text-qualified"
-    : props.mode === "human_takeover"
-      ? "border-clay/25 bg-clay-soft text-warm"
-      : "border-oxblood/20 bg-oxblood-soft text-hot";
-
-  return (
-    <div className="overflow-hidden rounded-[22px] border border-border bg-surface">
-      <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-4">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 text-[13px] font-semibold text-foreground">
-            <MessageSquare aria-hidden="true" className="h-4 w-4 text-muted" strokeWidth={1.8} />
-            conversation
-          </div>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {([
-              ["intent", props.lead.intent],
-              ["area", props.lead.area],
-              ["budget", props.lead.budget],
-              ["timeline", props.lead.timeline],
-            ] as Array<[string, string]>)
-              .filter(([, value]) => value.toLowerCase() !== "unknown")
-              .map(([label, value]) => (
-                <span className="inline-flex items-center gap-1 rounded-full border border-border bg-surface-muted px-2.5 py-1 text-[10.5px] text-muted" key={label}>
-                  <span className="font-semibold text-muted-subtle">{label}</span>
-                  <span className="max-w-[150px] truncate font-semibold text-foreground">{value}</span>
-                </span>
-              ))}
-          </div>
-        </div>
-        <div className={cn("inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-semibold", modeTone)}>
-          {aiPaused ? (
-            <PauseCircle aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={1.8} />
-          ) : (
-            <Bot aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={1.8} />
-          )}
-          {automationModeLabel(props.mode)}
-        </div>
-      </div>
-
-      <div className="space-y-3 bg-background p-5">
-        <div className="flex justify-start">
-          <div className="max-w-[78%] rounded-[18px] rounded-bl-md bg-surface-muted px-4 py-3">
-            <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-subtle">
-              {props.lead.name}
-            </div>
-            <div className="text-[13px] leading-5 text-foreground">{props.lead.message}</div>
-          </div>
-        </div>
-        <div className="flex justify-end">
-          <div className="max-w-[82%] rounded-[18px] rounded-br-md border border-harwick-brass/35 bg-brass-soft/70 px-4 py-3">
-            <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-warm">
-              <Bot aria-hidden="true" className="h-3.5 w-3.5" />
-              AI Action — Ready for approval
-            </div>
-            <div className="text-[13px] leading-5 text-foreground">{props.lead.draft}</div>
-          </div>
-        </div>
-        <div className="flex justify-end">
-          <div className="rounded-full border border-border bg-surface px-3 py-2 text-[12px] text-muted">
-            {aiPaused ? "Harwick is listening only" : "Harwick is preparing the next action"}
-          </div>
-        </div>
-      </div>
-
-      <div className="border-t border-border bg-surface px-5 py-4 space-y-3">
-        <div className="flex items-start gap-2">
-          <ClipboardCheck aria-hidden="true" className="mt-0.5 h-3.5 w-3.5 shrink-0 text-harwick-brass" strokeWidth={1.8} />
-          <div className="min-w-0">
-            <div className="text-[11.5px] font-semibold text-foreground">Harwick helper</div>
-            <p className="mt-0.5 text-[11.5px] leading-5 text-muted">{props.lead.automationReason}</p>
-            <p className="mt-0.5 text-[11px] leading-5 text-muted-subtle">{props.lead.helperSuggestion}</p>
-          </div>
-        </div>
-        <LeadActionToolbar
-          workspaceId={props.workspaceId}
-          leadId={props.lead.id}
-          automationMode={props.mode}
-          assignedMemberId={null}
-          currentMemberId={props.currentMemberId}
-          draft={props.lead.draft}
-          reviewId={props.lead.reviewId ?? null}
-          {...(props.onChanged === undefined ? {} : { onChanged: props.onChanged })}
-        />
-      </div>
-    </div>
-  );
-}
-
-function LeadActivityTimeline(props: { lead: LeadRecord }) {
-  const items = [
-    {
-      detail: props.lead.message,
-      label: "message captured",
-      time: props.lead.lastTouch,
-      tone: "stone" as const,
-    },
-    {
-      detail: `${props.lead.intent} / ${props.lead.area} / ${props.lead.budget} / ${props.lead.timeline}`,
-      label: "qualification updated",
-      time: "live",
-      tone: "green" as const,
-    },
-    {
-      detail: props.lead.routeReason,
-      label: "routing decision",
-      time: props.lead.assignedTo,
-      tone: props.lead.subStatus === "Owner review" ? "amber" as const : "green" as const,
-    },
-    ...props.lead.timelineItems.map((item) => ({
-      detail: item,
-      label: "system event",
-      time: "recorded",
-      tone: "stone" as const,
-    })),
-  ];
-
-  return (
-    <DetailSection title="activity timeline">
-      <div className="space-y-0">
-        {items.map((item, index) => (
-          <div className="flex gap-3" key={`${item.label}-${index}`}>
-            <div className="flex w-3 flex-col items-center">
-              <span
-                className={cn(
-                  "mt-1.5 h-2.5 w-2.5 rounded-full",
-                  item.tone === "green" && "bg-qualified",
-                  item.tone === "amber" && "bg-warm",
-                  item.tone === "stone" && "bg-muted-subtle",
-                )}
-              />
-              {index === items.length - 1 ? null : <span className="mt-1 h-11 w-px bg-border" />}
-            </div>
-            <div className="pb-4">
-              <div className="text-[12.5px] font-semibold text-foreground">{item.label}</div>
-              <div className="mt-0.5 text-[11px] text-muted-subtle">{item.time} · {item.detail}</div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </DetailSection>
-  );
-}
-
-function LeadContextCard(props: { lead: LeadRecord }) {
-  return (
-    <div className="overflow-hidden rounded-[22px] border border-border bg-surface">
-      <div className="relative h-[156px] bg-[linear-gradient(145deg,#1b241e_0%,#244233_52%,#1a2d24_100%)]">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_15%,rgba(137,177,116,0.24),transparent_28%),linear-gradient(180deg,rgba(7,15,10,0.02),rgba(7,15,10,0.72))]" />
-        <div className="absolute inset-x-4 bottom-4 text-white">
-          <div className="text-[10px] uppercase tracking-[0.14em] text-white/58">
-            {props.lead.cardKind === "seller" ? "seller property" : props.lead.cardKind === "area" ? "search context" : "listing context"}
-          </div>
-          <div className="mt-1 truncate font-display text-[23px] font-medium leading-none">{props.lead.listing}</div>
-          <div className="mt-1 truncate text-[12px] text-white/68">{props.lead.message}</div>
-        </div>
-      </div>
-      <div className="grid gap-2 p-4">
-        <div className="rounded-[18px] bg-surface-muted p-4">
-          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.1em] text-muted-subtle">
-            <MapPin aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={1.7} />
-            area
-          </div>
-          <div className="mt-2 truncate text-[13px] font-semibold">{props.lead.area}</div>
-        </div>
-        <div className="rounded-[18px] bg-surface-muted p-4">
-          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.1em] text-muted-subtle">
-            <CircleDollarSign aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={1.7} />
-            budget
-          </div>
-          <div className="mt-2 truncate text-[13px] font-semibold">{props.lead.budget}</div>
-        </div>
-        <div className="rounded-[18px] bg-surface-muted p-4">
-          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.1em] text-muted-subtle">
-            <CalendarClock aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={1.7} />
-            timeline
-          </div>
-          <div className="mt-2 truncate text-[13px] font-semibold">{props.lead.timeline}</div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function LeadsPaginationFooter(props: {
   currentPage: number;
   itemCount: number;
@@ -547,320 +270,291 @@ function LeadsPaginationFooter(props: {
   );
 }
 
-function LeadDetailSheet(props: {
-  actionStatus: string | null;
-  currentMemberId: string;
-  lead: LeadRecord | null;
-  onChanged?: () => void | Promise<void>;
-  onOpenFullConversation: (leadId: string) => void;
-  onOpenChange: (open: boolean) => void;
+function leadTypeTone(leadType: LeadType): string {
+  if (leadType === "buyer") {
+    return "bg-sage-soft text-qualified";
+  }
+
+  if (leadType === "seller") {
+    return "bg-brass-soft text-warm";
+  }
+
+  if (leadType === "renter") {
+    return "bg-clay-soft text-warm";
+  }
+
+  return "bg-surface-muted text-muted";
+}
+
+function automationLabel(mode: ConversationAutomationMode): { className: string; label: string } {
+  if (mode === "ai_on") {
+    return { className: "text-qualified", label: "AI Active" };
+  }
+
+  if (mode === "human_takeover") {
+    return { className: "text-warm", label: "Human" };
+  }
+
+  return { className: "text-muted", label: "AI Paused" };
+}
+
+function LeadListRow(props: {
+  isSelected: boolean;
+  lead: LeadRecord;
+  onSelect: () => void;
 }) {
-  const lead = props.lead;
-  const [qualificationForm, setQualificationForm] = useState<QualificationFormState | null>(null);
-  const [qualificationStatus, setQualificationStatus] = useState<string | null>(null);
-  const [routingStatus, setRoutingStatus] = useState<string | null>(null);
-
-  useEffect(() => {
-    setQualificationForm(lead === null ? null : qualificationFormForLead(lead));
-    setQualificationStatus(null);
-    setRoutingStatus(null);
-  }, [lead]);
-
-  async function handleSaveQualification() {
-    if (lead === null || qualificationForm === null) {
-      return;
-    }
-
-    setQualificationStatus("Saving qualification...");
-
-    try {
-      const response = await fetch(`/api/workspaces/${lead.workspaceId}/leads/${lead.id}`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          leadType: qualificationForm.leadType,
-          intent: qualificationForm.intentLevel,
-          timeline: nullableEditableValue(qualificationForm.timeline),
-          budget: nullableEditableValue(qualificationForm.budget),
-          targetArea: nullableEditableValue(qualificationForm.targetArea),
-          financingStatus: qualificationForm.financingStatus,
-        }),
-      });
-
-      if (!response.ok) {
-        setQualificationStatus("Qualification update failed.");
-        return;
-      }
-
-      setQualificationStatus("Qualification saved.");
-      void props.onChanged?.();
-    } catch (error) {
-      console.error(error);
-      setQualificationStatus("Network error saving qualification.");
-    }
-  }
-
-  async function handleRouteLead() {
-    if (lead === null) {
-      return;
-    }
-
-    setRoutingStatus("Harwick is checking routing profiles...");
-
-    try {
-      const response = await fetch(`/api/workspaces/${lead.workspaceId}/leads/${lead.id}/routing`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ mode: "auto" }),
-      });
-
-      if (!response.ok) {
-        setRoutingStatus(response.status === 403
-          ? "You do not have permission to route this lead."
-          : "Routing failed. Check backend logs.");
-        return;
-      }
-
-      const result = await response.json() as RouteLeadResponse;
-      if (result.status === "assigned" && result.assignedDisplayName !== null) {
-        setRoutingStatus(`Assigned to ${result.assignedDisplayName}. ${result.reasons[0] ?? "Decision saved."}`);
-        void props.onChanged?.();
-        return;
-      }
-
-      setRoutingStatus(result.status === "hold_for_qualification"
-        ? "Harwick held this lead for more qualification before assignment."
-        : "No routing profile matched. Owner review remains the right next step.");
-    } catch (error) {
-      console.error(error);
-      setRoutingStatus("Network error routing lead.");
-    }
-  }
+  const automation = automationLabel(props.lead.automationMode);
 
   return (
-    <Sheet onOpenChange={props.onOpenChange} open={lead !== null}>
-      <SheetContent className="w-[min(1040px,calc(100vw-24px))] gap-0 overflow-y-auto bg-background p-0 sm:max-w-none">
-        {lead ? (
-          <>
-            <SheetHeader className="border-b border-border bg-surface px-7 py-6">
-              <div className="flex flex-wrap items-start justify-between gap-4 pr-9">
-                <div className="min-w-0">
-                  <div className="mb-3 flex flex-wrap gap-2">
-                    <Badge tone={stageTone(lead.stage)}>{lead.stageLabel}</Badge>
-                    <Badge tone="neutral">
-                      <SourceGlyph source={lead.source} />
-                      {sourceLabel(lead.source)}
-                    </Badge>
-                  </div>
-                  <SheetTitle className="font-display text-[30px] font-medium leading-none">{lead.name}</SheetTitle>
-                  <SheetDescription className="mt-2 text-[13px] text-muted">
-                    {lead.intent} lead from {lead.sourceDetail}. score {lead.score}. last touch {lead.lastTouch}.
-                  </SheetDescription>
+    <button
+      className={cn(
+        "flex w-full items-start gap-4 px-6 py-4 text-left transition-colors hover:bg-surface-muted/70",
+        props.isSelected && "bg-surface-muted",
+      )}
+      onClick={props.onSelect}
+      type="button"
+    >
+      <Avatar className="h-10 w-10 shrink-0 border border-border">
+        <AvatarFallback className="bg-surface-muted text-sm text-foreground">
+          {props.lead.initials}
+        </AvatarFallback>
+      </Avatar>
+
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <span className="truncate font-medium text-foreground">{props.lead.name}</span>
+          <span className={cn("h-5 rounded-full px-2 py-0.5 text-[11px] font-medium", leadTypeTone(props.lead.leadType))}>
+            {props.lead.leadType === "unknown" ? "unqualified" : props.lead.leadType}
+          </span>
+        </div>
+
+        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
+          <span className="flex items-center gap-1">
+            <SourceGlyph source={props.lead.source} />
+            {sourceLabel(props.lead.source)}
+          </span>
+          <span>Score: {props.lead.score}</span>
+          <span className="truncate">{props.lead.assignedTo}</span>
+        </div>
+
+        <div className="mt-2 flex flex-wrap gap-1">
+          {[props.lead.stageLabel, props.lead.area, props.lead.timeline]
+            .filter((value) => value.toLowerCase() !== "unknown")
+            .slice(0, 3)
+            .map((value) => (
+              <Badge className="h-5 rounded-full border-border bg-transparent text-[11px] text-muted" key={value} tone="neutral">
+                {value}
+              </Badge>
+            ))}
+        </div>
+      </div>
+
+      <div className="flex shrink-0 flex-col items-end gap-2">
+        <span className={cn("flex items-center gap-1 text-xs", automation.className)}>
+          {props.lead.automationMode === "ai_on" ? (
+            <span className="h-1.5 w-1.5 rounded-full bg-qualified" />
+          ) : props.lead.automationMode === "human_takeover" ? (
+            <Users aria-hidden="true" className="h-3 w-3" />
+          ) : (
+            <Pause className="h-3 w-3" />
+          )}
+          {automation.label}
+        </span>
+        <span className="text-xs text-muted-subtle">{props.lead.lastTouch}</span>
+      </div>
+    </button>
+  );
+}
+
+function LeadInlineDetail(props: {
+  actionStatus: string | null;
+  currentMemberId: string;
+  lead: LeadRecord;
+  onChanged: () => void | Promise<void>;
+  onClose: () => void;
+  onOpenConversation: (leadId: string) => void;
+  onPrimaryAction: (lead: LeadRecord) => void | Promise<void>;
+}) {
+  const [automationMode, setAutomationMode] = useState<ConversationAutomationMode>(props.lead.automationMode);
+
+  useEffect(() => {
+    setAutomationMode(props.lead.automationMode);
+  }, [props.lead]);
+
+  const automationPaused = automationMode !== "ai_on";
+
+  return (
+    <div className="flex h-full min-h-0 flex-col border-l border-border/50 bg-surface">
+      <div className="flex h-[57px] items-center justify-between border-b border-border/50 px-4">
+        <h2 className="text-sm font-medium text-foreground">Lead Details</h2>
+        <Button className="h-8 w-8 rounded-[8px]" onClick={props.onClose} size="icon" type="button" variant="ghost">
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="space-y-6 p-4">
+          <div className="flex items-start gap-4">
+            <Avatar className="h-14 w-14 border border-border/60">
+              <AvatarFallback className="bg-surface-muted text-lg text-foreground">
+                {props.lead.initials}
+              </AvatarFallback>
+            </Avatar>
+            <div className="min-w-0 flex-1">
+              <h3 className="truncate text-lg font-semibold text-foreground">{props.lead.name}</h3>
+              <div className="mt-1 flex items-center gap-2">
+                <Badge className={cn("text-xs", leadTypeTone(props.lead.leadType))}>
+                  {props.lead.leadType}
+                </Badge>
+                <span className="text-sm text-muted">Score: {props.lead.score}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center gap-3 text-sm">
+              <Mail className="h-4 w-4 text-muted" />
+              <span className="text-muted">No email captured</span>
+            </div>
+            {props.lead.phone !== null ? (
+              <div className="flex items-center gap-3 text-sm">
+                <Phone className="h-4 w-4 text-muted" />
+                <span className="text-foreground">{props.lead.phone}</span>
+              </div>
+            ) : null}
+            <div className="flex items-center gap-3 text-sm">
+              <SourceGlyph source={props.lead.source} />
+              <span className="text-foreground">{props.lead.sourceDetail}</span>
+            </div>
+          </div>
+
+          <div className="rounded-[10px] border border-border/50 bg-background p-4">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className={cn("flex h-10 w-10 items-center justify-center rounded-[8px]", automationPaused ? "bg-clay-soft" : "bg-sage-soft")}>
+                  {automationPaused ? (
+                    <Pause className="h-5 w-5 text-warm" />
+                  ) : (
+                    <Bot className="h-5 w-5 text-qualified" />
+                  )}
                 </div>
-                <div className="flex gap-2">
-                  {lead.source === "voice" && lead.phone !== null ? (
-                    <Button
-                      asChild
-                      className="rounded-full bg-harwick-ink px-4 text-[12px]"
-                      size="sm"
-                    >
-                      <a href={`tel:${lead.phone}`}>
-                        <Phone aria-hidden="true" />
-                        call
-                      </a>
-                    </Button>
-                  ) : null}
-                  <Button
-                    className="rounded-full border-border bg-surface px-4 text-[12px] text-foreground hover:bg-surface-muted hover:text-foreground"
-                    onClick={() => props.onOpenFullConversation(lead.id)}
-                    size="sm"
-                    type="button"
-                    variant="outline"
-                  >
-                    open full convo
-                  </Button>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-foreground">{automationModeLabel(automationMode)}</p>
+                  <p className="truncate text-xs text-muted">{props.lead.automationReason}</p>
                 </div>
               </div>
-            </SheetHeader>
 
-            <div className="grid gap-6 p-7 lg:grid-cols-[minmax(0,1fr)_330px]">
-              <section className="min-w-0 space-y-5">
-                <LeadConversationPanel
-                  lead={lead}
-                  mode={lead.automationMode}
-                  workspaceId={lead.workspaceId}
-                  currentMemberId={props.currentMemberId}
-                  {...(props.onChanged === undefined ? {} : { onChanged: props.onChanged })}
-                />
-                <LeadActivityTimeline lead={lead} />
-              </section>
-
-              <aside className="space-y-5">
-                <LeadContextCard lead={lead} />
-                <div className="rounded-[22px] border border-border bg-surface p-5">
-                  <div className="flex items-center gap-2 text-[13px] font-semibold">
-                    <Route aria-hidden="true" className="h-4 w-4 text-qualified" strokeWidth={1.8} />
-                    assignment
-                  </div>
-                  <div className="mt-4 space-y-3 text-[12px]">
-                    <KeyValue label="assigned to" value={lead.assignedTo} />
-                    <KeyValue label="source credit" value={lead.sourceOwner} />
-                    <KeyValue label="route reason" value={lead.routeReason} />
-                    <KeyValue label="next action" value={lead.primaryAction} />
-                  </div>
-                  <div className="mt-4 border-t border-border pt-4">
-                    <Button
-                      className="w-full rounded-full bg-harwick-ink px-4 text-[11px] text-white"
-                      onClick={() => void handleRouteLead()}
-                      size="sm"
-                      type="button"
-                    >
-                      route with Harwick
-                    </Button>
-                    {routingStatus !== null ? (
-                      <div className="mt-2 text-[11px] leading-5 text-muted-subtle">{routingStatus}</div>
-                    ) : null}
-                  </div>
-                </div>
-
-                <div className="rounded-[22px] border border-border bg-surface p-5">
-                  <div className="flex items-center gap-2 text-[13px] font-semibold">
-                    <CheckCircle2 aria-hidden="true" className="h-4 w-4 text-qualified" strokeWidth={1.8} />
-                    qualification
-                  </div>
-                  <div className="mt-4 grid grid-cols-2 gap-2">
-                    {[
-                      ["intent", lead.intent],
-                      ["type", lead.propertyType],
-                      ["score", String(lead.score)],
-                      ["source", sourceLabel(lead.source)],
-                    ].map(([label, value]) => (
-                      <div className="rounded-[16px] bg-surface-muted p-3" key={label}>
-                        <div className="text-[10px] uppercase tracking-[0.1em] text-muted-subtle">{label}</div>
-                        <div className="mt-1 truncate text-[12px] font-semibold">{value}</div>
-                      </div>
-                    ))}
-                  </div>
-                  {qualificationForm !== null ? (
-                    <div className="mt-4 space-y-3 border-t border-border pt-4">
-                      <div className="grid grid-cols-2 gap-2">
-                        <label className="text-[11px] font-medium text-muted">
-                          lead type
-                          <select
-                            className="mt-1 w-full rounded-[12px] border border-border bg-background px-3 py-2 text-[12px] text-foreground outline-none focus:border-border-strong"
-                            onChange={(event) => setQualificationForm((current) => current === null ? current : {
-                              ...current,
-                              leadType: event.target.value as LeadType,
-                            })}
-                            value={qualificationForm.leadType}
-                          >
-                            {leadTypeOptions.map((option) => (
-                              <option key={option} value={option}>{option.replace("_", " ")}</option>
-                            ))}
-                          </select>
-                        </label>
-                        <label className="text-[11px] font-medium text-muted">
-                          intent
-                          <select
-                            className="mt-1 w-full rounded-[12px] border border-border bg-background px-3 py-2 text-[12px] text-foreground outline-none focus:border-border-strong"
-                            onChange={(event) => setQualificationForm((current) => current === null ? current : {
-                              ...current,
-                              intentLevel: event.target.value as LeadIntent,
-                            })}
-                            value={qualificationForm.intentLevel}
-                          >
-                            {intentLevelOptions.map((option) => (
-                              <option key={option} value={option}>{option}</option>
-                            ))}
-                          </select>
-                        </label>
-                      </div>
-                      <label className="block text-[11px] font-medium text-muted">
-                        area
-                        <input
-                          className="mt-1 w-full rounded-[12px] border border-border bg-background px-3 py-2 text-[12px] text-foreground outline-none placeholder:text-muted-subtle focus:border-border-strong"
-                          onChange={(event) => setQualificationForm((current) => current === null ? current : {
-                            ...current,
-                            targetArea: event.target.value,
-                          })}
-                          placeholder="Katy, Heights, Coral Gables"
-                          value={qualificationForm.targetArea}
-                        />
-                      </label>
-                      <div className="grid grid-cols-2 gap-2">
-                        <label className="text-[11px] font-medium text-muted">
-                          budget
-                          <input
-                            className="mt-1 w-full rounded-[12px] border border-border bg-background px-3 py-2 text-[12px] text-foreground outline-none placeholder:text-muted-subtle focus:border-border-strong"
-                            onChange={(event) => setQualificationForm((current) => current === null ? current : {
-                              ...current,
-                              budget: event.target.value,
-                            })}
-                            placeholder="$450k-$575k"
-                            value={qualificationForm.budget}
-                          />
-                        </label>
-                        <label className="text-[11px] font-medium text-muted">
-                          timeline
-                          <input
-                            className="mt-1 w-full rounded-[12px] border border-border bg-background px-3 py-2 text-[12px] text-foreground outline-none placeholder:text-muted-subtle focus:border-border-strong"
-                            onChange={(event) => setQualificationForm((current) => current === null ? current : {
-                              ...current,
-                              timeline: event.target.value,
-                            })}
-                            placeholder="30-60 days"
-                            value={qualificationForm.timeline}
-                          />
-                        </label>
-                      </div>
-                      <label className="block text-[11px] font-medium text-muted">
-                        financing
-                        <select
-                          className="mt-1 w-full rounded-[12px] border border-border bg-background px-3 py-2 text-[12px] text-foreground outline-none focus:border-border-strong"
-                          onChange={(event) => setQualificationForm((current) => current === null ? current : {
-                            ...current,
-                            financingStatus: event.target.value as FinancingStatus,
-                          })}
-                          value={qualificationForm.financingStatus}
-                        >
-                          {financingStatusOptions.map((option) => (
-                            <option key={option} value={option}>{option.replace("_", " ")}</option>
-                          ))}
-                        </select>
-                      </label>
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="min-h-4 text-[11px] text-muted-subtle">{qualificationStatus}</div>
-                        <Button
-                          className="rounded-full bg-harwick-ink px-4 text-[11px] text-white"
-                          onClick={() => void handleSaveQualification()}
-                          size="sm"
-                          type="button"
-                        >
-                          save qualification
-                        </Button>
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-
-                <DetailSection title="Harwick note">
-                  <div className="flex items-center gap-2 text-[12px] font-semibold text-foreground">
-                    <ClipboardCheck aria-hidden="true" className="h-4 w-4 text-harwick-brass" strokeWidth={1.8} />
-                    operator context
-                  </div>
-                  <div className="mt-2 text-[12px] leading-5 text-muted">
-                    This sheet is now opening from the remapped lead rows and is wired to the existing lead API in development.
-                  </div>
-                  {props.actionStatus ? (
-                    <div className="mt-3 text-[11px] leading-5 text-muted-subtle">{props.actionStatus}</div>
-                  ) : null}
-                </DetailSection>
-              </aside>
+              {automationMode !== "human_takeover" ? (
+                <Button
+                  className="h-8 gap-1.5 rounded-[8px]"
+                  onClick={() => setAutomationMode((current) => current === "ai_on" ? "paused_by_rule" : "ai_on")}
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                >
+                  {automationPaused ? (
+                    <>
+                      <Play className="h-3.5 w-3.5" />
+                      Resume
+                    </>
+                  ) : (
+                    <>
+                      <Pause className="h-3.5 w-3.5" />
+                      Pause
+                    </>
+                  )}
+                </Button>
+              ) : null}
             </div>
-          </>
-        ) : null}
-      </SheetContent>
-    </Sheet>
+          </div>
+
+          <div>
+            <p className="mb-2 text-xs font-medium uppercase tracking-[0.12em] text-muted-subtle">
+              Assigned To
+            </p>
+            <div className="flex items-center justify-between">
+              <div className="flex min-w-0 items-center gap-3">
+                <Avatar className="h-8 w-8">
+                  <AvatarFallback className="bg-surface-muted text-xs text-foreground">
+                    {props.lead.assignedTo
+                      .split(" ")
+                      .filter(Boolean)
+                      .map((part) => part[0])
+                      .slice(0, 2)
+                      .join("")
+                      .toUpperCase() || "HW"}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-foreground">{props.lead.assignedTo}</p>
+                  <p className="text-xs text-muted">Current routing owner</p>
+                </div>
+              </div>
+              <Button className="h-8 text-xs" size="sm" type="button" variant="ghost">
+                Reassign
+              </Button>
+            </div>
+          </div>
+
+          <div>
+            <p className="mb-2 text-xs font-medium uppercase tracking-[0.12em] text-muted-subtle">
+              Actions
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <Button className="h-9 justify-start gap-1.5 rounded-[8px]" onClick={() => props.onOpenConversation(props.lead.id)} size="sm" type="button" variant="outline">
+                <MessageSquare className="h-4 w-4" />
+                Message
+              </Button>
+              <Button className="h-9 justify-start gap-1.5 rounded-[8px]" size="sm" type="button" variant="outline">
+                <CalendarClock className="h-4 w-4" />
+                Schedule
+              </Button>
+              <Button className="h-9 justify-start gap-1.5 rounded-[8px]" size="sm" type="button" variant="outline">
+                <ExternalLink className="h-4 w-4" />
+                View in FUB
+              </Button>
+              <Button className="h-9 justify-start gap-1.5 rounded-[8px]" onClick={() => void props.onPrimaryAction(props.lead)} size="sm" type="button" variant="outline">
+                <Bot className="h-4 w-4" />
+                AI Action
+              </Button>
+            </div>
+          </div>
+
+          <div>
+            <p className="mb-3 text-xs font-medium uppercase tracking-[0.12em] text-muted-subtle">
+              Activity Timeline
+            </p>
+            <div className="space-y-3">
+              {[
+                { title: "Lead captured", description: props.lead.message, actor: "lead", time: props.lead.lastTouch },
+                { title: "Qualification updated", description: `${props.lead.intent} / ${props.lead.area} / ${props.lead.budget}`, actor: "harwick", time: "live" },
+                { title: "Routing checked", description: props.lead.routeReason, actor: "harwick", time: props.lead.assignedTo },
+              ].map((event, index) => (
+                <div className="flex gap-3" key={`${event.title}-${index}`}>
+                  <div className="flex flex-col items-center">
+                    <div className={cn("flex h-8 w-8 items-center justify-center rounded-full", event.actor === "harwick" ? "bg-primary" : "bg-surface-muted")}>
+                      {event.actor === "harwick" ? (
+                        <Bot className="h-4 w-4 text-primary-foreground" />
+                      ) : (
+                        <Clock className="h-4 w-4 text-muted" />
+                      )}
+                    </div>
+                    {index === 2 ? null : <div className="w-px flex-1 bg-border" />}
+                  </div>
+                  <div className="flex-1 pb-4">
+                    <p className="text-sm font-medium text-foreground">{event.title}</p>
+                    <p className="mt-0.5 text-xs text-muted">{event.description}</p>
+                    <p className="mt-1 text-xs text-muted-subtle">{event.time}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {props.actionStatus ? <div className="text-xs text-muted-subtle">{props.actionStatus}</div> : null}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -868,10 +562,9 @@ export function LeadsPageContent(props: { workspaceId: string; workspaceName: st
   const router = useRouter();
   const searchParams = useSearchParams();
   const leadIdParam = searchParams.get("leadId");
-  const [activeTab, setActiveTab] = useState<LeadStatus | "all">("all");
+  const [qualificationFilter, setQualificationFilter] = useState<LeadQualificationFilter>("all");
   const [sourceFilter, setSourceFilter] = useState<LeadPageSource | "all">("all");
   const [sortBy, setSortBy] = useState<SortBy>("newest");
-  const [viewMode, setViewMode] = useState<LeadsViewMode>("list");
   const [currentPage, setCurrentPage] = useState(1);
   const [search, setSearch] = useState("");
   const [leadRecords, setLeadRecords] = useState<LeadRecord[]>([]);
@@ -977,8 +670,12 @@ export function LeadsPageContent(props: { workspaceId: string; workspaceName: st
   const filtered = useMemo(() => {
     let rows = [...leadRecords];
 
-    if (activeTab !== "all") {
-      rows = rows.filter((row) => row.displayStatus === activeTab);
+    if (qualificationFilter === "buyer" || qualificationFilter === "seller") {
+      rows = rows.filter((row) => row.leadType === qualificationFilter);
+    }
+
+    if (qualificationFilter === "unqualified") {
+      rows = rows.filter((row) => row.leadType === "unknown");
     }
 
     if (sourceFilter !== "all") {
@@ -1003,7 +700,7 @@ export function LeadsPageContent(props: { workspaceId: string; workspaceName: st
     }
 
     return rows;
-  }, [activeTab, leadRecords, search, sortBy, sourceFilter]);
+  }, [leadRecords, qualificationFilter, search, sortBy, sourceFilter]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / leadsPageSize));
   const safeCurrentPage = clampPage(currentPage, pageCount);
@@ -1011,7 +708,7 @@ export function LeadsPageContent(props: { workspaceId: string; workspaceName: st
     () => filtered.slice((safeCurrentPage - 1) * leadsPageSize, safeCurrentPage * leadsPageSize),
     [filtered, safeCurrentPage],
   );
-  const hasActiveFilters = activeTab !== "all" || sourceFilter !== "all" || search.trim().length > 0;
+  const hasActiveFilters = qualificationFilter !== "all" || sourceFilter !== "all" || search.trim().length > 0;
   const emptyTitle =
     leadsLoadState === "loading"
       ? "Loading leads"
@@ -1031,7 +728,7 @@ export function LeadsPageContent(props: { workspaceId: string; workspaceName: st
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeTab, sourceFilter, sortBy, search, viewMode, leadRecords.length]);
+  }, [qualificationFilter, sourceFilter, sortBy, search, leadRecords.length]);
 
   useEffect(() => {
     if (currentPage !== safeCurrentPage) {
@@ -1040,257 +737,120 @@ export function LeadsPageContent(props: { workspaceId: string; workspaceName: st
   }, [currentPage, safeCurrentPage]);
 
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-background">
-      <WorkspaceTopbar context={`leads · ${filtered.length} shown`} workspaceName={props.workspaceName}>
-        <Button
-          className="ml-auto rounded-full bg-foreground px-4 text-[11px] text-white"
-          onClick={() => {
-            const targetLead = selectedLead ?? filtered[0] ?? null;
-            if (targetLead === null) {
-              setActionStatus("Select a lead first so the next action can open in conversations.");
-              return;
-            }
-            void handlePrimaryAction(targetLead);
-          }}
-          size="sm"
-          type="button"
-        >
-          send action
-        </Button>
-      </WorkspaceTopbar>
-
-      <div className="flex shrink-0 border-b border-border bg-surface px-7">
-        {(["All Leads", "New", "Qualified", "Nurture", "Lost"] as const).map((tab) => {
-          const value = tab.toLowerCase().split(" ")[0] as LeadStatus | "all";
-          const isActive = activeTab === (value === "all" ? "all" : value);
-
-          return (
-            <button
-              className={cn(
-                "border-b-2 px-[14px] py-[11px] text-[12.5px] transition-colors",
-                isActive ? "border-foreground text-foreground" : "border-transparent text-muted-subtle hover:text-muted",
-              )}
-              key={tab}
-              onClick={() => setActiveTab(value === "all" ? "all" : value)}
-              type="button"
-            >
-              {tab}
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border bg-surface px-7 py-3">
-        <span className="text-[11.5px] text-muted-subtle">Source:</span>
-        {(["all", "instagram", "facebook", "voice"] as const).map((filterValue) => (
-          <FilterChip active={sourceFilter === filterValue} key={filterValue} onClick={() => setSourceFilter(filterValue)}>
-            {filterValue === "all" ? "All" : sourceLabel(filterValue)}
-          </FilterChip>
-        ))}
-        <div className="mx-1 h-[18px] w-px bg-border" />
-        <span className="text-[11.5px] text-muted-subtle">Sort:</span>
-        {(["newest", "score", "uncontacted"] as const).map((sortValue) => (
-          <FilterChip active={sortBy === sortValue} key={sortValue} onClick={() => setSortBy(sortValue)}>
-            {sortValue === "score" ? "Score ↓" : sortValue.charAt(0).toUpperCase() + sortValue.slice(1)}
-          </FilterChip>
-        ))}
-        <div className="mx-1 h-[18px] w-px bg-border" />
-        <div className="harwick-pill inline-flex p-1">
-          <button
-            type="button"
-            onClick={() => setViewMode("list")}
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-medium transition",
-              viewMode === "list" ? "harwick-pill-active" : "text-muted hover:text-foreground",
-            )}
-          >
-            <List className="h-3.5 w-3.5" />
-            list
-          </button>
-          <button
-            type="button"
-            onClick={() => setViewMode("cards")}
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-medium transition",
-              viewMode === "cards" ? "harwick-pill-active" : "text-muted hover:text-foreground",
-            )}
-          >
-            <Grid2X2 className="h-3.5 w-3.5" />
-            cards
-          </button>
-        </div>
-        <div className="harwick-control ml-auto flex w-[180px] items-center gap-[7px] px-[11px] py-[5px] text-[12px] text-muted-subtle">
-          <SearchGlyph className="h-3 w-3 shrink-0" />
-          <input
-            className="w-full bg-transparent outline-none placeholder:text-muted-subtle"
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search leads..."
-            value={search}
-          />
-        </div>
-      </div>
-
-      <div className="min-h-0 flex-1 overflow-y-auto px-7 pb-7 pt-4">
-        {filtered.length === 0 ? (
-          <div className="harwick-card flex min-h-[320px] flex-col items-center justify-center px-6 py-12 text-center">
-            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-surface-muted text-muted">
-              <MessageSquare aria-hidden="true" className="h-5 w-5" strokeWidth={1.8} />
-            </div>
-            <div className="mt-4 text-[15px] font-semibold text-foreground">{emptyTitle}</div>
-            <div className="mt-2 max-w-[420px] text-[12px] leading-5 text-muted">{emptyBody}</div>
-            {actionStatus ? <div className="mt-3 text-[11px] leading-5 text-muted-subtle">{actionStatus}</div> : null}
-            <div className="mt-5 flex flex-wrap justify-center gap-2">
-              {leadsLoadState === "error" ? (
-                <Button className="rounded-full px-4 text-[11px]" onClick={() => void refreshLeads()} size="sm" type="button">
-                  Retry
-                </Button>
-              ) : null}
-              {hasActiveFilters ? (
-                <Button
-                  className="rounded-full px-4 text-[11px]"
-                  onClick={() => {
-                    setActiveTab("all");
-                    setSourceFilter("all");
-                    setSearch("");
-                  }}
-                  size="sm"
-                  type="button"
-                  variant="outline"
-                >
-                  Clear filters
-                </Button>
-              ) : null}
-            </div>
+    <div className="flex h-full min-h-0 flex-1 overflow-hidden bg-background">
+      <section className="flex min-w-0 flex-1 flex-col bg-surface">
+        <div className="flex items-center justify-between border-b border-border/50 px-6 py-4">
+          <div>
+            <h1 className="text-lg font-semibold text-foreground">Leads</h1>
+            <p className="text-sm text-muted">{filtered.length} leads</p>
           </div>
-        ) : (
-          <>
-            {viewMode === "cards" ? (
-              <div className="grid gap-4 xl:grid-cols-2 min-[1700px]:grid-cols-3">
-                {pagedLeads.map((lead) => (
-                  <button
-                    className="group relative min-h-[260px] overflow-hidden rounded-[26px] bg-harwick-ink p-4 text-left text-white shadow-[0_24px_76px_rgba(18,26,20,0.18)] ring-1 ring-black/[0.04] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_34px_88px_rgba(18,26,20,0.22)]"
-                    key={lead.id}
-                    onClick={() => {
-                      setSelectedLead(lead);
-                      replaceLeadQuery(lead.id);
-                    }}
-                    type="button"
-                  >
-                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_12%,rgba(255,255,255,0.16),transparent_26%),linear-gradient(145deg,#0c1711_0%,#233829_54%,#07100a_100%)]" />
-                    <div className="absolute inset-x-0 bottom-0 h-[70%] bg-[linear-gradient(180deg,transparent_0%,rgba(5,10,7,0.86)_100%)]" />
-                    <div className="relative z-10 flex h-full flex-col">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex flex-wrap gap-2">
-                          <span className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/12 px-2.5 py-1 text-[11px] font-medium backdrop-blur">
-                            <SourceGlyph source={lead.source} />
-                            {sourceLabel(lead.source)}
-                          </span>
-                          <span className="rounded-full border border-white/12 bg-white/10 px-2.5 py-1 text-[11px] font-medium text-white/82">
-                            {lead.stageLabel}
-                          </span>
-                        </div>
-                        <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white/90 font-display text-[20px] font-medium text-harwick-ink">
-                          {lead.score}
-                        </span>
-                      </div>
-                      <div className="mt-auto rounded-[20px] border border-white/10 bg-[#07100a]/58 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.1)] backdrop-blur-[10px]">
-                        <div className="flex items-start gap-3">
-                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/16 bg-white/10 text-[12px] font-semibold">
-                            {lead.initials}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="truncate text-[20px] font-semibold">{lead.name}</div>
-                            <div className="mt-1 truncate text-[12px] text-white/52">{lead.sourceDetail}</div>
-                          </div>
-                        </div>
-                        <div className="mt-4 line-clamp-2 rounded-[14px] border border-white/10 bg-black/18 px-3 py-2 text-[12px] italic leading-5 text-white/70">
-                          "{lead.message}"
-                        </div>
-                        <div className="mt-4 grid grid-cols-3 gap-3 border-t border-white/14 pt-4 text-[12px]">
-                          <div>
-                            <div className="text-white/38">area</div>
-                            <div className="mt-1 font-semibold text-white/86">{lead.area}</div>
-                          </div>
-                          <div>
-                            <div className="text-white/38">range</div>
-                            <div className="mt-1 font-semibold text-white/86">{lead.budget}</div>
-                          </div>
-                          <div>
-                            <div className="text-white/38">timeline</div>
-                            <div className="mt-1 font-semibold text-white/86">{lead.timeline}</div>
-                          </div>
-                        </div>
-                        <div className="mt-4 flex items-center justify-between border-t border-white/14 pt-3 text-[12px] text-white/52">
-                          <span>to <span className="font-semibold text-white/78">{lead.assignedTo}</span></span>
-                          <span>{lead.lastTouch}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </button>
-                ))}
+          <Button className="h-8 gap-1.5 rounded-[8px]" size="sm" type="button" variant="outline">
+            <Plus className="h-3.5 w-3.5" />
+            Add Lead
+          </Button>
+        </div>
+
+        <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-border/50 px-6 py-3">
+          <div className="relative min-w-[220px] flex-1 max-w-sm">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+            <input
+              className="h-9 w-full rounded-[8px] border border-input bg-background pl-9 pr-4 text-sm text-foreground outline-none placeholder:text-muted-subtle focus:border-border-strong"
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search leads..."
+              type="text"
+              value={search}
+            />
+          </div>
+
+          <div className="flex items-center gap-1">
+            {(["all", "buyer", "seller", "unqualified"] as const).map((value) => (
+              <Button
+                className="h-8 rounded-[8px] text-xs capitalize"
+                key={value}
+                onClick={() => setQualificationFilter(value)}
+                size="sm"
+                type="button"
+                variant={qualificationFilter === value ? "secondary" : "ghost"}
+              >
+                {value === "all" ? "All" : value}
+              </Button>
+            ))}
+          </div>
+
+          <div className="hidden items-center gap-1 xl:flex">
+            {(["all", "instagram", "facebook", "voice"] as const).map((value) => (
+              <FilterChip
+                active={sourceFilter === value}
+                key={value}
+                onClick={() => setSourceFilter(value)}
+              >
+                {value === "all" ? "All sources" : sourceLabel(value)}
+              </FilterChip>
+            ))}
+          </div>
+
+          <Button
+            className="h-8 w-8 rounded-[8px]"
+            onClick={() => setSortBy((current) => current === "newest" ? "score" : current === "score" ? "uncontacted" : "newest")}
+            size="icon"
+            type="button"
+            variant="ghost"
+          >
+            <SortAsc className="h-4 w-4" />
+          </Button>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {filtered.length === 0 ? (
+            <div className="flex min-h-[320px] flex-col items-center justify-center px-6 py-12 text-center">
+              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-surface-muted text-muted">
+                <MessageSquare aria-hidden="true" className="h-5 w-5" strokeWidth={1.8} />
               </div>
-            ) : (
-              pagedLeads.map((lead) => (
-                <div
-                  className="harwick-card mb-2 flex cursor-pointer items-center gap-[14px] px-4 py-[13px] transition-all duration-150 hover:-translate-y-0.5 hover:border-border-strong"
+              <div className="mt-4 text-[15px] font-semibold text-foreground">{emptyTitle}</div>
+              <div className="mt-2 max-w-[420px] text-[12px] leading-5 text-muted">{emptyBody}</div>
+              {actionStatus ? <div className="mt-3 text-[11px] leading-5 text-muted-subtle">{actionStatus}</div> : null}
+              <div className="mt-5 flex flex-wrap justify-center gap-2">
+                {leadsLoadState === "error" ? (
+                  <Button className="rounded-[8px] px-4 text-[11px]" onClick={() => void refreshLeads()} size="sm" type="button">
+                    Retry
+                  </Button>
+                ) : null}
+                {hasActiveFilters ? (
+                  <Button
+                    className="rounded-[8px] px-4 text-[11px]"
+                    onClick={() => {
+                      setQualificationFilter("all");
+                      setSourceFilter("all");
+                      setSearch("");
+                    }}
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    Clear filters
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          ) : (
+            <div className="divide-y divide-border/50">
+              {pagedLeads.map((lead) => (
+                <LeadListRow
+                  isSelected={selectedLead?.id === lead.id}
                   key={lead.id}
-                  onClick={() => {
+                  lead={lead}
+                  onSelect={() => {
                     setSelectedLead(lead);
                     replaceLeadQuery(lead.id);
                   }}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      setSelectedLead(lead);
-                      replaceLeadQuery(lead.id);
-                    }
-                  }}
-                  role="button"
-                  tabIndex={0}
-                >
-                  <div className={cn("flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[9px]", sourceBoxStyles[lead.source])}>
-                    <SourceGlyph source={lead.source} />
-                  </div>
+                />
+              ))}
+            </div>
+          )}
+        </div>
 
-                  <div className="min-w-0 flex-1">
-                    <div className="mb-0.5 flex items-center gap-[7px]">
-                      <span className="text-[13.5px] font-medium">{lead.name}</span>
-                      <span className={cn("rounded-full px-[7px] py-0.5 text-[10px] font-medium", statusStyles[lead.displayStatus])}>
-                        {lead.displayStatus.charAt(0).toUpperCase() + lead.displayStatus.slice(1)}
-                      </span>
-                    </div>
-                    <div className="truncate text-[12px] text-muted">{lead.message}</div>
-                  </div>
-
-                  <div className="hidden min-w-[130px] text-[11px] text-muted-subtle md:block">
-                    <div className="truncate text-muted">{lead.area}</div>
-                    <div className="mt-0.5 truncate">{lead.budget} · {lead.timeline}</div>
-                  </div>
-
-                  <div className="flex w-[44px] shrink-0 flex-col items-center gap-[3px]">
-                    <div className="font-display text-[20px] font-medium leading-none">{lead.score}</div>
-                    <div className="text-[9px] uppercase tracking-[0.1em] text-muted-subtle">Score</div>
-                  </div>
-
-                  <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-surface-muted text-[10px] font-medium text-muted">
-                    {lead.assignedTo
-                      .split(" ")
-                      .filter(Boolean)
-                      .map((part) => part[0])
-                      .slice(0, 2)
-                      .join("")
-                      .toUpperCase()}
-                  </div>
-
-                  <div className="min-w-[88px] shrink-0 text-right text-[11px] text-muted-subtle">
-                    <div>{lead.lastTouch}</div>
-                    <div className={cn("mt-0.5 text-[10px]", subStatusStyles[lead.subStatus] ?? "text-muted-subtle")}>
-                      {lead.subStatus}
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
+        {filtered.length > 0 ? (
+          <div className="border-t border-border/50 px-6 pb-4">
             <LeadsPaginationFooter
               currentPage={safeCurrentPage}
               itemCount={filtered.length}
@@ -1298,23 +858,39 @@ export function LeadsPageContent(props: { workspaceId: string; workspaceName: st
               pageSize={leadsPageSize}
               onPageChange={setCurrentPage}
             />
-          </>
-        )}
-      </div>
+          </div>
+        ) : null}
+      </section>
 
-      <LeadDetailSheet
-        actionStatus={actionStatus}
-        currentMemberId={props.currentMemberId}
-        lead={selectedLead}
-        onChanged={() => void refreshLeads()}
-        onOpenFullConversation={(leadId) => router.push(`/conversations?leadId=${leadId}`)}
-        onOpenChange={(open) => {
-          if (!open) {
-            setSelectedLead(null);
-            replaceLeadQuery(null);
-          }
-        }}
-      />
+      <aside className="hidden w-[440px] shrink-0 lg:block">
+        {selectedLead ? (
+          <LeadInlineDetail
+            actionStatus={actionStatus}
+            currentMemberId={props.currentMemberId}
+            lead={selectedLead}
+            onChanged={() => void refreshLeads()}
+            onClose={() => {
+              setSelectedLead(null);
+              replaceLeadQuery(null);
+            }}
+            onOpenConversation={(leadId) => router.push(`/conversations?leadId=${leadId}`)}
+            onPrimaryAction={(lead) => void handlePrimaryAction(lead)}
+          />
+        ) : (
+          <div className="flex h-full flex-col border-l border-border/50 bg-surface p-6">
+            <div className="mt-10 rounded-[10px] border border-border bg-background p-5">
+              <div className="flex h-10 w-10 items-center justify-center rounded-[8px] bg-surface-muted text-muted">
+                <UserPlus className="h-5 w-5" />
+              </div>
+              <h2 className="mt-4 text-sm font-semibold text-foreground">Select a lead</h2>
+              <p className="mt-1 text-sm leading-5 text-muted">
+                The v0 detail surface opens here with Harwick reasoning, the live draft, assignment, and timeline.
+              </p>
+            </div>
+          </div>
+        )}
+      </aside>
     </div>
   );
 }
+

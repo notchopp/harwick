@@ -1,33 +1,62 @@
-import { cva, type VariantProps } from "class-variance-authority";
-import type { ComponentPropsWithoutRef } from "react";
+import * as React from "react"
+import { cva, type VariantProps } from "class-variance-authority"
+import { Slot } from "radix-ui"
 
-import { cn } from "../../lib/utils";
+import { cn } from "@/lib/utils"
 
 const badgeVariants = cva(
-  "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10.5px] font-medium leading-none shadow-[inset_0_1px_0_rgba(255,255,255,0.62),0_5px_14px_rgba(31,42,34,0.035)]",
+  "inline-flex w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-full px-2.5 py-1 text-[11px] font-medium whitespace-nowrap transition-[color,box-shadow,border-color,background-color] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/14 aria-invalid:border-destructive aria-invalid:ring-destructive/20 [&>svg]:pointer-events-none [&>svg]:size-3",
   {
     variants: {
+      variant: {
+        default: "bg-card text-foreground [a&]:hover:bg-accent",
+        secondary:
+          "bg-secondary text-secondary-foreground [a&]:hover:bg-secondary/90",
+        destructive:
+          "bg-destructive text-destructive-foreground focus-visible:ring-destructive/20 [a&]:hover:bg-destructive/90",
+        outline:
+          "border-border text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
+        ghost: "[a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
+        link: "text-primary underline-offset-4 [a&]:hover:underline",
+      },
       tone: {
-        neutral: "border-border bg-[linear-gradient(180deg,#fffefa_0%,#eeeae2_100%)] text-muted",
-        hot: "border-oxblood/20 bg-[linear-gradient(180deg,#fff6f4_0%,#f4dedc_100%)] text-hot",
-        warm: "border-clay/20 bg-[linear-gradient(180deg,#fff9ec_0%,#f3e4c5_100%)] text-warm",
-        qualified: "border-sage/20 bg-[linear-gradient(180deg,#f4fbf7_0%,#dcece4_100%)] text-qualified",
-        syncing: "border-stone/20 bg-[linear-gradient(180deg,#f8f6f1_0%,#e8e3db_100%)] text-syncing",
+        neutral: "bg-card text-harwick-ink-soft",
+        green: "bg-sage-soft text-sage",
+        qualified: "bg-sage-soft text-sage",
+        amber: "bg-clay-soft text-warm",
+        warm: "bg-clay-soft text-warm",
+        red: "bg-oxblood-soft text-oxblood",
+        hot: "bg-oxblood-soft text-oxblood",
+        stone: "bg-muted text-muted-foreground",
+        syncing: "bg-muted text-muted-foreground",
       },
     },
     defaultVariants: {
+      variant: "default",
       tone: "neutral",
     },
-  },
-);
+  }
+)
 
-type BadgeProps = ComponentPropsWithoutRef<"span"> &
-  VariantProps<typeof badgeVariants>;
-
-export function Badge(props: BadgeProps) {
-  const { className, tone, ...badgeProps } = props;
+function Badge({
+  className,
+  variant = "default",
+  tone = "neutral",
+  asChild = false,
+  ...props
+}: React.ComponentProps<"span"> &
+  VariantProps<typeof badgeVariants> & { asChild?: boolean }) {
+  const Comp = asChild ? Slot.Root : "span"
 
   return (
-    <span className={cn(badgeVariants({ className, tone }))} {...badgeProps} />
-  );
+    <Comp
+      data-slot="badge"
+      data-variant={variant}
+      data-tone={tone}
+      className={cn(badgeVariants({ variant, tone }), className)}
+      {...props}
+    />
+  )
 }
+
+export { Badge, badgeVariants }

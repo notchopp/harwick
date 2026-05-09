@@ -287,7 +287,7 @@ function StarterGlassListingCard(props: {
       <div className={cn("absolute inset-0 bg-gradient-to-br", props.gradient)} />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_22%_18%,rgba(255,255,255,0.16),transparent_32%),radial-gradient(circle_at_80%_92%,rgba(99,132,75,0.44),transparent_36%)]" />
       <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,15,10,0.02)_0%,rgba(7,15,10,0.08)_38%,rgba(7,15,10,0.78)_100%)]" />
-      <div className="absolute left-5 top-5 rounded-full bg-white/88 px-3 py-1.5 text-[11px] font-semibold text-harwick-ink shadow-[0_14px_32px_rgba(14,18,15,0.14)] backdrop-blur-md">
+      <div className="absolute left-5 top-5 rounded-full border border-white/16 bg-black/45 px-3 py-1.5 text-[11px] font-semibold text-white/88 shadow-[0_14px_32px_rgba(14,18,15,0.14)] backdrop-blur-md">
         {props.label}
       </div>
       <div className="absolute inset-x-0 bottom-0 p-6 text-white">
@@ -971,7 +971,7 @@ export function ListingsPageContent({ workspaceId, workspaceName, workspaceSlug 
                   <button
                     type="button"
                     onClick={() => openEditSheet(row)}
-                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/88 text-harwick-ink shadow-[0_14px_32px_rgba(14,18,15,0.16)] backdrop-blur-md transition hover:bg-white"
+                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/16 bg-black/45 text-white/88 shadow-[0_14px_32px_rgba(14,18,15,0.16)] backdrop-blur-md transition hover:bg-black/55"
                     aria-label={`edit ${card.address}`}
                   >
                     <PencilLine className="h-4 w-4" />

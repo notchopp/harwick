@@ -1,5 +1,6 @@
 import { TeamPresenceResponseSchema, UuidSchema } from "@realty-ops/core";
 import { NextResponse, type NextRequest } from "next/server";
+import { loadConversationsInbox } from "../../../features/conversations/conversations-data";
 import { loadRecentLeads } from "../../../features/home/recent-leads";
 import { loadRoutingDesk } from "../../../features/home/routing-desk";
 import { loadTeamPresence } from "../../../features/home/team-presence";
@@ -8,6 +9,7 @@ import { loadFollowUpBossConflictQueue } from "../../../features/operations/foll
 import { loadOperationsQueueSummary, loadWorkspaceReadiness } from "../../../features/operations/workspace-operations";
 import { loadSocialReplyQueue, loadVoiceHandoffQueue } from "../../../features/operator-queues/operator-queues";
 import { authorizeWorkspaceRequest } from "../../../lib/api/workspace-auth";
+import { createSupabaseConversationsInboxRepository } from "../../../lib/supabase/conversations-page";
 import { createSupabaseFailureOperationsRepository } from "../../../lib/supabase/failure-operations";
 import { createSupabaseFollowUpBossConflictRepository } from "../../../lib/supabase/follow-up-boss-conflicts";
 import { createServerSupabaseClient } from "../../../lib/supabase/server-client";
@@ -47,6 +49,7 @@ export async function GET(request: NextRequest) {
       socialQueue,
       voiceQueue,
       recentLeads,
+      conversations,
       routingDesk,
       harwickWorkItems,
       fubConflicts,
@@ -97,6 +100,14 @@ export async function GET(request: NextRequest) {
         console.error("GET /api/home recent leads error:", error);
         return null;
       }),
+      loadConversationsInbox({
+        workspaceId,
+        repository: createSupabaseConversationsInboxRepository(supabase),
+        limit: 8,
+      }).catch((error: unknown) => {
+        console.error("GET /api/home conversations error:", error);
+        return null;
+      }),
       loadRoutingDesk({
         workspaceId,
         repository: createSupabaseRoutingDeskRepository(supabase),
@@ -144,6 +155,7 @@ export async function GET(request: NextRequest) {
       socialQueue,
       voiceQueue,
       recentLeads,
+      conversations,
       routingDesk,
       harwickWorkItems: {
         workspaceId,

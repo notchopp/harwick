@@ -25,6 +25,7 @@ import {
   formatHarwickLoopDate,
   type HarwickLoopSettingsDraft,
 } from "./harwick-loop-settings";
+import { Switch } from "../../components/ui/switch";
 import {
   buildWorkspaceMemoryReviewRequest,
   formatWorkspaceMemoryConfidence,
@@ -44,23 +45,7 @@ function ToggleRow(props: {
         <div className="text-[13px] font-medium text-foreground">{props.label}</div>
         <div className="mt-1 text-[11.5px] text-muted-subtle">{props.description}</div>
       </div>
-      <button
-        aria-checked={props.checked}
-        className={cn(
-          "relative h-[23px] w-[41px] shrink-0 rounded-full border transition-all shadow-[inset_0_1px_2px_rgba(31,42,34,0.16)]",
-          props.checked ? "border-qualified/30 bg-qualified" : "border-border bg-[#E8E5DF]",
-        )}
-        onClick={props.onToggle}
-        role="switch"
-        type="button"
-      >
-        <span
-          className={cn(
-            "absolute top-[3px] h-[15px] w-[15px] rounded-full bg-white shadow-[0_3px_8px_rgba(31,42,34,0.24)] transition-transform",
-            props.checked ? "translate-x-[21px]" : "translate-x-[3px]",
-          )}
-        />
-      </button>
+      <Switch checked={props.checked} onCheckedChange={() => props.onToggle()} />
     </div>
   );
 }

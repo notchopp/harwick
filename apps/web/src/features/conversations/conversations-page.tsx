@@ -657,7 +657,7 @@ export function ConversationsPageContent(props: {
                     <div className="flex items-center gap-1.5">
                       <div className="h-1.5 w-full rounded-full bg-gray-200">
                         <div
-                          className="bg-gradient-to-r from-yellow-400 to-green-500 h-1.5 rounded-full"
+                          className="h-1.5 rounded-full bg-gradient-to-r from-[color:var(--harwick-brass)] to-emerald-500"
                           style={{ width: `${Math.min(selectedThread.score, 100)}%` }}
                         />
                       </div>

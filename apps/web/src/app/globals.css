@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
 @font-face {
   font-family: "Instrument Sans";
@@ -58,81 +59,144 @@
 
 @custom-variant dark (&:is(.dark *));
 
-@theme {
-  --font-sans: "Instrument Sans", "Inter", "Geist", "Aptos", "Segoe UI", sans-serif;
-  --font-display: "Newsreader", "Instrument Sans", serif;
-  --color-harwick-ink: #1a2a20;
-  --color-harwick-ink-soft: #2d3a30;
-  --color-harwick-parchment: #f5f3ef;
-  --color-harwick-paper: #fafaf8;
-  --color-harwick-linen: #efede9;
-  --color-harwick-border: #ddd7cc;
-  --color-harwick-border-strong: #c9c0b1;
-  --color-harwick-brass: #c9a84c;
-  --color-harwick-brass-soft: #f5edd6;
-  --color-sage: #2e6b4f;
-  --color-sage-soft: #e0ede7;
-  --color-clay: #8b5e1a;
-  --color-clay-soft: #f5ead6;
-  --color-oxblood: #9b3a3a;
-  --color-oxblood-soft: #f5e5e5;
-  --color-stone: #6b6860;
-  --color-stone-soft: #efede9;
-  --color-background: var(--color-harwick-parchment);
-  --color-foreground: var(--color-harwick-ink);
-  --color-surface: var(--color-harwick-paper);
-  --color-surface-muted: var(--color-harwick-linen);
-  --color-surface-raised: #f8f4eb;
-  --color-border: var(--color-harwick-border);
-  --color-border-strong: var(--color-harwick-border-strong);
-  --color-muted: #6b6860;
-  --color-muted-subtle: #a8a59f;
-  --color-accent: var(--color-harwick-ink);
-  --color-accent-foreground: var(--color-harwick-paper);
-  --color-primary: var(--color-harwick-ink);
-  --color-primary-foreground: var(--color-harwick-paper);
-  --color-secondary: var(--color-harwick-linen);
-  --color-secondary-foreground: var(--color-harwick-ink);
-  --color-muted-foreground: #6b6860;
-  --color-card: var(--color-harwick-paper);
-  --color-card-foreground: var(--color-harwick-ink);
-  --color-popover: var(--color-harwick-paper);
-  --color-popover-foreground: var(--color-harwick-ink);
-  --color-input: var(--color-harwick-border);
-  --color-ring: var(--color-harwick-brass);
-  --color-destructive: var(--color-oxblood);
-  --color-brass: var(--color-harwick-brass);
-  --color-brass-soft: var(--color-harwick-brass-soft);
-  --color-hot: var(--color-oxblood);
-  --color-warm: var(--color-clay);
-  --color-qualified: var(--color-sage);
-  --color-syncing: var(--color-stone);
-  --color-archived: var(--color-stone);
-}
-
 :root {
+  --harwick-ink: #18211d;
+  --harwick-ink-soft: #5f6a64;
+  --harwick-parchment: #f3f4f1;
+  --harwick-paper: #f8f8f6;
+  --harwick-linen: #eff1ed;
+  --harwick-linen-strong: #e5e8e2;
+  --harwick-border: #d8ddd5;
+  --harwick-border-strong: #c4cbc0;
+  --harwick-brass: #60786d;
+  --harwick-brass-soft: #e3ece8;
+  --harwick-shell: #f6f7f4;
+  --harwick-shell-muted: #f1f3ef;
+  --sage: #58725f;
+  --sage-soft: #e4ece5;
+  --clay: #8b6244;
+  --clay-soft: #eee3db;
+  --oxblood: #7f4346;
+  --oxblood-soft: #f0e2e2;
+  --stone: #6f6a61;
+  --stone-soft: #e8ebe6;
+
+  --background: var(--harwick-parchment);
+  --foreground: var(--harwick-ink);
+  --card: var(--harwick-paper);
+  --card-foreground: var(--harwick-ink);
+  --popover: var(--harwick-paper);
+  --popover-foreground: var(--harwick-ink);
+  --primary: var(--harwick-ink);
+  --primary-foreground: var(--harwick-paper);
+  --secondary: var(--harwick-linen);
+  --secondary-foreground: var(--harwick-ink);
+  --muted: var(--stone-soft);
+  --muted-foreground: var(--harwick-ink-soft);
+  --accent: var(--harwick-linen);
+  --accent-foreground: var(--harwick-ink);
+  --destructive: var(--oxblood);
+  --destructive-foreground: #fff9f7;
+  --border: var(--harwick-border);
+  --input: var(--harwick-border);
+  --ring: var(--harwick-brass);
+  --chart-1: #6b8067;
+  --chart-2: #8b6244;
+  --chart-3: #8c6c35;
+  --chart-4: #7f4346;
+  --chart-5: #8b8a7d;
+  --radius: 0.75rem;
+  --sidebar: var(--harwick-shell);
+  --sidebar-foreground: var(--harwick-ink);
+  --sidebar-primary: var(--harwick-ink);
+  --sidebar-primary-foreground: var(--harwick-paper);
+  --sidebar-accent: var(--harwick-linen);
+  --sidebar-accent-foreground: var(--harwick-ink);
+  --sidebar-border: var(--harwick-border);
+  --sidebar-ring: var(--harwick-brass);
+
   color-scheme: light;
-  background: var(--color-background);
-  color: var(--color-foreground);
-  --shadow-soft: 0 20px 60px rgba(31, 42, 34, 0.09);
-  --shadow-tight: 0 10px 28px rgba(31, 42, 34, 0.065);
-  --shadow-raised: inset 0 1px 0 rgba(255, 255, 255, 0.78), 0 18px 48px rgba(31, 42, 34, 0.07);
-  --shadow-control: inset 0 1px 0 rgba(255, 255, 255, 0.72), 0 8px 20px rgba(31, 42, 34, 0.055);
-  --shadow-pressed: inset 0 2px 5px rgba(31, 42, 34, 0.1), 0 1px 0 rgba(255, 255, 255, 0.65);
-  --radius-panel: 18px;
-  --radius-card: 10px;
-  --radius-control: 8px;
+  background: var(--background);
+  color: var(--foreground);
+  --shadow-soft: 0 18px 46px rgba(24, 33, 29, 0.05);
+  --shadow-tight: 0 10px 24px rgba(24, 33, 29, 0.045);
+  --shadow-raised: 0 24px 64px rgba(24, 33, 29, 0.06), 0 1px 0 rgba(255, 255, 255, 0.72);
+  --shadow-control: 0 1px 0 rgba(255, 255, 255, 0.7);
+  --shadow-pressed: inset 0 1px 2px rgba(24, 33, 29, 0.08), 0 1px 0 rgba(255, 255, 255, 0.52);
+  --radius-panel: 24px;
+  --radius-card: 18px;
+  --radius-control: 12px;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  --sidebar: var(--color-harwick-paper);
-  --sidebar-foreground: var(--color-harwick-ink);
-  --sidebar-primary: var(--color-harwick-ink);
-  --sidebar-primary-foreground: var(--color-harwick-paper);
-  --sidebar-accent: var(--color-harwick-linen);
-  --sidebar-accent-foreground: var(--color-harwick-ink);
-  --sidebar-border: var(--color-harwick-border);
-  --sidebar-ring: var(--color-harwick-brass);
+}
+
+@theme inline {
+  --font-sans: "Instrument Sans", "Inter", "Geist", "Aptos", "Segoe UI", sans-serif;
+  --font-display: "Newsreader", "Instrument Sans", serif;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-border-strong: var(--harwick-border-strong);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-surface: var(--card);
+  --color-surface-muted: var(--harwick-linen);
+  --color-surface-raised: #fffdf8;
+  --color-muted-subtle: color-mix(in oklch, var(--muted-foreground) 66%, var(--background));
+  --color-brass: var(--harwick-brass);
+  --color-brass-soft: var(--harwick-brass-soft);
+  --color-hot: var(--oxblood);
+  --color-warm: var(--clay);
+  --color-qualified: var(--sage);
+  --color-syncing: var(--stone);
+  --color-archived: var(--stone);
+  --color-harwick-ink: var(--harwick-ink);
+  --color-harwick-ink-soft: var(--harwick-ink-soft);
+  --color-harwick-parchment: var(--harwick-parchment);
+  --color-harwick-paper: var(--harwick-paper);
+  --color-harwick-linen: var(--harwick-linen);
+  --color-harwick-linen-strong: var(--harwick-linen-strong);
+  --color-harwick-border: var(--harwick-border);
+  --color-harwick-border-strong: var(--harwick-border-strong);
+  --color-harwick-brass: var(--harwick-brass);
+  --color-harwick-brass-soft: var(--harwick-brass-soft);
+  --color-harwick-shell: var(--harwick-shell);
+  --color-harwick-shell-muted: var(--harwick-shell-muted);
+  --color-sage: var(--sage);
+  --color-sage-soft: var(--sage-soft);
+  --color-clay: var(--clay);
+  --color-clay-soft: var(--clay-soft);
+  --color-oxblood: var(--oxblood);
+  --color-oxblood-soft: var(--oxblood-soft);
+  --color-stone: var(--stone);
+  --color-stone-soft: var(--stone-soft);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
 }
 
 * {
@@ -146,11 +210,11 @@ html {
 body {
   min-height: 100vh;
   margin: 0;
-  background:
-    linear-gradient(180deg, rgba(255, 254, 250, 0.62) 0%, rgba(245, 243, 239, 0) 34rem),
-    var(--color-background);
+  background: var(--color-background);
   font-family: var(--font-sans);
-  font-size: 13px;
+  color: var(--color-foreground);
+  font-size: 14px;
+  line-height: 1.45;
 }
 
 button,
@@ -177,63 +241,85 @@ a {
 }
 
 .harwick-panel {
-  border: 1px solid var(--color-border);
+  border: 1px solid color-mix(in oklch, var(--color-border) 88%, white);
   border-radius: var(--radius-panel);
-  background: linear-gradient(180deg, #fffefa 0%, #f8f5ef 100%);
-  box-shadow: var(--shadow-raised);
+  background: var(--color-card);
+  box-shadow: var(--shadow-soft);
 }
 
 .harwick-card {
-  border: 1px solid var(--color-border);
-  border-radius: 18px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.56), rgba(255, 255, 255, 0) 42%),
-    linear-gradient(180deg, #fffefa 0%, #f6f2eb 100%);
-  box-shadow: var(--shadow-raised);
+  border: 1px solid color-mix(in oklch, var(--color-border) 92%, white);
+  border-radius: var(--radius-card);
+  background: color-mix(in oklch, var(--color-card) 94%, white);
+  box-shadow: var(--shadow-control);
 }
 
 .harwick-control {
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
-  background: linear-gradient(180deg, #fffefa 0%, #f1eee7 100%);
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  background: color-mix(in oklch, var(--color-secondary) 84%, white);
   box-shadow: var(--shadow-control);
 }
 
 .harwick-control:focus,
 .harwick-control:focus-visible {
   border-color: var(--color-harwick-brass);
-  box-shadow: var(--shadow-control), 0 0 0 3px rgba(201, 168, 76, 0.16);
+  box-shadow: var(--shadow-control), 0 0 0 3px rgba(114, 106, 88, 0.12);
   outline: none;
 }
 
 .harwick-pill {
-  border: 1px solid var(--color-border);
+  border: 1px solid color-mix(in oklch, var(--color-border) 88%, white);
   border-radius: 999px;
-  background: linear-gradient(180deg, #fffefa 0%, #efebe3 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78), 0 6px 16px rgba(31, 42, 34, 0.04);
+  background: color-mix(in oklch, var(--color-card) 92%, white);
+  box-shadow: var(--shadow-control);
 }
 
 .harwick-pill-active {
-  border-color: rgba(26, 42, 32, 0.92) !important;
-  background: linear-gradient(180deg, #233729 0%, #132218 100%) !important;
+  border-color: rgba(24, 33, 29, 0.9) !important;
+  background: var(--color-harwick-ink) !important;
   color: var(--color-harwick-paper) !important;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 8px 18px rgba(19, 34, 24, 0.18) !important;
+  box-shadow: 0 10px 24px rgba(24, 33, 29, 0.12) !important;
 }
 
 .harwick-toggle-item[data-state="on"] {
-  border-color: rgba(26, 42, 32, 0.92) !important;
-  background: linear-gradient(180deg, #233729 0%, #132218 100%) !important;
+  border-color: rgba(24, 33, 29, 0.9) !important;
+  background: var(--color-harwick-ink) !important;
   color: var(--color-harwick-paper) !important;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 8px 18px rgba(19, 34, 24, 0.18) !important;
+  box-shadow: 0 10px 24px rgba(24, 33, 29, 0.12) !important;
 }
 
 .harwick-stat-card {
-  border: 1px solid var(--color-border);
+  border: 1px solid color-mix(in oklch, var(--color-border) 90%, white);
   border-radius: 14px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0) 44%),
-    linear-gradient(180deg, #fffefa 0%, #eee9df 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82), 0 12px 28px rgba(31, 42, 34, 0.055);
+  background: color-mix(in oklch, var(--color-card) 90%, white);
+  box-shadow: var(--shadow-control);
+}
+
+.harwick-app-frame {
+  border: none;
+  border-radius: 0;
+  background: var(--color-harwick-shell);
+  box-shadow: none;
+}
+
+.harwick-region {
+  background: color-mix(in oklch, var(--color-card) 95%, white);
+}
+
+.harwick-inset-surface {
+  border: 1px solid color-mix(in oklch, var(--color-border) 86%, white);
+  background: color-mix(in oklch, var(--color-secondary) 78%, white);
+}
+
+.harwick-subtle-chip {
+  border: 1px solid color-mix(in oklch, var(--color-border) 88%, white);
+  background: color-mix(in oklch, var(--color-card) 90%, white);
+  box-shadow: var(--shadow-control);
+}
+
+.harwick-list-seam > * + * {
+  border-top: 1px solid color-mix(in oklch, var(--color-border) 84%, white);
 }
 
 .harwick-fade-in {
@@ -256,17 +342,6 @@ a {
   }
 }
 
-.dark {
-  --sidebar: var(--color-harwick-paper);
-  --sidebar-foreground: var(--color-harwick-ink);
-  --sidebar-primary: var(--color-harwick-ink);
-  --sidebar-primary-foreground: var(--color-harwick-paper);
-  --sidebar-accent: var(--color-harwick-linen);
-  --sidebar-accent-foreground: var(--color-harwick-ink);
-  --sidebar-border: var(--color-harwick-border);
-  --sidebar-ring: var(--color-harwick-brass);
-}
-
 @theme inline {
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
@@ -276,4 +351,329 @@ a {
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+}
+
+/* Dark home shell — single coherent graphite material. Depth comes from
+ * layered shadow + a subtle inner highlight, not from per-card hue.
+ * One accent (brass). Status colors live as small chips, never as surfaces.
+ */
+.harwick-shell-dark {
+  --graphite-0: #0c0c0d;
+  --graphite-1: #131314;
+  --graphite-2: #1a1a1c;
+  --graphite-3: #222225;
+  --graphite-surface-1: rgba(255, 255, 255, 0.018);
+  --graphite-surface-2: rgba(255, 255, 255, 0.028);
+  --graphite-surface-3: rgba(255, 255, 255, 0.042);
+  --graphite-surface-4: rgba(255, 255, 255, 0.06);
+  --graphite-line: rgba(255, 255, 255, 0.075);
+  --graphite-line-strong: rgba(255, 255, 255, 0.11);
+  --graphite-line-soft: rgba(255, 255, 255, 0.05);
+  --graphite-text: #f4f4f3;
+  --graphite-text-muted: rgba(244, 244, 243, 0.62);
+  --graphite-text-subtle: rgba(244, 244, 243, 0.42);
+  --graphite-text-faint: rgba(244, 244, 243, 0.28);
+  --brass-accent: #9ab5aa;
+  --brass-accent-soft: rgba(154, 181, 170, 0.2);
+  --shadow-elev-1: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-elev-2: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 6px 16px rgba(0, 0, 0, 0.32),
+    0 1px 3px rgba(0, 0, 0, 0.24);
+  --shadow-elev-3: 0 1px 0 rgba(255, 255, 255, 0.045) inset, 0 -1px 0 rgba(0, 0, 0, 0.32) inset,
+    0 14px 32px rgba(0, 0, 0, 0.36), 0 2px 6px rgba(0, 0, 0, 0.22);
+  --harwick-ink: var(--graphite-text);
+  --harwick-ink-soft: var(--graphite-text-muted);
+  --harwick-parchment: #101113;
+  --harwick-paper: #151719;
+  --harwick-linen: #1d2023;
+  --harwick-linen-strong: #262a2e;
+  --harwick-border: var(--graphite-line);
+  --harwick-border-strong: var(--graphite-line-strong);
+  --harwick-shell: #0f1011;
+  --harwick-shell-muted: #131417;
+  --stone: rgba(244, 244, 243, 0.66);
+  --stone-soft: rgba(255, 255, 255, 0.06);
+  --background: var(--harwick-shell);
+  --foreground: var(--harwick-ink);
+  --card: var(--harwick-paper);
+  --card-foreground: var(--harwick-ink);
+  --popover: var(--harwick-paper);
+  --popover-foreground: var(--harwick-ink);
+  --primary: var(--harwick-ink);
+  --primary-foreground: #0f1011;
+  --secondary: var(--harwick-linen);
+  --secondary-foreground: var(--harwick-ink);
+  --muted: var(--harwick-linen);
+  --muted-foreground: var(--harwick-ink-soft);
+  --accent: var(--harwick-linen-strong);
+  --accent-foreground: var(--harwick-ink);
+  --border: var(--harwick-border);
+  --input: var(--harwick-border);
+  --sidebar: #101112;
+  --sidebar-foreground: var(--harwick-ink);
+  --sidebar-primary: var(--harwick-ink);
+  --sidebar-primary-foreground: #0f1011;
+  --sidebar-accent: var(--harwick-linen);
+  --sidebar-accent-foreground: var(--harwick-ink);
+  --sidebar-border: var(--harwick-border);
+  --sidebar-ring: var(--harwick-brass);
+  --color-surface-raised: rgba(255, 255, 255, 0.065);
+  --shadow-soft: var(--shadow-elev-2);
+  --shadow-tight: var(--shadow-elev-1);
+  --shadow-raised: var(--shadow-elev-3);
+  --shadow-control: var(--shadow-elev-1);
+  --shadow-pressed: inset 0 1px 1px rgba(255, 255, 255, 0.04), inset 0 -1px 1px rgba(0, 0, 0, 0.42);
+  color-scheme: dark;
+
+  background:
+    radial-gradient(1100px 620px at 50% -120px, rgba(154, 181, 170, 0.07) 0%, rgba(154, 181, 170, 0) 60%),
+    linear-gradient(180deg, #0c0c0d 0%, #0a0a0b 100%);
+  color: var(--graphite-text);
+}
+
+.harwick-shell-dark .harwick-app-frame,
+.harwick-shell-dark .harwick-region {
+  background: transparent;
+}
+
+.harwick-home-dashboard {
+  min-height: 100%;
+  color: var(--graphite-text, #f4f4f3);
+}
+
+.harwick-home-eyebrow {
+  color: var(--graphite-text-faint, rgba(244, 244, 243, 0.34));
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.harwick-home-title {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: -0.005em;
+  color: var(--graphite-text, #f4f4f3);
+}
+
+.harwick-home-status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--graphite-line, rgba(255, 255, 255, 0.075));
+  background: linear-gradient(180deg, var(--graphite-surface-3), var(--graphite-surface-1));
+  color: var(--graphite-text-muted, rgba(244, 244, 243, 0.6));
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  box-shadow: var(--shadow-elev-1);
+}
+
+.harwick-prompt-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--graphite-line, rgba(255, 255, 255, 0.075));
+  background: linear-gradient(180deg, var(--graphite-surface-3), rgba(255, 255, 255, 0.01));
+  color: rgba(244, 244, 243, 0.78);
+  font-size: 13.5px;
+  font-weight: 400;
+  transition: transform 180ms ease, color 180ms ease, border-color 180ms ease, background 180ms ease;
+  box-shadow: var(--shadow-elev-1);
+}
+.harwick-prompt-chip:hover {
+  color: #f4f4f3;
+  border-color: var(--graphite-line-strong, rgba(255, 255, 255, 0.11));
+  background: linear-gradient(180deg, var(--graphite-surface-4), var(--graphite-surface-2));
+  transform: translateY(-1px);
+}
+
+.harwick-composer-dock {
+  position: relative;
+  border-radius: 24px;
+  border: 1px solid var(--graphite-line, rgba(255, 255, 255, 0.075));
+  background:
+    linear-gradient(180deg, var(--graphite-surface-4) 0%, var(--graphite-surface-1) 36%, rgba(255, 255, 255, 0) 100%),
+    linear-gradient(180deg, #1a1a1c 0%, #131314 100%);
+  box-shadow: var(--shadow-elev-3);
+}
+
+.harwick-composer-dock::before {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  border-radius: 23px;
+  border: 1px solid var(--graphite-line-soft, rgba(255, 255, 255, 0.05));
+  pointer-events: none;
+}
+
+.harwick-bubble-user {
+  border-radius: 18px;
+  padding: 10px 14px;
+  background: linear-gradient(180deg, var(--graphite-surface-4), var(--graphite-surface-2));
+  border: 1px solid var(--graphite-line, rgba(255, 255, 255, 0.075));
+  color: var(--graphite-text, #f4f4f3);
+  box-shadow: var(--shadow-elev-1);
+}
+
+.harwick-bubble-assistant {
+  color: var(--graphite-text, #f4f4f3);
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.harwick-home-control-button {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--graphite-text-muted, rgba(244, 244, 243, 0.62));
+  transition: border-color 180ms ease, background-color 180ms ease, color 180ms ease;
+}
+
+.harwick-home-control-button:hover {
+  border-color: var(--graphite-line, rgba(255, 255, 255, 0.075));
+  background: var(--graphite-surface-3, rgba(255, 255, 255, 0.042));
+  color: var(--graphite-text, #f4f4f3);
+}
+
+.harwick-home-menu {
+  border: 1px solid var(--graphite-line, rgba(255, 255, 255, 0.075));
+  background: linear-gradient(180deg, var(--graphite-2, #1a1a1c) 0%, var(--graphite-1, #131314) 100%);
+  color: var(--graphite-text, #f4f4f3);
+  box-shadow: var(--shadow-elev-3);
+}
+
+.harwick-home-menu-item {
+  color: var(--graphite-text-muted, rgba(244, 244, 243, 0.62));
+}
+
+.harwick-home-menu-item:focus {
+  background: var(--graphite-surface-3, rgba(255, 255, 255, 0.042));
+  color: var(--graphite-text, #f4f4f3);
+}
+
+.harwick-home-token {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--graphite-line, rgba(255, 255, 255, 0.075));
+  background: var(--graphite-surface-3, rgba(255, 255, 255, 0.042));
+  color: var(--graphite-text-muted, rgba(244, 244, 243, 0.62));
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.harwick-home-token-remove {
+  color: var(--graphite-text-faint, rgba(244, 244, 243, 0.28));
+  transition: color 180ms ease;
+}
+
+.harwick-home-token-remove:hover {
+  color: var(--graphite-text, #f4f4f3);
+}
+
+.harwick-home-panel {
+  border: 1px solid var(--graphite-line, rgba(255, 255, 255, 0.075));
+  background: linear-gradient(180deg, var(--graphite-surface-2, rgba(255, 255, 255, 0.028)), var(--graphite-surface-1, rgba(255, 255, 255, 0.018)));
+  box-shadow: var(--shadow-elev-1);
+}
+
+.harwick-home-panel-hover {
+  transition: border-color 180ms ease, background 180ms ease, color 180ms ease, transform 180ms ease;
+}
+
+.harwick-home-panel-hover:hover {
+  border-color: var(--graphite-line-strong, rgba(255, 255, 255, 0.11));
+  background: linear-gradient(180deg, var(--graphite-surface-4, rgba(255, 255, 255, 0.06)), var(--graphite-surface-2, rgba(255, 255, 255, 0.028)));
+  transform: translateY(-1px);
+}
+
+.harwick-home-link {
+  color: var(--graphite-text-subtle, rgba(244, 244, 243, 0.42));
+  transition: color 180ms ease;
+}
+
+.harwick-home-link:hover {
+  color: var(--graphite-text, #f4f4f3);
+}
+
+.harwick-home-icon-button {
+  background: transparent;
+  color: var(--graphite-text-muted, rgba(244, 244, 243, 0.62));
+  transition: background-color 180ms ease, color 180ms ease;
+}
+
+.harwick-home-icon-button:hover {
+  background: var(--graphite-surface-3, rgba(255, 255, 255, 0.042));
+  color: var(--graphite-text, #f4f4f3);
+}
+
+.harwick-home-chip {
+  border: 1px solid var(--graphite-line, rgba(255, 255, 255, 0.075));
+  background: var(--graphite-surface-2, rgba(255, 255, 255, 0.028));
+  color: var(--graphite-text-muted, rgba(244, 244, 243, 0.62));
+  box-shadow: none;
+}
+
+.harwick-home-sidepanel {
+  border-left: 1px solid var(--graphite-line, rgba(255, 255, 255, 0.075));
+  background: linear-gradient(180deg, var(--graphite-2, #1a1a1c) 0%, #101012 100%);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.02), -24px 0 64px rgba(0, 0, 0, 0.42);
+}
+
+.harwick-home-sidepanel-header {
+  border-bottom: 1px solid var(--graphite-line, rgba(255, 255, 255, 0.075));
+  background: rgba(19, 19, 20, 0.94);
+  backdrop-filter: blur(14px);
+}
+
+.harwick-fade-stack > * + * {
+  margin-top: 16px;
+}
+
+.harwick-hero-fade {
+  animation: harwick-hero-fade 320ms ease both;
+}
+
+.harwick-hero-fade-out {
+  animation: harwick-hero-fade-out 240ms ease both;
+}
+
+@keyframes harwick-hero-fade {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes harwick-hero-fade-out {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(-6px); }
+}
+
+.harwick-detail-panel {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+}
+
+.harwick-detail-panel::-webkit-scrollbar {
+  width: 10px;
+}
+
+.harwick-detail-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.harwick-detail-panel::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.08);
+  background-clip: padding-box;
+}
+
+.harwick-detail-panel:hover::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+  background-clip: padding-box;
 }

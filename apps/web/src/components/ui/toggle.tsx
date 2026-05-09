@@ -7,18 +7,18 @@ import * as TogglePrimitive from "@radix-ui/react-toggle"
 import { cn } from "../../lib/utils"
 
 const toggleVariants = cva(
-  "inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-[color,box-shadow] outline-none hover:bg-muted hover:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 data-[state=on]:bg-accent data-[state=on]:text-accent-foreground dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "inline-flex items-center justify-center gap-2 rounded-[10px] border border-transparent text-sm font-medium whitespace-nowrap text-harwick-ink-soft transition-[color,background-color,border-color,box-shadow] outline-none hover:bg-harwick-paper hover:text-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/18 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 data-[state=on]:border-border-strong data-[state=on]:bg-card data-[state=on]:text-foreground data-[state=on]:shadow-[0_1px_0_rgba(255,255,255,0.5),0_8px_18px_rgba(44,45,38,0.05)] [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
         default: "bg-transparent",
         outline:
-          "border border-input bg-transparent shadow-xs hover:bg-accent hover:text-accent-foreground",
+          "border-0 bg-transparent shadow-none hover:bg-harwick-paper hover:text-accent-foreground",
       },
       size: {
-        default: "h-9 min-w-9 px-2",
-        sm: "h-8 min-w-8 px-1.5",
-        lg: "h-10 min-w-10 px-2.5",
+        default: "h-9 min-w-9 px-3",
+        sm: "h-8 min-w-8 px-2.5",
+        lg: "h-10 min-w-10 px-3.5",
       },
     },
     defaultVariants: {
