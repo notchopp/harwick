@@ -11,6 +11,7 @@ import {
   ChevronRight,
   CircleDot,
   FileText,
+  Hash,
   History,
   MessageSquareText,
   RefreshCw,
@@ -64,6 +65,7 @@ type NavigationItem = {
 const navigation: NavigationItem[] = [
   { label: "Assistant", href: "/home", icon: Bot },
   { label: "Conversations", href: "/conversations", icon: MessageSquareText },
+  { label: "Channels", href: "/channels", icon: Hash },
   { label: "Leads", href: "/leads", icon: Users },
   { label: "Queue", href: "/queue", icon: CheckSquare },
   { label: "Listings", href: "/listings", icon: Building2 },

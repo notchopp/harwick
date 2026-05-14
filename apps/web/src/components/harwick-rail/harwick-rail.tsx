@@ -25,12 +25,13 @@ import { FeedbackButtons } from "../training-signals/feedback-buttons";
 import { cn } from "../../lib/utils";
 import { HarwickChat } from "./harwick-chat";
 import { HarwickMark } from "./harwick-mark";
+import { RoomsMode } from "./rooms-mode";
 import { useProactiveFeed, type ProactiveCard, type ProactiveKind } from "./use-proactive-feed";
 import { useRailThreads } from "./use-rail-threads";
 
 const POSITION_STORAGE_KEY = "harwick-rail-position-v5";
 
-type RailMode = "feed" | "chat";
+type RailMode = "feed" | "chat" | "rooms";
 
 type RailPosition = {
   open: boolean;
@@ -301,7 +302,7 @@ function RailHeader(props: {
       </div>
       <div className="ml-auto flex items-center gap-1">
         <div className="inline-flex rounded-[7px] border border-[color:var(--panel-line)] bg-[color:var(--panel-2)] p-0.5">
-          {(["feed", "chat"] as const).map((mode) => (
+          {(["feed", "chat", "rooms"] as const).map((mode) => (
             <button
               key={mode}
               type="button"
@@ -310,7 +311,7 @@ function RailHeader(props: {
                 props.mode === mode ? "bg-white text-[color:var(--panel-0)]" : "text-[color:var(--graphite-text-muted)] hover:text-[color:var(--graphite-text)]",
               )}
               onClick={() => props.onModeChange(mode)}
-              title={mode === "feed" ? "Today's feed" : "Chat with Harwick"}
+              title={mode === "feed" ? "Today's feed" : mode === "chat" ? "Chat with Harwick" : "Workspace rooms"}
             >
               {mode}
             </button>
@@ -514,6 +515,8 @@ export function HarwickRail(props: { workspaceId: string; operatorRole: Workspac
           role={props.operatorRole}
           onSwitchToChat={() => setPosition((current) => ({ ...current, mode: "chat" }))}
         />
+      ) : position.mode === "rooms" ? (
+        <RoomsMode workspaceId={props.workspaceId} />
       ) : (
         <ChatMode workspaceId={props.workspaceId} />
       )}

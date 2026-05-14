@@ -83,6 +83,12 @@ function canManageRouting(role: WorkspaceRole): boolean {
   return workspaceRoleHasCapability(role, "routing.manage");
 }
 
+function canSpawnChannels(role: WorkspaceRole): boolean {
+  // Viewers are read-only. Everyone else can spawn rooms (the new channel is
+  // only visible to its members, so this is no broader than Slack semantics).
+  return role !== "viewer";
+}
+
 function canCreateLoops(role: WorkspaceRole): boolean {
   return role === "owner" || role === "admin" || role === "team_lead" || role === "lead_manager";
 }
@@ -808,6 +814,14 @@ export function buildHarwickChatTools(deps: ToolDeps) {
         kickoffMessage: z.string().max(2000).optional().describe("If provided, Harwick posts this as the first message in the new channel so the room isn't empty."),
       }),
       async execute({ name, kind, description, memberIds, kickoffMessage }) {
+        if (!canSpawnChannels(deps.operatorRole)) {
+          return {
+            kind: "channel_card",
+            created: false,
+            error: "This role is read-only and cannot create channels.",
+          };
+        }
+
         const parsed = HarwickChannelCreateSchema.safeParse({ name, kind, description, memberIds });
         if (!parsed.success) {
           return {
@@ -884,6 +898,10 @@ export function buildHarwickChatTools(deps: ToolDeps) {
         body: z.string().min(1).max(8000).describe("Message body. Plain text; use simple formatting."),
       }),
       async execute({ channelId, body }) {
+        if (!canSpawnChannels(deps.operatorRole)) {
+          return { kind: "channel_message", posted: false, error: "This role is read-only and cannot post messages." };
+        }
+
         // Confirm the operator is a member of the target channel (otherwise
         // Harwick could leak across rooms when invoked from elsewhere).
         const { data: membership } = await deps.supabase
