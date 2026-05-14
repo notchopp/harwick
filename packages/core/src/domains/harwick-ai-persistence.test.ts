@@ -8,23 +8,23 @@ import {
 describe("harwick ai persistence helpers", () => {
   it("keeps approved but unexecuted turns as drafted", () => {
     expect(deriveHarwickAiTurnPersistenceStatus({
-      automationDecision: {
-        canAutoExecute: true,
-        approvedTools: ["send_meta_reply"],
-        blockedTools: [],
-        reason: "policy allows this turn to auto-send.",
-      },
+        automationDecision: {
+          canAutoExecute: true,
+          approvedTools: ["send_meta_message"],
+          blockedTools: [],
+          reason: "policy allows this turn to auto-send.",
+        },
     })).toBe("drafted");
   });
 
   it("marks executed approved turns as auto executed", () => {
     expect(deriveHarwickAiTurnPersistenceStatus({
-      automationDecision: {
-        canAutoExecute: true,
-        approvedTools: ["send_meta_reply"],
-        blockedTools: [],
-        reason: "policy allows this turn to auto-send.",
-      },
+        automationDecision: {
+          canAutoExecute: true,
+          approvedTools: ["send_meta_message"],
+          blockedTools: [],
+          reason: "policy allows this turn to auto-send.",
+        },
       isExecuted: true,
     })).toBe("auto_executed");
   });
@@ -43,12 +43,12 @@ describe("harwick ai persistence helpers", () => {
   it("classifies tool policy status", () => {
     expect(deriveHarwickAiToolPolicyStatus({
       toolCall: {
-        tool: "send_meta_reply",
+        tool: "send_meta_message",
         reason: "safe reply",
         requiresApproval: false,
         payload: {},
       },
-      approvedTools: ["send_meta_reply"],
+      approvedTools: ["send_meta_message"],
       blockedTools: [],
     })).toBe("approved");
 
@@ -67,17 +67,17 @@ describe("harwick ai persistence helpers", () => {
   it("builds persisted tool call records from a decision", () => {
     const [toolCall] = buildPersistedHarwickAiToolCalls({
       toolCalls: [{
-        tool: "send_meta_reply",
+        tool: "send_meta_message",
         reason: "safe qualification question",
         requiresApproval: false,
-        payload: { reply: "What timeline are you working with?" },
+        payload: { reply: "What timeline are you working with?", target: "dm" },
       }],
-      approvedTools: ["send_meta_reply"],
+      approvedTools: ["send_meta_message"],
       blockedTools: [],
     });
 
     expect(toolCall).toMatchObject({
-      tool: "send_meta_reply",
+      tool: "send_meta_message",
       policyStatus: "approved",
       executionStatus: "pending",
       executionOutput: {},

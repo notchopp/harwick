@@ -50,9 +50,14 @@ describe("conversation contracts", () => {
             safetyFlags: ["safe_to_send"],
             handoffBrief: null,
             documentUpdate: "Lead asked whether the listing is still available.",
+            liveFields: [{
+              key: "leadType",
+              label: "Lead type",
+              value: "buyer",
+            }],
             toolActivity: [{
               id: "step-1:tool:0",
-              tool: "send_meta_dm",
+              tool: "send_meta_message",
               status: "executed",
               summary: "Reply sent",
               detail: "Sent through instagram dm",
@@ -81,7 +86,8 @@ describe("conversation contracts", () => {
 
     expect(parsed.threads[0]?.messages[1]?.kind).toBe("ai_action");
     expect(parsed.threads[0]?.aiSynthesis?.missingFields).toEqual(["timeline"]);
-    expect(parsed.threads[0]?.aiSynthesis?.toolActivity[0]?.tool).toBe("send_meta_dm");
+    expect(parsed.threads[0]?.aiSynthesis?.liveFields[0]?.label).toBe("Lead type");
+    expect(parsed.threads[0]?.aiSynthesis?.toolActivity[0]?.tool).toBe("send_meta_message");
   });
 
   it("defaults synthesis tool activity to an empty trail", () => {
@@ -127,6 +133,7 @@ describe("conversation contracts", () => {
           safetyFlags: [],
           handoffBrief: null,
           documentUpdate: null,
+          liveFields: [],
           updatedAt: "2026-04-30T12:15:00.000Z",
         },
         messages: [],
@@ -134,6 +141,7 @@ describe("conversation contracts", () => {
     });
 
     expect(parsed.threads[0]?.aiSynthesis?.toolActivity).toEqual([]);
+    expect(parsed.threads[0]?.aiSynthesis?.liveFields).toEqual([]);
   });
 
   it("rejects invalid conversation buckets", () => {

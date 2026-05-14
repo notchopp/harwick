@@ -23,10 +23,10 @@ describe("HarwickAiTurnGeneratorService", () => {
       missingFields: [],
       toolCalls: [
         {
-          tool: "send_meta_reply" as const,
+          tool: "send_meta_message" as const,
           reason: "User showed interest",
           requiresApproval: false,
-          payload: { reply: "Thanks for your interest!" },
+          payload: { reply: "Thanks for your interest!", target: "dm" },
         },
       ],
       statePatch: {
@@ -49,7 +49,7 @@ describe("HarwickAiTurnGeneratorService", () => {
       autoSendEnabled: true,
       confidenceThreshold: 0.7,
       allowedAutoActions: ["send_reply", "ask_qualification"],
-      allowedAutoTools: ["send_meta_reply", "send_meta_dm"],
+      allowedAutoTools: ["send_meta_message"],
       requiresApprovalActions: ["route_lead"],
       requiresApprovalTools: ["route_lead"],
       blockedSafetyFlags: ["needs_human_review"],
@@ -135,7 +135,7 @@ describe("HarwickAiTurnGeneratorService", () => {
       autoSendEnabled: true,
       confidenceThreshold: 0.7,
       allowedAutoActions: ["send_reply"],
-      allowedAutoTools: ["send_meta_reply"],
+        allowedAutoTools: ["send_meta_message"],
       requiresApprovalActions: ["request_showing_approval"],
       requiresApprovalTools: ["request_showing_approval"],
       blockedSafetyFlags: ["needs_human_review"],

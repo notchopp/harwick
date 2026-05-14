@@ -12,7 +12,9 @@ export default async function Page() {
       activeItem="Memory"
       memberName={membership.displayName}
       memberRole={membership.role}
+      operatorRole={membership.role}
       title="Memory"
+      workspaceId={membership.workspaceId}
       workspaceName={membership.workspaceName}
     >
       <MemoryPageContent />

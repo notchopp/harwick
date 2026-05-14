@@ -12,6 +12,7 @@ import type {
   HarwickLoopUpdateRow,
   Json,
 } from "./database.types";
+import type { LeadRow } from "./leads";
 import type { RealtyOpsSupabaseClient } from "./server-client";
 
 type HarwickLoopDbRow = {
@@ -60,6 +61,7 @@ export type HarwickLoopRepository = {
     nowIso: string;
   }): Promise<HarwickLoop>;
   listDueScheduledLoops(params: { nowIso: string; limit: number }): Promise<HarwickLoop[]>;
+  listActiveEventLoops(params: { eventType: string; limit: number }): Promise<HarwickLoop[]>;
   createRun(params: {
     workspaceId: string;
     loopId: string;
@@ -68,6 +70,22 @@ export type HarwickLoopRepository = {
     metadata?: Record<string, unknown>;
   }): Promise<HarwickLoopRunCreateResult>;
   completeRun(params: HarwickLoopRunCompletion): Promise<void>;
+};
+
+export type HarwickLoopClosedWonEvent = {
+  workspaceId: string;
+  leadId: string;
+  leadName: string | null;
+  status: string;
+  sourceChannel: string;
+  targetArea: string | null;
+  timeline: string | null;
+  assignedAgentId: string | null;
+  occurredAt: string;
+};
+
+export type HarwickLoopEventSourceRepository = {
+  listClosedWonLeadEvents(params: { sinceIso: string; limit: number }): Promise<HarwickLoopClosedWonEvent[]>;
 };
 
 function mapRowToLoop(row: HarwickLoopDbRow): HarwickLoop {
@@ -200,6 +218,24 @@ export function createSupabaseHarwickLoopRepository(
       return (data ?? []).map(mapRowToLoop);
     },
 
+    async listActiveEventLoops(params) {
+      const { data, error } = await supabase
+        .from("harwick_loops")
+        .select("*")
+        .eq("status", "active")
+        .eq("trigger_type", "event")
+        .eq("event_type", params.eventType)
+        .order("updated_at", { ascending: false })
+        .limit(params.limit)
+        .returns<HarwickLoopDbRow[]>();
+
+      if (error !== null) {
+        throw error;
+      }
+
+      return (data ?? []).map(mapRowToLoop);
+    },
+
     async createRun(params) {
       const insert: HarwickLoopRunInsertRow = {
         workspace_id: params.workspaceId,
@@ -255,6 +291,39 @@ export function createSupabaseHarwickLoopRepository(
       if (loopError !== null) {
         throw loopError;
       }
+    },
+  };
+}
+
+export function createSupabaseHarwickLoopEventSourceRepository(
+  supabase: RealtyOpsSupabaseClient,
+): HarwickLoopEventSourceRepository {
+  return {
+    async listClosedWonLeadEvents(params) {
+      const { data, error } = await supabase
+        .from("leads")
+        .select("*")
+        .eq("status", "closed_won")
+        .gte("updated_at", params.sinceIso)
+        .order("updated_at", { ascending: false })
+        .limit(params.limit)
+        .returns<LeadRow[]>();
+
+      if (error !== null) {
+        throw error;
+      }
+
+      return (data ?? []).map((row) => ({
+        workspaceId: row.workspace_id,
+        leadId: row.id,
+        leadName: row.full_name ?? row.instagram_username ?? row.phone ?? null,
+        status: row.status,
+        sourceChannel: row.source_channel,
+        targetArea: row.target_area,
+        timeline: row.timeline,
+        assignedAgentId: row.assigned_agent_id,
+        occurredAt: row.updated_at,
+      }));
     },
   };
 }

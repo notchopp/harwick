@@ -23,11 +23,20 @@ export type HarwickSubagentTask = {
   createdAt: string;
 };
 
+const SubagentConfidenceSchema = z.preprocess((value) => {
+  const numeric = typeof value === "number"
+    ? value
+    : typeof value === "string"
+      ? Number(value)
+      : Number.NaN;
+  return Number.isFinite(numeric) ? numeric : 0.5;
+}, z.number().min(0).max(1));
+
 const SubagentTaskResultSchema = z.object({
   summary: z.string().trim().min(1).max(1000),
   recommendation: z.string().trim().min(1).max(160),
   reason: z.string().trim().min(1).max(1000),
-  confidence: z.number().min(0).max(1),
+  confidence: SubagentConfidenceSchema,
   priority: z.enum(["low", "normal", "high", "urgent"]).optional(),
 });
 
@@ -80,12 +89,26 @@ export type HarwickSubagentExecutionReport = {
   failed: number;
 };
 
+export type HarwickSubagentSingleExecutionResult =
+  | {
+    status: "completed";
+    result: HarwickSubagentTaskResult;
+    surfaced: boolean;
+  }
+  | {
+    status: "already_claimed";
+  }
+  | {
+    status: "failed";
+    errorMessage: string;
+  };
+
 export function createSmallModelHarwickSubagentExecutorClient(
   client: SmallModelClient,
 ): HarwickSubagentExecutorClient {
   return {
     async executeTask(task) {
-      return client.classify({
+      const result = await client.classify({
         schema: SubagentTaskResultSchema,
         temperature: 0.2,
         maxTokens: 500,
@@ -104,6 +127,7 @@ export function createSmallModelHarwickSubagentExecutorClient(
           payload: task.payload,
         }),
       });
+      return SubagentTaskResultSchema.parse(result);
     },
   };
 }
@@ -177,9 +201,7 @@ export async function executeHarwickSubagentTasks(
   deps: HarwickSubagentExecutionDeps,
 ): Promise<HarwickSubagentExecutionReport> {
   const now = deps.now?.() ?? new Date();
-  const nowIso = now.toISOString();
   const tasks = await deps.taskRepository.listQueuedTasks({ limit: deps.batchSize ?? 10 });
-  const executorClient = deps.executorClient ?? { executeTask: deterministicExecuteTask };
 
   let completed = 0;
   let surfaced = 0;
@@ -188,60 +210,26 @@ export async function executeHarwickSubagentTasks(
   let failed = 0;
 
   for (const task of tasks) {
-    const claimed = await deps.taskRepository.markTaskRunning({
-      workspaceId: task.workspaceId,
-      taskId: task.id,
-      nowIso,
+    const execution = await executeHarwickSubagentTask({
+      ...deps,
+      task,
+      now: () => now,
     });
-    if (!claimed) {
+
+    if (execution.status === "already_claimed") {
       skippedClaimed += 1;
       continue;
     }
-
-    try {
-      const result = SubagentTaskResultSchema.parse(await executorClient.executeTask(task));
-      await deps.taskRepository.markTaskCompleted({
-        workspaceId: task.workspaceId,
-        taskId: task.id,
-        result,
-        nowIso,
-      });
-      completed += 1;
-
-      const signalKey = `harwick_subagent_result:${task.id}`;
-      const existing = await deps.workItemRepository.findOpenInsightBySignalKey({
-        workspaceId: task.workspaceId,
-        signalKey,
-      });
-      if (existing !== null) {
-        skippedExisting += 1;
-        continue;
-      }
-
-      const assignedMemberId = task.leadId === null
-        ? null
-        : await deps.taskRepository.resolveLeadAssignedMember({
-          workspaceId: task.workspaceId,
-          leadId: task.leadId,
-        });
-      const workItem = await intelligizeHarwickWorkItem({
-        context: {
-          signalKey,
-          source: "subagent_result",
-          item: buildResultWorkItem({ task, result, assignedMemberId }),
-        },
-        ...(deps.intelligenceClient === undefined ? {} : { client: deps.intelligenceClient }),
-      });
-      await deps.workItemRepository.createWorkItem(workItem);
-      surfaced += 1;
-    } catch (error) {
+    if (execution.status === "failed") {
       failed += 1;
-      await deps.taskRepository.markTaskFailed({
-        workspaceId: task.workspaceId,
-        taskId: task.id,
-        errorMessage: error instanceof Error ? error.message : String(error),
-        nowIso,
-      });
+      continue;
+    }
+
+    completed += 1;
+    if (execution.surfaced) {
+      surfaced += 1;
+    } else {
+      skippedExisting += 1;
     }
   }
 
@@ -253,4 +241,69 @@ export async function executeHarwickSubagentTasks(
     skippedExisting,
     failed,
   };
+}
+
+export async function executeHarwickSubagentTask(
+  deps: Omit<HarwickSubagentExecutionDeps, "batchSize"> & {
+    task: HarwickSubagentTask;
+  },
+): Promise<HarwickSubagentSingleExecutionResult> {
+  const now = deps.now?.() ?? new Date();
+  const nowIso = now.toISOString();
+  const executorClient = deps.executorClient ?? { executeTask: deterministicExecuteTask };
+  const task = deps.task;
+
+  const claimed = await deps.taskRepository.markTaskRunning({
+    workspaceId: task.workspaceId,
+    taskId: task.id,
+    nowIso,
+  });
+  if (!claimed) {
+    return { status: "already_claimed" };
+  }
+
+  try {
+    const result = SubagentTaskResultSchema.parse(await executorClient.executeTask(task));
+    await deps.taskRepository.markTaskCompleted({
+      workspaceId: task.workspaceId,
+      taskId: task.id,
+      result,
+      nowIso,
+    });
+
+    const signalKey = `harwick_subagent_result:${task.id}`;
+    const existing = await deps.workItemRepository.findOpenInsightBySignalKey({
+      workspaceId: task.workspaceId,
+      signalKey,
+    });
+    if (existing !== null) {
+      return { status: "completed", result, surfaced: false };
+    }
+
+    const assignedMemberId = task.leadId === null
+      ? null
+      : await deps.taskRepository.resolveLeadAssignedMember({
+        workspaceId: task.workspaceId,
+        leadId: task.leadId,
+      });
+    const workItem = await intelligizeHarwickWorkItem({
+      context: {
+        signalKey,
+        source: "subagent_result",
+        item: buildResultWorkItem({ task, result, assignedMemberId }),
+      },
+      ...(deps.intelligenceClient === undefined ? {} : { client: deps.intelligenceClient }),
+    });
+    await deps.workItemRepository.createWorkItem(workItem);
+    return { status: "completed", result, surfaced: true };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    await deps.taskRepository.markTaskFailed({
+      workspaceId: task.workspaceId,
+      taskId: task.id,
+      errorMessage,
+      nowIso,
+    });
+    return { status: "failed", errorMessage };
+  }
 }

@@ -142,6 +142,7 @@ describe("conversation inbox data", () => {
     expect(inbox.threads[0]?.aiSynthesis).toMatchObject({
       intent: "listing_question",
       missingFields: ["timeline"],
+      liveFields: [],
     });
     expect(inbox.threads[0]?.messages.map((message) => message.kind)).toEqual([
       "lead",
@@ -293,6 +294,7 @@ describe("conversation inbox data", () => {
           safetyFlags: ["in_flight", "subagent_task"],
           handoffBrief: "Harwick is checking routing context.",
           documentUpdate: null,
+          liveFields: [],
           updatedAt: "2026-04-30T12:17:00.000Z",
         }]),
       }),

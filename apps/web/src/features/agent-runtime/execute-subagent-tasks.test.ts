@@ -1,6 +1,7 @@
 import type { HarwickWorkItemCreate } from "@realty-ops/core";
 import { describe, expect, it, vi } from "vitest";
 import {
+  executeHarwickSubagentTask,
   executeHarwickSubagentTasks,
   type HarwickSubagentTask,
   type HarwickSubagentTaskRepository,
@@ -42,6 +43,101 @@ function createTaskRepository(params: {
 }
 
 describe("executeHarwickSubagentTasks", () => {
+  it("executes one known task immediately for interactive chat", async () => {
+    const created: HarwickWorkItemCreate[] = [];
+    const taskRepository = createTaskRepository({});
+    const report = await executeHarwickSubagentTask({
+      task: createTask({ title: "Deep lead research" }),
+      taskRepository,
+      workItemRepository: {
+        findOpenInsightBySignalKey: vi.fn(() => Promise.resolve(null)),
+        createWorkItem: vi.fn((item: HarwickWorkItemCreate) => {
+          created.push(item);
+          return Promise.resolve({ workItemId: "work-item-1" });
+        }),
+      },
+      executorClient: {
+        executeTask: vi.fn(() => Promise.resolve({
+          summary: "Danielle and Keisha both need next-touch research.",
+          recommendation: "Prioritize Danielle first",
+          reason: "Danielle has the freshest high-intent social signal.",
+          confidence: 0.78,
+          priority: "high" as const,
+        })),
+      },
+      now: () => new Date("2026-05-05T12:00:00.000Z"),
+    });
+
+    expect(report).toEqual({
+      status: "completed",
+      result: {
+        summary: "Danielle and Keisha both need next-touch research.",
+        recommendation: "Prioritize Danielle first",
+        reason: "Danielle has the freshest high-intent social signal.",
+        confidence: 0.78,
+        priority: "high",
+      },
+      surfaced: true,
+    });
+    expect(created[0]?.title).toBe("Subagent result: Deep lead research");
+  });
+
+  it("coerces numeric confidence returned as a model string", async () => {
+    const taskRepository = createTaskRepository({});
+    const report = await executeHarwickSubagentTask({
+      task: createTask({ title: "Team load analysis" }),
+      taskRepository,
+      workItemRepository: {
+        findOpenInsightBySignalKey: vi.fn(() => Promise.resolve({ id: "existing" })),
+        createWorkItem: vi.fn(),
+      },
+      executorClient: {
+        executeTask: vi.fn(() => Promise.resolve({
+          summary: "Priya has the highest current load.",
+          recommendation: "Shift one new lead away from Priya",
+          reason: "The workload distribution is uneven.",
+          confidence: "0.76",
+          priority: "normal" as const,
+        } as never)),
+      },
+      now: () => new Date("2026-05-05T12:00:00.000Z"),
+    });
+
+    expect(report).toEqual(expect.objectContaining({
+      status: "completed",
+      surfaced: false,
+    }));
+    expect(report.status === "completed" ? report.result.confidence : null).toBe(0.76);
+  });
+
+  it("falls back to neutral confidence when the model returns nan", async () => {
+    const taskRepository = createTaskRepository({});
+    const report = await executeHarwickSubagentTask({
+      task: createTask({ title: "Detailed team workload assessment" }),
+      taskRepository,
+      workItemRepository: {
+        findOpenInsightBySignalKey: vi.fn(() => Promise.resolve({ id: "existing" })),
+        createWorkItem: vi.fn(),
+      },
+      executorClient: {
+        executeTask: vi.fn(() => Promise.resolve({
+          summary: "Team load is unclear from the current payload.",
+          recommendation: "Review team load manually",
+          reason: "The payload has enough names for a review but no reliable load metric.",
+          confidence: "nan",
+          priority: "normal" as const,
+        } as never)),
+      },
+      now: () => new Date("2026-05-05T12:00:00.000Z"),
+    });
+
+    expect(report).toEqual(expect.objectContaining({
+      status: "completed",
+      surfaced: false,
+    }));
+    expect(report.status === "completed" ? report.result.confidence : null).toBe(0.5);
+  });
+
   it("completes a queued task and surfaces its result to the assigned agent", async () => {
     const created: HarwickWorkItemCreate[] = [];
     const taskRepository = createTaskRepository({});

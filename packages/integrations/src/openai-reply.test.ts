@@ -27,10 +27,10 @@ describe("createOpenAIReplyClient", () => {
           },
           handoffBrief: null,
           toolCalls: [{
-            tool: "send_meta_reply",
+            tool: "send_meta_message",
             reason: "answer the public comment",
             requiresApproval: false,
-            payload: { reply: "That one is listed at $339,990." },
+            payload: { reply: "That one is listed at $339,990.", target: "comment" },
           }],
         }),
       }),

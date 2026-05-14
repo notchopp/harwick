@@ -3,12 +3,20 @@ import {
   type HarwickLoopApprovalMode,
   type HarwickLoopCreateRequest,
   type HarwickLoopOutputMode,
+  type HarwickLoopTriggerType,
 } from "@realty-ops/core";
+
+export const HARWICK_LOOP_EVENT_TYPE_OPTIONS = [{
+  value: "lead_closed_won",
+  label: "Lead closed won",
+}] as const;
 
 export type HarwickLoopSettingsDraft = {
   name: string;
   instruction: string;
+  triggerType: HarwickLoopTriggerType;
   scheduleSpec: string;
+  eventType: string;
   approvalMode: HarwickLoopApprovalMode;
   outputMode: HarwickLoopOutputMode;
   toolAllowlistText: string;
@@ -33,16 +41,21 @@ export function buildHarwickLoopCreateRequest(
   const parsed = HarwickLoopCreateRequestSchema.safeParse({
     name: draft.name,
     instruction: draft.instruction,
-    triggerType: "schedule",
-    scheduleSpec: draft.scheduleSpec,
-    eventType: null,
+    triggerType: draft.triggerType,
+    scheduleSpec: draft.triggerType === "schedule" ? draft.scheduleSpec : null,
+    eventType: draft.triggerType === "event" ? draft.eventType : null,
     approvalMode: draft.approvalMode,
     outputMode: draft.outputMode,
     toolAllowlist: parseHarwickLoopToolAllowlist(draft.toolAllowlistText),
   });
 
   if (!parsed.success) {
-    return { ok: false, error: "Loop needs a name, schedule, and instruction." };
+    return {
+      ok: false,
+      error: draft.triggerType === "event"
+        ? "Loop needs a name, event trigger, and instruction."
+        : "Loop needs a name, schedule, and instruction.",
+    };
   }
 
   return { ok: true, request: parsed.data };

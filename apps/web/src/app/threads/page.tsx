@@ -12,7 +12,9 @@ export default async function Page() {
       activeItem="Threads"
       memberName={membership.displayName}
       memberRole={membership.role}
+      operatorRole={membership.role}
       title="Threads"
+      workspaceId={membership.workspaceId}
       workspaceName={membership.workspaceName}
     >
       <ThreadsPageContent />

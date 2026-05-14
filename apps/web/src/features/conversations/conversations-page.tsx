@@ -2,62 +2,48 @@
 
 import {
   ConversationsInboxResponseSchema,
+  type ConversationAiToolActivity,
   type ConversationInboxMessage,
-  type ConversationInboxSource,
-  type ConversationInboxStageTone,
   type ConversationInboxThread,
 } from "@realty-ops/core";
-import { AlertCircle, ArrowUpRight, Bot, Loader2, RefreshCw, Sparkles } from "lucide-react";
+import { AlertCircle, ArrowUpRight, Bot, Brain, Calendar, ChevronDown, History, Loader2, MessageSquare, Phone, RefreshCw, ShieldCheck } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { HarwickMark } from "../../components/harwick-rail/harwick-mark";
 import { SearchGlyph } from "../../components/harwick-icons";
-import { WorkspaceTopbar } from "../../components/workspace-topbar";
+import { FeedbackButtons } from "../../components/training-signals/feedback-buttons";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "../../components/ui/dropdown-menu";
+import { getToolDescriptor } from "../../lib/training-signals/tool-labels";
 import { cn } from "../../lib/utils";
 import { useRealtimeThreadSync } from "./use-realtime-thread-sync";
 import { LeadActionToolbar } from "./lead-action-toolbar";
 
-type ThreadFilter = "all" | "dms" | "comments";
+type ThreadFilter = "all" | "in_progress" | "queued" | "paused" | "resolved";
 type LoadState = "loading" | "ready" | "error";
+type ConversationViewMode = "transcript" | "activity";
 
-const sourceBadgeStyles: Record<ConversationInboxSource, string> = {
-  instagram: "bg-[#F0E5F5] text-[#5B2D7B]",
-  facebook: "bg-[#E5EBF5] text-[#1A3A6B]",
-  voice: "bg-sage-soft text-qualified",
-  sms: "bg-sage-soft text-qualified",
-  manual: "bg-surface-muted text-muted-subtle",
-};
+const graphiteBorder = "border-[color:var(--graphite-line)]";
+const graphiteRaised = "border-[color:var(--graphite-line)] bg-[var(--graphite-surface-2)] shadow-[var(--shadow-elev-1)]";
+const graphiteRaisedStrong = "border-[color:var(--graphite-line-strong)] bg-[var(--graphite-surface-3)] shadow-[var(--shadow-elev-1)]";
+const graphiteActionButton =
+  "inline-flex items-center gap-1 rounded-[9px] border border-[color:var(--graphite-line)] bg-[var(--graphite-surface-2)] px-2.5 py-1.5 text-[11.5px] font-semibold text-[var(--graphite-text)] transition hover:border-[color:var(--graphite-line-strong)] hover:bg-[var(--graphite-surface-3)]";
+const graphitePill =
+  "inline-flex items-center gap-1.5 rounded-full border border-[color:var(--graphite-line)] bg-[var(--graphite-surface-2)] px-2.5 py-1 text-[11px] font-semibold text-[var(--graphite-text-muted)] shadow-[var(--shadow-elev-1)]";
+const graphiteSegmented =
+  "inline-flex rounded-[10px] border border-[color:var(--graphite-line)] bg-[var(--graphite-surface-2)] p-0.5 shadow-[var(--shadow-elev-1)]";
 
-const stageBadgeStyles: Record<ConversationInboxStageTone, string> = {
-  new: "bg-brass-soft text-warm",
-  qualified: "bg-sage-soft text-qualified",
-  nurture: "bg-surface-muted text-muted-subtle",
-  review: "bg-brass-soft text-warm",
-  lost: "bg-oxblood-soft text-hot",
-};
-
-function FilterChip(props: { active: boolean; children: string; onClick: () => void }) {
-  return (
-    <button
-      className={cn(
-        "harwick-pill px-[10px] py-[3px] text-[11px] text-muted transition-all hover:-translate-y-px hover:border-border-strong hover:text-foreground",
-        props.active && "harwick-pill-active hover:border-harwick-ink hover:text-white",
-      )}
-      onClick={props.onClick}
-      type="button"
-    >
-      {props.children}
-    </button>
-  );
+function bucketFor(thread: ConversationInboxThread): ThreadFilter {
+  if (thread.automationMode === "paused_by_rule" || thread.automationMode === "human_takeover") return "paused";
+  if (thread.stageTone === "lost") return "resolved";
+  if (thread.reviewId !== null) return "queued";
+  return "in_progress";
 }
 
-function ListEmptyState(props: { title: string; detail: string }) {
-  return (
-    <div className="px-4 py-6 text-center">
-      <div className="text-[12.5px] font-medium text-foreground">{props.title}</div>
-      <div className="mt-1 text-[11.5px] leading-5 text-muted">{props.detail}</div>
-    </div>
-  );
-}
 
 function getThreadDraft(thread: ConversationInboxThread): string {
   const draftMessage = [...thread.messages].reverse().find((message) => message.kind === "ai_action");
@@ -136,13 +122,16 @@ function MessageBubble(props: {
   avatar: string;
   disabled: boolean;
   message: ConversationInboxMessage;
+  workspaceId: string;
 }) {
   if (props.message.kind === "system") {
     return (
-      <div className="mb-3 flex justify-center">
-        <div className="rounded-full border border-border bg-surface px-3 py-1.5 text-[11px] text-muted">
+      <div className="my-4 flex items-center justify-center gap-2 text-[11px] text-white/40">
+        <span className="h-px flex-1 bg-white/[0.06]" aria-hidden="true" />
+        <span className="rounded-full border border-white/[0.07] bg-white/[0.025] px-2.5 py-1 text-white/60">
           {props.message.body}
-        </div>
+        </span>
+        <span className="h-px flex-1 bg-white/[0.06]" aria-hidden="true" />
       </div>
     );
   }
@@ -150,47 +139,267 @@ function MessageBubble(props: {
   if (props.message.kind === "sent") {
     return (
       <div className="mb-3 flex justify-end">
-        <div className="max-w-[76%] rounded-[13px_4px_13px_13px] bg-foreground px-3 py-[9px] text-[12.5px] leading-[1.5] text-white">
-          {props.message.body}
-          <div className="mt-1 text-[10px] text-white/70">{props.message.meta}</div>
+        <div className="flex max-w-[78%] flex-col items-end gap-1">
+          <div className="rounded-[14px_4px_14px_14px] bg-white px-3.5 py-2 text-[12.5px] leading-[1.5] text-[#0f1011] shadow-[0_1px_2px_rgba(0,0,0,0.3)] whitespace-pre-wrap">
+            {props.message.body}
+          </div>
+          <div className="font-mono text-[10px] text-white/40">{props.message.meta}</div>
         </div>
       </div>
     );
   }
 
+  const isAi = props.message.kind === "ai_action";
+  const trajectoryId = props.message.agentTrajectoryId ?? null;
+  const stepId = props.message.agentStepId ?? null;
+
   return (
-    <div className="mb-3 flex gap-[9px]">
+    <div className={cn("mb-3 flex gap-2.5", isAi ? "justify-start" : "justify-start")}>
       <div
         className={cn(
-          "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-medium",
-          props.message.kind === "ai_action" ? "bg-brass-soft text-warm" : "bg-surface-muted text-muted",
+          "mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full text-[10px] font-medium",
+          isAi ? "border border-[var(--sage)]/35 bg-[var(--sage-soft)]" : "border border-white/[0.07] bg-white/[0.04] text-white/68",
         )}
       >
-        {props.message.kind === "ai_action" ? "AI" : props.avatar}
+        {isAi ? <HarwickMark size={14} tone="soft" /> : props.avatar}
       </div>
 
-      <div>
+      <div className="flex max-w-[78%] flex-col gap-1">
         <div
           className={cn(
-            "max-w-[72%] px-3 py-[9px] text-[12.5px] leading-[1.5]",
-            props.message.kind === "lead" && "rounded-[4px_13px_13px_13px] bg-surface-muted text-foreground",
-            props.message.kind === "ai_action" && "rounded-[4px_13px_13px_13px] border border-dashed border-[#E8D08A] bg-brass-soft text-foreground",
+            "rounded-[4px_14px_14px_14px] px-3.5 py-2 text-[12.5px] leading-[1.5] whitespace-pre-wrap",
+            !isAi && "border border-white/[0.07] bg-white/[0.025] text-white/92",
+            isAi && "border border-[var(--sage)]/30 bg-gradient-to-b from-[var(--sage-soft)]/55 to-white/[0.015] text-white",
           )}
         >
-          {props.message.kind === "ai_action" ? (
+          {isAi ? (
             <>
-              <div className="mb-1 text-[9px] font-medium uppercase tracking-[0.1em] text-warm">
+              <div className="mb-1 inline-flex items-center gap-1 text-[10px] font-medium uppercase tracking-[0.1em] text-[var(--sage)]">
+                <Bot className="size-3" aria-hidden="true" />
                 {props.message.meta}
               </div>
-              {props.message.body}
+              <div>{props.message.body}</div>
             </>
           ) : (
             props.message.body
           )}
         </div>
-        {props.message.kind === "lead" ? (
-          <div className="mt-0.5 text-[10px] text-muted-subtle">{props.message.meta}</div>
-        ) : null}
+        <div className="flex items-center gap-2">
+          <div className="font-mono text-[10px] text-white/40">{props.message.meta}</div>
+          {isAi && trajectoryId !== null && stepId !== null ? (
+            <FeedbackButtons
+              size="sm"
+              compact
+              target={{ kind: "step", workspaceId: props.workspaceId, trajectoryId, stepId }}
+            />
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const toolStatusStyles: Record<ConversationAiToolActivity["status"], string> = {
+  requested: "bg-white/[0.05] text-white/64",
+  queued: "bg-white/[0.05] text-white/64",
+  running: "bg-[var(--clay-soft)] text-[var(--clay)]",
+  executed: "bg-[var(--sage-soft)] text-[var(--sage)]",
+  queued_for_approval: "bg-[var(--clay-soft)] text-[var(--clay)]",
+  missing_handler: "bg-[var(--oxblood-soft)] text-[var(--oxblood)]",
+  failed: "bg-[var(--oxblood-soft)] text-[var(--oxblood)]",
+};
+
+function formatTimestamp(iso: string): string {
+  const parsed = Date.parse(iso);
+  if (Number.isNaN(parsed)) return iso;
+  return new Date(parsed).toLocaleString(undefined, {
+    weekday: "short",
+    hour: "numeric",
+    minute: "2-digit",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+type ActivityEntry =
+  | { kind: "tool"; key: string; tool: string; summary: string; status: ConversationAiToolActivity["status"]; detail: string | null; occurredAt: string | null }
+  | { kind: "message"; key: string; messageKind: ConversationInboxMessage["kind"]; body: string; meta: string; occurredAt: string }
+  | { kind: "automation"; key: string; mode: string; reason: string };
+
+function buildActivityEntries(thread: ConversationInboxThread): ActivityEntry[] {
+  const entries: ActivityEntry[] = [];
+
+  if (thread.automationMode !== null) {
+    entries.push({
+      kind: "automation",
+      key: `automation:${thread.id}`,
+      mode: thread.automationMode,
+      reason: thread.automationReason ?? "No reason recorded for the current automation state.",
+    });
+  }
+
+  const synthesis = thread.aiSynthesis;
+  if (synthesis !== null) {
+    synthesis.toolActivity.forEach((activity) => {
+      entries.push({
+        kind: "tool",
+        key: `tool:${activity.id}`,
+        tool: activity.tool,
+        summary: activity.summary,
+        status: activity.status,
+        detail: activity.detail,
+        occurredAt: synthesis.updatedAt,
+      });
+    });
+  }
+
+  thread.messages
+    .filter((message) => message.kind === "ai_action" || message.kind === "system")
+    .forEach((message) => {
+      entries.push({
+        kind: "message",
+        key: `msg:${message.id}`,
+        messageKind: message.kind,
+        body: message.body,
+        meta: message.meta,
+        occurredAt: message.occurredAt,
+      });
+    });
+
+  return entries;
+}
+
+function ActivityLog(props: { thread: ConversationInboxThread; workspaceId: string }) {
+  const entries = buildActivityEntries(props.thread);
+  const synthesis = props.thread.aiSynthesis;
+  const trajectoryId = props.thread.messages.find((message) => message.agentTrajectoryId != null)?.agentTrajectoryId ?? null;
+  const latestAiStepId = [...props.thread.messages].reverse().find((message) => message.kind === "ai_action" && message.agentStepId != null)?.agentStepId ?? null;
+
+  return (
+    <div className="space-y-4 px-[18px] py-[18px]">
+      {synthesis === null ? null : (
+        <div className="rounded-[10px] border border-white/[0.07] bg-white/[0.025] px-3.5 py-3">
+          <div className="mb-2 flex items-center gap-2">
+            <Brain className="size-3.5 text-[var(--sage)]" aria-hidden="true" />
+            <span className="text-[10.5px] font-medium uppercase tracking-[0.1em] text-white/52">Current synthesis</span>
+            <span className="ml-auto font-mono text-[10.5px] text-white/40">{formatTimestamp(synthesis.updatedAt)}</span>
+          </div>
+          <div className="grid grid-cols-2 gap-3 text-[12px]">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <div className="text-[10.5px] text-white/40">intent</div>
+                <div className="font-medium text-white">{synthesis.intent.replace(/_/g, " ")}</div>
+              </div>
+              <FeedbackButtons
+                size="sm"
+                compact
+                target={{ kind: "surface", workspaceId: props.workspaceId, surface: "synthesis_field", resourceId: `${synthesis.turnId}:intent`, context: { field: "intent", value: synthesis.intent } }}
+              />
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <div className="text-[10.5px] text-white/40">next action</div>
+                <div className="font-medium text-white">{synthesis.nextAction.replace(/_/g, " ")}</div>
+              </div>
+              <FeedbackButtons
+                size="sm"
+                compact
+                target={{ kind: "surface", workspaceId: props.workspaceId, surface: "synthesis_field", resourceId: `${synthesis.turnId}:nextAction`, context: { field: "nextAction", value: synthesis.nextAction } }}
+              />
+            </div>
+            <div>
+              <div className="text-[10.5px] text-white/40">confidence</div>
+              <div className="font-mono text-[13px] font-medium text-white">{Math.round(synthesis.confidence * 100)}%</div>
+            </div>
+            <div>
+              <div className="text-[10.5px] text-white/40">status</div>
+              <div className="font-medium text-white">{synthesis.status.replace(/_/g, " ")}</div>
+            </div>
+          </div>
+          {synthesis.missingFields.length === 0 ? null : (
+            <div className="mt-2 text-[11.5px] leading-5 text-white/64">
+              <span className="text-white/40">missing: </span>
+              {synthesis.missingFields.map((field) => field.replace(/_/g, " ")).join(", ")}
+            </div>
+          )}
+          {synthesis.safetyFlags.length === 0 ? null : (
+            <div className="mt-1 text-[11.5px] leading-5 text-[var(--oxblood)]">
+              <span className="text-white/40">safety: </span>
+              {synthesis.safetyFlags.join(", ")}
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="relative">
+        <div className="absolute bottom-2 left-[7px] top-2 w-px bg-white/[0.07]" aria-hidden="true" />
+        <ul className="space-y-3">
+          {entries.length === 0 ? (
+            <li className="rounded-[10px] border border-dashed border-white/[0.1] px-3 py-3 text-[12px] text-white/56">
+              No AI actions or system events have been recorded for this thread yet.
+            </li>
+          ) : (
+            entries.map((entry) => {
+              if (entry.kind === "tool") {
+                const descriptor = getToolDescriptor(entry.tool);
+                const stepTarget = trajectoryId !== null && latestAiStepId !== null
+                  ? { kind: "step" as const, workspaceId: props.workspaceId, trajectoryId, stepId: latestAiStepId }
+                  : null;
+                return (
+                  <li key={entry.key} className="relative pl-6">
+                    <span className={cn("absolute left-0 top-1 flex size-3.5 items-center justify-center rounded-full border border-white/[0.1]", toolStatusStyles[entry.status])} aria-hidden="true">
+                      <Bot className="size-2.5" />
+                    </span>
+                    <div className="flex flex-wrap items-center gap-2 text-[11px] text-white/56">
+                      <span className="rounded-[5px] border border-white/[0.08] bg-white/[0.03] px-1.5 py-0.5 text-[10.5px] font-medium text-white" title={descriptor.description}>{descriptor.label}</span>
+                      <span className="rounded-[5px] border border-white/[0.06] bg-white/[0.02] px-1.5 py-0.5 font-mono text-[10px] text-white/40">/{entry.tool}</span>
+                      <span className={cn("inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-medium", toolStatusStyles[entry.status])}>{entry.status.replace(/_/g, " ")}</span>
+                      {entry.occurredAt === null ? null : (
+                        <span className="ml-auto font-mono text-[10.5px] text-white/40">{formatTimestamp(entry.occurredAt)}</span>
+                      )}
+                    </div>
+                    <div className="mt-0.5 text-[12.5px] leading-5 text-white">{entry.summary}</div>
+                    {entry.detail === null ? null : (
+                      <div className="mt-0.5 text-[11.5px] leading-5 text-white/56">{entry.detail}</div>
+                    )}
+                    {stepTarget !== null ? (
+                      <div className="mt-1.5">
+                        <FeedbackButtons size="sm" compact target={stepTarget} label="this call" />
+                      </div>
+                    ) : null}
+                  </li>
+                );
+              }
+              if (entry.kind === "automation") {
+                return (
+                  <li key={entry.key} className="relative pl-6">
+                    <span className="absolute left-0 top-1 flex size-3.5 items-center justify-center rounded-full border border-white/[0.1] bg-[var(--clay-soft)] text-[var(--clay)]" aria-hidden="true">
+                      <Brain className="size-2.5" />
+                    </span>
+                    <div className="flex items-center gap-2 text-[11px] text-white/56">
+                      <span className="rounded-[5px] border border-white/[0.08] bg-white/[0.03] px-1.5 py-0.5 font-mono text-[10.5px] text-white">policy</span>
+                      <span className="inline-flex rounded-full bg-[var(--clay-soft)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--clay)]">{entry.mode.replace(/_/g, " ")}</span>
+                    </div>
+                    <div className="mt-0.5 text-[12.5px] leading-5 text-white">{entry.reason}</div>
+                  </li>
+                );
+              }
+              return (
+                <li key={entry.key} className="relative pl-6">
+                  <span className={cn("absolute left-0 top-1 flex size-3.5 items-center justify-center rounded-full border border-white/[0.1]", entry.messageKind === "ai_action" ? "bg-[var(--sage-soft)] text-[var(--sage)]" : "bg-white/[0.04] text-white/56")} aria-hidden="true">
+                    <History className="size-2.5" />
+                  </span>
+                  <div className="flex items-center gap-2 text-[11px] text-white/56">
+                    <span className="rounded-[5px] border border-white/[0.08] bg-white/[0.03] px-1.5 py-0.5 font-mono text-[10.5px] text-white">{entry.messageKind === "ai_action" ? "ai action" : "system"}</span>
+                    <span className="ml-auto font-mono text-[10.5px] text-white/40">{formatTimestamp(entry.occurredAt)}</span>
+                  </div>
+                  <div className="mt-0.5 text-[12.5px] leading-5 text-white">{entry.body}</div>
+                  <div className="mt-0.5 text-[11px] leading-5 text-white/40">{entry.meta}</div>
+                </li>
+              );
+            })
+          )}
+        </ul>
       </div>
     </div>
   );
@@ -213,6 +422,7 @@ export function ConversationsPageContent(props: {
   const [reply, setReply] = useState("");
   const [actionBusy, setActionBusy] = useState(false);
   const [actionStatus, setActionStatus] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<ConversationViewMode>("transcript");
 
   function replaceConversationQuery(thread: ConversationInboxThread | null) {
     const params = new URLSearchParams(searchParams.toString());
@@ -313,7 +523,7 @@ export function ConversationsPageContent(props: {
     const normalizedSearch = search.trim().toLowerCase();
 
     return threads.filter((thread) => {
-      if (activeFilter !== "all" && thread.bucket !== activeFilter) {
+      if (activeFilter !== "all" && bucketFor(thread) !== activeFilter) {
         return false;
       }
 
@@ -330,6 +540,24 @@ export function ConversationsPageContent(props: {
       ].some((field) => field.toLowerCase().includes(normalizedSearch));
     });
   }, [activeFilter, search, threads]);
+
+  const filterCounts = useMemo(() => {
+    const counts: Record<ThreadFilter, number> = { all: threads.length, in_progress: 0, queued: 0, paused: 0, resolved: 0 };
+    for (const thread of threads) {
+      const bucket = bucketFor(thread);
+      counts[bucket] += 1;
+    }
+    return counts;
+  }, [threads]);
+
+  const handledToday = useMemo(() => {
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+    return threads.filter((thread) => thread.messages.some((message) => {
+      if (message.kind !== "ai_action" && message.kind !== "sent") return false;
+      const at = Date.parse(message.occurredAt);
+      return Number.isFinite(at) && at >= cutoff;
+    })).length;
+  }, [threads]);
 
   useEffect(() => {
     const deepLinkedThread = threads.find((thread) => {
@@ -483,11 +711,16 @@ export function ConversationsPageContent(props: {
       setActionStatus("Generating AI action...");
 
       const response = await fetch(
-        `/api/workspaces/${targetThread.workspaceId}/harwick-ai/generate-action`,
+        `/api/workspaces/${targetThread.workspaceId}/harwick-assistant`,
         {
           method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ leadId: targetThread.leadId }),
+          headers: { "content-type": "application/json", accept: "application/json" },
+          body: JSON.stringify({
+            message: "Draft a reply for this conversation. Match our brokerage tone, ask one qualifying question if it helps, and keep it under 80 words.",
+            activeLeadId: targetThread.leadId,
+            mentions: [],
+            stream: false,
+          }),
         },
       );
 
@@ -503,7 +736,7 @@ export function ConversationsPageContent(props: {
         ? (body as Record<string, unknown>)
         : null;
 
-      const rawReply = record?.["reply"];
+      const rawReply = record?.["answer"] ?? record?.["reply"];
       const draft = typeof rawReply === "string" && rawReply.trim().length > 0
         ? rawReply.trim()
         : null;
@@ -536,179 +769,348 @@ export function ConversationsPageContent(props: {
     }
   }
 
+  const filterEntries: Array<{ id: ThreadFilter; label: string }> = [
+    { id: "all", label: "All" },
+    { id: "in_progress", label: "In progress" },
+    { id: "queued", label: "Queued" },
+    { id: "paused", label: "Paused" },
+    { id: "resolved", label: "Resolved" },
+  ];
+
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-background">
-      <WorkspaceTopbar context={`conversations · ${filteredThreads.length} shown`} workspaceName={props.workspaceName}>
-        <div className="ml-auto flex items-center gap-2">
+    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden text-[var(--graphite-text)] max-md:bg-[#090a0b]">
+      <header className="flex shrink-0 flex-wrap items-end justify-between gap-3 px-5 py-4 max-md:hidden md:px-8 md:py-5">
+        <div>
+          <div className="mb-1 inline-flex items-center gap-2 text-[10.5px] font-semibold uppercase tracking-[0.14em] text-[var(--graphite-text-subtle)]">
+            <HarwickMark size={12} tone="soft" />
+            {props.workspaceName} · conversations
+          </div>
+          <h1 className="font-display text-[28px] font-semibold leading-[1.05] tracking-[-0.02em] text-[var(--graphite-text)] md:text-[34px]">Conversations</h1>
+          <p className="mt-1 text-[12.5px] leading-5 text-[var(--graphite-text-muted)]">
+            Every DM, comment, and voice call. Harwick auto-handles, queues, or pauses based on policy.
+          </p>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className={graphitePill}>
+            <span className="size-1.5 rounded-full bg-[var(--sage)]" aria-hidden="true" />
+            Auto-reply enabled
+          </span>
+          <span className={graphitePill}>
+            <Bot className="size-3 text-[var(--sage)]" aria-hidden="true" />
+            {handledToday} handled today
+          </span>
           <button
-            className="harwick-control flex h-9 w-9 items-center justify-center text-muted transition-all hover:-translate-y-px hover:border-border-strong hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+            className="flex size-8 items-center justify-center rounded-[9px] border border-[color:var(--graphite-line)] bg-[var(--graphite-surface-2)] text-[var(--graphite-text-muted)] shadow-[var(--shadow-elev-1)] transition hover:border-[color:var(--graphite-line-strong)] hover:bg-[var(--graphite-surface-3)] hover:text-[var(--graphite-text)] disabled:cursor-not-allowed disabled:opacity-50"
             disabled={actionBusy}
             onClick={() => void refreshThreads()}
             type="button"
+            title="Refresh"
           >
-            {actionBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            {actionBusy ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : <RefreshCw className="size-3.5" aria-hidden="true" />}
           </button>
-          <div className="harwick-control flex w-[180px] items-center gap-[7px] px-[11px] py-[5px] text-[12px] text-muted-subtle">
-            <SearchGlyph className="h-3 w-3 shrink-0" />
-            <input
-              className="w-full bg-transparent outline-none placeholder:text-muted-subtle"
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search..."
-              value={search}
-            />
-          </div>
         </div>
-      </WorkspaceTopbar>
+      </header>
 
-      <div className="flex min-h-0 flex-1 overflow-hidden">
-        <div className="w-[252px] shrink-0 overflow-y-auto border-r border-border bg-surface">
-          <div className="flex gap-[5px] border-b border-border px-3 py-[10px]">
-            <FilterChip active={activeFilter === "all"} onClick={() => setActiveFilter("all")}>
-              All
-            </FilterChip>
-            <FilterChip active={activeFilter === "dms"} onClick={() => setActiveFilter("dms")}>
-              DMs
-            </FilterChip>
-            <FilterChip active={activeFilter === "comments"} onClick={() => setActiveFilter("comments")}>
-              Comments
-            </FilterChip>
+      <div className="flex min-h-0 min-w-0 flex-1 gap-2.5 overflow-hidden px-2.5 pb-2.5 max-md:gap-0 max-md:px-0 max-md:pb-0">
+        {/* Thread list — desktop/tablet only. On mobile we use a dropdown in the thread header. */}
+        <div className="hidden w-[280px] shrink-0 flex-col overflow-hidden rounded-[var(--panel-radius-lg)] border border-[color:var(--panel-line)] bg-[color:var(--panel-1)] shadow-[var(--panel-inset-top),var(--panel-shadow-lift)] md:flex">
+          <div className={cn("shrink-0 border-b px-3 py-3", graphiteBorder)}>
+            <div className={cn("flex items-center gap-2 rounded-[10px] border px-2.5 py-1.5", graphiteRaised)}>
+              <SearchGlyph className="size-3 text-[var(--graphite-text-subtle)]" />
+              <input
+                className="w-full bg-transparent text-[12.5px] text-[var(--graphite-text)] outline-none placeholder:text-[var(--graphite-text-subtle)]"
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search threads…"
+                value={search}
+              />
+            </div>
+            <div className="mt-2 flex flex-wrap gap-1">
+              {filterEntries.map((entry) => {
+                const active = activeFilter === entry.id;
+                return (
+                  <button
+                    key={entry.id}
+                    type="button"
+                    onClick={() => setActiveFilter(entry.id)}
+                    className={cn(
+                      "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10.5px] font-semibold transition",
+                      active
+                        ? graphiteRaisedStrong
+                        : "border-[color:var(--graphite-line)] bg-[var(--graphite-surface-2)] text-[var(--graphite-text-muted)] hover:border-[color:var(--graphite-line-strong)] hover:bg-[var(--graphite-surface-3)] hover:text-[var(--graphite-text)]",
+                    )}
+                  >
+                    {entry.label}
+                    <span className={cn("rounded-full px-1 font-mono text-[9.5px]", active ? "bg-[var(--graphite-surface-4)] text-[var(--graphite-text)]" : "bg-[var(--graphite-surface-3)] text-[var(--graphite-text-subtle)]")}>
+                      {filterCounts[entry.id]}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
-          {loadState === "loading" ? (
-            <ListEmptyState title="Loading live conversations" detail="Pulling workspace lead events and pending AI actions." />
-          ) : null}
-          {loadState === "error" ? (
-            <ListEmptyState title="Could not load conversations" detail="The conversations endpoint did not return a valid workspace response." />
-          ) : null}
-          {loadState === "ready" && filteredThreads.length === 0 ? (
-            <ListEmptyState title="No live conversations yet" detail="New lead events will appear here once the workspace starts receiving messages or calls." />
-          ) : null}
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            {loadState === "loading" ? (
+              <div className="px-4 py-6 text-center text-[12px] text-white/56">Loading live conversations…</div>
+            ) : null}
+            {loadState === "error" ? (
+              <div className="px-4 py-6 text-center text-[12px] text-[var(--oxblood)]">Could not load conversations.</div>
+            ) : null}
+            {loadState === "ready" && filteredThreads.length === 0 ? (
+              <div className="px-4 py-6 text-center text-[12px] text-white/56">No conversations match this filter.</div>
+            ) : null}
 
-          {loadState === "ready" && filteredThreads.map((thread) => {
-            const isSelected = selectedThread?.id === thread.id;
-
-            return (
-              <button
-                className={cn(
-                  "w-full border-b border-border px-[14px] py-[13px] text-left transition-colors",
-                  isSelected ? "bg-surface-muted" : "hover:bg-surface-muted",
-                )}
-                key={thread.id}
-                onClick={() => {
-                  setSelectedId(thread.id);
-                  replaceConversationQuery(thread);
-                }}
-                type="button"
-              >
-                <div className="mb-1 flex items-center gap-[7px]">
-                  <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-surface-muted text-[10px] font-medium text-muted">
-                    {thread.initials}
+            {loadState === "ready" && filteredThreads.map((thread) => {
+              const isSelected = selectedThread?.id === thread.id;
+              const status = bucketFor(thread);
+              const statusChip = status === "paused"
+                ? <span className="inline-flex items-center gap-1 rounded-full bg-[var(--oxblood-soft)] px-1.5 py-0.5 text-[9.5px] font-medium text-[var(--oxblood)]">paused</span>
+                : status === "queued"
+                  ? <span className="inline-flex items-center gap-1 rounded-full bg-[var(--clay-soft)] px-1.5 py-0.5 text-[9.5px] font-medium text-[var(--clay)]">queued</span>
+                  : status === "resolved"
+                    ? <span className="inline-flex items-center gap-1 rounded-full bg-white/[0.05] px-1.5 py-0.5 text-[9.5px] font-medium text-white/52">resolved</span>
+                    : null;
+              return (
+                <button
+                  className={cn(
+                    "w-full border-b border-white/[0.05] px-3 py-3 text-left transition",
+                    isSelected ? "bg-[var(--graphite-surface-3)]" : "hover:bg-[var(--graphite-surface-2)]",
+                  )}
+                  key={thread.id}
+                  onClick={() => {
+                    setSelectedId(thread.id);
+                    replaceConversationQuery(thread);
+                  }}
+                  type="button"
+                >
+                  <div className="mb-1 flex items-center gap-2">
+                    <div className="flex size-7 shrink-0 items-center justify-center rounded-full border border-white/[0.08] bg-white/[0.04] text-[10px] font-medium text-white/72">
+                      {thread.initials}
+                    </div>
+                    <div className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-white">{thread.name}</div>
+                    {thread.unread ? <span className="size-1.5 shrink-0 rounded-full bg-[var(--sage)]" aria-hidden="true" /> : null}
+                    <span className="shrink-0 font-mono text-[10px] text-white/40">{thread.lastTouchLabel}</span>
                   </div>
-                  <div className="min-w-0 flex-1 text-[12.5px] font-medium">{thread.name}</div>
-                  {thread.unread ? <div className="h-[7px] w-[7px] shrink-0 rounded-full bg-harwick-brass" /> : null}
-                  <div className="shrink-0 text-[11px] text-muted-subtle">{thread.lastTouchLabel}</div>
-                </div>
-
-                <div className="truncate text-[11.5px] text-muted">
-                  {thread.preview}
-                </div>
-
-                <div className="mt-1">
-                  <span className={cn("inline-flex rounded-full px-[7px] py-0.5 text-[9px] font-medium", sourceBadgeStyles[thread.source])}>
-                    {thread.sourceLabel}
-                  </span>
-                </div>
-              </button>
-            );
-          })}
+                  <div className="truncate text-[11.5px] text-white/56">{thread.preview}</div>
+                  <div className="mt-1 flex flex-wrap items-center gap-1">
+                    <span className="inline-flex rounded-full border border-white/[0.08] bg-white/[0.03] px-1.5 py-0.5 text-[9.5px] text-white/72">
+                      {thread.sourceLabel}
+                    </span>
+                    {statusChip}
+                    {thread.intentType !== "Unknown" ? (
+                      <span className="text-[10px] text-white/40">{thread.intentType}</span>
+                    ) : null}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
-        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-[var(--panel-radius-lg)] border border-[color:var(--panel-line)] bg-[color:var(--panel-1)] shadow-[var(--panel-inset-top),var(--panel-shadow-lift)] max-md:h-full max-md:rounded-none max-md:border-0 max-md:bg-[#090a0b]">
           {selectedThread ? (
             <>
-              <div className="flex shrink-0 items-center gap-[9px] border-b border-border bg-surface px-[14px] py-[11px]">
-                <div className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full bg-surface-muted text-[11px] font-medium text-muted">
+              {/* Mobile lead picker */}
+              <div className={cn("flex shrink-0 items-center gap-2 border-b bg-[#101112] px-3 py-2 md:hidden", graphiteBorder)}>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      aria-label="Switch conversation"
+                      className="flex min-w-0 flex-1 items-center gap-2 rounded-[10px] border border-[color:var(--panel-line)] bg-[color:var(--panel-2)] px-2.5 py-2 text-left outline-none transition active:bg-[var(--graphite-surface-3)] data-[state=open]:border-white/[0.14]"
+                      type="button"
+                    >
+                      <div className="flex size-7 shrink-0 items-center justify-center rounded-full border border-white/[0.08] bg-white/[0.04] text-[11px] font-medium text-white">
+                        {selectedThread.initials}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-[13.5px] font-semibold leading-tight text-white">{selectedThread.name}</div>
+                        <div className="truncate text-[10.5px] text-white/52">
+                          {selectedThread.sourceLabel} · {selectedThread.score} score
+                        </div>
+                      </div>
+                      <ChevronDown className="size-3.5 shrink-0 text-white/52" aria-hidden="true" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="start"
+                    className="harwick-shell-dark z-[80] max-h-[60vh] w-[calc(100vw-1.5rem)] rounded-[12px] border-white/[0.1] bg-[#101112] p-1.5 text-white shadow-[0_18px_42px_-18px_rgba(0,0,0,0.85)]"
+                    sideOffset={6}
+                  >
+                    {filteredThreads.map((thread) => (
+                      <DropdownMenuItem
+                        className={cn(
+                          "cursor-pointer rounded-[9px] px-2.5 py-2.5 text-white/72 focus:bg-white/[0.06] focus:text-white",
+                          thread.id === selectedThread.id && "bg-white/[0.05] text-white",
+                        )}
+                        key={thread.id}
+                        onSelect={() => {
+                          setSelectedId(thread.id);
+                          replaceConversationQuery(thread);
+                        }}
+                      >
+                        <div className="flex size-7 shrink-0 items-center justify-center rounded-full border border-white/[0.08] bg-white/[0.04] text-[10px] font-medium text-white/72">
+                          {thread.initials}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-[12.5px] font-semibold">{thread.name}</div>
+                          <div className="truncate text-[10.5px] text-white/44">
+                            {thread.sourceLabel} · {thread.score} score · {thread.lastTouchLabel}
+                          </div>
+                        </div>
+                        {thread.unread ? <span className="size-1.5 shrink-0 rounded-full bg-[var(--sage)]" aria-hidden="true" /> : null}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+
+              {/* Desktop thread header */}
+              <div className={cn("hidden shrink-0 items-center gap-3 border-b bg-[var(--graphite-surface-2)] px-4 py-3 md:flex", graphiteBorder)}>
+                <div className="flex size-9 shrink-0 items-center justify-center rounded-full border border-white/[0.08] bg-white/[0.04] text-[12px] font-medium text-white">
                   {selectedThread.initials}
                 </div>
-                <div>
-                  <div className="text-[13.5px] font-medium">{selectedThread.name}</div>
-                  <div className="flex items-center gap-[5px] text-[11px] text-muted-subtle">
-                    <span className={cn("inline-flex rounded-full px-[7px] py-0.5 text-[9px] font-medium", sourceBadgeStyles[selectedThread.source])}>
-                      {selectedThread.sourceLabel}
-                    </span>
-                    {selectedThread.sourceContext}
+                <div className="min-w-0">
+                  <div className="truncate text-[14px] font-medium text-white">{selectedThread.name}</div>
+                  <div className="flex items-center gap-1.5 text-[11px] text-white/56">
+                    <span className="capitalize">{selectedThread.sourceLabel}</span>
+                    <span className="size-0.5 rounded-full bg-white/[0.18]" aria-hidden="true" />
+                    <span>{selectedThread.listingTitle === "no listing" ? "no listing" : selectedThread.listingTitle}</span>
+                    <span className="size-0.5 rounded-full bg-white/[0.18]" aria-hidden="true" />
+                    <span className={cn("font-mono text-[11px]", selectedThread.score >= 80 ? "text-[var(--oxblood)]" : "text-white/72")}>{selectedThread.score} score</span>
                   </div>
                 </div>
-                <div className="ml-auto flex gap-[7px]">
+                <div className="ml-auto flex items-center gap-1.5">
                   <button
-                    className="rounded-[8px] border border-border bg-transparent px-[11px] py-[4px] text-[11px] font-medium text-muted transition-colors hover:border-border-strong hover:text-foreground"
+                    className={graphiteActionButton}
+                    type="button"
+                    title="Call (coming soon)"
+                  >
+                    <Phone className="size-3" aria-hidden="true" />
+                    Call
+                  </button>
+                  <button
+                    className={graphiteActionButton}
+                    type="button"
+                    title="Book tour (coming soon)"
+                  >
+                    <Calendar className="size-3" aria-hidden="true" />
+                    Book tour
+                  </button>
+                  <button
+                    className={graphiteActionButton}
                     onClick={() => openLead(selectedThread)}
                     type="button"
                   >
-                    View Lead
+                    Open lead
+                    <ArrowUpRight className="size-3" aria-hidden="true" />
                   </button>
                 </div>
               </div>
 
-              <div className="shrink-0 border-b border-border bg-surface px-[14px] py-[10px]">
-                <div className="grid grid-cols-4 gap-3 text-[11px]">
-                  <div className="flex flex-col gap-1">
-                    <span className="font-medium text-muted-subtle">Score</span>
-                    <div className="flex items-center gap-1.5">
-                      <div className="h-1.5 w-full rounded-full bg-gray-200">
-                        <div
-                          className="h-1.5 rounded-full bg-gradient-to-r from-[color:var(--harwick-brass)] to-emerald-500"
-                          style={{ width: `${Math.min(selectedThread.score, 100)}%` }}
-                        />
-                      </div>
-                      <span className="w-5 text-right font-semibold">{selectedThread.score}</span>
-                    </div>
+              {/* Mobile context strip — listing + actions sit under the lead picker */}
+              <div className={cn("flex shrink-0 items-center gap-2 border-b bg-[#0d0e0f] px-3 py-2 md:hidden", graphiteBorder)}>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[10.5px] font-semibold uppercase tracking-[0.12em] text-white/40">
+                    {selectedThread.listingTitle === "no listing" ? "no listing" : "listing"}
                   </div>
-
-                  <div className="flex flex-col gap-1">
-                    <span className="font-medium text-muted-subtle">Budget</span>
-                    <span className="text-foreground">{selectedThread.budget}</span>
-                  </div>
-
-                  <div className="flex flex-col gap-1">
-                    <span className="font-medium text-muted-subtle">Timeline</span>
-                    <span className="truncate text-foreground">{selectedThread.timeline}</span>
-                  </div>
-
-                  <div className="flex flex-col gap-1">
-                    <span className="font-medium text-muted-subtle">Intent</span>
-                    <span className="text-foreground">{selectedThread.intentType}</span>
+                  <div className="truncate text-[12px] font-medium text-white/82">
+                    {selectedThread.listingTitle === "no listing" ? selectedThread.area : selectedThread.listingTitle}
                   </div>
                 </div>
+                <button
+                  className="flex size-9 shrink-0 items-center justify-center rounded-[9px] border border-[color:var(--graphite-line)] bg-[var(--graphite-surface-2)] text-[var(--graphite-text-muted)] transition active:bg-[var(--graphite-surface-3)]"
+                  type="button"
+                  title="Call"
+                  aria-label="Call"
+                >
+                  <Phone className="size-4" aria-hidden="true" />
+                </button>
+                <button
+                  className="flex size-9 shrink-0 items-center justify-center rounded-[9px] border border-[color:var(--graphite-line)] bg-[var(--graphite-surface-2)] text-[var(--graphite-text-muted)] transition active:bg-[var(--graphite-surface-3)]"
+                  type="button"
+                  title="Book tour"
+                  aria-label="Book tour"
+                >
+                  <Calendar className="size-4" aria-hidden="true" />
+                </button>
+                <button
+                  className="flex size-9 shrink-0 items-center justify-center rounded-[9px] border border-[color:var(--graphite-line)] bg-[var(--graphite-surface-2)] text-[var(--graphite-text-muted)] transition active:bg-[var(--graphite-surface-3)]"
+                  onClick={() => openLead(selectedThread)}
+                  type="button"
+                  title="Open lead"
+                  aria-label="Open lead"
+                >
+                  <ArrowUpRight className="size-4" aria-hidden="true" />
+                </button>
               </div>
 
-              <div className="min-h-0 flex-1 overflow-y-auto px-[18px] py-[18px]">
-                <div className="relative my-[14px] text-center text-[11px] text-muted-subtle">
-                  <span className="bg-background px-3">{threadTimelineLabel(selectedThread)}</span>
-                  <div className="absolute left-0 top-1/2 h-px w-[calc(50%-40px)] bg-border" />
-                  <div className="absolute right-0 top-1/2 h-px w-[calc(50%-40px)] bg-border" />
-                </div>
-
-                {selectedThread.messages.map((message) => (
-                  <MessageBubble
-                    avatar={selectedThread.initials}
-                    disabled={actionBusy}
-                    key={message.id}
-                    message={message}
-                  />
-                ))}
-              </div>
-
-              <div className="shrink-0 border-t border-border bg-surface px-[14px] py-3">
-                <div className="mb-2 flex items-center justify-between gap-2 text-[11px] text-muted-subtle">
-                  <span>{composerContextLabel(selectedThread)}</span>
+              <div className={cn("shrink-0 border-b bg-[#0d0e0f] px-3 py-2 md:bg-[var(--graphite-surface-2)] md:px-4", graphiteBorder)}>
+                <div className={graphiteSegmented}>
                   <button
-                    className="harwick-pill px-[11px] py-[4px] text-[11px] font-medium text-muted transition-all hover:-translate-y-px hover:border-border-strong hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-[7px] px-2.5 py-1 text-[11.5px] font-semibold transition",
+                      viewMode === "transcript" ? "bg-[var(--graphite-text)] text-[var(--graphite-0)] shadow-[var(--shadow-elev-1)]" : "text-[var(--graphite-text-muted)] hover:text-[var(--graphite-text)]",
+                    )}
+                    onClick={() => setViewMode("transcript")}
+                    type="button"
+                  >
+                    <MessageSquare className="size-3" aria-hidden="true" />
+                    Transcript
+                  </button>
+                  <button
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-[7px] px-2.5 py-1 text-[11.5px] font-semibold transition",
+                      viewMode === "activity" ? "bg-[var(--graphite-text)] text-[var(--graphite-0)] shadow-[var(--shadow-elev-1)]" : "text-[var(--graphite-text-muted)] hover:text-[var(--graphite-text)]",
+                    )}
+                    onClick={() => setViewMode("activity")}
+                    type="button"
+                  >
+                    <History className="size-3" aria-hidden="true" />
+                    Activity log
+                  </button>
+                </div>
+              </div>
+
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                {viewMode === "transcript" ? (
+                  <div className="px-3 py-3 md:px-5 md:py-4">
+                    <div className="my-3 flex items-center justify-center gap-2 text-[11px] text-white/40">
+                      <span className="h-px flex-1 bg-white/[0.06]" aria-hidden="true" />
+                      <span className="rounded-full border border-white/[0.07] bg-white/[0.025] px-2.5 py-1 text-white/60">
+                        {threadTimelineLabel(selectedThread)}
+                      </span>
+                      <span className="h-px flex-1 bg-white/[0.06]" aria-hidden="true" />
+                    </div>
+
+                    {selectedThread.messages.map((message) => (
+                      <MessageBubble
+                        avatar={selectedThread.initials}
+                        disabled={actionBusy}
+                        key={message.id}
+                        message={message}
+                        workspaceId={props.workspaceId}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <ActivityLog thread={selectedThread} workspaceId={props.workspaceId} />
+                )}
+              </div>
+
+              <div
+                className={cn("shrink-0 border-t bg-[#101112] px-3 py-2.5 md:bg-[var(--graphite-surface-2)] md:px-4 md:py-3", graphiteBorder)}
+                style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
+              >
+                <div className="mb-2 flex items-center justify-between gap-2 text-[11px] text-white/56">
+                  <span className="min-w-0 truncate">{composerContextLabel(selectedThread)}</span>
+                  <button
+                    className="inline-flex shrink-0 items-center gap-1 rounded-[9px] border border-[color:var(--graphite-line)] bg-[var(--graphite-text)] px-2.5 py-1 text-[11px] font-semibold text-[var(--graphite-0)] shadow-[var(--shadow-elev-1)] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
                     disabled={actionBusy}
                     onClick={() => void handleGenerateAction()}
                     type="button"
                   >
-                    Generate Action
+                    <Bot className="size-3 text-[var(--sage)]" aria-hidden="true" />
+                    Generate draft
                   </button>
                 </div>
                 <LeadActionToolbar
@@ -717,24 +1119,26 @@ export function ConversationsPageContent(props: {
                   automationMode={selectedThread.automationMode ?? "ai_on"}
                   assignedMemberId={null}
                   currentMemberId={props.currentMemberId}
+                  appearance="dark"
                   draft={reply}
                   reviewId={selectedThread.reviewId}
+                  showAgentSteps={false}
                   onDraftChange={(next) => setReply(next)}
-                  onChanged={() => void refreshThreads()}
+                  onChanged={() => void refreshThreads({ silent: true })}
                 />
                 {actionStatus ? (
-                  <div className="mt-2 flex items-center gap-2 text-[11px] text-muted">
-                    <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                  <div className="mt-2 flex items-center gap-2 text-[11px] text-white/64">
+                    <AlertCircle className="size-3 shrink-0" aria-hidden="true" />
                     <span>{actionStatus}</span>
                   </div>
                 ) : null}
               </div>
             </>
           ) : (
-            <div className="flex min-h-0 flex-1 items-center justify-center bg-background px-8">
+            <div className="flex min-h-0 flex-1 items-center justify-center px-8">
               <div className="max-w-[320px] text-center">
-                <div className="text-[15px] font-medium text-foreground">Pick a live conversation</div>
-                <div className="mt-2 text-[12.5px] leading-6 text-muted">
+                <div className="text-[15px] font-medium text-white">Pick a live conversation</div>
+                <div className="mt-2 text-[12.5px] leading-6 text-white/56">
                   Search, filter, or wait for inbound lead events. The center thread stays tied to the live workspace backend.
                 </div>
               </div>
@@ -742,80 +1146,93 @@ export function ConversationsPageContent(props: {
           )}
         </div>
 
-        <div className="w-[288px] shrink-0 overflow-y-auto border-l border-border bg-surface">
+        <div className="hidden w-[320px] shrink-0 flex-col overflow-y-auto rounded-[var(--panel-radius-lg)] border border-[color:var(--panel-line)] bg-[color:var(--panel-1)] shadow-[var(--panel-inset-top),var(--panel-shadow-lift)] lg:flex">
           {selectedThread ? (
             <>
-              <div className="border-b border-border px-[14px] py-[14px]">
-                <div className="mb-[9px] text-[9.5px] font-medium uppercase tracking-[0.12em] text-muted-subtle">Lead Info</div>
-                <div className="space-y-[7px] text-[12.5px]">
-                  <div className="flex gap-2">
-                    <span className="w-[68px] shrink-0 text-muted-subtle">Name</span>
-                    <span className="font-medium">{selectedThread.name}</span>
-                  </div>
-                  <div className="flex gap-2">
-                    <span className="w-[68px] shrink-0 text-muted-subtle">Source</span>
-                    <span className="font-medium">{selectedThread.sourceLabel}</span>
-                  </div>
-                  <div className="flex gap-2">
-                    <span className="w-[68px] shrink-0 text-muted-subtle">Stage</span>
-                    <span className={cn("inline-flex rounded-full px-[7px] py-0.5 text-[10px] font-medium", stageBadgeStyles[selectedThread.stageTone])}>
-                      {selectedThread.stageLabel}
-                    </span>
-                  </div>
-                  <div className="flex gap-2">
-                    <span className="w-[68px] shrink-0 text-muted-subtle">Score</span>
-                    <span className="font-medium">{selectedThread.scoreLabel}</span>
-                  </div>
-                  <div className="flex gap-2">
-                    <span className="w-[68px] shrink-0 text-muted-subtle">Assigned</span>
-                    <span className="font-medium">{selectedThread.assignedTo}</span>
-                  </div>
-                  <div className="flex gap-2">
-                    <span className="w-[68px] shrink-0 text-muted-subtle">FUB ID</span>
-                    <span className={cn(selectedThread.followUpBossContactId === null ? "text-muted-subtle" : "font-medium")}>
-                      {selectedThread.followUpBossContactId ?? "—"}
-                    </span>
-                  </div>
+              <div className="border-b border-white/[0.06] px-4 py-4">
+                <div className="mb-2 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.12em] text-white/52">
+                  <Bot className="size-3 text-[var(--sage)]" aria-hidden="true" />
+                  AI mental model
                 </div>
-              </div>
-
-              <div className="border-b border-border px-[14px] py-[14px]">
-                <div className="mb-[9px] text-[9.5px] font-medium uppercase tracking-[0.12em] text-muted-subtle">Intent Signals</div>
-                <div className="space-y-[7px] text-[12.5px]">
-                  <div className="flex gap-2">
-                    <span className="w-[68px] shrink-0 text-muted-subtle">Type</span>
-                    <span className="font-medium">{selectedThread.intentType}</span>
+                <dl className="space-y-1.5 text-[12.5px]">
+                  <div className="flex items-start gap-2">
+                    <dt className="w-[72px] shrink-0 text-white/40">Intent</dt>
+                    <dd className="flex-1 font-medium text-white">{selectedThread.intentType}</dd>
+                    {selectedThread.aiSynthesis !== null ? (
+                      <FeedbackButtons
+                        size="sm"
+                        compact
+                        target={{ kind: "surface", workspaceId: props.workspaceId, surface: "synthesis_field", resourceId: `${selectedThread.leadId}:intent`, context: { field: "intentType", value: selectedThread.intentType } }}
+                      />
+                    ) : null}
                   </div>
-                  <div className="flex gap-2">
-                    <span className="w-[68px] shrink-0 text-muted-subtle">Area</span>
-                    <span className="font-medium">{selectedThread.area}</span>
+                  <div className="flex items-start gap-2">
+                    <dt className="w-[72px] shrink-0 text-white/40">Score</dt>
+                    <dd className="flex-1 font-medium text-white">{selectedThread.score} · {selectedThread.scoreLabel}</dd>
+                    <FeedbackButtons
+                      size="sm"
+                      compact
+                      target={{ kind: "surface", workspaceId: props.workspaceId, surface: "synthesis_field", resourceId: `${selectedThread.leadId}:score`, context: { field: "score", value: selectedThread.score } }}
+                    />
                   </div>
-                  <div className="flex gap-2">
-                    <span className="w-[68px] shrink-0 text-muted-subtle">Timeline</span>
-                    <span className={cn(selectedThread.timeline === "Unknown" ? "text-muted-subtle" : "font-medium")}>
-                      {selectedThread.timeline}
-                    </span>
+                  <div className="flex items-start gap-2">
+                    <dt className="w-[72px] shrink-0 text-white/40">Stage</dt>
+                    <dd className="flex-1">
+                      <span className={cn("inline-flex rounded-full px-2 py-0.5 text-[10.5px] font-medium",
+                        selectedThread.stageTone === "qualified" ? "bg-[var(--sage-soft)] text-[var(--sage)]" :
+                        selectedThread.stageTone === "new" || selectedThread.stageTone === "review" ? "bg-[var(--clay-soft)] text-[var(--clay)]" :
+                        selectedThread.stageTone === "lost" ? "bg-[var(--oxblood-soft)] text-[var(--oxblood)]" :
+                        "bg-white/[0.05] text-white/72")}>
+                        {selectedThread.stageLabel}
+                      </span>
+                    </dd>
                   </div>
-                  <div className="flex gap-2">
-                    <span className="w-[68px] shrink-0 text-muted-subtle">Budget</span>
-                    <span className={cn(selectedThread.budget === "Unknown" ? "text-muted-subtle" : "font-medium")}>
+                  <div className="flex items-start gap-2">
+                    <dt className="w-[72px] shrink-0 text-white/40">Budget</dt>
+                    <dd className={cn("flex-1", selectedThread.budget === "Unknown" ? "text-white/40" : "font-medium text-white")}>
                       {selectedThread.budget}
-                    </span>
+                    </dd>
                   </div>
-                </div>
+                  <div className="flex items-start gap-2">
+                    <dt className="w-[72px] shrink-0 text-white/40">Timeline</dt>
+                    <dd className={cn("flex-1 truncate", selectedThread.timeline === "Unknown" ? "text-white/40" : "font-medium text-white")}>
+                      {selectedThread.timeline}
+                    </dd>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <dt className="w-[72px] shrink-0 text-white/40">Area</dt>
+                    <dd className={cn("flex-1", selectedThread.area.toLowerCase() === "unknown" ? "text-white/40" : "font-medium text-white")}>
+                      {selectedThread.area}
+                    </dd>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <dt className="w-[72px] shrink-0 text-white/40">Assigned</dt>
+                    <dd className="flex-1 font-medium text-white">{selectedThread.assignedTo}</dd>
+                  </div>
+                  {selectedThread.aiSynthesis !== null && selectedThread.aiSynthesis.missingFields.length > 0 ? (
+                    <div className="flex items-start gap-2">
+                      <dt className="w-[72px] shrink-0 text-white/40">Missing</dt>
+                      <dd className="flex-1 text-white/56">
+                        {selectedThread.aiSynthesis.missingFields.map((field) => field.replace(/_/g, " ")).join(", ")}
+                      </dd>
+                    </div>
+                  ) : null}
+                </dl>
               </div>
 
-              <div className="border-b border-border px-[14px] py-[14px]">
-                <div className="mb-[9px] text-[9.5px] font-medium uppercase tracking-[0.12em] text-muted-subtle">Listing Context</div>
-                <div className="rounded-[8px] bg-surface-muted p-[10px] text-[12px] text-muted">
-                  <div className="mb-0.5 font-medium text-foreground">{selectedThread.listingTitle}</div>
+              <div className="border-b border-white/[0.06] px-4 py-4">
+                <div className="mb-2 text-[10px] font-medium uppercase tracking-[0.12em] text-white/52">
+                  Listing facts referenced
+                </div>
+                <div className="rounded-[8px] border border-white/[0.07] bg-white/[0.025] p-2.5 text-[12px] text-white/64">
+                  <div className="mb-0.5 font-medium text-white">{selectedThread.listingTitle}</div>
                   <div>{selectedThread.listingDetails}</div>
                   <div
                     className={cn(
-                      "mt-1 text-[11px]",
+                      "mt-1 inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10.5px] font-medium",
                       selectedThread.listingStatus === "AI action ready" || selectedThread.listingStatus === "FUB synced"
-                        ? "text-qualified"
-                        : "text-warm",
+                        ? "bg-[var(--sage-soft)] text-[var(--sage)]"
+                        : "bg-[var(--clay-soft)] text-[var(--clay)]",
                     )}
                   >
                     {selectedThread.listingStatus}
@@ -823,12 +1240,70 @@ export function ConversationsPageContent(props: {
                 </div>
               </div>
 
-              <div className="border-b border-border px-[14px] py-[14px]">
-                <div className="mb-[9px] text-[9.5px] font-medium uppercase tracking-[0.12em] text-muted-subtle">Automation</div>
-                <div className="rounded-[8px] bg-surface-muted p-[10px] text-[12px] text-muted">
-                  <div className="flex items-center gap-2 text-foreground">
-                    <Bot className="h-3.5 w-3.5" />
-                    <span className="font-medium">{selectedThread.automationMode ?? "manual only"}</span>
+              {selectedThread.aiSynthesis !== null && selectedThread.aiSynthesis.toolActivity.length > 0 ? (
+                <div className="border-b border-white/[0.06] px-4 py-4">
+                  <div className="mb-2 text-[10px] font-medium uppercase tracking-[0.12em] text-white/52">
+                    Tools used this turn
+                  </div>
+                  <div className="space-y-1.5">
+                    {selectedThread.aiSynthesis.toolActivity.map((activity) => {
+                      const descriptor = getToolDescriptor(activity.tool);
+                      const trajectoryId = selectedThread.messages.find((message) => message.agentTrajectoryId != null)?.agentTrajectoryId ?? null;
+                      const latestAiStepId = [...selectedThread.messages].reverse().find((message) => message.kind === "ai_action" && message.agentStepId != null)?.agentStepId ?? null;
+                      const stepTarget = trajectoryId !== null && latestAiStepId !== null
+                        ? { kind: "step" as const, workspaceId: props.workspaceId, trajectoryId, stepId: latestAiStepId }
+                        : null;
+                      return (
+                        <div
+                          key={activity.id}
+                          className="rounded-[8px] border border-white/[0.07] bg-white/[0.025] px-2.5 py-2"
+                          title={descriptor.description}
+                        >
+                          <div className="flex items-center gap-1.5 text-[11px]">
+                            <span className="size-1.5 rounded-full bg-[var(--sage)]" aria-hidden="true" />
+                            <span className="font-medium text-white">{descriptor.label}</span>
+                            <span className="ml-auto font-mono text-[10px] text-white/40">{activity.status.replace(/_/g, " ")}</span>
+                          </div>
+                          <div className="mt-0.5 font-mono text-[10.5px] text-white/40">/{activity.tool}</div>
+                          {activity.detail === null ? null : (
+                            <div className="mt-1 text-[11.5px] leading-5 text-white/64">{activity.detail}</div>
+                          )}
+                          {stepTarget !== null ? (
+                            <div className="mt-1.5 flex items-center justify-between">
+                              <span className="text-[10px] text-white/40">{descriptor.external ? "external action" : "internal"}</span>
+                              <FeedbackButtons size="sm" compact target={stepTarget} />
+                            </div>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="border-b border-white/[0.06] px-4 py-4">
+                <div className="mb-2 text-[10px] font-medium uppercase tracking-[0.12em] text-white/52">Safety</div>
+                <div className="flex items-center gap-2 text-[12.5px]">
+                  {selectedThread.aiSynthesis !== null && selectedThread.aiSynthesis.safetyFlags.length > 0 ? (
+                    <>
+                      <span className="size-2 rounded-full bg-[var(--oxblood)]" aria-hidden="true" />
+                      <span className="text-white">{selectedThread.aiSynthesis.safetyFlags.join(", ")}</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="size-2 rounded-full bg-[var(--sage)]" aria-hidden="true" />
+                      <span className="text-white">Clear · no fair-housing or lending flags</span>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <div className="border-b border-white/[0.06] px-4 py-4">
+                <div className="mb-2 text-[10px] font-medium uppercase tracking-[0.12em] text-white/52">Automation</div>
+                <div className="rounded-[8px] border border-white/[0.07] bg-white/[0.025] p-2.5 text-[12px] text-white/64">
+                  <div className="flex items-center gap-2 text-white">
+                    <ShieldCheck className="size-3.5" aria-hidden="true" />
+                    <span className="font-medium">{(selectedThread.automationMode ?? "manual only").replace(/_/g, " ")}</span>
                   </div>
                   <div className="mt-1 leading-5">
                     {selectedThread.automationReason ?? "No live automation review is attached to this thread yet."}
@@ -836,91 +1311,42 @@ export function ConversationsPageContent(props: {
                 </div>
               </div>
 
-              {selectedThread.aiSynthesis === null ? null : (
-                <div className="border-b border-border px-[14px] py-[14px]">
-                  <div className="mb-[9px] text-[9.5px] font-medium uppercase tracking-[0.12em] text-muted-subtle">Harwick Synthesis</div>
-                  <div className="rounded-[8px] bg-surface-muted p-[10px] text-[12px] text-muted">
-                    <div className="flex items-center justify-between gap-3 text-foreground">
-                      <span className="font-medium">{selectedThread.aiSynthesis.intent.replace(/_/g, " ")}</span>
-                      <span className="text-[11px] text-muted-subtle">
-                        {Math.round(selectedThread.aiSynthesis.confidence * 100)}%
-                      </span>
-                    </div>
-                    <div className="mt-1 leading-5">
-                      next: {selectedThread.aiSynthesis.nextAction.replace(/_/g, " ")}
-                    </div>
-                    {selectedThread.aiSynthesis.missingFields.length === 0 ? null : (
-                      <div className="mt-1 leading-5">
-                        missing: {selectedThread.aiSynthesis.missingFields.map((field) => field.replace(/_/g, " ")).join(", ")}
-                      </div>
-                    )}
-                    {selectedThread.aiSynthesis.toolActivity.length === 0 ? null : (
-                      <div className="mt-2 space-y-1.5">
-                        {selectedThread.aiSynthesis.toolActivity.map((activity) => (
-                          <div
-                            className="rounded-[7px] border border-border bg-surface px-2 py-1.5 leading-5"
-                            key={activity.id}
-                          >
-                            <div className="flex items-center justify-between gap-2 text-[11px] text-foreground">
-                              <span className="font-medium">{activity.summary}</span>
-                              <span className="shrink-0 text-muted-subtle">{activity.status.replace(/_/g, " ")}</span>
-                            </div>
-                            {activity.detail === null ? null : (
-                              <div className="mt-0.5 text-[11px] text-muted">{activity.detail}</div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {selectedThread.aiSynthesis.handoffBrief === null ? null : (
-                      <div className="mt-2 rounded-[7px] border border-border bg-surface px-2 py-1.5 leading-5">
-                        {selectedThread.aiSynthesis.handoffBrief}
-                      </div>
-                    )}
-                    {selectedThread.aiSynthesis.documentUpdate === null ? null : (
-                      <div className="mt-2 leading-5">
-                        {selectedThread.aiSynthesis.documentUpdate}
-                      </div>
-                    )}
-                  </div>
+              <div className="px-4 py-4">
+                <div className="mb-2 text-[10px] font-medium uppercase tracking-[0.12em] text-white/52">Suggested next</div>
+                <div className="flex flex-col gap-1.5">
+                  <button
+                    type="button"
+                    className={cn(graphiteActionButton, "py-2 text-left text-[12px]")}
+                    onClick={() => void handleGenerateAction()}
+                    disabled={actionBusy}
+                  >
+                    <Bot className="size-3 text-[var(--sage)]" aria-hidden="true" />
+                    Generate a draft for this thread
+                  </button>
+                  <button
+                    type="button"
+                    className={cn(graphiteActionButton, "py-2 text-left text-[12px]")}
+                    onClick={() => openLead(selectedThread)}
+                  >
+                    <ArrowUpRight className="size-3" aria-hidden="true" />
+                    Open full lead profile
+                  </button>
+                  {selectedThread.reviewId !== null ? (
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1.5 rounded-[8px] border border-[var(--oxblood)]/30 bg-[var(--oxblood-soft)] px-2.5 py-2 text-left text-[12px] text-[var(--oxblood)] transition hover:border-[var(--oxblood)]/50 disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={actionBusy}
+                      onClick={() => void handleQueueAction("dismiss")}
+                    >
+                      <AlertCircle className="size-3" aria-hidden="true" />
+                      Dismiss the pending AI action
+                    </button>
+                  ) : null}
                 </div>
-              )}
-
-              <div className="px-[14px] py-[14px]">
-                <button
-                  className="mb-[7px] flex h-10 w-full items-center justify-center gap-2 rounded-[8px] bg-foreground text-[12px] font-medium text-white"
-                  onClick={() => openLead(selectedThread)}
-                  type="button"
-                >
-                  Open Full Lead
-                  <ArrowUpRight className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  className="flex h-10 w-full items-center justify-center gap-2 rounded-[8px] border border-border bg-transparent text-[12px] font-medium text-muted transition-colors hover:border-border-strong hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
-                  disabled={actionBusy}
-                  onClick={() => (
-                    selectedThread.reviewId === null
-                      ? openLead(selectedThread)
-                      : void handleQueueAction("dismiss")
-                  )}
-                  type="button"
-                >
-                  {selectedThread.reviewId === null ? (
-                    <>
-                      <ArrowUpRight className="h-3.5 w-3.5" />
-                      Continue in Leads
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="h-3.5 w-3.5" />
-                      Dismiss Action
-                    </>
-                  )}
-                </button>
               </div>
             </>
           ) : (
-            <div className="px-[14px] py-[18px] text-[12px] leading-5 text-muted">
+            <div className="px-4 py-5 text-[12px] leading-5 text-white/52">
               Lead context will appear here once you select a live thread.
             </div>
           )}

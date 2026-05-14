@@ -151,16 +151,37 @@ function baseTool(tool: HarwickAiToolCall["tool"], reason: string, requiresAppro
 
 function outboundToolFor(input: z.infer<typeof HarwickAiRuntimeInputSchema>, reply: string): HarwickAiToolCall {
   if (input.channel === "instagram_comment" || input.channel === "facebook_comment") {
-    return baseTool("send_meta_reply", "answer the public comment with a safe short reply", false, {
+    return baseTool("send_meta_message", "answer the public comment with a safe short reply", false, {
       reply,
-      channel: input.channel,
+      target: "comment",
     });
   }
 
-  return baseTool("send_meta_dm", "continue the private conversation with the lead", false, {
+  return baseTool("send_meta_message", "continue the private conversation with the lead", false, {
     reply,
-    channel: input.channel,
+    target: "dm",
   });
+}
+
+function commentToDmToolCalls(params: {
+  input: z.infer<typeof HarwickAiRuntimeInputSchema>;
+  publicReply: string;
+  dmReply: string;
+}): HarwickAiToolCall[] {
+  if (!(params.input.channel === "instagram_comment" || params.input.channel === "facebook_comment")) {
+    return [outboundToolFor(params.input, params.dmReply)];
+  }
+
+  return [
+    baseTool("send_meta_message", "acknowledge publicly on the original comment thread before moving private", false, {
+      reply: params.publicReply,
+      target: "comment",
+    }),
+    baseTool("send_meta_message", "continue the qualification in DM while linking it back to the original comment", false, {
+      reply: params.dmReply,
+      target: "dm",
+    }),
+  ];
 }
 
 function handoffBrief(input: z.infer<typeof HarwickAiRuntimeInputSchema>, reason: string): string {
@@ -185,7 +206,9 @@ function buildListingTurn(input: z.infer<typeof HarwickAiRuntimeInputSchema>, le
   const facts = readFacts(input);
   const factsSentence = facts.length === 0 ? "" : ` The details I have are: ${facts.join(", ")}.`;
   const asksAvailability = leadText.includes("available") || leadText.includes("still on the market");
-  const reply = trimReply(`${asksAvailability ? "I can check the latest status for you." : "I can help with that one."}${factsSentence} ${firstKnownTimeline(input) === null ? "Are you looking to move soon or just starting your search?" : "Do you want me to send similar homes or look at showing times?"}`);
+  const dmReply = trimReply(`${asksAvailability ? "I can check the latest status for you." : "I can help with that one."}${factsSentence} ${firstKnownTimeline(input) === null ? "Are you looking to move soon or just starting your search?" : "Do you want me to send similar homes or look at showing times?"}`);
+  const publicReply = trimReply(`${facts.length === 0 ? "I can send the details over." : `I can send the details over.${factsSentence}`} Check your DM and I will help from there.`);
+  const reply = input.channel.endsWith("_comment") ? publicReply : dmReply;
 
   return createTurn({
     intent: "listing_question",
@@ -203,7 +226,13 @@ function buildListingTurn(input: z.infer<typeof HarwickAiRuntimeInputSchema>, le
       knownFacts: facts,
     },
     handoffBrief: null,
-    toolCalls: [outboundToolFor(input, reply)],
+    toolCalls: input.channel.endsWith("_comment")
+      ? commentToDmToolCalls({
+          input,
+          publicReply,
+          dmReply,
+        })
+      : [outboundToolFor(input, reply)],
   });
 }
 
@@ -263,8 +292,9 @@ function buildBlueprintTurn(input: z.infer<typeof HarwickAiRuntimeInputSchema>):
     handoffBrief: null,
     toolCalls: [
       outboundToolFor(input, reply),
-      ...(input.buyerBlueprintUrl === null ? [] : [baseTool("send_meta_dm", "send the buyer blueprint link in the conversation", false, {
-        buyerBlueprintUrl: input.buyerBlueprintUrl,
+      ...(input.buyerBlueprintUrl === null ? [] : [baseTool("send_meta_message", "send the buyer blueprint link in the conversation", false, {
+        reply: `Here is the buyer blueprint with the full process and what to expect next: ${input.buyerBlueprintUrl}`,
+        target: "dm",
       })]),
     ],
   });
@@ -428,24 +458,160 @@ function extractResponseText(value: unknown): string {
   return text;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function isToolName(value: unknown): value is HarwickAiToolCall["tool"] {
+  return typeof value === "string"
+    && (HARWICK_AI_TOOL_NAMES as readonly string[]).includes(value);
+}
+
+function defaultToolRequiresApproval(tool: HarwickAiToolCall["tool"]): boolean {
+  return tool === "request_showing_approval"
+    || tool === "register_open_house"
+    || tool === "route_lead"
+    || tool === "sync_follow_up_boss";
+}
+
+function parseToolPayload(value: unknown): Record<string, unknown> {
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      return isRecord(parsed) ? parsed : { value: parsed };
+    } catch {
+      return { raw: value };
+    }
+  }
+
+  if (isRecord(value)) {
+    return value;
+  }
+
+  if (value === undefined) {
+    return {};
+  }
+
+  return { value };
+}
+
+function defaultToolReason(tool: HarwickAiToolCall["tool"]): string {
+  return `Model requested ${tool.replace(/_/g, " ")}.`;
+}
+
+function normalizeToolCall(
+  value: unknown,
+  nextAction: unknown,
+): Record<string, unknown> {
+  if (!isRecord(value)) {
+    if (isToolName(nextAction)) {
+      return {
+        tool: nextAction,
+        reason: defaultToolReason(nextAction),
+        requiresApproval: defaultToolRequiresApproval(nextAction),
+        payload: {},
+      };
+    }
+    return {};
+  }
+
+  const tool = isToolName(value["tool"])
+    ? value["tool"]
+    : isToolName(nextAction)
+      ? nextAction
+      : null;
+
+  const payload = {
+    ...parseToolPayload(value["payload"]),
+    ...Object.fromEntries(
+      Object.entries(value).filter(([key]) => !["tool", "reason", "requiresApproval", "payload"].includes(key)),
+    ),
+  };
+
+  if (tool === null) {
+    return {
+      ...value,
+      payload,
+    };
+  }
+
+  const reason = typeof value["reason"] === "string" && value["reason"].trim().length > 0
+    ? value["reason"].trim()
+    : typeof payload["reason"] === "string" && payload["reason"].trim().length > 0
+      ? payload["reason"].trim()
+      : defaultToolReason(tool);
+
+  const requiresApproval = typeof value["requiresApproval"] === "boolean"
+    ? value["requiresApproval"]
+    : defaultToolRequiresApproval(tool);
+
+  return {
+    tool,
+    reason,
+    requiresApproval,
+    payload,
+  };
+}
+
+function fallbackTurn(reply: string, reason: string): HarwickAiTurn {
+  return HarwickAiTurnSchema.parse({
+    intent: "general_follow_up",
+    nextAction: "do_not_reply",
+    missingFields: [],
+    confidence: 0.6,
+    safetyFlags: [],
+    reply,
+    statePatch: {},
+    handoffBrief: null,
+    toolCalls: [],
+    selfGateAutoExecute: true,
+    selfGateReason: reason,
+    documentUpdate: "",
+    endTurn: true,
+  });
+}
+
 function parseHarwickAiTurn(value: string): HarwickAiTurn {
-  const data = JSON.parse(value) as Record<string, unknown>;
-  
-  // Parse stringified payloads back to objects
+  let data: Record<string, unknown>;
+  try {
+    data = JSON.parse(value) as Record<string, unknown>;
+  } catch {
+    // Model returned non-JSON. Treat the raw text as a coworker reply.
+    return fallbackTurn(value.trim().slice(0, 800) || "I'm here.", "Non-JSON model output; surfaced raw text.");
+  }
+
+  // Backfill safe defaults for fields the model is likely to omit in
+  // operator/coworker mode. The schema treats these as required because
+  // the lead-conversation path needs them, but for "yo" / "show me hot leads"
+  // the model returns a near-empty JSON. Without defaults here, schema
+  // validation rejects the entire turn and the rail shows "could not respond".
+  if (data["intent"] === undefined || data["intent"] === null) data["intent"] = "general_follow_up";
+  if (data["nextAction"] === undefined || data["nextAction"] === null) data["nextAction"] = "do_not_reply";
+  if (!Array.isArray(data["missingFields"])) data["missingFields"] = [];
+  if (typeof data["confidence"] !== "number") data["confidence"] = 0.7;
+  if (!Array.isArray(data["safetyFlags"])) data["safetyFlags"] = [];
+  if (typeof data["reply"] !== "string" || data["reply"].trim().length === 0) {
+    data["reply"] = "I'm here. What do you want me to look at first?";
+  }
+  // Boolean fields with .default() in schema still error if model returned null.
+  if (data["selfGateAutoExecute"] === null) data["selfGateAutoExecute"] = true;
+  if (data["endTurn"] === null) data["endTurn"] = true;
+  if (data["selfGateReason"] === null) data["selfGateReason"] = "policy narrative permits autonomous send.";
+  if (data["documentUpdate"] === null) data["documentUpdate"] = "";
+  if (data["handoffBrief"] === undefined) data["handoffBrief"] = null;
+
+  // Normalize malformed tool calls before schema validation. The model
+  // sometimes puts payload fields at the top level or omits tool metadata.
   const toolCalls = data["toolCalls"];
   if (toolCalls && Array.isArray(toolCalls)) {
-    data["toolCalls"] = toolCalls.map((call: Record<string, unknown>) => ({
-      ...call,
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      payload: typeof call["payload"] === 'string' ? JSON.parse(call["payload"]) : call["payload"],
-    }));
+    data["toolCalls"] = toolCalls.map((call) => normalizeToolCall(call, data["nextAction"]));
   }
-  
+
   // Fix statePatch normalization
   const statePatch = data["statePatch"];
-  if (statePatch && typeof statePatch === 'object' && !Array.isArray(statePatch)) {
+  if (statePatch && typeof statePatch === "object" && !Array.isArray(statePatch)) {
     const statePatchObj = statePatch as Record<string, unknown>;
-    
+
     // 1. Fix invalid intent values (from HarwickAiTurnSchema.intent instead of LeadIntentSchema)
     const intentValue = statePatchObj["intent"];
     const validIntents: Set<unknown> = new Set(["high", "medium", "low", "spam", "unknown", null]);
@@ -462,26 +628,35 @@ function parseHarwickAiTurn(value: string): HarwickAiTurn {
         "spam_or_unsafe": "spam",
       };
       let mappedIntent: string | null = null;
-      if (typeof intentValue === 'string' && Object.prototype.hasOwnProperty.call(intentMapping, intentValue)) {
+      if (typeof intentValue === "string" && Object.prototype.hasOwnProperty.call(intentMapping, intentValue)) {
         mappedIntent = intentMapping[intentValue] ?? null;
       }
       statePatchObj["intent"] = mappedIntent;
     }
-    
+
     // 2. Convert empty strings to null for optional string fields
     for (const field of ["timeline", "targetArea", "propertyType", "currentIntent"]) {
       if (statePatchObj[field] === "") {
         statePatchObj[field] = null;
       }
     }
-    
+
     // 3. Convert empty string to "unknown" for financingStatus enum
     if (statePatchObj["financingStatus"] === "") {
       statePatchObj["financingStatus"] = "unknown";
     }
   }
-  
-  return HarwickAiTurnSchema.parse(data);
+
+  // Last-resort guard: if the model returned a structurally unfixable turn,
+  // surface a coworker-tone fallback instead of throwing a ZodError that
+  // cascades into a 500 + unhandled rejection. The reply field is preserved
+  // when present so the operator still sees what the model tried to say.
+  const result = HarwickAiTurnSchema.safeParse(data);
+  if (result.success) return result.data;
+  const replyHint = typeof data["reply"] === "string" && data["reply"].trim().length > 0
+    ? data["reply"].trim().slice(0, 800)
+    : "I caught your question but couldn't format a clean answer. Try rephrasing or pick a specific lead.";
+  return fallbackTurn(replyHint, "Schema validation failed; coworker fallback applied.");
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -632,9 +807,9 @@ export function createOpenAIHarwickAiRuntime(options: OpenAIHarwickAiRuntimeOpti
             buildHarwickToolCatalogPrompt(),
             "",
             "CHAINING EXAMPLES:",
-            "  • Showing request: [check_calendar with endTurn=false] → look at returned windows → [send_meta_dm proposing one window + request_showing_approval with the window] with endTurn=true.",
-            "  • Qualified buyer: [send_meta_dm acknowledging + sync_follow_up_boss] with endTurn=true. The CRM sync will queue for approval; the loop exits.",
-            "  • Hot handoff: [send_meta_dm with reassuring message + pause_automation] with endTurn=true if the policy narrative says to hand off legal/financing questions.",
+            "  • Showing request: [check_calendar with endTurn=false] → look at returned windows → [send_meta_message target='dm' proposing one window + request_showing_approval with the window] with endTurn=true.",
+            "  • Qualified buyer: [send_meta_message target='dm' acknowledging + sync_follow_up_boss] with endTurn=true. The CRM sync will queue for approval; the loop exits.",
+            "  • Hot handoff: [send_meta_message target='dm' with reassuring message + pause_automation] with endTurn=true if the policy narrative says to hand off legal/financing questions.",
             "  • Parallel helper: [dispatch_subagent with subagentType='research' and endTurn=false] → keep the lead moving while a durable specialist task is tracked.",
             ...(parsed.policyNarrative ? [
               "",
@@ -660,6 +835,41 @@ export function createOpenAIHarwickAiRuntime(options: OpenAIHarwickAiRuntimeOpti
               parsed.retrievedExamples,
               "",
             ] : []),
+            ...(parsed.operatorContext ? [
+              "",
+              "OPERATOR MODE (internal Harwick UI request) — THIS MODE OVERRIDES RULES 1-4 BELOW.",
+              "When OPERATOR MODE is set you are a chief of staff for the workspace, not a lead-conversation filter. Do NOT apply the off-topic gate. NEVER reply with 'Not related to real estate' in OPERATOR MODE. The operator is a teammate; help, redirect, or ask a clarifying question — never refuse.",
+              `You are responding to ${parsed.operatorContext.operatorName}, an internal operator inside the Harwick product. Talk like a coworker who knows the workspace: direct, warm, low-ceremony. No greetings unless they greeted you. No 'How can I assist you today?'.`,
+              `Request mode: ${parsed.operatorContext.requestMode}. Scope: ${parsed.operatorContext.requestScope}.`,
+              "Answer the operator, not the lead.",
+              "The inbound text is an internal brokerage request unless it explicitly quotes or references a lead message.",
+              "Treat operator greetings and short check-ins like 'yo', 'hey', 'morning', or 'what needs me?' as valid workspace commands, not as off-topic chatter.",
+              "Never use the off-topic fallback for an operator request unless it is clearly unrelated to brokerage operations even after considering the supplied workspace context.",
+              "INFO-DUMP IS BANNED. Never enumerate raw lead usernames, full lists, or paste back the context block. The UI will render lists as cards — your job is to synthesize, not transcribe. If the operator asks 'show me X', reply in 1-2 sentences explaining what you're surfacing and call dispatch_subagent for fresh data; don't paraphrase the recentLeads block.",
+              "When recent leads, routing, or team context is present, synthesize the top priorities instead of echoing every raw line back. Keep it to the few items that matter most right now.",
+              "State the recommended next move for each surfaced item. Mention assignment only when it changes the action, and never produce phrases like 'assigned unassigned'.",
+              "If a requested routing or reassignment still needs approval, describe it as proposed or queued review — never as already completed.",
+              "TOOLS YOU SHOULD USE IN OPERATOR MODE: dispatch_subagent (for any 'show me / find me / look up' request — pick subagentType='research' for lead lookups, 'routing' for assignment questions, 'calendar' for time questions, 'writer' for drafting). Call it with endTurn=true and a tight title. Don't paraphrase the workspace context — fetch.",
+              "You may use dispatch_subagent for durable follow-through even when no concrete lead thread is active.",
+              "Do not call outbound messaging or calendar-confirmation tools unless the supplied context clearly points to a concrete lead/thread and the available data is enough to ground the action.",
+              "Resolve operator pronouns from context: 'me' = the operator named above. 'my leads' = leads where assignedMemberId matches them. 'the team' = the team list. Don't ask the operator to clarify these.",
+              ...(parsed.operatorContext.activeLeadSummary ? [
+                `Active lead summary: ${parsed.operatorContext.activeLeadSummary}`,
+              ] : []),
+              ...(parsed.operatorContext.recentLeads.length > 0 ? [
+                "Recent leads:",
+                ...parsed.operatorContext.recentLeads.map((line) => `  • ${line}`),
+              ] : []),
+              ...(parsed.operatorContext.routing.length > 0 ? [
+                "Routing desk:",
+                ...parsed.operatorContext.routing.map((line) => `  • ${line}`),
+              ] : []),
+              ...(parsed.operatorContext.team.length > 0 ? [
+                "Team context:",
+                ...parsed.operatorContext.team.map((line) => `  • ${line}`),
+              ] : []),
+              "",
+            ] : []),
             "Your CORE PURPOSE: Process real estate inquiries only. Recognize off-topic messages BEFORE generating a reply.",
             "",
             "RULE 1: INTENT CLASSIFICATION (CRITICAL)",
@@ -667,10 +877,11 @@ export function createOpenAIHarwickAiRuntime(options: OpenAIHarwickAiRuntimeOpti
             "  • Real estate inquiry (property, showing, pricing, buying/selling, agents, brokers, listings, neighborhoods, mortgages)",
             "  • Greeting/identity question (hi, who are you, are you a bot)",
             "  • Off-topic (gaming, sports, personal tasks, chitchat, memes, spam, harassment, non-real-estate services)",
+            "If OPERATOR MODE is present, treat the inbound text as an internal brokerage operations request instead of applying the lead/off-topic filter. Stay within the provided workspace context and keep the reply operator-facing. Short greetings and quick status checks are valid operator requests.",
             "If CLEARLY off-topic (e.g., 'want to play valorant', 'getting a haircut', 'buy pizza'), set nextAction to 'do_not_reply' and confidence to 0.0. Reply field must be a simple one-line message.",
             "",
             "RULE 2: TOOL USAGE (CONDITIONAL LOGIC)",
-            "Only generate tool calls when responding to real estate inquiries. For off-topic messages:",
+            "Only generate tool calls when responding to real estate inquiries or OPERATOR MODE requests grounded in the provided workspace context. For off-topic messages:",
             "  • nextAction = 'do_not_reply'",
             "  • toolCalls = [] (empty array)",
             "  • reply = 'Not related to real estate'",
@@ -685,8 +896,9 @@ export function createOpenAIHarwickAiRuntime(options: OpenAIHarwickAiRuntimeOpti
             "",
             "RULE 4: REAL ESTATE RESPONSE HANDLING",
             "Ask at most one useful missing qualification question per turn unless the lead is asking for a handoff.",
-            "For public comments: keep replies short and public-safe. If private qualification is needed, use move_comment_to_dm or send_meta_dm.",
+            "For public comments: keep replies short and public-safe. Actual outbound sends from a comment must stay on the original comment thread with send_meta_message target='comment'. If deeper qualification is needed, use move_comment_to_dm as the semantic action and emit two send_meta_message tool calls: target='comment' for the short public acknowledgement, then target='dm' for the private continuation.",
             "For DMs: continue naturally in workspace/agent tone, update qualification state, decide whether to reply, ask, offer showing, route, sync, or pause.",
+            "For OPERATOR MODE: missingFields may be empty, reply should brief the operator directly, and general_follow_up is the default intent when no lead-specific intent fits.",
             "If calendar context supplied: use only per showing mode (collect_only=no times, request_approve=propose w/approval, auto_book=offer only when qualified).",
             "If automation mode is human_takeover: do not send lead reply; pause automation.",
             "",
@@ -702,6 +914,7 @@ export function createOpenAIHarwickAiRuntime(options: OpenAIHarwickAiRuntimeOpti
             "  • statePatch: object with fields currentIntent (string), leadType (buyer/seller/renter/investor/unknown), intent (qualification strength: high/medium/low/spam/unknown), timeline (string), budget (string), targetArea (string), propertyType (string), financingStatus (string), knownFacts (array). DO NOT put the turn intent values in statePatch.intent. Use null (not empty string) for any optional field with no value.",
             "  • handoffBrief: null or a string explaining why handoff is needed",
             "  • toolCalls: array of tool call objects (can be empty)",
+            "Every toolCalls item must be shaped exactly as { tool, reason, requiresApproval, payload }. Never place payload fields like assignedMemberId, title, or listing at the top level of the tool call object.",
             "Off-topic messages: set confidence to 0.0-0.2, intent='spam_or_unsafe', nextAction='do_not_reply', toolCalls=[], safetyFlags=['low_confidence'].",
             "",
             "RULE 6: SELF-GATE AND DOCUMENT UPDATE (AI-NATIVE)",

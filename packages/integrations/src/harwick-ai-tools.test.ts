@@ -8,23 +8,23 @@ describe("executeHarwickAiToolCalls", () => {
 
     await expect(executeHarwickAiToolCalls({
       toolCalls: [{
-        tool: "send_meta_reply",
+        tool: "send_meta_message",
         reason: "answer the comment",
         requiresApproval: false,
-        payload: { reply: "Yes, I can send details." },
+        payload: { reply: "Yes, I can send details.", target: "comment" },
       }],
       handlers: {
-        send_meta_reply: handler,
+        send_meta_message: handler,
       },
     })).resolves.toEqual([{
-      tool: "send_meta_reply",
+      tool: "send_meta_message",
       status: "executed",
       reason: "answer the comment",
       output: { messageId: "meta-1" },
     }]);
 
     expect(handler).toHaveBeenCalledWith(expect.objectContaining({
-      tool: "send_meta_reply",
+      tool: "send_meta_message",
     }));
   });
 
@@ -136,20 +136,20 @@ describe("executeHarwickAiToolCalls", () => {
 
     await expect(executeHarwickAiToolCalls({
       toolCalls: [{
-        tool: "send_meta_dm",
+        tool: "send_meta_message",
         reason: "continue qualification",
         requiresApproval: false,
-        payload: { reply: "Are you looking this month?" },
+        payload: { reply: "Are you looking this month?", target: "dm" },
       }],
       handlers: {
-        send_meta_dm: handler,
+        send_meta_message: handler,
       },
     })).resolves.toEqual([{
-      tool: "send_meta_dm",
+      tool: "send_meta_message",
       status: "failed",
       reason: "continue qualification",
       output: {
-        payload: { reply: "Are you looking this month?" },
+        payload: { reply: "Are you looking this month?", target: "dm" },
       },
       errorCode: "handler_execution_failed",
       errorMessage: "Meta is unavailable",
@@ -180,10 +180,10 @@ describe("executeHarwickAiToolCalls", () => {
         },
         handoffBrief: null,
         toolCalls: [{
-          tool: "send_meta_dm",
+          tool: "send_meta_message",
           reason: "continue qualification",
           requiresApproval: false,
-          payload: { reply: "I can send details. Are you looking to move soon?" },
+          payload: { reply: "I can send details. Are you looking to move soon?", target: "dm" },
         }],
         selfGateAutoExecute: true,
         selfGateReason: "policy narrative permits autonomous send.",
@@ -195,13 +195,13 @@ describe("executeHarwickAiToolCalls", () => {
         confidenceThreshold: 0.8,
       },
       handlers: {
-        send_meta_dm: handler,
+        send_meta_message: handler,
       },
     });
 
     expect(result.automation.canAutoExecute).toBe(true);
     expect(result.results).toEqual([{
-      tool: "send_meta_dm",
+      tool: "send_meta_message",
       status: "executed",
       reason: "continue qualification",
       output: { messageId: "meta-2" },
@@ -214,7 +214,7 @@ describe("Harwick AI tool registry", () => {
     const prompt = buildHarwickToolCatalogPrompt();
 
     expect(HARWICK_AI_TOOL_NAMES).toContain("dispatch_subagent");
-    expect(prompt).toContain("send_meta_dm");
+    expect(prompt).toContain("send_meta_message");
     expect(prompt).toContain("dispatch_subagent");
     expect(prompt).toContain("safe internal tool");
     expect(prompt).toContain("requires operator approval");

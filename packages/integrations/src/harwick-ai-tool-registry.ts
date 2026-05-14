@@ -12,18 +12,11 @@ export type HarwickAiToolRegistryEntry = {
 
 export const HARWICK_AI_TOOL_REGISTRY: readonly HarwickAiToolRegistryEntry[] = [
   {
-    name: "send_meta_reply",
+    name: "send_meta_message",
     category: "messaging",
     permission: "auto_safe",
-    description: "Post a short public reply on the original comment thread when policy allows.",
-    payloadHint: "{ reply: string }",
-  },
-  {
-    name: "send_meta_dm",
-    category: "messaging",
-    permission: "auto_safe",
-    description: "Continue the private DM thread with the lead when policy allows.",
-    payloadHint: "{ reply: string }",
+    description: "Reply on the active Meta thread. Use target='comment' to stay on the original comment thread or target='dm' to continue an existing DM thread.",
+    payloadHint: "{ reply: string, target?: 'current_thread' | 'comment' | 'dm' }",
   },
   {
     name: "check_calendar",

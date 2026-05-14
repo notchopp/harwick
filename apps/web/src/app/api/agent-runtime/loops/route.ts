@@ -3,10 +3,14 @@ import { NextResponse, type NextRequest } from "next/server";
 import {
   createSmallModelHarwickLoopPlannerClient,
   executeDueHarwickLoops,
+  executeHarwickEventLoops,
 } from "../../../../features/agent-runtime/execute-harwick-loops";
 import { createSmallModelHarwickWorkItemIntelligenceClient } from "../../../../features/agent-runtime/harwick-work-item-intelligence";
 import { getServerEnvironment } from "../../../../lib/server-env";
-import { createSupabaseHarwickLoopRepository } from "../../../../lib/supabase/harwick-loops";
+import {
+  createSupabaseHarwickLoopEventSourceRepository,
+  createSupabaseHarwickLoopRepository,
+} from "../../../../lib/supabase/harwick-loops";
 import { createSupabaseHarwickWorkItemRepository } from "../../../../lib/supabase/harwick-work-items";
 import { createServerSupabaseClient } from "../../../../lib/supabase/server-client";
 
@@ -45,16 +49,23 @@ export async function POST(request: NextRequest) {
         model: environment.OPENAI_SMALL_MODEL,
       });
     const supabase = createServerSupabaseClient();
-    const report = await executeDueHarwickLoops({
+    const sharedDeps = {
       loopRepository: createSupabaseHarwickLoopRepository(supabase),
       workItemRepository: createSupabaseHarwickWorkItemRepository(supabase),
       ...(smallModel === undefined ? {} : {
         plannerClient: createSmallModelHarwickLoopPlannerClient(smallModel),
         intelligenceClient: createSmallModelHarwickWorkItemIntelligenceClient(smallModel),
       }),
-    });
+    };
+    const [scheduledReport, eventReport] = await Promise.all([
+      executeDueHarwickLoops(sharedDeps),
+      executeHarwickEventLoops({
+        ...sharedDeps,
+        eventSourceRepository: createSupabaseHarwickLoopEventSourceRepository(supabase),
+      }),
+    ]);
 
-    return NextResponse.json({ status: "ok", report }, { status: 200 });
+    return NextResponse.json({ status: "ok", scheduledReport, eventReport }, { status: 200 });
   } catch (error) {
     return NextResponse.json(
       {

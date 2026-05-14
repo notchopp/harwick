@@ -4,9 +4,16 @@ import {
   UuidSchema,
   type HarwickAssistantResponse,
 } from "@realty-ops/core";
-import { createOpenAIHarwickAssistantRuntime } from "@realty-ops/integrations";
+import { createOpenAIHarwickAiRuntime } from "@realty-ops/integrations";
 import { NextResponse, type NextRequest } from "next/server";
 
+import {
+  buildHarwickRecentLeadSummary,
+  buildHarwickRoutingSummary,
+  buildHarwickTeamSummary,
+} from "../../../../../features/home/harwick-assistant-context";
+import { createDefaultHomeHarwickRuntimeService } from "../../../../../features/home/home-harwick-runtime";
+import { buildHarwickResponseCards } from "../../../../../features/home/harwick-response-cards";
 import { loadRecentLeads } from "../../../../../features/home/recent-leads";
 import { loadRoutingDesk } from "../../../../../features/home/routing-desk";
 import { loadTeamPresence } from "../../../../../features/home/team-presence";
@@ -26,6 +33,7 @@ type HarwickAssistantStreamEvent =
         reasoningSteps: HarwickAssistantResponse["reasoningSteps"];
         scope: string;
         toolCalls: HarwickAssistantResponse["toolCalls"];
+        responseCards: HarwickAssistantResponse["responseCards"];
       };
     }
   | { type: "answer-chunk"; data: string }
@@ -110,6 +118,16 @@ function splitIntoChunks(value: string, size = 220, preserveWhitespace = false):
   return chunks.filter((chunk) => chunk.length > 0);
 }
 
+/** Split prose into word-sized chunks that simulate token streaming. Each
+ * chunk is a single word with its trailing whitespace, so reassembly is just
+ * concatenation. Keeps punctuation attached. */
+function splitIntoWords(value: string): string[] {
+  const text = value.trim();
+  if (text.length === 0) return [];
+  const matches = text.match(/\S+\s*/g);
+  return matches ?? [text];
+}
+
 function encodeAssistantEvent(event: HarwickAssistantStreamEvent): string {
   return `data: ${JSON.stringify(event)}\n\n`;
 }
@@ -118,33 +136,45 @@ function createStreamResponse(response: HarwickAssistantResponse): Response {
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       const encoder = new TextEncoder();
-      const push = async (event: HarwickAssistantStreamEvent) => {
+      const pushNow = (event: HarwickAssistantStreamEvent) => {
         controller.enqueue(encoder.encode(encodeAssistantEvent(event)));
-        await new Promise((resolve) => setTimeout(resolve, 18));
+      };
+      const pushDelayed = async (event: HarwickAssistantStreamEvent, delayMs: number) => {
+        pushNow(event);
+        if (delayMs > 0) {
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+        }
       };
 
-      await push({
+      // 1) Metadata first — cards + tool chips appear instantly, before prose.
+      pushNow({
         type: "response-metadata",
         data: {
           reasoningSteps: response.reasoningSteps,
           scope: response.scope,
           toolCalls: response.toolCalls,
+          responseCards: response.responseCards,
         },
       });
 
-      for (const chunk of splitIntoChunks(response.answer)) {
-        await push({ type: "answer-chunk", data: chunk });
+      // 2) Prose streams word-by-word so it feels like Claude's typing. The
+      // model call is single-shot upstream (see TODO in note below), so this
+      // is visual streaming, not true token streaming yet.
+      const words = splitIntoWords(response.answer);
+      for (const word of words) {
+        await pushDelayed({ type: "answer-chunk", data: word }, 22);
       }
 
+      // 3) Artifact body streams larger chunks (less critical for "live" feel).
       if (response.artifact !== undefined) {
-        await push({ type: "artifact-start", data: response.artifact });
+        pushNow({ type: "artifact-start", data: response.artifact });
         for (const chunk of splitIntoChunks(response.artifact.body, 260, true)) {
-          await push({ type: "artifact-chunk", data: chunk });
+          await pushDelayed({ type: "artifact-chunk", data: chunk }, 12);
         }
       }
 
-      await push({ type: "follow-up-question", data: response.followUpQuestion });
-      await push({ type: "done", data: null });
+      pushNow({ type: "follow-up-question", data: response.followUpQuestion });
+      pushNow({ type: "done", data: null });
       controller.close();
     },
   });
@@ -154,6 +184,8 @@ function createStreamResponse(response: HarwickAssistantResponse): Response {
       "Cache-Control": "no-cache, no-transform",
       Connection: "keep-alive",
       "Content-Type": "text/event-stream; charset=utf-8",
+      // AI-SDK-style stream marker so a future client can use useChat directly.
+      "X-Vercel-AI-Data-Stream": "v1",
     },
   });
 }
@@ -219,30 +251,54 @@ export async function POST(
     }),
   ]);
 
-  const runtimeClient = createOpenAIHarwickAssistantRuntime({
+  const runtimeClient = createOpenAIHarwickAiRuntime({
     apiKey: environment.OPENAI_API_KEY,
-    model: environment.OPENAI_SMALL_MODEL,
+    model: environment.OPENAI_REPLY_MODEL,
+  });
+  const assistantRuntime = createDefaultHomeHarwickRuntimeService({
+    supabase,
+    runtime: runtimeClient,
   });
 
   try {
-    const response = HarwickAssistantResponseSchema.parse(await runtimeClient.run({
+    const rawResponse = await assistantRuntime.run({
+      workspaceId,
       workspaceName: membership.workspaceName,
       operatorName: membership.displayName,
       message: parsedBody.data.message,
       mentions: parsedBody.data.mentions,
-      recentLeads: recentLeads.items.map((lead) =>
-        `${lead.name}: ${lead.stageLabel}, ${lead.sourceLabel} ${lead.channelLabel}, ${lead.lastTouchLabel}, assigned ${lead.assignedDisplayName ?? "unassigned"}`
-      ),
-      routing: routingDesk.items.map((item) =>
-        `${item.leadName}: ${item.decision.assignedDisplayName ?? "unassigned"} because ${item.decision.reasons.join("; ") || item.decision.taskLabel}`
-      ),
-      team: teamPresence.members.map((member) =>
-        `${member.name}: ${member.roleLabel}, ${member.status}, ${member.openWork} open work`
-      ),
-    }));
+      activeLeadId: parsedBody.data.activeLeadId,
+      threadId: parsedBody.data.threadId ?? null,
+      recentLeadSummaries: recentLeads.items.map((lead) => buildHarwickRecentLeadSummary(lead)),
+      routingSummaries: routingDesk.items.map((item) => buildHarwickRoutingSummary(item)),
+      teamSummaries: teamPresence.members.map((member) => buildHarwickTeamSummary(member)),
+    });
+
+    const responseCards = buildHarwickResponseCards({
+      message: parsedBody.data.message,
+      recentLeads: recentLeads.items,
+      routingDesk: routingDesk.items,
+      teamPresence: teamPresence.members,
+      toolCalls: rawResponse.toolCalls,
+    });
+
+    const response = HarwickAssistantResponseSchema.parse({
+      ...rawResponse,
+      responseCards,
+    });
     return respond(parsedBody.data, response);
   } catch (error) {
-    console.error("POST /harwick-assistant failed:", error);
+    // Full stack + message to dev log so we can debug the rail next time.
+    const stack = error instanceof Error ? error.stack : undefined;
+    console.error("[harwick-assistant] runtime failed", {
+      workspaceId,
+      message: parsedBody.data.message.slice(0, 200),
+      activeLeadId: parsedBody.data.activeLeadId,
+      threadId: parsedBody.data.threadId ?? null,
+      errorName: error instanceof Error ? error.name : "unknown",
+      errorMessage: error instanceof Error ? error.message : String(error),
+      stack: stack === undefined ? undefined : stack.split("\n").slice(0, 5).join(" | "),
+    });
     const runtimeError = describeHarwickAssistantRuntimeError(error);
     return NextResponse.json({
       error: "assistant_failed",

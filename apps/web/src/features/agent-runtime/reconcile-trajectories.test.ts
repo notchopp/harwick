@@ -118,6 +118,7 @@ describe("reconcileAgentTrajectories", () => {
       recordOutcome,
       saveTrajectoryEmbedding: vi.fn(),
       saveStepEmbedding: vi.fn(),
+      loadThreadHistory: vi.fn().mockResolvedValue([]),
     };
 
     const report = await reconcileAgentTrajectories({

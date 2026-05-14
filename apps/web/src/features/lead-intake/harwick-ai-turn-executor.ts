@@ -9,7 +9,6 @@ import {
   type HarwickAiPersistedTurn,
 } from "@realty-ops/core";
 import {
-  createOpenAIEmbeddingClient,
   createGoogleCalendarClient,
   createOpenAIHarwickAiRuntime,
   createOpenAISmallModelClient,
@@ -34,11 +33,15 @@ import { createSupabaseLeadDocumentRepository } from "../../lib/supabase/lead-do
 import { createSupabaseMemberRoutingProfileRepository } from "../../lib/supabase/member-routing-profiles";
 import { createSupabaseMemberCalendarConnectionRepository } from "../../lib/supabase/member-calendar-connections";
 import { createSupabaseWorkspacePolicyNarrativeRepository } from "../../lib/supabase/workspace-policy-narrative";
-import { createSupabaseWorkspaceMemoryRepository, type WorkspaceMemoryRepository } from "../../lib/supabase/workspace-memory";
-import { createSupabaseAgentTrajectoryStore, findSimilarTrajectories } from "../../lib/supabase/agent-trajectory-store";
+import { createSupabaseWorkspaceMemoryRepository } from "../../lib/supabase/workspace-memory";
+import { createSupabaseAgentTrajectoryStore } from "../../lib/supabase/agent-trajectory-store";
 import { loadAiConversationHistory } from "./harwick-ai-conversation-history";
 import { createHarwickAiToolHandlers, type HarwickAiToolContext } from "./harwick-ai-tool-handlers";
-import { buildWorkspaceMemoryRuntimeContext } from "./workspace-memory-runtime-context";
+import {
+  buildTrajectorySummary,
+  retrievePositiveExamples,
+  retrieveWorkspaceMemory,
+} from "../harwick-runtime/harwick-runtime-context";
 
 export type GenerateAndExecuteHarwickAiTurnParams = {
   workspaceId: string;
@@ -504,113 +507,4 @@ async function persistClassification(params: {
     .from("lead_events")
     .update(update)
     .eq("id", params.leadEventId);
-}
-
-async function retrieveWorkspaceMemory(params: {
-  repository: WorkspaceMemoryRepository;
-  workspaceId: string;
-  inboundText: string;
-  leadDocument: string | null;
-}): Promise<string | null> {
-  const queryText = params.leadDocument === null
-    ? params.inboundText
-    : `${params.leadDocument}\n\n---\nNew inbound: ${params.inboundText}`;
-  const trimmed = queryText.trim();
-
-  if (trimmed.length > 0) {
-    try {
-      const environment = getServerEnvironment();
-      if (environment.OPENAI_API_KEY !== undefined) {
-        const embeddings = createOpenAIEmbeddingClient({ apiKey: environment.OPENAI_API_KEY });
-        const queryEmbedding = await embeddings.embed(trimmed.slice(0, 8000));
-        const semanticMatches = await params.repository.semanticMemorySearch({
-          workspaceId: params.workspaceId,
-          embedding: queryEmbedding,
-          limit: 5,
-          minSimilarity: 0.18,
-        });
-        if (semanticMatches.length > 0) {
-          return buildWorkspaceMemoryRuntimeContext(semanticMatches);
-        }
-      }
-    } catch (error) {
-      console.warn("[retrieveWorkspaceMemory] semantic search failed; falling back to recent memories", error);
-    }
-  }
-
-  try {
-    return buildWorkspaceMemoryRuntimeContext(
-      await params.repository.listRuntimeMemoryDocuments({
-        workspaceId: params.workspaceId,
-        limit: 5,
-      }),
-    );
-  } catch (error) {
-    console.warn("[retrieveWorkspaceMemory] recent memory lookup failed; continuing without workspace memory", error);
-    return null;
-  }
-}
-
-/**
- * In-context retrieval RL: at decision time, embed the new state and find
- * the top-N similar past trajectories where the outcome was positive.
- * Render them as a prose block the model can use as few-shot examples.
- *
- * Returns null on any failure path (no API key, embedding error, no matches).
- * The runtime input field is nullable, so a null here just means "no
- * retrieval context for this turn"; the loop still runs.
- */
-async function retrievePositiveExamples(params: {
-  supabase: import("../../lib/supabase/server-client").RealtyOpsSupabaseClient;
-  workspaceId: string;
-  inboundText: string;
-  leadDocument: string | null;
-}): Promise<string | null> {
-  try {
-    const environment = getServerEnvironment();
-    if (environment.OPENAI_API_KEY === undefined) return null;
-
-    const queryText = params.leadDocument === null
-      ? params.inboundText
-      : `${params.leadDocument}\n\n---\nNew inbound: ${params.inboundText}`;
-    const trimmed = queryText.trim();
-    if (trimmed.length === 0) return null;
-
-    const embeddings = createOpenAIEmbeddingClient({ apiKey: environment.OPENAI_API_KEY });
-    const queryEmbedding = await embeddings.embed(trimmed.slice(0, 8000));
-
-    const matches = await findSimilarTrajectories(params.supabase, {
-      workspaceId: params.workspaceId,
-      embedding: queryEmbedding,
-      limit: 3,
-      minSimilarity: 0.3,
-      requireOutcome: "positive",
-    });
-
-    if (matches.length === 0) return null;
-
-    return matches
-      .map((match, index) => {
-        const summary = match.summaryText ?? "(no summary)";
-        const outcome = match.completionReason ?? match.outcomeLabel ?? "positive outcome";
-        const similarity = (match.similarity * 100).toFixed(0);
-        return `Example ${index + 1} (similarity ${similarity}%, outcome: ${outcome}):\n${summary}`;
-      })
-      .join("\n\n");
-  } catch (error) {
-    console.warn("[retrievePositiveExamples] failed; continuing without examples", error);
-    return null;
-  }
-}
-
-function buildTrajectorySummary(outcome: Awaited<ReturnType<typeof runHarwickAiAgenticLoop>>): string {
-  const lines: string[] = [];
-  for (const step of outcome.steps) {
-    const tools = step.results
-      .map((result) => `${result.tool}=${result.status}`)
-      .join(", ");
-    lines.push(`Step ${step.iteration}: ${step.turn.intent} → ${step.turn.nextAction} (${tools || "no tools"})`);
-  }
-  lines.push(`Exit: ${outcome.exitReason} after ${outcome.steps.length} step(s).`);
-  return lines.join("\n");
 }

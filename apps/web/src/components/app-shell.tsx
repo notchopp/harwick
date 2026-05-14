@@ -20,9 +20,12 @@ import {
   Users,
   UsersRound,
 } from "lucide-react";
+import type { WorkspaceRole } from "@realty-ops/core";
 import type { ComponentType, ReactNode, SVGProps } from "react";
 import { useEffect, useState } from "react";
 
+import { HarwickRail } from "./harwick-rail/harwick-rail";
+import { MobileBottomNav, MobileTopBar, usePathname } from "./mobile-nav";
 import { Avatar, AvatarFallback } from "./ui/avatar";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
@@ -41,9 +44,13 @@ type AppShellProps = {
   children: ReactNode;
   memberName?: string;
   memberRole?: string;
+  operatorRole?: WorkspaceRole;
+  notificationCount?: number;
+  notificationHref?: string;
   sidebarPanel?: ReactNode;
   title?: string;
   tone?: "default" | "dashboardDark";
+  workspaceId?: string;
   workspaceName?: string;
 };
 
@@ -186,7 +193,10 @@ export function AppShell(props: AppShellProps) {
   const workspaceName = props.workspaceName ?? "Workspace";
   const memberName = props.memberName?.trim() || "Workspace member";
   const memberRole = formatRoleLabel(props.memberRole?.trim() || "member");
+  const notificationCount = Math.max(0, props.notificationCount ?? 0);
+  const notificationHref = props.notificationHref ?? "/queue";
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const pathname = usePathname();
   const darkTone = tone === "dashboardDark";
 
   useEffect(() => {
@@ -202,13 +212,23 @@ export function AppShell(props: AppShellProps) {
   }, [isSidebarCollapsed]);
 
   return (
-    <div className={cn("harwick-theme-root harwick-app-shell min-h-screen", darkTone ? "harwick-shell-dark bg-[#0f0f0f] text-white" : "bg-harwick-shell text-harwick-ink")}>
-      <div className="harwick-app-frame flex min-h-screen overflow-hidden">
+    <div className={cn("harwick-theme-root harwick-app-shell min-h-screen", darkTone ? "harwick-shell-dark bg-[var(--panel-0)] text-white" : "bg-harwick-shell text-harwick-ink")}>
+      {darkTone ? (
+        <MobileTopBar
+          workspaceName={workspaceName}
+          pathname={pathname}
+          notificationCount={notificationCount}
+          notificationHref={notificationHref}
+        />
+      ) : null}
+      <div className={cn("harwick-app-frame flex min-h-screen overflow-hidden", darkTone ? "gap-2.5 p-2.5 max-md:gap-0 max-md:p-0 max-md:pb-16" : "")}>
         <aside
           className={cn(
             "harwick-sidebar hidden shrink-0 flex-col transition-[width] duration-200 md:flex",
-            isSidebarCollapsed ? "w-[78px]" : "w-[220px]",
-            darkTone ? "border-r border-transparent bg-transparent" : "border-r border-transparent bg-transparent",
+            isSidebarCollapsed ? "w-[78px]" : "w-[224px]",
+            darkTone
+              ? "rounded-[var(--panel-radius-lg)] border border-[color:var(--panel-line)] bg-[color:var(--panel-1)] shadow-[var(--panel-inset-top),var(--panel-shadow-lift)]"
+              : "border-r border-transparent bg-transparent",
           )}
         >
           <div className="flex h-14 items-center px-2">
@@ -330,8 +350,8 @@ export function AppShell(props: AppShellProps) {
         </div>
         </aside>
 
-        <main className={cn("harwick-region harwick-main-region flex min-w-0 flex-1 flex-col overflow-hidden", darkTone ? "bg-[#0f0f0f]" : "")}>
-          <header className={cn("harwick-topbar flex h-14 shrink-0 items-center justify-between px-4 sm:px-6", darkTone ? "bg-transparent" : "bg-transparent")}>
+        <main className={cn("harwick-region harwick-main-region flex min-w-0 flex-1 flex-col overflow-hidden", darkTone ? "rounded-[var(--panel-radius-lg)] border border-[color:var(--panel-line)] bg-[color:var(--panel-1)] shadow-[var(--panel-inset-top),var(--panel-shadow-lift)]" : "")}>
+          <header className={cn("harwick-topbar hidden h-14 shrink-0 items-center justify-between px-4 sm:px-6 md:flex", darkTone ? "bg-transparent" : "bg-transparent")}>
           <div className="flex min-w-0 items-center gap-4">
             <Tooltip>
               <TooltipTrigger asChild>
@@ -374,9 +394,20 @@ export function AppShell(props: AppShellProps) {
             </span>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button className={cn("harwick-topbar-icon relative size-9 rounded-[10px]", darkTone ? "text-white/58 hover:bg-white/[0.04] hover:text-white" : "text-harwick-ink-soft hover:bg-harwick-linen hover:text-harwick-ink")} size="icon" variant="ghost">
-                  <Bell aria-hidden="true" className="size-4" />
-                  <span className="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-oxblood" />
+                <Button
+                  asChild
+                  className={cn("harwick-topbar-icon relative size-9 rounded-[10px]", darkTone ? "text-white/58 hover:bg-white/[0.04] hover:text-white" : "text-harwick-ink-soft hover:bg-harwick-linen hover:text-harwick-ink")}
+                  size="icon"
+                  variant="ghost"
+                >
+                  <a href={notificationHref} aria-label={`${notificationCount} pending notifications`}>
+                    <Bell aria-hidden="true" className="size-4" />
+                    {notificationCount > 0 ? (
+                      <span className="absolute right-1 top-1 flex min-w-3.5 items-center justify-center rounded-full bg-oxblood px-1 text-[9px] font-semibold leading-3.5 text-white">
+                        {notificationCount > 9 ? "9+" : notificationCount}
+                      </span>
+                    ) : null}
+                  </a>
                 </Button>
               </TooltipTrigger>
               <TooltipContent>Notifications</TooltipContent>
@@ -398,6 +429,10 @@ export function AppShell(props: AppShellProps) {
         </div>
         </main>
       </div>
+      {darkTone ? <MobileBottomNav pathname={pathname} /> : null}
+      {props.workspaceId !== undefined && props.operatorRole !== undefined ? (
+        <HarwickRail workspaceId={props.workspaceId} operatorRole={props.operatorRole} />
+      ) : null}
     </div>
   );
 }

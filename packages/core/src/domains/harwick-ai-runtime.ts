@@ -83,6 +83,18 @@ export const HarwickAiPostContextSchema = z.object({
   visualDescription: z.string().trim().max(2000).nullable().default(null),
 });
 
+export const HarwickAiOperatorRequestModeSchema = z.enum(["workspace_command", "lead_review"]);
+
+export const HarwickAiOperatorContextSchema = z.object({
+  operatorName: z.string().trim().min(1).max(120),
+  requestMode: HarwickAiOperatorRequestModeSchema.default("workspace_command"),
+  requestScope: z.enum(["workspace", "lead"]).default("workspace"),
+  recentLeads: z.array(z.string().trim().min(1).max(600)).max(12).default([]),
+  routing: z.array(z.string().trim().min(1).max(600)).max(12).default([]),
+  team: z.array(z.string().trim().min(1).max(600)).max(20).default([]),
+  activeLeadSummary: z.string().trim().min(1).max(800).nullable().default(null),
+});
+
 export const HarwickAiRuntimeInputSchema = z.object({
   workspaceName: z.string().trim().min(1).max(120),
   channel: LeadSourceChannelSchema,
@@ -108,6 +120,9 @@ export const HarwickAiRuntimeInputSchema = z.object({
   // with positive outcomes. Lets the model do retrieval-flavored RL without
   // any gradient updates. Populated by the executor at decision time.
   retrievedExamples: z.string().trim().max(8000).nullable().default(null),
+  // Internal product surfaces can ask Harwick workspace/lead review questions
+  // through the same runtime without pretending the operator is the lead.
+  operatorContext: HarwickAiOperatorContextSchema.nullable().default(null),
 });
 
 export const HarwickAiMissingFieldRuntimeSchema = z.enum([
@@ -139,6 +154,9 @@ export const HarwickAiRuntimeActionSchema = z.enum([
 ]);
 
 export const HarwickAiToolNameSchema = z.enum([
+  "send_meta_message",
+  // Legacy aliases stay parseable so existing persisted turns and approvals
+  // continue to render while live generation converges on one transport tool.
   "send_meta_reply",
   "send_meta_dm",
   "check_calendar",
@@ -219,6 +237,7 @@ export type HarwickAiToneProfile = z.infer<typeof HarwickAiToneProfileSchema>;
 export type HarwickAiListingMemory = z.infer<typeof HarwickAiListingMemorySchema>;
 export type HarwickAiCalendarMemory = z.infer<typeof HarwickAiCalendarMemorySchema>;
 export type HarwickAiConversationState = z.infer<typeof HarwickAiConversationStateSchema>;
+export type HarwickAiOperatorContext = z.infer<typeof HarwickAiOperatorContextSchema>;
 export type HarwickAiRuntimeInput = z.input<typeof HarwickAiRuntimeInputSchema>;
 export type HarwickAiRuntimeAction = z.infer<typeof HarwickAiRuntimeActionSchema>;
 export type HarwickAiToolName = z.infer<typeof HarwickAiToolNameSchema>;

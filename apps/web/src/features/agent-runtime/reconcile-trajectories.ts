@@ -303,7 +303,8 @@ export async function reconcileAgentTrajectories(
       }
 
       // ─── reply_engaged / reply_no_engagement ──────────────────────────
-      const sendStep = findStepWithToolCall(steps, "send_meta_dm")
+      const sendStep = findStepWithToolCall(steps, "send_meta_message")
+        ?? findStepWithToolCall(steps, "send_meta_dm")
         ?? findStepWithToolCall(steps, "send_meta_reply");
       if (sendStep !== null && ageHours >= windows.replyEngagementHours) {
         const inboundReply = await findInboundLeadReplyAfter(deps.supabase, {

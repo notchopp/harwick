@@ -296,10 +296,10 @@ describe("generateAndExecuteHarwickAiTurnSync", () => {
         },
         handoffBrief: null,
         toolCalls: [{
-          tool: "send_meta_dm",
+          tool: "send_meta_message",
           reason: "safe buyer qualification reply",
           requiresApproval: false,
-          payload: { reply: "Happy to help. What timeline are you working with?" },
+          payload: { reply: "Happy to help. What timeline are you working with?", target: "dm" },
         }],
         selfGateAutoExecute: true,
         selfGateReason: "policy narrative permits a normal qualification reply.",
@@ -329,7 +329,7 @@ describe("generateAndExecuteHarwickAiTurnSync", () => {
         autoSendEnabled: true,
         confidenceThreshold: 0.7,
         allowedAutoActions: ["send_reply", "ask_qualification"],
-        allowedAutoTools: ["send_meta_dm", "send_meta_reply"],
+        allowedAutoTools: ["send_meta_message"],
         requiresApprovalActions: ["request_showing_approval", "route_lead"],
         requiresApprovalTools: ["request_showing_approval", "route_lead"],
         blockedSafetyFlags: ["needs_human_review", "human_takeover"],
@@ -375,7 +375,7 @@ describe("generateAndExecuteHarwickAiTurnSync", () => {
     const insertedTurn = insertTurn.mock.calls[0]?.[0];
     expect(insertedTurn?.status).toBe("auto_executed");
     expect(insertedTurn?.toolCalls[0]).toMatchObject({
-      tool: "send_meta_dm",
+      tool: "send_meta_message",
       executionStatus: "executed",
     });
     expect(insertedTurn?.toolCalls[0]?.executionOutput).toMatchObject({

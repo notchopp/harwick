@@ -15,7 +15,9 @@ export default async function Page() {
       activeItem="Profile & Settings"
       memberName={membership.displayName}
       memberRole={membership.role}
+      operatorRole={membership.role}
       title="Settings"
+      workspaceId={membership.workspaceId}
       workspaceName={membership.workspaceName}
     >
       <SettingsPageContent

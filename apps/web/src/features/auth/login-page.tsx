@@ -23,6 +23,7 @@ export function LoginPage(props: LoginPageProps) {
     props.error === "no_workspace" ? "your account is not attached to a workspace yet." : null,
   );
   const [isLoading, setIsLoading] = useState(false);
+  const [isSendingReset, setIsSendingReset] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const material = generateGreenMaterial(`${email}::${password}`);
 
@@ -65,6 +66,29 @@ export function LoginPage(props: LoginPageProps) {
       setIsLoading(false);
       setStatus("could not start google sign in.");
     }
+  }
+
+  async function sendPasswordReset() {
+    const normalizedEmail = email.trim();
+    if (normalizedEmail.length === 0) {
+      setStatus("enter your email first, then request a reset link.");
+      return;
+    }
+
+    setIsSendingReset(true);
+    setStatus(null);
+
+    const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+      redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent("/reset-password")}`,
+    });
+
+    setIsSendingReset(false);
+    if (error !== null) {
+      setStatus("could not send a reset link right now.");
+      return;
+    }
+
+    setStatus("if that account exists, a reset link was sent.");
   }
 
   return (
@@ -202,6 +226,17 @@ export function LoginPage(props: LoginPageProps) {
               {isLoading ? "checking..." : "sign in"}
             </Button>
           </form>
+
+          <button
+            className="mt-3 w-full rounded-full px-3 py-2 text-center text-[12px] font-semibold text-muted transition hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={isLoading || isSendingReset}
+            onClick={() => {
+              void sendPasswordReset();
+            }}
+            type="button"
+          >
+            {isSendingReset ? "sending reset link..." : "reset password"}
+          </button>
 
           {status === null ? null : (
             <div

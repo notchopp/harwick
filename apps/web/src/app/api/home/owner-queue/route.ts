@@ -16,7 +16,7 @@ import { createServerSupabaseClient } from "../../../../lib/supabase/server-clie
 
 export const runtime = "nodejs";
 
-const ownerHomeRoles = new Set(["owner", "admin"] as const);
+const ownerHomeRoles = new Set(["owner", "admin", "team_lead", "lead_manager"] as const);
 
 export async function GET(request: NextRequest) {
   try {

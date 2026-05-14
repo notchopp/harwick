@@ -189,8 +189,10 @@ export function QueuePage(props: QueuePageProps) {
       activeItem="Queue"
       memberName={props.operatorName}
       memberRole={props.operatorRole}
+      operatorRole={props.operatorRole}
       title="Queue"
       tone="dashboardDark"
+      workspaceId={props.workspaceId}
       workspaceName={props.workspaceName}
     >
       <main className="flex min-h-full w-full flex-col px-5 py-8 md:px-8 md:py-10 xl:pr-[26rem]">

@@ -419,6 +419,88 @@ describe("createSupabaseWorkflowJobServices.processHarwickAiReply", () => {
     });
   });
 
+  it("supports comment to DM handoffs through the unified Meta messaging tool", async () => {
+    const tables = createTables({
+      integration_accounts: [{
+        workspace_id: workspaceId,
+        provider: "meta",
+        status: "connected",
+        provider_account_id: "ig-business-1",
+        provider_account_ids: [],
+        encrypted_credential_ref: "encrypted-meta-credential",
+      }],
+    });
+    const sendDirectMessage = vi.fn().mockResolvedValue({ providerEventId: "meta-dm-handoff-1" });
+    vi.mocked(createMetaMessagingClient).mockReturnValue({
+      sendDirectMessage,
+      replyToComment: vi.fn(),
+    });
+    vi.mocked(executeHarwickAiToolCalls).mockImplementation(async (params) => {
+      const handler = params.handlers.send_meta_message;
+      if (handler === undefined) {
+        throw new Error("expected send_meta_message handler");
+      }
+
+      return [{
+        tool: "send_meta_message",
+        status: "executed",
+        reason: "move the lead into DM after the public acknowledgement",
+        output: await handler({
+          tool: "send_meta_message",
+          reason: "move the lead into DM after the public acknowledgement",
+          requiresApproval: false,
+          payload: {
+            reply: "I just sent you the details in DM.",
+            target: "dm",
+          },
+        }),
+      }];
+    });
+
+    const services = createSupabaseWorkflowJobServices(
+      createMockSupabase(tables) as never,
+      { credentialSecret: "worker-secret" },
+    );
+
+    await expect(services.processHarwickAiReply?.({
+      workspaceId,
+      leadId,
+      turnId,
+      socialReplyReviewId: reviewId,
+      providerAccountId: "ig-business-1",
+      channel: "instagram_comment",
+      recipientUserId: "ig-user-1",
+      sourceCommentId: "comment-1",
+      sourcePostId: "post-1",
+    })).resolves.toEqual({
+      status: "completed",
+      message: "executed 1 Harwick AI tool call(s)",
+    });
+
+    expect(sendDirectMessage).toHaveBeenCalledWith({
+      pageId: "page-1",
+      recipientUserId: "ig-user-1",
+      accessToken: "meta-token",
+      reply: "I just sent you the details in DM.",
+    });
+    expect(tables["lead_events"][0]).toMatchObject({
+      workspace_id: workspaceId,
+      lead_id: leadId,
+      source_channel: "instagram_dm",
+      source_comment_id: "comment-1",
+      source_post_id: "post-1",
+      provider_event_id: "meta-dm-handoff-1",
+      text: "I just sent you the details in DM.",
+    });
+    expect(tables["conversation_messages"][0]).toMatchObject({
+      workspace_id: workspaceId,
+      lead_id: leadId,
+      source_channel: "instagram_dm",
+      provider_message_id: "meta-dm-handoff-1",
+      body: "I just sent you the details in DM.",
+    });
+  });
+
   it("persists review and turn failures when tool execution fails", async () => {
     const tables = createTables({
       integration_accounts: [{

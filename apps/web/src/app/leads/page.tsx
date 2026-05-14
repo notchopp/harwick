@@ -12,7 +12,10 @@ export default async function Page() {
       activeItem="Leads"
       memberName={membership.displayName}
       memberRole={membership.role}
+      operatorRole={membership.role}
+      tone="dashboardDark"
       title="Leads"
+      workspaceId={membership.workspaceId}
       workspaceName={membership.workspaceName}
     >
       <LeadsPageContent

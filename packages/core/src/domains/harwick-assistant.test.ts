@@ -9,6 +9,7 @@ describe("Harwick assistant schemas", () => {
     expect(HarwickAssistantRequestSchema.parse({
       message: "What needs my attention?",
     })).toMatchObject({
+      activeLeadId: null,
       message: "What needs my attention?",
       mentions: [],
       stream: false,

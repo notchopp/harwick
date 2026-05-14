@@ -76,6 +76,17 @@ function readPayloadPriority(toolCall: HarwickAiToolCall): "low" | "normal" | "h
   return value === "low" || value === "high" || value === "urgent" ? value : "normal";
 }
 
+type MetaMessageTarget = "current_thread" | "comment" | "dm";
+
+function readMetaMessageTarget(toolCall: HarwickAiToolCall): MetaMessageTarget {
+  const value = readPayloadString(toolCall, "target");
+  return value === "comment" || value === "dm" ? value : "current_thread";
+}
+
+function metaDmChannelFor(channel: HarwickAiToolContext["channel"]): "instagram_dm" | "facebook_dm" {
+  return channel.startsWith("instagram") ? "instagram_dm" : "facebook_dm";
+}
+
 function readShowingMode(value: string | null): ShowingMode | null {
   return value === "collect_only" || value === "request_approve" || value === "auto_book"
     ? value
@@ -230,18 +241,40 @@ export function createHarwickAiToolHandlers(
 ): HarwickAiToolHandlers {
   const handlers: HarwickAiToolHandlers = {};
 
-  const sendMetaTool = async (toolCall: HarwickAiToolCall): Promise<Record<string, unknown>> => {
+  const sendMetaTool = async (
+    toolCall: HarwickAiToolCall,
+    forcedTarget?: MetaMessageTarget,
+  ): Promise<Record<string, unknown>> => {
     const reply = readPayloadString(toolCall, "reply");
     if (reply === null) {
       return { sent: false, reason: "missing_reply_payload" };
     }
+
+    const target = forcedTarget ?? readMetaMessageTarget(toolCall);
+    const sendChannel = target === "comment"
+      ? deps.context.channel
+      : target === "dm"
+        ? metaDmChannelFor(deps.context.channel)
+        : deps.context.channel.endsWith("_comment")
+          ? deps.context.channel
+          : metaDmChannelFor(deps.context.channel);
+
+    if (sendChannel.endsWith("_comment") && deps.context.sourceCommentId === null) {
+      return { sent: false, reason: "missing_source_comment" };
+    }
+
+    if (sendChannel.endsWith("_dm") && deps.context.recipientUserId === null) {
+      return { sent: false, reason: "missing_recipient_user" };
+    }
+
+    const handoffFromComment = deps.context.channel.endsWith("_comment") && target === "dm";
 
     const result = await sendMetaReply({
       request: {
         workspaceId: deps.context.workspaceId,
         leadId: deps.context.leadId,
         providerAccountId: deps.context.providerAccountId,
-        channel: deps.context.channel,
+        channel: sendChannel,
         recipientUserId: deps.context.recipientUserId,
         sourceCommentId: deps.context.sourceCommentId,
         sourcePostId: deps.context.sourcePostId,
@@ -265,13 +298,16 @@ export function createHarwickAiToolHandlers(
         occurredAt: result.body.occurredAt,
         channel: result.body.channel,
         reply,
+        handoffFromComment,
+        sourceCommentId: handoffFromComment ? deps.context.sourceCommentId : null,
       };
     }
     return { sent: false, reason: result.body.error };
   };
 
-  handlers["send_meta_reply"] = sendMetaTool;
-  handlers["send_meta_dm"] = sendMetaTool;
+  handlers["send_meta_message"] = (toolCall) => sendMetaTool(toolCall);
+  handlers["send_meta_reply"] = (toolCall) => sendMetaTool(toolCall, "comment");
+  handlers["send_meta_dm"] = (toolCall) => sendMetaTool(toolCall, "dm");
 
   handlers["check_calendar"] = async (toolCall) => {
     const requestedListing = readPayloadString(toolCall, "listing");

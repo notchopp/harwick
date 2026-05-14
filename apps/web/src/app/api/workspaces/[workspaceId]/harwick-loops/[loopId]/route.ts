@@ -35,8 +35,10 @@ export async function PATCH(
   }
 
   const nextRunAt = parsedBody.data.nextRunAt
-    ?? (parsedBody.data.scheduleSpec === undefined || parsedBody.data.scheduleSpec === null
-      ? undefined
+    ?? (parsedBody.data.triggerType === "event"
+      ? null
+      : parsedBody.data.scheduleSpec === undefined || parsedBody.data.scheduleSpec === null
+        ? undefined
       : computeNextHarwickLoopRunAt(parsedBody.data.scheduleSpec, new Date()));
   const patch: Partial<HarwickLoopCreate> = {};
   if (parsedBody.data.name !== undefined) patch.name = parsedBody.data.name;

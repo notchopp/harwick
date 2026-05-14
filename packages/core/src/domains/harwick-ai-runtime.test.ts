@@ -34,6 +34,25 @@ describe("Harwick AI runtime contracts", () => {
     expect(input.workspaceMemory).toContain("Noah");
   });
 
+  it("accepts operator-mode context on the shared runtime contract", () => {
+    const input = HarwickAiRuntimeInputSchema.parse({
+      workspaceName: "Prestige Realty",
+      channel: "instagram_dm",
+      inboundText: "Give me the owner brief for today's routing pressure.",
+      operatorContext: {
+        operatorName: "Sarah",
+        requestMode: "workspace_command",
+        requestScope: "workspace",
+        recentLeads: ["Ava: hot buyer, Bethesda, assigned Noah"],
+        routing: ["Ava: routing recommendation pending Noah vs Sarah"],
+        team: ["Noah: agent, online, 3 open work"],
+      },
+    });
+
+    expect(input.operatorContext?.operatorName).toBe("Sarah");
+    expect(input.operatorContext?.routing[0]).toContain("routing recommendation");
+  });
+
   it("requires structured decisions instead of loose reply text", () => {
     const turn = HarwickAiTurnSchema.parse({
       intent: "showing_request",

@@ -27,10 +27,13 @@ export const HarwickAiAutomationPolicySchema = z.object({
     "ask_qualification",
     "move_comment_to_dm",
     "send_buyer_blueprint",
+    "dispatch_subagent",
   ]),
   allowedAutoTools: z.array(HarwickAiToolNameSchema).default([
+    "send_meta_message",
     "send_meta_reply",
     "send_meta_dm",
+    "dispatch_subagent",
   ]),
   requiresApprovalActions: z.array(HarwickAiRuntimeActionSchema).default([
     "offer_showing",

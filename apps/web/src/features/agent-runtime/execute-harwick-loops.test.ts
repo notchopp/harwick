@@ -1,9 +1,14 @@
 import type { HarwickLoop, HarwickWorkItemCreate } from "@realty-ops/core";
 import { describe, expect, it, vi } from "vitest";
-import type { HarwickLoopRepository } from "../../lib/supabase/harwick-loops";
+import type {
+  HarwickLoopEventSourceRepository,
+  HarwickLoopRepository,
+} from "../../lib/supabase/harwick-loops";
 import {
   computeNextHarwickLoopRunAt,
   executeDueHarwickLoops,
+  executeHarwickEventLoops,
+  type HarwickLoopPlannerContext,
 } from "./execute-harwick-loops";
 
 const workspaceId = "00000000-0000-0000-0000-000000000001";
@@ -43,12 +48,29 @@ function createLoopRepository(params: {
     createLoop: vi.fn(() => Promise.resolve(createLoop())),
     updateLoop: vi.fn(() => Promise.resolve(createLoop())),
     listDueScheduledLoops: vi.fn(() => Promise.resolve(params.loops ?? [createLoop()])),
+    listActiveEventLoops: vi.fn(() => Promise.resolve(params.loops ?? [createLoop({ triggerType: "event", scheduleSpec: null, eventType: "lead_closed_won", nextRunAt: null })])),
     createRun: vi.fn(() => Promise.resolve({
       runId: params.runId ?? "00000000-0000-0000-0000-000000000004",
     })),
     completeRun,
   };
   return { repository, completeRun };
+}
+
+function createEventSourceRepository(): HarwickLoopEventSourceRepository {
+  return {
+    listClosedWonLeadEvents: vi.fn(() => Promise.resolve([{
+      workspaceId,
+      leadId: "00000000-0000-0000-0000-000000000099",
+      leadName: "Avery Stone",
+      status: "closed_won",
+      sourceChannel: "voice",
+      targetArea: "Houston",
+      timeline: "closed",
+      assignedAgentId: memberId,
+      occurredAt: "2026-05-06T11:30:00.000Z",
+    }])),
+  };
 }
 
 describe("computeNextHarwickLoopRunAt", () => {
@@ -277,5 +299,69 @@ describe("executeDueHarwickLoops", () => {
       requiresApproval: true,
       payload: { subagentType: "research" },
     }]);
+  });
+
+  it("surfaces event-triggered loops for newly closed leads", async () => {
+    const created: HarwickWorkItemCreate[] = [];
+    const { repository: loopRepository } = createLoopRepository({
+      loops: [createLoop({
+        triggerType: "event",
+        scheduleSpec: null,
+        eventType: "lead_closed_won",
+        nextRunAt: null,
+        name: "Closed lead follow-up",
+        instruction: "Draft the thank-you and six-month follow-up plan for every closed lead.",
+        outputMode: "draft",
+      })],
+    });
+
+    const report = await executeHarwickEventLoops({
+      loopRepository,
+      eventSourceRepository: createEventSourceRepository(),
+      workItemRepository: {
+        findOpenInsightBySignalKey: vi.fn(() => Promise.resolve(null)),
+        createWorkItem: vi.fn((item: HarwickWorkItemCreate) => {
+          created.push(item);
+          return Promise.resolve({ workItemId: "00000000-0000-0000-0000-000000000005" });
+        }),
+      },
+      plannerClient: {
+        planWorkItem: vi.fn((_loop, _nowIso, context?: HarwickLoopPlannerContext) => Promise.resolve({
+          title: "Draft ready: closed lead follow-up",
+          summary: `Prepare the post-close draft for ${context?.entityLabel ?? "the closed lead"}.`,
+          recommendedAction: "Review draft",
+          reason: "Closed leads should trigger the thank-you follow-up flow automatically.",
+          priority: "normal" as const,
+          targetRole: "operator" as const,
+          draftBody: "Thank you again for trusting us. I will check back in six months.",
+          proposedToolCalls: [],
+          agentLoopBrief: null,
+        })),
+      },
+      now: () => new Date("2026-05-06T12:00:00.000Z"),
+    });
+
+    expect(report).toEqual({
+      scannedLoops: 1,
+      scannedEvents: 1,
+      completed: 1,
+      surfaced: 1,
+      drafted: 1,
+      plannedAgentLoops: 0,
+      skippedExisting: 0,
+      failed: 0,
+    });
+    expect(created[0]).toEqual(expect.objectContaining({
+      leadId: "00000000-0000-0000-0000-000000000099",
+      type: "approval",
+    }));
+    expect(created[0]?.payload).toMatchObject({
+      signalType: "harwick_loop_event",
+      eventType: "lead_closed_won",
+      draftBody: "Thank you again for trusting us. I will check back in six months.",
+      triggerContext: {
+        leadId: "00000000-0000-0000-0000-000000000099",
+      },
+    });
   });
 });

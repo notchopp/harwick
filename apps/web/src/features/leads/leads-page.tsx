@@ -33,6 +33,7 @@ import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import { cn } from "../../lib/utils";
 import type { LeadPageItem, LeadPageSource, LeadPageStage } from "./leads-data";
+import { LeadsKanban } from "./leads-kanban";
 
 type LeadStatus = "new" | "qualified" | "nurture" | "lost";
 type LeadQualificationFilter = "all" | "buyer" | "seller" | "unqualified";
@@ -211,21 +212,6 @@ function SourceGlyph(props: { source: LeadPageSource }) {
   }
 
   return <PhoneGlyph className="h-[15px] w-[15px]" />;
-}
-
-function FilterChip(props: { active: boolean; children: string; onClick: () => void }) {
-  return (
-    <button
-      className={cn(
-        "harwick-pill px-[11px] py-1 text-[11.5px] text-muted transition-all hover:-translate-y-px hover:border-border-strong hover:text-foreground",
-        props.active && "harwick-pill-active hover:border-harwick-ink hover:text-white",
-      )}
-      onClick={props.onClick}
-      type="button"
-    >
-      {props.children}
-    </button>
-  );
 }
 
 function LeadsPaginationFooter(props: {
@@ -565,6 +551,7 @@ export function LeadsPageContent(props: { workspaceId: string; workspaceName: st
   const [qualificationFilter, setQualificationFilter] = useState<LeadQualificationFilter>("all");
   const [sourceFilter, setSourceFilter] = useState<LeadPageSource | "all">("all");
   const [sortBy, setSortBy] = useState<SortBy>("newest");
+  const [viewMode, setViewMode] = useState<"kanban" | "table">("kanban");
   const [currentPage, setCurrentPage] = useState(1);
   const [search, setSearch] = useState("");
   const [leadRecords, setLeadRecords] = useState<LeadRecord[]>([]);
@@ -736,25 +723,62 @@ export function LeadsPageContent(props: { workspaceId: string; workspaceName: st
     }
   }, [currentPage, safeCurrentPage]);
 
+  const totalLeads = leadRecords.length;
+  const hotLeadsCount = leadRecords.filter((lead) => lead.score >= 80).length;
+  const autoQualified = leadRecords.filter((lead) => lead.stage !== "unrouted" && lead.subStatus !== "Not contacted").length;
+  const counts = {
+    all: leadRecords.length,
+    buyer: leadRecords.filter((l) => l.leadType === "buyer").length,
+    seller: leadRecords.filter((l) => l.leadType === "seller").length,
+    unqualified: leadRecords.filter((l) => l.leadType === "unknown").length,
+  } as const;
+
   return (
-    <div className="flex h-full min-h-0 flex-1 overflow-hidden bg-background">
-      <section className="flex min-w-0 flex-1 flex-col bg-surface">
-        <div className="flex items-center justify-between border-b border-border/50 px-6 py-4">
+    <div className="flex h-full min-h-0 flex-1 overflow-hidden bg-[color:var(--panel-1)] text-[color:var(--graphite-text)]">
+      <section className="flex min-w-0 flex-1 flex-col">
+        {/* Desktop header — mobile uses the AppShell top bar's "Leads" title */}
+        <div className="hidden flex-wrap items-end justify-between gap-4 border-b border-[color:var(--panel-line-soft)] px-6 py-5 md:flex">
           <div>
-            <h1 className="text-lg font-semibold text-foreground">Leads</h1>
-            <p className="text-sm text-muted">{filtered.length} leads</p>
+            <h1 className="font-display text-[34px] font-semibold leading-[1.02] tracking-[-0.025em] text-[color:var(--graphite-text)] md:text-[42px]">
+              Leads
+            </h1>
+            <p className="mt-2 text-[13px] leading-5 text-[color:var(--graphite-text-muted)]">
+              <span className="font-semibold text-[color:var(--graphite-text)]">{totalLeads}</span> active ·{" "}
+              <span className="font-semibold text-[var(--oxblood)]">{hotLeadsCount}</span> hot · Harwick auto-qualified{" "}
+              <span className="font-semibold text-[color:var(--graphite-text)]">{autoQualified}</span> this week
+            </p>
           </div>
-          <Button className="h-8 gap-1.5 rounded-[8px]" size="sm" type="button" variant="outline">
-            <Plus className="h-3.5 w-3.5" />
-            Add Lead
+          <div className="flex items-center gap-1.5">
+            <Button className="h-8 gap-1.5 rounded-[8px] border-[color:var(--panel-line)] bg-[color:var(--panel-2)] text-[12px] font-semibold text-[color:var(--graphite-text)] hover:border-[color:var(--panel-line-strong)] hover:bg-[color:var(--panel-3)]" size="sm" type="button" variant="outline">
+              Filter
+            </Button>
+            <Button className="h-8 gap-1.5 rounded-[8px] border-[color:var(--panel-line)] bg-[color:var(--panel-2)] text-[12px] font-semibold text-[color:var(--graphite-text)] hover:border-[color:var(--panel-line-strong)] hover:bg-[color:var(--panel-3)]" size="sm" type="button" variant="outline">
+              Export
+            </Button>
+            <Button className="h-8 gap-1.5 rounded-[8px] bg-white text-[12px] font-semibold text-[color:var(--panel-0)] shadow-[var(--panel-inset-top)] hover:bg-white/92" size="sm" type="button">
+              <Plus className="size-3.5" />
+              New lead
+            </Button>
+          </div>
+        </div>
+
+        {/* Mobile compact header: stats line + single "+" CTA */}
+        <div className="flex items-center justify-between gap-3 border-b border-[color:var(--panel-line-soft)] px-5 py-3 md:hidden">
+          <p className="min-w-0 truncate text-[12.5px] leading-5 text-[color:var(--graphite-text-muted)]">
+            <span className="font-semibold text-[color:var(--graphite-text)]">{totalLeads}</span> active ·{" "}
+            <span className="font-semibold text-[var(--oxblood)]">{hotLeadsCount}</span> hot
+          </p>
+          <Button className="h-8 shrink-0 gap-1 rounded-[8px] bg-white px-2.5 text-[12px] font-semibold text-[color:var(--panel-0)] shadow-[var(--panel-inset-top)]" size="sm" type="button">
+            <Plus className="size-3.5" />
+            New
           </Button>
         </div>
 
-        <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-border/50 px-6 py-3">
-          <div className="relative min-w-[220px] flex-1 max-w-sm">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+        <div className="flex shrink-0 items-center gap-2 overflow-x-auto border-b border-[color:var(--panel-line-soft)] px-5 py-3 md:flex-wrap md:gap-3 md:overflow-visible md:px-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="relative w-[180px] shrink-0 md:w-auto md:min-w-[220px] md:flex-1 md:max-w-sm">
+            <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[color:var(--graphite-text-faint)]" />
             <input
-              className="h-9 w-full rounded-[8px] border border-input bg-background pl-9 pr-4 text-sm text-foreground outline-none placeholder:text-muted-subtle focus:border-border-strong"
+              className="h-9 w-full rounded-[var(--panel-radius-xs)] border border-[color:var(--panel-line)] bg-[color:var(--panel-2)] pl-9 pr-4 text-[12.5px] text-[color:var(--graphite-text)] outline-none placeholder:text-[color:var(--graphite-text-faint)] focus:border-[color:var(--panel-line-strong)]"
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Search leads..."
               type="text"
@@ -762,46 +786,87 @@ export function LeadsPageContent(props: { workspaceId: string; workspaceName: st
             />
           </div>
 
-          <div className="flex items-center gap-1">
+          <div className="flex shrink-0 items-center gap-1">
             {(["all", "buyer", "seller", "unqualified"] as const).map((value) => (
-              <Button
-                className="h-8 rounded-[8px] text-xs capitalize"
+              <button
                 key={value}
-                onClick={() => setQualificationFilter(value)}
-                size="sm"
                 type="button"
-                variant={qualificationFilter === value ? "secondary" : "ghost"}
+                onClick={() => setQualificationFilter(value)}
+                className={cn(
+                  "inline-flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition",
+                  qualificationFilter === value
+                    ? "border-[color:var(--panel-line-strong)] bg-[color:var(--panel-3)] text-[color:var(--graphite-text)]"
+                    : "border-[color:var(--panel-line)] bg-[color:var(--panel-2)] text-[color:var(--graphite-text-muted)] hover:border-[color:var(--panel-line-strong)] hover:text-[color:var(--graphite-text)]",
+                )}
               >
-                {value === "all" ? "All" : value}
-              </Button>
+                <span className="capitalize">{value === "all" ? "All" : value}</span>
+                <span className={cn(
+                  "rounded-full px-1 font-mono text-[9.5px]",
+                  qualificationFilter === value ? "bg-white/10 text-[color:var(--graphite-text)]" : "bg-[color:var(--panel-3)] text-[color:var(--graphite-text-faint)]",
+                )}>
+                  {counts[value]}
+                </span>
+              </button>
             ))}
           </div>
 
           <div className="hidden items-center gap-1 xl:flex">
             {(["all", "instagram", "facebook", "voice"] as const).map((value) => (
-              <FilterChip
-                active={sourceFilter === value}
+              <button
                 key={value}
+                type="button"
                 onClick={() => setSourceFilter(value)}
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition",
+                  sourceFilter === value
+                    ? "border-[color:var(--panel-line-strong)] bg-[color:var(--panel-3)] text-[color:var(--graphite-text)]"
+                    : "border-[color:var(--panel-line)] bg-[color:var(--panel-2)] text-[color:var(--graphite-text-muted)] hover:border-[color:var(--panel-line-strong)] hover:text-[color:var(--graphite-text)]",
+                )}
               >
                 {value === "all" ? "All sources" : sourceLabel(value)}
-              </FilterChip>
+              </button>
             ))}
           </div>
 
           <Button
-            className="h-8 w-8 rounded-[8px]"
+            className="size-8 rounded-[8px] border-[color:var(--panel-line)] bg-[color:var(--panel-2)] text-[color:var(--graphite-text-muted)] hover:border-[color:var(--panel-line-strong)] hover:bg-[color:var(--panel-3)] hover:text-[color:var(--graphite-text)]"
             onClick={() => setSortBy((current) => current === "newest" ? "score" : current === "score" ? "uncontacted" : "newest")}
             size="icon"
             type="button"
-            variant="ghost"
+            variant="outline"
           >
-            <SortAsc className="h-4 w-4" />
+            <SortAsc className="size-3.5" />
           </Button>
+          <div className="inline-flex rounded-[8px] border border-[color:var(--panel-line)] bg-[color:var(--panel-2)] p-0.5">
+            <button
+              type="button"
+              onClick={() => setViewMode("kanban")}
+              className={cn(
+                "rounded-[6px] px-2 py-1 text-[11px] font-semibold transition",
+                viewMode === "kanban" ? "bg-white text-[color:var(--panel-0)]" : "text-[color:var(--graphite-text-muted)] hover:text-[color:var(--graphite-text)]",
+              )}
+            >
+              Board
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("table")}
+              className={cn(
+                "rounded-[6px] px-2 py-1 text-[11px] font-semibold transition",
+                viewMode === "table" ? "bg-white text-[color:var(--panel-0)]" : "text-[color:var(--graphite-text-muted)] hover:text-[color:var(--graphite-text)]",
+              )}
+            >
+              Table
+            </button>
+          </div>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
-          {filtered.length === 0 ? (
+          {viewMode === "kanban" ? (
+            <div className="p-4">
+              <LeadsKanban leads={filtered} />
+            </div>
+          ) : filtered.length === 0 ? (
             <div className="flex min-h-[320px] flex-col items-center justify-center px-6 py-12 text-center">
               <div className="flex h-11 w-11 items-center justify-center rounded-full bg-surface-muted text-muted">
                 <MessageSquare aria-hidden="true" className="h-5 w-5" strokeWidth={1.8} />

@@ -234,6 +234,151 @@ function buildActionPlan(item: HarwickWorkItemCreate): HarwickWorkItemActionPlan
     });
   }
 
+  if (signalType === "social_lifecycle_trigger") {
+    const trigger = readString(payload, "trigger");
+    const sourceChannel = readString(payload, "sourceChannel");
+    const instructions = trigger === "post_handoff"
+      ? "Review the public-to-private transition, keep continuity with the original comment thread, and plan the next DM step."
+      : trigger === "post_idle"
+        ? "Review why the social thread went quiet and draft the most useful next follow-up."
+        : trigger === "post_milestone"
+          ? "Review the milestone, recommend the next owner or route, and outline the next conversation step."
+          : "Review the latest social message and propose the next best qualification move.";
+    const executionBrief = trigger === "post_handoff"
+      ? "Keep the comment-to-DM handoff coherent, then prepare the next private follow-through behind approval."
+      : trigger === "post_idle"
+        ? "Have Harwick prepare the re-engagement angle first, then let the human decide whether to send it."
+        : trigger === "post_milestone"
+          ? "Treat this as a live social milestone that may need routing, owner review, or a sharper follow-through plan."
+          : "Use Harwick to plan the next social step while the conversation context is still fresh.";
+
+    return HarwickWorkItemActionPlanSchema.parse({
+      executionBrief,
+      requiresApproval: true,
+      internalSafeOnly: false,
+      proposedToolCalls: [
+        {
+          tool: "dispatch_subagent",
+          reason: "Have Harwick prepare the next lifecycle step before any human-facing send or routing change happens.",
+          requiresApproval: true,
+          payload: {
+            subagentType: trigger === "post_milestone" ? "routing" : "writer",
+            title: "Plan the next social lifecycle step",
+            instructions: sourceChannel === null ? instructions : `${instructions} Source: ${sourceChannel}.`,
+            priority: item.priority,
+          },
+        },
+        ...(trigger === "post_milestone"
+          ? [{
+              tool: "route_lead",
+              reason: "Keep any routing change behind approval once Harwick has prepared the milestone recommendation.",
+              requiresApproval: true,
+              payload: {
+                reason: item.reason,
+                priority: item.priority,
+              },
+            }]
+          : []),
+      ],
+    });
+  }
+
+  if (signalType === "cross_channel_identity_signal") {
+    return HarwickWorkItemActionPlanSchema.parse({
+      executionBrief: "Research the lead's cross-channel history first so Harwick can preserve one opportunity narrative before any downstream changes.",
+      requiresApproval: true,
+      internalSafeOnly: true,
+      proposedToolCalls: [
+        {
+          tool: "dispatch_subagent",
+          reason: "Have the research specialist consolidate the recent channel history into one operator-ready brief.",
+          requiresApproval: true,
+          payload: {
+            subagentType: "research",
+            title: "Review cross-channel lead identity",
+            instructions: "Summarize how this lead moved across channels, what likely belongs to the same opportunity, and what the team should do next.",
+            priority: item.priority,
+          },
+        },
+      ],
+    });
+  }
+
+  if (signalType === "voice_post_call_cognition") {
+    const urgency = readString(payload, "urgency");
+    return HarwickWorkItemActionPlanSchema.parse({
+      executionBrief: "Turn the finished call into a post-call brief, then keep any routing or outbound action behind approval.",
+      requiresApproval: true,
+      internalSafeOnly: false,
+      proposedToolCalls: [
+        {
+          tool: "dispatch_subagent",
+          reason: "Have the writer specialist turn the voice handoff into an owner-ready post-call brief and next-step plan.",
+          requiresApproval: true,
+          payload: {
+            subagentType: "writer",
+            title: "Draft post-call owner brief",
+            instructions: "Summarize the completed call, extract the next operational actions, and draft the owner brief without claiming any action already ran.",
+            priority: item.priority,
+          },
+        },
+        ...(urgency === "urgent" || urgency === "high"
+          ? [{
+              tool: "route_lead",
+              reason: "If the call is urgent, keep any immediate routing move behind approval once the brief is ready.",
+              requiresApproval: true,
+              payload: {
+                reason: item.reason,
+                priority: item.priority,
+              },
+            }]
+          : []),
+      ],
+    });
+  }
+
+  if (signalType === "stalled_showing_approval") {
+    return HarwickWorkItemActionPlanSchema.parse({
+      executionBrief: "Review the stalled showing request, line up the next availability check, and keep any outbound or booking move behind approval.",
+      requiresApproval: true,
+      internalSafeOnly: false,
+      proposedToolCalls: [
+        {
+          tool: "dispatch_subagent",
+          reason: "Have the calendar specialist prepare the cleanest next move before a human follows through.",
+          requiresApproval: true,
+          payload: {
+            subagentType: "calendar",
+            title: "Review stalled showing approval",
+            instructions: "Review the pending showing approval, summarize what is blocked, and suggest the best next owner follow-up.",
+            priority: item.priority,
+          },
+        },
+      ],
+    });
+  }
+
+  if (signalType === "lead_closed_follow_up") {
+    return HarwickWorkItemActionPlanSchema.parse({
+      executionBrief: "Turn the newly closed lead into a post-close follow-up plan, then keep any outbound thank-you or reminder send behind approval.",
+      requiresApproval: true,
+      internalSafeOnly: false,
+      proposedToolCalls: [
+        {
+          tool: "dispatch_subagent",
+          reason: "Have the writer specialist draft the thank-you and future check-in plan before anything is sent.",
+          requiresApproval: true,
+          payload: {
+            subagentType: "writer",
+            title: "Draft post-close follow-up",
+            instructions: "Prepare the thank-you message and next check-in plan for this newly closed lead without claiming any message already went out.",
+            priority: item.priority,
+          },
+        },
+      ],
+    });
+  }
+
   if (signalType === "workspace_memory_pattern") {
     return HarwickWorkItemActionPlanSchema.parse({
       executionBrief: "Let Harwick research the pattern more deeply before a team lead changes routing or policy.",

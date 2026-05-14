@@ -33,29 +33,8 @@
   src: url("/fonts/instrument-sans-0.ttf") format("truetype");
 }
 
-@font-face {
-  font-family: "Newsreader";
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url("/fonts/newsreader-light-0.ttf") format("truetype");
-}
-
-@font-face {
-  font-family: "Newsreader";
-  font-style: normal;
-  font-weight: 500;
-  font-display: swap;
-  src: url("/fonts/newsreader-8.ttf") format("truetype");
-}
-
-@font-face {
-  font-family: "Newsreader";
-  font-style: normal;
-  font-weight: 600;
-  font-display: swap;
-  src: url("/fonts/newsreader-9.ttf") format("truetype");
-}
+/* Nunito (display) and Geist Mono (codes) are loaded via the
+ * <link rel="stylesheet"> in apps/web/src/app/layout.tsx. */
 
 @custom-variant dark (&:is(.dark *));
 
@@ -133,7 +112,8 @@
 
 @theme inline {
   --font-sans: "Instrument Sans", "Inter", "Geist", "Aptos", "Segoe UI", sans-serif;
-  --font-display: "Newsreader", "Instrument Sans", serif;
+  --font-display: var(--font-display-google, "Nunito"), "Instrument Sans", "Inter", "Aptos", "Segoe UI", sans-serif;
+  --font-mono: var(--font-mono-google, "Geist Mono"), ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Mono", Menlo, Monaco, Consolas, monospace;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -390,8 +370,39 @@ a {
   --harwick-border-strong: var(--graphite-line-strong);
   --harwick-shell: #0f1011;
   --harwick-shell-muted: #131417;
+  --sage: #a8c7af;
+  --sage-soft: rgba(168, 199, 175, 0.14);
+  --clay: #d9b48a;
+  --clay-soft: rgba(217, 180, 138, 0.14);
+  --oxblood: #e69588;
+  --oxblood-soft: rgba(230, 149, 136, 0.15);
   --stone: rgba(244, 244, 243, 0.66);
   --stone-soft: rgba(255, 255, 255, 0.06);
+
+  /* PANEL SYSTEM — nested rounded surfaces.
+   * L0 page (no border, no radius) — bare dark
+   * L1 shell (sidebar, main panel) — rounded ~18-20px
+   * L2 section (kanban column, queue group) — rounded ~14px
+   * L3 card (lead card, queue item) — rounded ~12px
+   * Each level fill is barely lighter than its parent.
+   * Depth lives in the border + inset-top highlight pairing.
+   */
+  --panel-0: #0a0a0b;
+  --panel-1: #131314;
+  --panel-2: #1a1a1c;
+  --panel-3: #222225;
+  --panel-line: rgba(255, 255, 255, 0.075);
+  --panel-line-strong: rgba(255, 255, 255, 0.11);
+  --panel-line-soft: rgba(255, 255, 255, 0.05);
+  --panel-radius-lg: 18px;
+  --panel-radius-md: 14px;
+  --panel-radius-sm: 12px;
+  --panel-radius-xs: 10px;
+  --panel-inset-top: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --panel-inset-top-soft: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --panel-shadow-lift: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px -12px rgba(0, 0, 0, 0.45);
+  --panel-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.32);
+
   --background: var(--harwick-shell);
   --foreground: var(--harwick-ink);
   --card: var(--harwick-paper);
@@ -433,6 +444,170 @@ a {
 .harwick-shell-dark .harwick-app-frame,
 .harwick-shell-dark .harwick-region {
   background: transparent;
+}
+
+/* Cross-document View Transitions — Chrome/Safari morphs between pages.
+ * Pages we don't want auto-animated can opt out per-page. */
+@view-transition {
+  navigation: auto;
+}
+
+::view-transition-group(*) {
+  animation-duration: 220ms;
+  animation-timing-function: cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 180ms;
+}
+
+/* DayPicker / react-day-picker styles for the dark Harwick theme */
+.harwick-day-picker {
+  --rdp-accent-color: var(--sage);
+  --rdp-accent-background-color: var(--sage-soft);
+  --rdp-background-color: transparent;
+  --rdp-day-font: var(--font-sans);
+  --rdp-day_button-width: 30px;
+  --rdp-day_button-height: 30px;
+  --rdp-day_button-border-radius: 8px;
+  --rdp-day-width: 30px;
+  --rdp-day-height: 30px;
+  --rdp-weekday-text-color: var(--graphite-text-faint);
+  --rdp-weekday-text-transform: uppercase;
+  --rdp-weekday-padding: 4px 0;
+  --rdp-nav_button-width: 24px;
+  --rdp-nav_button-height: 24px;
+  font-family: var(--font-sans);
+  font-size: 11.5px;
+  color: var(--graphite-text);
+}
+.harwick-day-picker .rdp-month_caption {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: -0.01em;
+  color: var(--graphite-text);
+  padding: 4px 6px 8px;
+}
+.harwick-day-picker .rdp-weekdays {
+  margin-bottom: 4px;
+}
+.harwick-day-picker .rdp-weekday {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--graphite-text-faint);
+}
+.harwick-day-picker .rdp-day_button {
+  font-weight: 500;
+  font-size: 11.5px;
+  color: var(--graphite-text-muted);
+  border-radius: 8px;
+  transition: background-color 0.12s, color 0.12s, border-color 0.12s;
+}
+.harwick-day-picker .rdp-day_button:hover {
+  background: var(--graphite-surface-3);
+  color: var(--graphite-text);
+}
+.harwick-day-picker .rdp-day.rdp-today .rdp-day_button {
+  color: var(--graphite-text);
+  font-weight: 700;
+  background: var(--graphite-surface-3);
+}
+.harwick-day-picker .rdp-day.rdp-selected .rdp-day_button {
+  background: var(--sage-soft);
+  color: var(--sage);
+  border: 1px solid color-mix(in oklab, var(--sage) 40%, transparent);
+  font-weight: 600;
+}
+.harwick-day-picker .rdp-day.rdp-has-event:not(.rdp-selected) .rdp-day_button {
+  color: var(--graphite-text);
+  position: relative;
+}
+.harwick-day-picker .rdp-day.rdp-has-event:not(.rdp-selected) .rdp-day_button::after {
+  content: "";
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--sage);
+}
+.harwick-day-picker .rdp-day.rdp-outside .rdp-day_button {
+  color: var(--graphite-text-faint);
+  opacity: 0.55;
+}
+.harwick-day-picker .rdp-nav {
+  display: flex;
+  gap: 4px;
+}
+.harwick-day-picker .rdp-nav button {
+  background: var(--graphite-surface-2);
+  border: 1px solid var(--graphite-line);
+  border-radius: 6px;
+  color: var(--graphite-text-muted);
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.harwick-day-picker .rdp-nav button:hover {
+  background: var(--graphite-surface-3);
+  color: var(--graphite-text);
+  border-color: var(--graphite-line-strong);
+}
+.harwick-day-picker .rdp-nav button:disabled {
+  opacity: 0.32;
+  cursor: not-allowed;
+}
+.harwick-day-picker .rdp-chevron,
+.harwick-day-picker .rdp-nav button svg {
+  width: 11px;
+  height: 11px;
+  fill: currentColor;
+  color: var(--graphite-text-muted);
+}
+.harwick-day-picker .rdp-nav button:hover svg {
+  color: var(--graphite-text);
+}
+.harwick-day-picker .rdp-nav button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 1px var(--graphite-line-strong);
+}
+
+@media (max-width: 767px) {
+  .harwick-shell-dark .harwick-main-region {
+    border-radius: 0;
+    border-left-width: 0;
+    border-right-width: 0;
+  }
+
+  .harwick-day-picker {
+    --rdp-day_button-width: 28px;
+    --rdp-day_button-height: 28px;
+    --rdp-day-width: 28px;
+    --rdp-day-height: 28px;
+    --rdp-nav_button-width: 22px;
+    --rdp-nav_button-height: 22px;
+    width: 100%;
+    overflow: hidden;
+  }
+
+  .harwick-day-picker .rdp-months,
+  .harwick-day-picker .rdp-month,
+  .harwick-day-picker .rdp-month_grid {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .harwick-day-picker .rdp-month_grid {
+    table-layout: fixed;
+  }
 }
 
 .harwick-home-dashboard {

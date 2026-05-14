@@ -938,6 +938,17 @@ export function createSupabaseWorkflowJobServices(
     return null;
   }
 
+  type MetaMessageTarget = "current_thread" | "comment" | "dm";
+
+  function readMetaToolTarget(payload: Record<string, unknown>): MetaMessageTarget {
+    const value = payload["target"];
+    return value === "comment" || value === "dm" ? value : "current_thread";
+  }
+
+  function metaDmChannelFor(channel: "instagram_dm" | "instagram_comment" | "facebook_dm" | "facebook_comment") {
+    return channel.startsWith("instagram") ? "instagram_dm" : "facebook_dm";
+  }
+
   async function findLeadIdByFollowUpBossContactId(params: {
     workspaceId: string;
     providerContactId: string;
@@ -1897,6 +1908,95 @@ export function createSupabaseWorkflowJobServices(
       const metaClient = createMetaMessagingClient(
         options.fetchImpl === undefined ? {} : { fetchImpl: options.fetchImpl },
       );
+      const sendMetaMessage = async (toolCall: {
+        payload: Record<string, unknown>;
+      }) => {
+        const reply = readMetaToolReply(toolCall.payload);
+        const target = readMetaToolTarget(toolCall.payload);
+        const sendChannel = target === "comment"
+          ? params.channel
+          : target === "dm"
+            ? metaDmChannelFor(params.channel)
+            : params.channel.endsWith("_comment")
+              ? params.channel
+              : metaDmChannelFor(params.channel);
+
+        if (reply === null) {
+          throw new Error("Harwick AI reply payload is missing a reply body.");
+        }
+
+        if (sendChannel.endsWith("_comment") && params.sourceCommentId === null) {
+          throw new Error("Harwick AI reply payload is missing a comment target.");
+        }
+
+        if (sendChannel.endsWith("_dm") && params.recipientUserId === null) {
+          throw new Error("Harwick AI reply payload is missing a recipient.");
+        }
+
+        const occurredAt = new Date().toISOString();
+        const providerEvent = sendChannel.endsWith("_comment")
+          ? await metaClient.replyToComment({
+              commentId: params.sourceCommentId ?? "",
+              accessToken: metaCredential.pageAccessToken,
+              reply,
+            })
+          : await metaClient.sendDirectMessage({
+              pageId: metaCredential.pageId,
+              recipientUserId: params.recipientUserId ?? "",
+              accessToken: metaCredential.pageAccessToken,
+              reply,
+            });
+        const { error } = await supabase
+          .from("lead_events")
+          .insert({
+            workspace_id: params.workspaceId,
+            lead_id: params.leadId,
+            provider: "meta",
+            event_type: "reply_sent",
+            source_channel: sendChannel,
+            provider_event_id: providerEvent.providerEventId,
+            provider_account_id: params.providerAccountId,
+            provider_user_id: params.recipientUserId,
+            source_post_id: params.sourcePostId,
+            source_comment_id: params.sourceCommentId,
+            text: reply,
+            occurred_at: occurredAt,
+          });
+        if (error !== null) {
+          throw error;
+        }
+
+        if (params.leadId !== null) {
+          const { error: msgError } = await supabase
+            .from("conversation_messages")
+            .insert({
+              lead_id: params.leadId,
+              workspace_id: params.workspaceId,
+              sender_type: "ai",
+              sender_id: "harwick_ai",
+              body: reply,
+              source_channel: sendChannel,
+              provider_message_id: providerEvent.providerEventId,
+              status: "sent",
+              created_at: occurredAt,
+              agent_trajectory_id: null,
+              agent_step_id: null,
+            });
+          if (msgError !== null) {
+            throw msgError;
+          }
+        }
+
+        return {
+          providerEventId: providerEvent.providerEventId,
+          occurredAt,
+          channel: sendChannel,
+          handoffFromComment: params.channel.endsWith("_comment") && sendChannel.endsWith("_dm"),
+          sourceCommentId: params.channel.endsWith("_comment") && sendChannel.endsWith("_dm")
+            ? params.sourceCommentId
+            : null,
+        };
+      };
       const results = await executeHarwickAiToolCalls({
         toolCalls: executableRows.map((row) => ({
           tool: row.tool,
@@ -1905,121 +2005,21 @@ export function createSupabaseWorkflowJobServices(
           payload: row.payload,
         })),
         handlers: {
-          send_meta_reply: async (toolCall) => {
-            const reply = readMetaToolReply(toolCall.payload);
-            if (reply === null || params.sourceCommentId === null) {
-              throw new Error("Harwick AI reply payload is missing a comment target or reply body.");
-            }
-            const occurredAt = new Date().toISOString();
-            const providerEvent = await metaClient.replyToComment({
-              commentId: params.sourceCommentId,
-              accessToken: metaCredential.pageAccessToken,
-              reply,
-            });
-            const { error } = await supabase
-              .from("lead_events")
-              .insert({
-                workspace_id: params.workspaceId,
-                lead_id: params.leadId,
-                provider: "meta",
-                event_type: "reply_sent",
-                source_channel: params.channel,
-                provider_event_id: providerEvent.providerEventId,
-                provider_account_id: params.providerAccountId,
-                provider_user_id: params.recipientUserId,
-                source_post_id: params.sourcePostId,
-                source_comment_id: params.sourceCommentId,
-                text: reply,
-                occurred_at: occurredAt,
-              });
-            if (error !== null) {
-              throw error;
-            }
-
-            if (params.leadId !== null) {
-              const { error: msgError } = await supabase
-                .from("conversation_messages")
-                .insert({
-                  lead_id: params.leadId,
-                  workspace_id: params.workspaceId,
-                  sender_type: "ai",
-                  sender_id: "harwick_ai",
-                  body: reply,
-                  source_channel: params.channel,
-                  provider_message_id: providerEvent.providerEventId,
-                  status: "sent",
-                  created_at: occurredAt,
-                  agent_trajectory_id: null,
-                  agent_step_id: null,
-                });
-              if (msgError !== null) {
-                throw msgError;
-              }
-            }
-
-            return {
-              providerEventId: providerEvent.providerEventId,
-              occurredAt,
-            };
-          },
-          send_meta_dm: async (toolCall) => {
-            const reply = readMetaToolReply(toolCall.payload);
-            if (reply === null || params.recipientUserId === null) {
-              throw new Error("Harwick AI reply payload is missing a recipient or reply body.");
-            }
-            const occurredAt = new Date().toISOString();
-            const providerEvent = await metaClient.sendDirectMessage({
-              pageId: metaCredential.pageId,
-              recipientUserId: params.recipientUserId,
-              accessToken: metaCredential.pageAccessToken,
-              reply,
-            });
-            const { error } = await supabase
-              .from("lead_events")
-              .insert({
-                workspace_id: params.workspaceId,
-                lead_id: params.leadId,
-                provider: "meta",
-                event_type: "reply_sent",
-                source_channel: params.channel,
-                provider_event_id: providerEvent.providerEventId,
-                provider_account_id: params.providerAccountId,
-                provider_user_id: params.recipientUserId,
-                source_post_id: params.sourcePostId,
-                source_comment_id: params.sourceCommentId,
-                text: reply,
-                occurred_at: occurredAt,
-              });
-            if (error !== null) {
-              throw error;
-            }
-
-            if (params.leadId !== null) {
-              const { error: msgError } = await supabase
-                .from("conversation_messages")
-                .insert({
-                  lead_id: params.leadId,
-                  workspace_id: params.workspaceId,
-                  sender_type: "ai",
-                  sender_id: "harwick_ai",
-                  body: reply,
-                  source_channel: params.channel,
-                  provider_message_id: providerEvent.providerEventId,
-                  status: "sent",
-                  created_at: occurredAt,
-                  agent_trajectory_id: null,
-                  agent_step_id: null,
-                });
-              if (msgError !== null) {
-                throw msgError;
-              }
-            }
-
-            return {
-              providerEventId: providerEvent.providerEventId,
-              occurredAt,
-            };
-          },
+          send_meta_message: sendMetaMessage,
+          send_meta_reply: async (toolCall) => sendMetaMessage({
+            ...toolCall,
+            payload: {
+              ...toolCall.payload,
+              target: "comment",
+            },
+          }),
+          send_meta_dm: async (toolCall) => sendMetaMessage({
+            ...toolCall,
+            payload: {
+              ...toolCall.payload,
+              target: "dm",
+            },
+          }),
         },
         approvedTools: automationDecision.approvedTools,
       });

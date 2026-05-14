@@ -112,6 +112,8 @@ export async function sendMetaReply(params: {
         reply: parsed.data.reply,
       })
     : await params.metaClient.replyToComment({
+        // Comment-originated sends stay on the original comment thread until a
+        // distinct comment-to-DM handoff path exists.
         commentId: parsed.data.sourceCommentId ?? "",
         accessToken: credential.pageAccessToken,
         reply: parsed.data.reply,

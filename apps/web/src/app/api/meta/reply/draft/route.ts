@@ -291,6 +291,24 @@ export async function POST(request: NextRequest) {
   }
   const draft = toLegacyAiReplyDraft(aiTurn);
 
+  if (
+    workspaceId !== null
+    && membership !== null
+    && socialReplyReviewId !== null
+    && UuidSchema.safeParse(socialReplyReviewId).success
+  ) {
+    await createSupabaseSocialReplyQueueRepository(supabase).updateSocialReplyReview({
+      workspaceId,
+      reviewId: socialReplyReviewId,
+      values: {
+        status: "pending",
+        suggestedReply: draft.reply,
+        lastErrorCode: null,
+        lastErrorMessage: null,
+      },
+    });
+  }
+
   return NextResponse.json({
     ...draft,
     engine: useLocalDrafts ? "local" : "openai",

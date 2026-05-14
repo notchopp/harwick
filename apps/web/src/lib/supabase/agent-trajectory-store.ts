@@ -21,7 +21,15 @@ export type AgentTrajectoryInsert = {
   workspaceId: string;
   leadId: string | null;
   channel: string | null;
+  threadId?: string | null;
   startedAt?: string;
+};
+
+export type ThreadTurnSummary = {
+  trajectoryId: string;
+  startedAt: string;
+  inboundText: string | null;
+  reply: string | null;
 };
 
 export type AgentTrajectoryCompletion = {
@@ -79,6 +87,11 @@ export type AgentTrajectoryStore = {
     stepId: string;
     embedding: number[];
   }): Promise<void>;
+  loadThreadHistory(params: {
+    workspaceId: string;
+    threadId: string;
+    limit?: number;
+  }): Promise<ThreadTurnSummary[]>;
 };
 
 export function createSupabaseAgentTrajectoryStore(
@@ -86,12 +99,16 @@ export function createSupabaseAgentTrajectoryStore(
 ): AgentTrajectoryStore {
   return {
     async startTrajectory(params) {
-      const insert: TablesInsert<"agent_trajectories"> = {
+      // thread_id is a forward-compatible column added by migration
+      // 20260513000100. The generated types don't know about it yet, so we
+      // cast the insert payload through unknown.
+      const insert = {
         workspace_id: params.workspaceId,
         lead_id: params.leadId,
         channel: params.channel,
         started_at: params.startedAt ?? new Date().toISOString(),
-      };
+        ...(params.threadId === undefined || params.threadId === null ? {} : { thread_id: params.threadId }),
+      } as unknown as TablesInsert<"agent_trajectories">;
       const { data, error } = await supabase
         .from("agent_trajectories")
         .insert(insert)
@@ -198,7 +215,68 @@ export function createSupabaseAgentTrajectoryStore(
         throw error;
       }
     },
+
+    async loadThreadHistory(params) {
+      // Pull the latest trajectories for this thread, then for each take the
+      // first step's input_snapshot (the user message) and turn_output (the
+      // assistant reply). Returned in chronological order so the runtime can
+      // feed them directly into the model's conversation history.
+      const limit = params.limit ?? 8;
+      const { data: trajectories, error: trajErr } = await supabase
+        .from("agent_trajectories")
+        .select("id, started_at")
+        .eq("workspace_id", params.workspaceId)
+        .eq("thread_id" as never, params.threadId as never)
+        .order("started_at", { ascending: false })
+        .limit(limit);
+
+      if (trajErr !== null || trajectories === null || trajectories.length === 0) {
+        return [];
+      }
+
+      const ids = trajectories.map((row) => row.id);
+      const { data: steps, error: stepsErr } = await supabase
+        .from("agent_steps")
+        .select("trajectory_id, iteration, input_snapshot, turn_output")
+        .in("trajectory_id", ids)
+        .order("iteration", { ascending: true });
+
+      if (stepsErr !== null) {
+        return [];
+      }
+
+      const stepsByTrajectory = new Map<string, typeof steps>();
+      for (const step of steps ?? []) {
+        const list = stepsByTrajectory.get(step.trajectory_id) ?? [];
+        list.push(step);
+        stepsByTrajectory.set(step.trajectory_id, list);
+      }
+
+      const turns: ThreadTurnSummary[] = trajectories
+        .map((traj) => {
+          const trajSteps = stepsByTrajectory.get(traj.id) ?? [];
+          const first = trajSteps[0];
+          if (first === undefined) return null;
+          const inboundText = readString((first.input_snapshot as Record<string, unknown> | null)?.["inboundText"])
+            ?? readString((first.input_snapshot as Record<string, unknown> | null)?.["message"]);
+          const reply = readString((first.turn_output as Record<string, unknown> | null)?.["reply"]);
+          return {
+            trajectoryId: traj.id,
+            startedAt: traj.started_at,
+            inboundText: inboundText ?? null,
+            reply: reply ?? null,
+          };
+        })
+        .filter((value): value is ThreadTurnSummary => value !== null);
+
+      // Reverse so oldest-first (chronological for model context).
+      return turns.reverse();
+    },
   };
+}
+
+function readString(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value : null;
 }
 
 /**

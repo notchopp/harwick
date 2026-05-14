@@ -1,6 +1,7 @@
 "use client";
 
-import { AlertCircle, Settings } from "lucide-react";
+import type { ProductUpdateEntry } from "@realty-ops/core";
+import { AlertCircle, Settings, Sparkles } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { FacebookGlyph, InstagramGlyph, ListingGlyph, PhoneGlyph, SyncGlyph } from "../../components/harwick-icons";
@@ -123,7 +124,80 @@ function mapActivityEventToView(event: WorkspaceActivityEvent, now: Date): Activ
   };
 }
 
-export function ActivityPageContent(props: { workspaceName: string; events: WorkspaceActivityEvent[] }) {
+function formatUpdateDate(value: string): string {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date(value));
+}
+
+function ProductUpdatesSection(props: { updates: ProductUpdateEntry[]; error: string | null }) {
+  if (props.updates.length === 0 && props.error === null) {
+    return null;
+  }
+
+  return (
+    <section className="border-b border-border bg-surface px-7 py-5">
+      <div className="mb-3 flex items-center gap-2">
+        <div className="flex h-7 w-7 items-center justify-center rounded-[8px] bg-[#EEE8FF] text-[#5740A8]">
+          <Sparkles className="h-3.5 w-3.5" strokeWidth={1.8} />
+        </div>
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.14em] text-muted-subtle">Product updates</div>
+          <div className="text-[13px] text-muted">Shipped changes from tags, deploys, and release notes.</div>
+        </div>
+      </div>
+
+      {props.error === null ? null : (
+        <div className="mb-3 rounded-[10px] border border-dashed border-border bg-background px-3 py-2 text-[11.5px] text-muted">
+          Product updates are temporarily unavailable. {props.error}
+        </div>
+      )}
+
+      <div className="grid gap-3 xl:grid-cols-2">
+        {props.updates.map((update) => (
+          <article className="rounded-[12px] border border-border bg-background px-4 py-3" key={update.tagName}>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="rounded-full border border-border bg-surface px-2 py-0.5 text-[10px] uppercase tracking-[0.12em] text-muted-subtle">
+                {update.kind}
+              </div>
+              <div className="text-[13px] font-medium text-foreground">{update.title}</div>
+              <div className="ml-auto text-[11px] text-muted-subtle">{formatUpdateDate(update.publishedAt)}</div>
+            </div>
+            <div className="mt-1 text-[12px] leading-[1.5] text-muted">{update.summary}</div>
+            {update.highlights.length === 0 ? null : (
+              <div className="mt-3 space-y-1.5">
+                {update.highlights.slice(0, 3).map((highlight) => (
+                  <div className="text-[11.5px] leading-[1.45] text-foreground" key={`${update.tagName}:${highlight.category}:${highlight.text}`}>
+                    <span className="mr-1 uppercase tracking-[0.08em] text-muted-subtle">{highlight.category}</span>
+                    {highlight.text}
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="mt-3 flex items-center gap-3 text-[11px] text-muted-subtle">
+              <span>{update.tagName}</span>
+              {update.commitCount > 0 ? <span>{update.commitCount} commits</span> : null}
+              {update.htmlUrl === null ? null : (
+                <a className="text-foreground underline underline-offset-2" href={update.htmlUrl} rel="noreferrer" target="_blank">
+                  View release
+                </a>
+              )}
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+export function ActivityPageContent(props: {
+  workspaceName: string;
+  events: WorkspaceActivityEvent[];
+  productUpdates: ProductUpdateEntry[];
+  productUpdatesError: string | null;
+}) {
   const [filterType, setFilterType] = useState<ActivityFilter>("all");
   const [dateFilter, setDateFilter] = useState<ActivityDateFilter>("today");
   const [errorsOnly, setErrorsOnly] = useState(false);
@@ -184,6 +258,8 @@ export function ActivityPageContent(props: { workspaceName: string; events: Work
           <option value="system">System</option>
         </select>
       </WorkspaceTopbar>
+
+      <ProductUpdatesSection error={props.productUpdatesError} updates={props.productUpdates} />
 
       <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border bg-surface px-7 py-3">
         <FilterChip active={dateFilter === "today"} onClick={() => setDateFilter("today")}>

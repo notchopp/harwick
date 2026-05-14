@@ -17,6 +17,11 @@ import {
   createHarwickAiToolHandlers,
   type HarwickAiToolHandlerDependencies,
 } from "./harwick-ai-tool-handlers";
+import { sendMetaReply } from "../integrations/meta-reply-send";
+
+vi.mock("../integrations/meta-reply-send", () => ({
+  sendMetaReply: vi.fn(),
+}));
 
 const workspaceId = "00000000-0000-0000-0000-000000000001";
 const leadId = "00000000-0000-0000-0000-000000000002";
@@ -186,38 +191,45 @@ function createHandlers(
       clientSecret: string;
     };
     now?: () => Date;
+    context?: Partial<HarwickAiToolHandlerDependencies["context"]>;
   } = {},
 ): HarwickAiToolHandlers {
+  const baseContext: HarwickAiToolHandlerDependencies["context"] = {
+    workspaceId,
+    leadId,
+    leadEventId: null,
+    event: {
+      workspaceId,
+      provider: "meta",
+      providerEventId: "event-1",
+      providerAccountId: "ig-account-1",
+      providerUserId: "ig-user-1",
+      sourceChannel: "instagram_dm",
+      eventType: "message_received",
+      text: "Looking in Katy",
+      occurredAt: "2026-05-05T12:00:00.000Z",
+      sourcePostId: null,
+      sourceCommentId: null,
+      instagramUsername: null,
+      phone: null,
+    } as unknown as NormalizedLeadEvent,
+    lead: overrides.lead ?? null,
+    channel: "instagram_dm",
+    providerAccountId: "ig-account-1",
+    recipientUserId: "ig-user-1",
+    sourcePostId: null,
+    sourceCommentId: null,
+    automationMode: "ai_on",
+    agentTrajectoryId: "00000000-0000-0000-0000-000000000004",
+    agentStepId: "00000000-0000-0000-0000-000000000005",
+  };
   const deps: HarwickAiToolHandlerDependencies = {
     supabase,
     context: {
-      workspaceId,
-      leadId,
-      leadEventId: null,
-      event: {
-        workspaceId,
-        provider: "meta",
-        providerEventId: "event-1",
-        providerAccountId: "ig-account-1",
-        providerUserId: "ig-user-1",
-        sourceChannel: "instagram_dm",
-        eventType: "message_received",
-        text: "Looking in Katy",
-        occurredAt: "2026-05-05T12:00:00.000Z",
-        sourcePostId: null,
-        sourceCommentId: null,
-        instagramUsername: null,
-        phone: null,
-      } as unknown as NormalizedLeadEvent,
-      lead: overrides.lead ?? null,
-      channel: "instagram_dm",
-      providerAccountId: "ig-account-1",
-      recipientUserId: "ig-user-1",
-      sourcePostId: null,
-      sourceCommentId: null,
-      automationMode: "ai_on",
-      agentTrajectoryId: "00000000-0000-0000-0000-000000000004",
-      agentStepId: "00000000-0000-0000-0000-000000000005",
+      ...baseContext,
+      ...(overrides.context ?? {}),
+      lead: overrides.context?.lead ?? baseContext.lead,
+      event: overrides.context?.event ?? baseContext.event,
     },
     conversationMessageRepository: {} as ConversationMessageRepository,
     conversationAutomationRepository: {} as ConversationAutomationRepository,
@@ -508,6 +520,71 @@ describe("createHarwickAiToolHandlers", () => {
       synthesized: true,
     }));
     expect(Array.isArray(fallbackResult?.["availableWindows"])).toBe(true);
+  });
+
+  it("sends a DM handoff from comment context through the unified Meta transport", async () => {
+    const supabase = createInsertSupabase();
+    vi.mocked(sendMetaReply).mockResolvedValueOnce({
+      status: 200,
+      body: {
+        status: "sent",
+        providerEventId: "mid.comment.handoff",
+        occurredAt: "2026-05-06T12:00:00.000Z",
+        channel: "instagram_dm",
+      },
+    });
+
+    const handlers = createHandlers(supabase.client, {
+      context: {
+        event: {
+          workspaceId,
+          provider: "meta",
+          providerEventId: "comment-event-1",
+          providerAccountId: "ig-account-1",
+          providerUserId: "ig-user-1",
+          sourceChannel: "instagram_comment",
+          eventType: "comment_received",
+          text: "price?",
+          occurredAt: "2026-05-05T12:00:00.000Z",
+          sourcePostId: "post-1",
+          sourceCommentId: "comment-1",
+          instagramUsername: "ava",
+          phone: null,
+        } as unknown as NormalizedLeadEvent,
+        channel: "instagram_comment",
+        sourcePostId: "post-1",
+        sourceCommentId: "comment-1",
+      },
+    });
+
+    const result = await handlers.send_meta_message?.({
+      tool: "send_meta_message",
+      reason: "move qualification into DM after the public acknowledgement",
+      requiresApproval: false,
+      payload: {
+        reply: "I just sent you the full details in DM.",
+        target: "dm",
+      },
+    });
+
+    const firstSendMetaReplyCall = vi.mocked(sendMetaReply).mock.calls[0];
+    expect(firstSendMetaReplyCall?.[0]).toMatchObject({
+      request: {
+        channel: "instagram_dm",
+        recipientUserId: "ig-user-1",
+        sourceCommentId: "comment-1",
+        sourcePostId: "post-1",
+      },
+    });
+    expect(result).toEqual({
+      sent: true,
+      providerEventId: "mid.comment.handoff",
+      occurredAt: "2026-05-06T12:00:00.000Z",
+      channel: "instagram_dm",
+      reply: "I just sent you the full details in DM.",
+      handoffFromComment: true,
+      sourceCommentId: "comment-1",
+    });
   });
 
   it("refreshes expiring Google Calendar tokens before checking availability", async () => {

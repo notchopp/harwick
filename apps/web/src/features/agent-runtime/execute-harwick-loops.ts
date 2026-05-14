@@ -1,7 +1,11 @@
 import { HarwickWorkItemCreateSchema, type HarwickLoop, type HarwickWorkItemCreate, type WorkspaceRole } from "@realty-ops/core";
 import type { SmallModelClient } from "@realty-ops/integrations";
 import { z } from "zod";
-import type { HarwickLoopRepository } from "../../lib/supabase/harwick-loops";
+import type {
+  HarwickLoopClosedWonEvent,
+  HarwickLoopEventSourceRepository,
+  HarwickLoopRepository,
+} from "../../lib/supabase/harwick-loops";
 import type { HarwickWorkItemRepository } from "../../lib/supabase/harwick-work-items";
 import {
   intelligizeHarwickWorkItem,
@@ -27,8 +31,18 @@ const LoopWorkItemPlanSchema = z.object({
 
 export type HarwickLoopWorkItemPlan = z.infer<typeof LoopWorkItemPlanSchema>;
 
+export type HarwickLoopPlannerContext = {
+  triggerType: HarwickLoop["triggerType"];
+  eventType: string | null;
+  leadId: string | null;
+  entityLabel: string | null;
+  occurredAt: string | null;
+  summary: string | null;
+  payload: Record<string, unknown>;
+};
+
 export type HarwickLoopPlannerClient = {
-  planWorkItem(loop: HarwickLoop, nowIso: string): Promise<HarwickLoopWorkItemPlan>;
+  planWorkItem(loop: HarwickLoop, nowIso: string, context?: HarwickLoopPlannerContext): Promise<HarwickLoopWorkItemPlan>;
 };
 
 export type HarwickLoopExecutionDeps = {
@@ -50,6 +64,17 @@ export type HarwickLoopExecutionReport = {
   failed: number;
 };
 
+export type HarwickEventLoopExecutionReport = {
+  scannedLoops: number;
+  scannedEvents: number;
+  completed: number;
+  surfaced: number;
+  drafted: number;
+  plannedAgentLoops: number;
+  skippedExisting: number;
+  failed: number;
+};
+
 const MS_PER_MINUTE = 60_000;
 const MS_PER_HOUR = 60 * MS_PER_MINUTE;
 const MS_PER_DAY = 24 * MS_PER_HOUR;
@@ -59,7 +84,7 @@ export function createSmallModelHarwickLoopPlannerClient(
   client: SmallModelClient,
 ): HarwickLoopPlannerClient {
   return {
-    async planWorkItem(loop, nowIso) {
+    async planWorkItem(loop, nowIso, context) {
       return client.classify({
         schema: LoopWorkItemPlanSchema,
         temperature: 0.2,
@@ -68,6 +93,7 @@ export function createSmallModelHarwickLoopPlannerClient(
           "You are the lightweight planning layer for Harwick loops.",
           "A Harwick loop is a recurring autonomous instruction that wakes up the workspace chief of staff.",
           "Convert the loop into one concise, reviewable dashboard work item.",
+          "If event context is present, incorporate it into the work item so Harwick reacts to the specific event rather than writing a generic reminder.",
           "Do not claim that external tools, sends, calendar writes, or CRM writes already happened.",
           "If outputMode is draft, include draftBody as the draft Harwick should review with the operator.",
           "If outputMode is agent_loop, include agentLoopBrief and proposedToolCalls. Proposed tool calls must require approval.",
@@ -82,6 +108,7 @@ export function createSmallModelHarwickLoopPlannerClient(
           outputMode: loop.outputMode,
           toolAllowlist: loop.toolAllowlist,
           nowIso,
+          context,
         }),
       });
     },
@@ -166,14 +193,20 @@ export function computeNextHarwickLoopRunAt(scheduleSpec: string, from: Date): s
   return null;
 }
 
-function deterministicPlan(loop: HarwickLoop): HarwickLoopWorkItemPlan {
+function deterministicPlan(loop: HarwickLoop, context?: HarwickLoopPlannerContext): HarwickLoopWorkItemPlan {
   const targetRole: WorkspaceRole = loop.instruction.toLowerCase().includes("queue")
     || loop.instruction.toLowerCase().includes("follow-up")
     ? "operator"
     : "team_lead";
+  const entityLabel = context?.entityLabel;
+  const summaryPrefix = loop.triggerType === "event"
+    ? entityLabel === null || entityLabel === undefined
+      ? `Harwick event loop "${loop.name}" woke up for ${context?.eventType ?? "an event"}.`
+      : `Harwick event loop "${loop.name}" woke up for ${entityLabel}.`
+    : `Harwick loop "${loop.name}" is due.`;
   return LoopWorkItemPlanSchema.parse({
-    title: `Loop due: ${loop.name}`,
-    summary: `Harwick loop "${loop.name}" is due. Instruction: ${loop.instruction}`,
+    title: loop.triggerType === "event" ? `Event loop ready: ${loop.name}` : `Loop due: ${loop.name}`,
+    summary: `${summaryPrefix} Instruction: ${loop.instruction}`,
     recommendedAction: loop.outputMode === "draft"
       ? "Review draft"
       : loop.outputMode === "agent_loop"
@@ -181,25 +214,29 @@ function deterministicPlan(loop: HarwickLoop): HarwickLoopWorkItemPlan {
         : loop.approvalMode === "auto_execute"
           ? "Review autonomous loop output"
           : "Review and approve next step",
-    reason: "This surfaced from a scheduled Harwick loop so recurring cognitive work appears in the workspace before any external action happens.",
+    reason: loop.triggerType === "event"
+      ? "This surfaced from an event-triggered Harwick loop so recurring cognitive work can start as soon as the workspace event happens."
+      : "This surfaced from a scheduled Harwick loop so recurring cognitive work appears in the workspace before any external action happens.",
     priority: "normal",
     targetRole,
     draftBody: loop.outputMode === "draft"
-      ? `Draft from "${loop.name}": ${loop.instruction}`
+      ? loop.triggerType === "event" && entityLabel !== null && entityLabel !== undefined
+        ? `Draft from "${loop.name}" for ${entityLabel}: ${loop.instruction}`
+        : `Draft from "${loop.name}": ${loop.instruction}`
       : null,
     proposedToolCalls: loop.outputMode === "agent_loop"
       ? [{
           tool: "dispatch_subagent",
-          reason: "run the scheduled loop instruction through a specialist before any external action",
+          reason: `run the ${loop.triggerType === "event" ? "event-driven" : "scheduled"} loop instruction through a specialist before any external action`,
           requiresApproval: true,
           payload: {
             subagentType: "research",
-            instructions: loop.instruction,
+            instructions: entityLabel === null || entityLabel === undefined ? loop.instruction : `${loop.instruction}\n\nContext: ${entityLabel}`,
           },
         }]
       : [],
     agentLoopBrief: loop.outputMode === "agent_loop"
-      ? `Harwick should execute this recurring instruction as a bounded approval-first agent loop: ${loop.instruction}`
+      ? `Harwick should execute this ${loop.triggerType === "event" ? "event-triggered" : "recurring"} instruction as a bounded approval-first agent loop: ${loop.instruction}`
       : null,
   });
 }
@@ -216,10 +253,11 @@ function buildLoopWorkItem(params: {
   plan: HarwickLoopWorkItemPlan;
   signalKey: string;
   nowIso: string;
+  triggerContext?: HarwickLoopPlannerContext;
 }): HarwickWorkItemCreate {
   return HarwickWorkItemCreateSchema.parse({
     workspaceId: params.loop.workspaceId,
-    leadId: null,
+    leadId: params.triggerContext?.leadId ?? null,
     routingDecisionId: null,
     trajectoryId: null,
     stepId: null,
@@ -233,10 +271,12 @@ function buildLoopWorkItem(params: {
     recommendedAction: params.plan.recommendedAction,
     reason: params.plan.reason,
     payload: {
-      signalType: "harwick_loop_due",
+      signalType: params.loop.triggerType === "event" ? "harwick_loop_event" : "harwick_loop_due",
       signalKey: params.signalKey,
       loopId: params.loop.id,
       loopName: params.loop.name,
+      triggerType: params.loop.triggerType,
+      eventType: params.loop.eventType,
       scheduleSpec: params.loop.scheduleSpec,
       instruction: params.loop.instruction,
       approvalMode: params.loop.approvalMode,
@@ -248,11 +288,178 @@ function buildLoopWorkItem(params: {
       requiresOperatorApproval: params.loop.approvalMode !== "auto_execute"
         || params.loop.outputMode === "draft"
         || params.loop.outputMode === "agent_loop",
-      source: "harwick_loop_executor",
-      dueAt: params.loop.nextRunAt ?? params.nowIso,
+      source: params.loop.triggerType === "event" ? "harwick_loop_event_executor" : "harwick_loop_executor",
+      dueAt: params.loop.nextRunAt ?? params.triggerContext?.occurredAt ?? params.nowIso,
+      triggerContext: params.triggerContext ?? null,
     },
-    dueAt: null,
+    dueAt: params.triggerContext?.occurredAt ?? null,
   });
+}
+
+function buildClosedWonEventContext(event: HarwickLoopClosedWonEvent): HarwickLoopPlannerContext {
+  return {
+    triggerType: "event",
+    eventType: "lead_closed_won",
+    leadId: event.leadId,
+    entityLabel: event.leadName === null ? "a newly closed lead" : `${event.leadName} just closed`,
+    occurredAt: event.occurredAt,
+    summary: `Lead closed won via ${event.sourceChannel}${event.targetArea === null ? "" : ` in ${event.targetArea}`}.`,
+    payload: {
+      leadStatus: event.status,
+      sourceChannel: event.sourceChannel,
+      targetArea: event.targetArea,
+      timeline: event.timeline,
+      assignedAgentId: event.assignedAgentId,
+      occurredAt: event.occurredAt,
+    },
+  };
+}
+
+export async function executeHarwickEventLoops(params: {
+  loopRepository: HarwickLoopRepository;
+  eventSourceRepository: HarwickLoopEventSourceRepository;
+  workItemRepository: Pick<HarwickWorkItemRepository, "createWorkItem" | "findOpenInsightBySignalKey">;
+  plannerClient?: HarwickLoopPlannerClient;
+  intelligenceClient?: HarwickWorkItemIntelligenceClient;
+  now?: () => Date;
+  batchSize?: number;
+}): Promise<HarwickEventLoopExecutionReport> {
+  const now = params.now?.() ?? new Date();
+  const nowIso = now.toISOString();
+  const closedWonLoops = await params.loopRepository.listActiveEventLoops({
+    eventType: "lead_closed_won",
+    limit: params.batchSize ?? 10,
+  });
+  const plannerClient = params.plannerClient ?? { planWorkItem: (loop: HarwickLoop, _nowIso: string, context?: HarwickLoopPlannerContext) => Promise.resolve(deterministicPlan(loop, context)) };
+
+  if (closedWonLoops.length === 0) {
+    return {
+      scannedLoops: 0,
+      scannedEvents: 0,
+      completed: 0,
+      surfaced: 0,
+      drafted: 0,
+      plannedAgentLoops: 0,
+      skippedExisting: 0,
+      failed: 0,
+    };
+  }
+
+  const earliestLastRunAt = closedWonLoops
+    .map((loop) => loop.lastRunAt)
+    .filter((value): value is string => value !== null)
+    .sort((left, right) => Date.parse(left) - Date.parse(right))[0]
+    ?? new Date(now.getTime() - 7 * MS_PER_DAY).toISOString();
+  const closedWonEvents = await params.eventSourceRepository.listClosedWonLeadEvents({
+    sinceIso: earliestLastRunAt,
+    limit: Math.max((params.batchSize ?? 10) * 4, 20),
+  });
+
+  let completed = 0;
+  let surfaced = 0;
+  let drafted = 0;
+  let plannedAgentLoops = 0;
+  let skippedExisting = 0;
+  let failed = 0;
+
+  for (const loop of closedWonLoops) {
+    const loopEvents = closedWonEvents.filter((event) =>
+      event.workspaceId === loop.workspaceId
+      && (loop.lastRunAt === null || Date.parse(event.occurredAt) > Date.parse(loop.lastRunAt))
+    ).slice(0, params.batchSize ?? 10);
+
+    for (const event of loopEvents) {
+      const signalKey = `harwick_loop_event:${loop.id}:${event.leadId}:${event.occurredAt}`;
+      const run = await params.loopRepository.createRun({
+        workspaceId: loop.workspaceId,
+        loopId: loop.id,
+        instructionSnapshot: loop.instruction,
+        nowIso,
+        metadata: {
+          signalKey,
+          eventType: loop.eventType,
+          leadId: event.leadId,
+          occurredAt: event.occurredAt,
+        },
+      });
+
+      try {
+        const existing = await params.workItemRepository.findOpenInsightBySignalKey({
+          workspaceId: loop.workspaceId,
+          signalKey,
+        });
+        if (existing !== null) {
+          skippedExisting += 1;
+          await params.loopRepository.completeRun({
+            workspaceId: loop.workspaceId,
+            loopId: loop.id,
+            runId: run.runId,
+            nowIso,
+            status: "completed",
+            resultSummary: "Skipped surfacing because an open work item already exists for this event occurrence.",
+            workItemId: existing.id,
+            nextRunAt: null,
+          });
+          completed += 1;
+          continue;
+        }
+
+        const triggerContext = buildClosedWonEventContext(event);
+        const plan = LoopWorkItemPlanSchema.parse(await plannerClient.planWorkItem(loop, nowIso, triggerContext));
+        const workItem = await intelligizeHarwickWorkItem({
+          context: {
+            signalKey,
+            source: "loop",
+            item: buildLoopWorkItem({
+              loop,
+              plan,
+              signalKey,
+              nowIso,
+              triggerContext,
+            }),
+          },
+          ...(params.intelligenceClient === undefined ? {} : { client: params.intelligenceClient }),
+        });
+        const created = await params.workItemRepository.createWorkItem(workItem);
+        await params.loopRepository.completeRun({
+          workspaceId: loop.workspaceId,
+          loopId: loop.id,
+          runId: run.runId,
+          nowIso,
+          status: "completed",
+          resultSummary: `Surfaced Harwick event loop "${loop.name}" for ${event.leadName ?? event.leadId}.`,
+          workItemId: created.workItemId,
+          nextRunAt: null,
+        });
+        completed += 1;
+        surfaced += 1;
+        if (loop.outputMode === "draft") drafted += 1;
+        if (loop.outputMode === "agent_loop") plannedAgentLoops += 1;
+      } catch (error) {
+        failed += 1;
+        await params.loopRepository.completeRun({
+          workspaceId: loop.workspaceId,
+          loopId: loop.id,
+          runId: run.runId,
+          nowIso,
+          status: "failed",
+          errorMessage: error instanceof Error ? error.message.slice(0, 1000) : String(error).slice(0, 1000),
+          nextRunAt: null,
+        });
+      }
+    }
+  }
+
+  return {
+    scannedLoops: closedWonLoops.length,
+    scannedEvents: closedWonEvents.length,
+    completed,
+    surfaced,
+    drafted,
+    plannedAgentLoops,
+    skippedExisting,
+    failed,
+  };
 }
 
 export async function executeDueHarwickLoops(

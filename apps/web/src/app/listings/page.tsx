@@ -20,7 +20,9 @@ export default async function Page() {
       activeItem="Listings"
       memberName={membership.displayName}
       memberRole={membership.role}
+      operatorRole={membership.role}
       title="Listings"
+      workspaceId={membership.workspaceId}
       workspaceName={membership.workspaceName}
     >
       <ListingsPageContent

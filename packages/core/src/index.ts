@@ -30,6 +30,7 @@ export * from "./domains/meta-reply.js";
 export * from "./domains/nurture.js";
 export * from "./domains/operator-queue.js";
 export * from "./domains/policy-narrative.js";
+export * from "./domains/product-update.js";
 export * from "./domains/operations.js";
 export * from "./domains/owner-home.js";
 export * from "./domains/social-post.js";

@@ -53,6 +53,7 @@ const ACTION_LABELS: Record<string, string> = {
 };
 
 const TOOL_LABELS: Record<string, string> = {
+  send_meta_message: "send_meta_message (reply on the active Meta thread without changing channels implicitly)",
   send_meta_reply: "send_meta_reply (post a public reply on the original post)",
   send_meta_dm: "send_meta_dm (start or continue a direct message thread)",
   check_calendar: "check_calendar (look up agent availability)",

@@ -22,10 +22,10 @@ const safeTurn: HarwickAiTurn = {
   },
   handoffBrief: null,
   toolCalls: [{
-    tool: "send_meta_dm",
+    tool: "send_meta_message",
     reason: "continue qualification in DM",
     requiresApproval: false,
-    payload: { reply: "I can send details. Are you looking to move soon?" },
+    payload: { reply: "I can send details. Are you looking to move soon?", target: "dm" },
   }],
   selfGateAutoExecute: true,
   selfGateReason: "policy narrative permits autonomous send.",
@@ -43,7 +43,7 @@ describe("evaluateHarwickAiAutomation", () => {
       },
     })).toMatchObject({
       canAutoExecute: true,
-      approvedTools: ["send_meta_dm"],
+      approvedTools: ["send_meta_message"],
       blockedTools: [],
     });
   });
@@ -56,7 +56,7 @@ describe("evaluateHarwickAiAutomation", () => {
       },
     })).toMatchObject({
       canAutoExecute: false,
-      blockedTools: ["send_meta_dm"],
+      blockedTools: ["send_meta_message"],
     });
   });
 

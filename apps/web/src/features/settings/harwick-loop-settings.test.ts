@@ -10,7 +10,9 @@ describe("harwick loop settings helpers", () => {
     const result = buildHarwickLoopCreateRequest({
       name: "Friday queue review",
       instruction: "Review stale work and summarize who needs attention.",
+      triggerType: "schedule",
       scheduleSpec: "every Friday 4pm",
+      eventType: "",
       approvalMode: "approval_required",
       outputMode: "agent_loop",
       toolAllowlistText: "dispatch_subagent, workspace_memory.search\ndispatch_subagent",
@@ -37,7 +39,9 @@ describe("harwick loop settings helpers", () => {
     const result = buildHarwickLoopCreateRequest({
       name: "Friday queue review",
       instruction: "Review stale work and summarize who needs attention.",
+      triggerType: "schedule",
       scheduleSpec: "",
+      eventType: "",
       approvalMode: "approval_required",
       outputMode: "work_item",
       toolAllowlistText: "",
@@ -46,6 +50,35 @@ describe("harwick loop settings helpers", () => {
     expect(result).toEqual({
       ok: false,
       error: "Loop needs a name, schedule, and instruction.",
+    });
+  });
+
+  it("builds an event-triggered loop request", () => {
+    const result = buildHarwickLoopCreateRequest({
+      name: "Closed lead follow-up",
+      instruction: "After every closed lead, draft a thank-you and the 6-month check-in plan.",
+      triggerType: "event",
+      scheduleSpec: "",
+      eventType: "lead_closed_won",
+      approvalMode: "approval_required",
+      outputMode: "draft",
+      toolAllowlistText: "dispatch_subagent",
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      request: {
+        name: "Closed lead follow-up",
+        instruction: "After every closed lead, draft a thank-you and the 6-month check-in plan.",
+        triggerType: "event",
+        scheduleSpec: null,
+        eventType: "lead_closed_won",
+        status: "active",
+        approvalMode: "approval_required",
+        outputMode: "draft",
+        toolAllowlist: ["dispatch_subagent"],
+        nextRunAt: null,
+      },
     });
   });
 

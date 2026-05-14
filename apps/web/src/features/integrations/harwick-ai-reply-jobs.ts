@@ -4,8 +4,11 @@ import {
   type SocialReplyQueueItem,
 } from "@realty-ops/core";
 
-function hasApprovedMetaTool(approvedTools: readonly string[], expectedTool: "send_meta_dm" | "send_meta_reply") {
-  return approvedTools.includes(expectedTool);
+function hasApprovedMetaTool(
+  approvedTools: readonly string[],
+  expectedTool: "send_meta_dm" | "send_meta_reply",
+) {
+  return approvedTools.includes("send_meta_message") || approvedTools.includes(expectedTool);
 }
 
 export function buildHarwickAiReplyJobInput(params: {

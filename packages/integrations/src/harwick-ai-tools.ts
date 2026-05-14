@@ -108,7 +108,7 @@ export async function executeHarwickAiTurnWithPolicy(params: {
 /**
  * AI-native shift 5: agentic loop. Lets the model chain multiple tool calls
  * in a single inbound — `check_calendar` then `request_showing_approval`
- * then `send_meta_dm`, all decided by the model after seeing each tool's
+ * then `send_meta_message`, all decided by the model after seeing each tool's
  * result, instead of one model call producing one set of tool calls.
  *
  * Bounded by `maxIterations` (default 6) and exits early when:

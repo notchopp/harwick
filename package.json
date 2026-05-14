@@ -21,9 +21,11 @@
     "launch:env:sources": "node scripts/audit-local-launch-env-sources.mjs",
     "test:watch": "vitest",
     "typecheck": "tsc --build --pretty false",
+    "updates:generate": "node scripts/generate-product-update.mjs",
     "build": "npm run build:packages && npm run build --workspace @realty-ops/web",
     "supabase:migrate": "node scripts/apply-supabase-migration.mjs",
     "supabase:seed": "node scripts/seed-customer-zero.mjs",
+    "supabase:seed:synthetic": "node scripts/seed-houston-synthetic-brokerage.mjs",
     "supabase:test:rls": "node scripts/test-rls.mjs",
     "launch:check": "node scripts/launch-check.mjs",
     "release:check": "npm run constraints:check && npm run typecheck && npm run lint && npm test"

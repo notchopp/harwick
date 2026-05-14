@@ -15,6 +15,12 @@ describe("mapAgentStepToSynthesis", () => {
         missingFields: ["financing_status"],
         safetyFlags: ["showing_approval_required"],
         documentUpdate: "Lead asked to tour the listing this weekend.",
+        statePatch: {
+          leadType: "buyer",
+          targetArea: "Katy",
+          timeline: "this weekend",
+          financingStatus: "preapproved",
+        },
       },
       tool_executions: [{
         tool: "request_showing_approval",
@@ -37,6 +43,12 @@ describe("mapAgentStepToSynthesis", () => {
       status: "in_flight:queued_for_approval",
       nextAction: "request_showing_approval",
       handoffBrief: "Showing approval task created",
+      liveFields: [
+        { key: "leadType", label: "Lead type", value: "buyer" },
+        { key: "targetArea", label: "Area", value: "Katy" },
+        { key: "timeline", label: "Timeline", value: "this weekend" },
+        { key: "financingStatus", label: "Financing", value: "preapproved" },
+      ],
       toolActivity: [{
         tool: "request_showing_approval",
         status: "executed",
@@ -75,4 +87,3 @@ describe("mapAgentStepToSynthesis", () => {
     }]);
   });
 });
-

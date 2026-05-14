@@ -29,6 +29,7 @@ export const AuditLogActionSchema = z.enum([
   "harwick_ai.policy_shadow",
   "routing_profile.updated",
   "workspace.settings_changed",
+  "training.surface_feedback",
 ]);
 export type AuditLogAction = z.infer<typeof AuditLogActionSchema>;
 
@@ -48,6 +49,10 @@ export const AuditLogResourceTypeSchema = z.enum([
   "harwick_ai_turn",
   "routing_profile",
   "workspace",
+  "routing_decision",
+  "proactive_card",
+  "workspace_memory",
+  "synthesis_field",
 ]);
 export type AuditLogResourceType = z.infer<typeof AuditLogResourceTypeSchema>;
 

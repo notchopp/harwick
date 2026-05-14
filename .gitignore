@@ -16,7 +16,11 @@ playwright-report
 test-results
 tmp/*.json
 tmp/*.txt
+tmp/*.js
+tmp/*.png
+tmp/*.log
 tmp/dev-*.log
+tmp/frontend-design/
 
 .vercel
 .aider*

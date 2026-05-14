@@ -12,7 +12,9 @@ export default async function Page() {
       activeItem="Conversations"
       memberName={membership.displayName}
       memberRole={membership.role}
+      operatorRole={membership.role}
       title="Conversations"
+      workspaceId={membership.workspaceId}
       workspaceName={membership.workspaceName}
     >
       <ConversationsPageContent

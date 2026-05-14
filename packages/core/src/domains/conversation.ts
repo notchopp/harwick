@@ -37,6 +37,12 @@ export const ConversationAiToolActivitySchema = z.object({
   detail: z.string().trim().min(1).max(500).nullable(),
 });
 
+export const ConversationAiLiveFieldSchema = z.object({
+  key: z.string().trim().min(1).max(80),
+  label: z.string().trim().min(1).max(80),
+  value: z.string().trim().min(1).max(240),
+});
+
 export const ConversationAiSynthesisSchema = z.object({
   turnId: UuidSchema,
   status: z.string().trim().min(1).max(80),
@@ -47,6 +53,7 @@ export const ConversationAiSynthesisSchema = z.object({
   safetyFlags: z.array(z.string().trim().min(1).max(80)).max(12),
   handoffBrief: z.string().trim().max(1000).nullable(),
   documentUpdate: z.string().trim().max(2000).nullable(),
+  liveFields: z.array(ConversationAiLiveFieldSchema).max(8).default([]),
   toolActivity: z.array(ConversationAiToolActivitySchema).max(12).default([]),
   updatedAt: IsoDateTimeSchema,
 });
@@ -97,6 +104,7 @@ export type ConversationInboxMessageKind = z.infer<typeof ConversationInboxMessa
 export type ConversationInboxMessage = z.infer<typeof ConversationInboxMessageSchema>;
 export type ConversationAiToolActivityStatus = z.infer<typeof ConversationAiToolActivityStatusSchema>;
 export type ConversationAiToolActivity = z.infer<typeof ConversationAiToolActivitySchema>;
+export type ConversationAiLiveField = z.infer<typeof ConversationAiLiveFieldSchema>;
 export type ConversationAiSynthesis = z.infer<typeof ConversationAiSynthesisSchema>;
 export type ConversationInboxThread = z.infer<typeof ConversationInboxThreadSchema>;
 export type ConversationsInboxResponse = z.infer<typeof ConversationsInboxResponseSchema>;

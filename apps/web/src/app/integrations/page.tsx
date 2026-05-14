@@ -19,7 +19,9 @@ export default async function Page() {
       activeItem="Integrations"
       memberName={membership.displayName}
       memberRole={membership.role}
+      operatorRole={membership.role}
       title="Integrations"
+      workspaceId={membership.workspaceId}
       workspaceName={membership.workspaceName}
     >
       <IntegrationsPageContent

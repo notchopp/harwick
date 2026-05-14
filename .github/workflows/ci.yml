@@ -6,6 +6,9 @@ on:
     branches:
       - main
 
+permissions:
+  contents: write
+
 jobs:
   checks:
     name: Typecheck, lint, test
@@ -19,3 +22,33 @@ jobs:
       - run: npm install
       - run: npm run release:check
       - run: npm run build
+
+  product_updates:
+    name: Product updates
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20.19.4"
+          cache: npm
+      - run: npm install
+      - id: generate
+        run: node scripts/generate-product-update.mjs --repo "${{ github.repository }}" --sha "${{ github.sha }}" --json-output output/product-update.json --markdown-output output/product-update.md --github-output "$GITHUB_OUTPUT"
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          PRODUCT_UPDATES_AI_MODEL: ${{ vars.PRODUCT_UPDATES_AI_MODEL }}
+      - if: steps.generate.outputs.should_release == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag "${{ steps.generate.outputs.tag_name }}" "${{ github.sha }}"
+          git push origin "${{ steps.generate.outputs.tag_name }}"
+      - if: steps.generate.outputs.should_release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${{ steps.generate.outputs.tag_name }}" --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "${{ steps.generate.outputs.release_title }}" --notes-file output/product-update.md

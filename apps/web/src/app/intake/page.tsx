@@ -12,7 +12,9 @@ export default async function Page() {
       activeItem="Intake"
       memberName={membership.displayName}
       memberRole={membership.role}
+      operatorRole={membership.role}
       title="Intake"
+      workspaceId={membership.workspaceId}
       workspaceName={membership.workspaceName}
     >
       <IntakePageContent />

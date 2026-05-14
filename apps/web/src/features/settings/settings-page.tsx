@@ -10,6 +10,7 @@ import {
   type HarwickLoop,
   type HarwickLoopApprovalMode,
   type HarwickLoopOutputMode,
+  type HarwickLoopTriggerType,
   type SubscriptionStatus,
   type WorkspaceMemoryDocument,
   type WorkspaceMemoryReviewStatus,
@@ -23,6 +24,7 @@ import { cn } from "../../lib/utils";
 import {
   buildHarwickLoopCreateRequest,
   formatHarwickLoopDate,
+  HARWICK_LOOP_EVENT_TYPE_OPTIONS,
   type HarwickLoopSettingsDraft,
 } from "./harwick-loop-settings";
 import { Switch } from "../../components/ui/switch";
@@ -232,7 +234,9 @@ function BillingPanel(props: {
 const defaultLoopDraft: HarwickLoopSettingsDraft = {
   name: "",
   instruction: "",
+  triggerType: "schedule",
   scheduleSpec: "",
+  eventType: HARWICK_LOOP_EVENT_TYPE_OPTIONS[0]?.value ?? "",
   approvalMode: "approval_required",
   outputMode: "work_item",
   toolAllowlistText: "",
@@ -351,13 +355,40 @@ function HarwickLoopsPanel(props: {
               placeholder="Friday queue review"
               value={draft.name}
             />
-            <input
-              className="harwick-control w-full px-[11px] py-[8px] text-[12.5px]"
-              disabled={!props.canManageLoops}
-              onChange={(event) => setDraft((current) => ({ ...current, scheduleSpec: event.target.value }))}
-              placeholder="every Friday 4pm"
-              value={draft.scheduleSpec}
-            />
+            <div className="grid gap-2 sm:grid-cols-2">
+              <select
+                className="harwick-control px-[10px] py-[8px] text-[12px]"
+                disabled={!props.canManageLoops}
+                onChange={(event) => setDraft((current) => ({
+                  ...current,
+                  triggerType: event.target.value as HarwickLoopTriggerType,
+                }))}
+                value={draft.triggerType}
+              >
+                <option value="schedule">Scheduled</option>
+                <option value="event">Event-triggered</option>
+              </select>
+              {draft.triggerType === "schedule" ? (
+                <input
+                  className="harwick-control w-full px-[11px] py-[8px] text-[12.5px]"
+                  disabled={!props.canManageLoops}
+                  onChange={(event) => setDraft((current) => ({ ...current, scheduleSpec: event.target.value }))}
+                  placeholder="every Friday 4pm"
+                  value={draft.scheduleSpec}
+                />
+              ) : (
+                <select
+                  className="harwick-control px-[10px] py-[8px] text-[12px]"
+                  disabled={!props.canManageLoops}
+                  onChange={(event) => setDraft((current) => ({ ...current, eventType: event.target.value }))}
+                  value={draft.eventType}
+                >
+                  {HARWICK_LOOP_EVENT_TYPE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              )}
+            </div>
             <div className="grid gap-2 sm:grid-cols-2">
               <select
                 className="harwick-control px-[10px] py-[8px] text-[12px]"
@@ -408,7 +439,9 @@ function HarwickLoopsPanel(props: {
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
           <div className="text-[11.5px] text-muted-subtle">
             {props.canManageLoops
-              ? "Scheduled jobs surface as reviewable Harwick work before external writes."
+              ? draft.triggerType === "event"
+                ? "Event-triggered loops wake on supported workspace events and still surface reviewable Harwick work before external writes."
+                : "Scheduled jobs surface as reviewable Harwick work before external writes."
               : "Only owners, admins, and team leads can manage loops."}
           </div>
           <Button

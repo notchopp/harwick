@@ -19,7 +19,7 @@ describe("policy narrative", () => {
       confidenceThreshold: 0.82,
       allowedAutoActions: ["send_reply", "ask_qualification"],
       requiresApprovalActions: ["route_lead"],
-      allowedAutoTools: ["send_meta_dm"],
+      allowedAutoTools: ["send_meta_message"],
       requiresApprovalTools: ["sync_follow_up_boss"],
       blockedSafetyFlags: ["legal_advice"],
       createdAt: "2026-05-05T12:00:00.000Z",

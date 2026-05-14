@@ -26,47 +26,55 @@ type ButtonState = "idle" | "busy";
 
 const PRIMARY = "h-8 rounded-full bg-harwick-ink px-4 text-[12px] font-medium text-white hover:bg-harwick-ink/90 disabled:opacity-60";
 const OUTLINE = "h-8 rounded-full border border-border bg-surface px-4 text-[12px] font-medium text-foreground hover:bg-surface-muted disabled:opacity-60";
-const DANGER = "h-8 rounded-full border border-oxblood/30 bg-oxblood-soft px-4 text-[12px] font-medium text-hot hover:bg-oxblood-soft/80 disabled:opacity-60";
+const DANGER = "size-9 rounded-[10px] border border-oxblood/30 bg-oxblood-soft p-0 text-hot hover:bg-oxblood-soft/80 disabled:opacity-60";
 
 export function LeadActionToolbar(props: LeadActionToolbarProps) {
   const [state, setState] = useState<ButtonState>("idle");
   const [status, setStatus] = useState<string | null>(null);
   const [composer, setComposer] = useState<string>(props.draft ?? "");
+  const [localAutomationMode, setLocalAutomationMode] = useState<ConversationAutomationMode>(props.automationMode);
 
   useEffect(() => {
     setComposer(props.draft ?? "");
     setStatus(null);
   }, [props.draft, props.leadId, props.reviewId, props.workspaceId]);
 
-  const aiOn = props.automationMode === "ai_on";
+  useEffect(() => {
+    setLocalAutomationMode(props.automationMode);
+  }, [props.automationMode, props.leadId]);
+
+  const aiOn = localAutomationMode === "ai_on";
   const isAssignedToMe = props.assignedMemberId === props.currentMemberId;
   const isAssignedToOther = props.assignedMemberId !== null && !isAssignedToMe;
   const busy = state === "busy";
   const draftToSend = (composer ?? "").trim();
   const dark = props.appearance === "dark";
   const primaryClass = dark
-    ? "h-8 rounded-full bg-white px-4 text-[12px] font-medium text-[#07100b] hover:bg-white/86 disabled:opacity-60"
+    ? "h-9 rounded-[10px] border border-[var(--sage)]/35 bg-[var(--sage-soft)] px-3 text-[12px] font-semibold text-[var(--sage)] hover:border-[var(--sage)]/55 hover:bg-[var(--sage-soft)]/80 disabled:border-white/[0.08] disabled:bg-white/[0.035] disabled:text-white/28"
     : PRIMARY;
   const outlineClass = dark
-    ? "h-8 rounded-full border border-white/[0.09] bg-white/[0.04] px-4 text-[12px] font-medium text-white/68 hover:bg-white/[0.08] hover:text-white disabled:opacity-60"
+    ? "h-9 rounded-[10px] border border-white/[0.09] bg-white/[0.04] px-3 text-[12px] font-medium text-white/68 hover:bg-white/[0.08] hover:text-white disabled:opacity-60"
     : OUTLINE;
+  const iconClass = dark
+    ? "size-9 rounded-[10px] border border-white/[0.09] bg-white/[0.04] p-0 text-white/68 hover:bg-white/[0.08] hover:text-white disabled:opacity-60"
+    : "size-9 rounded-[10px] border border-border bg-surface p-0 text-muted hover:bg-surface-muted hover:text-foreground disabled:opacity-60";
   const dangerClass = dark
-    ? "h-8 rounded-full border border-oxblood/35 bg-oxblood/12 px-4 text-[12px] font-medium text-[#f2a8a8] hover:bg-oxblood/18 disabled:opacity-60"
+    ? "size-9 rounded-[10px] border border-oxblood/35 bg-oxblood/12 p-0 text-[#f2a8a8] hover:bg-oxblood/18 disabled:opacity-60"
     : DANGER;
 
-function announce(message: string) {
-  setStatus(message);
-}
-
-function errorMessageFromBody(value: unknown): string {
-  if (value !== null && typeof value === "object" && !Array.isArray(value)) {
-    const error = (value as Record<string, unknown>)["error"];
-    if (typeof error === "string" && error.length > 0) {
-      return error;
-    }
+  function announce(message: string) {
+    setStatus(message);
   }
-  return "send failed.";
-}
+
+  function errorMessageFromBody(value: unknown): string {
+    if (value !== null && typeof value === "object" && !Array.isArray(value)) {
+      const error = (value as Record<string, unknown>)["error"];
+      if (typeof error === "string" && error.length > 0) {
+        return error;
+      }
+    }
+    return "send failed.";
+  }
 
   async function withBusy<T>(fn: () => Promise<T>): Promise<T> {
     setState("busy");
@@ -94,6 +102,7 @@ function errorMessageFromBody(value: unknown): string {
       announce("could not update automation.");
       return false;
     }
+    setLocalAutomationMode(mode);
     return true;
   }
 
@@ -238,9 +247,9 @@ function errorMessageFromBody(value: unknown): string {
         />
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Button
-          className={primaryClass}
+          className={cn(primaryClass, "min-w-0 flex-1 sm:flex-none")}
           disabled={busy || draftToSend.length === 0}
           onClick={() => void handleSend()}
           type="button"
@@ -251,14 +260,28 @@ function errorMessageFromBody(value: unknown): string {
         </Button>
 
         {aiOn ? (
-          <Button className={outlineClass} disabled={busy} onClick={() => void handlePause()} type="button" variant="ghost">
-            <Pause aria-hidden="true" className="h-3.5 w-3.5" />
-            pause ai
+          <Button
+            aria-label="Pause AI for this thread"
+            className={iconClass}
+            disabled={busy}
+            onClick={() => void handlePause()}
+            title="Pause AI"
+            type="button"
+            variant="ghost"
+          >
+            <Pause aria-hidden="true" className="size-4" />
           </Button>
         ) : (
-          <Button className={outlineClass} disabled={busy} onClick={() => void handleResume()} type="button" variant="ghost">
-            <Play aria-hidden="true" className="h-3.5 w-3.5" />
-            resume ai
+          <Button
+            aria-label="Resume AI for this thread"
+            className={iconClass}
+            disabled={busy}
+            onClick={() => void handleResume()}
+            title="Resume AI"
+            type="button"
+            variant="ghost"
+          >
+            <Play aria-hidden="true" className="size-4" />
           </Button>
         )}
 
@@ -275,9 +298,16 @@ function errorMessageFromBody(value: unknown): string {
         )}
 
         {props.reviewId ? (
-          <Button className={dangerClass} disabled={busy} onClick={() => void handleDismiss()} type="button" variant="ghost">
-            <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
-            dismiss
+          <Button
+            aria-label="Dismiss queued AI action"
+            className={dangerClass}
+            disabled={busy}
+            onClick={() => void handleDismiss()}
+            title="Dismiss"
+            type="button"
+            variant="ghost"
+          >
+            <Trash2 aria-hidden="true" className="size-4" />
           </Button>
         ) : null}
       </div>

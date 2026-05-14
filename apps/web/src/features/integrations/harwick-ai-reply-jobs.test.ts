@@ -29,7 +29,7 @@ describe("buildHarwickAiReplyJobInput", () => {
       review,
       automationDecision: {
         canAutoExecute: true,
-        approvedTools: ["send_meta_dm"],
+        approvedTools: ["send_meta_message"],
         blockedTools: [],
         reason: "policy allows this turn to auto-send.",
       },
@@ -51,8 +51,8 @@ describe("buildHarwickAiReplyJobInput", () => {
       automationDecision: {
         canAutoExecute: false,
         approvedTools: [],
-        blockedTools: ["send_meta_dm"],
-        reason: "tool send_meta_dm requires approval or is not allowed.",
+        blockedTools: ["send_meta_message"],
+        reason: "tool send_meta_message requires approval or is not allowed.",
       },
     })).toBeNull();
   });
@@ -68,7 +68,7 @@ describe("buildHarwickAiReplyJobInput", () => {
       },
       automationDecision: {
         canAutoExecute: true,
-        approvedTools: ["send_meta_reply"],
+        approvedTools: ["send_meta_message"],
         blockedTools: [],
         reason: "policy allows this turn to auto-send.",
       },

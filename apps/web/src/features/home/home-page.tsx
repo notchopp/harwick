@@ -136,6 +136,7 @@ export type Reply = {
   workspaceId?: string;
   reviewId?: string;
   leadId?: string;
+  channel?: "instagram_dm" | "instagram_comment" | "facebook_dm" | "facebook_comment";
   thread?: ConversationInboxThread;
   automationMode: ConversationAutomationMode;
   helper: string;
@@ -373,11 +374,19 @@ export function mapHomePayloadToWorkItems(
       lead: thread?.name ?? `Lead ${leadId?.slice(0, 8) ?? "pending"}`,
       time: readString(row, "createdAt") ?? "now",
       message: thread?.preview ?? readString(row, "inboundText") ?? "New social message",
-      draft: readString(row, "suggestedReply") ?? "Ask one qualifying question before routing.",
+      draft: readString(row, "suggestedReply") ?? "",
     };
     if (workspaceId !== null) reply.workspaceId = workspaceId;
     if (reviewId !== null) reply.reviewId = reviewId;
     if (leadId !== null) reply.leadId = leadId;
+    if (
+      channel === "instagram_dm"
+      || channel === "instagram_comment"
+      || channel === "facebook_dm"
+      || channel === "facebook_comment"
+    ) {
+      reply.channel = channel;
+    }
     if (thread !== null) reply.thread = thread;
     return [{
       kind: "reply",
@@ -526,12 +535,14 @@ function getWorkItemChips(entry: WorkItem): string[] {
     return [getWorkItemChannel(entry), getPriorityLabel(entry)];
   }
 
+  const liveFieldValues = thread.aiSynthesis?.liveFields.map((field) => field.value) ?? [];
   const synthesisMissingFields = thread.aiSynthesis?.missingFields ?? [];
   return [
     `${thread.score} score`,
     thread.stageLabel,
     thread.intentType,
     thread.area,
+    ...liveFieldValues.slice(0, 2),
     ...synthesisMissingFields.slice(0, 2),
   ]
     .map((value) => value.trim())
@@ -2276,6 +2287,7 @@ export function HomePage(props: HomePageProps) {
     try {
       const response = await fetch(`/api/workspaces/${props.workspaceId}/harwick-assistant`, {
         body: JSON.stringify({
+          activeLeadId: activeWorkItem === null ? null : getWorkItemLeadId(activeWorkItem),
           mentions: mentions.map((mention) => ({
             id: mention.id,
             label: mention.label,

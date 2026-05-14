@@ -1,6 +1,7 @@
 import type { ConversationsInboxRepository } from "../../features/conversations/conversations-data";
 import type {
   ConversationAiSynthesis,
+  ConversationAiLiveField,
   ConversationAiToolActivity,
   ConversationAiToolActivityStatus,
 } from "@realty-ops/core";
@@ -89,6 +90,51 @@ function formatLabel(value: string): string {
   return value.replace(/_/g, " ");
 }
 
+function buildLiveFields(turn: Record<string, unknown>): ConversationAiLiveField[] {
+  const statePatch = readRecord(turn["statePatch"]);
+  if (statePatch === null) {
+    return [];
+  }
+
+  const fields: Array<ConversationAiLiveField | null> = [
+    (() => {
+      const value = readString(statePatch["leadType"]);
+      return value === null || value === "unknown" ? null : { key: "leadType", label: "Lead type", value: formatLabel(value) };
+    })(),
+    (() => {
+      const value = readString(statePatch["intent"]);
+      return value === null || value === "unknown" ? null : { key: "intent", label: "Intent", value: formatLabel(value) };
+    })(),
+    (() => {
+      const value = readString(statePatch["targetArea"]);
+      return value === null ? null : { key: "targetArea", label: "Area", value };
+    })(),
+    (() => {
+      const value = readString(statePatch["timeline"]);
+      return value === null ? null : { key: "timeline", label: "Timeline", value };
+    })(),
+    (() => {
+      const value = readString(statePatch["budget"]) ?? (() => {
+        const numeric = readNumber(statePatch["budget"]);
+        return numeric === null ? null : String(numeric);
+      })();
+      return value === null ? null : { key: "budget", label: "Budget", value };
+    })(),
+    (() => {
+      const value = readString(statePatch["propertyType"]);
+      return value === null ? null : { key: "propertyType", label: "Property", value };
+    })(),
+    (() => {
+      const value = readString(statePatch["financingStatus"]);
+      return value === null || value === "unknown" ? null : { key: "financingStatus", label: "Financing", value: formatLabel(value) };
+    })(),
+  ];
+
+  return fields
+    .filter((field): field is ConversationAiLiveField => field !== null)
+    .slice(0, 8);
+}
+
 function summarizeToolOutput(params: {
   tool: string;
   status: ConversationAiToolActivityStatus;
@@ -117,7 +163,7 @@ function summarizeToolOutput(params: {
     };
   }
 
-  if ((params.tool === "send_meta_reply" || params.tool === "send_meta_dm") && readBoolean(params.output["sent"]) === true) {
+  if ((params.tool === "send_meta_message" || params.tool === "send_meta_reply" || params.tool === "send_meta_dm") && readBoolean(params.output["sent"]) === true) {
     const channel = readString(params.output["channel"]);
     return {
       summary: "Reply sent",
@@ -256,6 +302,7 @@ export function mapAgentStepToSynthesis(row: AgentStepSynthesisRow): LeadSynthes
     safetyFlags: [...new Set(["in_flight", ...readStringArray(turn["safetyFlags"])])],
     handoffBrief,
     documentUpdate: readString(turn["documentUpdate"]),
+    liveFields: buildLiveFields(turn),
     toolActivity: [...toolActivity, ...requestedToolActivity].slice(0, 12),
     updatedAt: row.created_at,
   };
@@ -274,6 +321,7 @@ function mapSubagentTaskToSynthesis(row: SubagentTaskSynthesisRow): LeadSynthesi
     safetyFlags: ["in_flight", "subagent_task"],
     handoffBrief: row.instructions,
     documentUpdate: null,
+    liveFields: [],
     toolActivity: [{
       id: `${row.id}:subagent`,
       tool: "dispatch_subagent",
@@ -464,6 +512,7 @@ export function createSupabaseConversationsInboxRepository(
           safetyFlags: row.safety_flags,
           handoffBrief: row.handoff_brief,
           documentUpdate,
+          liveFields: buildLiveFields(turn),
           toolActivity: [],
           updatedAt: row.created_at,
         }];
