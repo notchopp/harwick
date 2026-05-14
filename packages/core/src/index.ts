@@ -11,6 +11,7 @@ export * from "./domains/harwick-ai-automation-policy.js";
 export * from "./domains/harwick-ai-persistence.js";
 export * from "./domains/harwick-ai-runtime.js";
 export * from "./domains/harwick-assistant.js";
+export * from "./domains/harwick-chat-thread.js";
 export * from "./domains/harwick-loop.js";
 export * from "./domains/harwick-work-item.js";
 export * from "./domains/harwick-work-item-intelligence.js";

@@ -1453,6 +1453,189 @@ export type Database = {
           },
         ]
       }
+      harwick_chat_threads: {
+        Row: {
+          id: string
+          workspace_id: string
+          created_by_member_id: string | null
+          title: string
+          created_at: string
+          updated_at: string
+          last_message_at: string | null
+          archived_at: string | null
+        }
+        Insert: {
+          id?: string
+          workspace_id: string
+          created_by_member_id?: string | null
+          title?: string
+          created_at?: string
+          updated_at?: string
+          last_message_at?: string | null
+          archived_at?: string | null
+        }
+        Update: {
+          id?: string
+          workspace_id?: string
+          created_by_member_id?: string | null
+          title?: string
+          created_at?: string
+          updated_at?: string
+          last_message_at?: string | null
+          archived_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "harwick_chat_threads_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      harwick_channels: {
+        Row: {
+          id: string
+          workspace_id: string
+          kind: string
+          name: string
+          description: string | null
+          created_by_member_id: string | null
+          created_by_kind: string
+          created_at: string
+          updated_at: string
+          last_message_at: string | null
+          archived_at: string | null
+        }
+        Insert: {
+          id?: string
+          workspace_id: string
+          kind: string
+          name: string
+          description?: string | null
+          created_by_member_id?: string | null
+          created_by_kind?: string
+          created_at?: string
+          updated_at?: string
+          last_message_at?: string | null
+          archived_at?: string | null
+        }
+        Update: {
+          id?: string
+          workspace_id?: string
+          kind?: string
+          name?: string
+          description?: string | null
+          created_by_member_id?: string | null
+          created_by_kind?: string
+          created_at?: string
+          updated_at?: string
+          last_message_at?: string | null
+          archived_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "harwick_channels_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      harwick_channel_members: {
+        Row: {
+          channel_id: string
+          member_id: string
+          workspace_id: string
+          joined_at: string
+          last_read_at: string | null
+          notification_pref: string
+        }
+        Insert: {
+          channel_id: string
+          member_id: string
+          workspace_id: string
+          joined_at?: string
+          last_read_at?: string | null
+          notification_pref?: string
+        }
+        Update: {
+          channel_id?: string
+          member_id?: string
+          workspace_id?: string
+          joined_at?: string
+          last_read_at?: string | null
+          notification_pref?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "harwick_channel_members_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "harwick_channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "harwick_channel_members_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "workspace_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      harwick_channel_messages: {
+        Row: {
+          id: string
+          channel_id: string
+          workspace_id: string
+          author_kind: string
+          author_member_id: string | null
+          body: string
+          metadata: Json
+          mentions_harwick: boolean
+          created_at: string
+          edited_at: string | null
+          deleted_at: string | null
+        }
+        Insert: {
+          id?: string
+          channel_id: string
+          workspace_id: string
+          author_kind: string
+          author_member_id?: string | null
+          body: string
+          metadata?: Json
+          mentions_harwick?: boolean
+          created_at?: string
+          edited_at?: string | null
+          deleted_at?: string | null
+        }
+        Update: {
+          id?: string
+          channel_id?: string
+          workspace_id?: string
+          author_kind?: string
+          author_member_id?: string | null
+          body?: string
+          metadata?: Json
+          mentions_harwick?: boolean
+          created_at?: string
+          edited_at?: string | null
+          deleted_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "harwick_channel_messages_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "harwick_channels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       harwick_subagent_tasks: {
         Row: {
           created_at: string

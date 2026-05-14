@@ -1,36 +1,38 @@
 "use client";
 
-import type { TeamPresenceMember, WorkspaceRole } from "@realty-ops/core";
+import type { WorkspaceRole } from "@realty-ops/core";
 import {
   AlertTriangle,
   ArrowRight,
   Bot,
   Brain,
+  ChevronDown,
   Compass,
   GitBranch,
   Maximize2,
+  MessageSquarePlus,
   Minimize2,
   Send,
   TrendingUp,
   X,
   type LucideIcon,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Drawer } from "vaul";
 
 import { FeedbackButtons } from "../training-signals/feedback-buttons";
 import { cn } from "../../lib/utils";
-import { ChannelsMode } from "./channels-mode";
 import { HarwickChat } from "./harwick-chat";
 import { HarwickMark } from "./harwick-mark";
 import { useProactiveFeed, type ProactiveCard, type ProactiveKind } from "./use-proactive-feed";
+import { useRailThreads } from "./use-rail-threads";
 
-const STORAGE_KEY = "harwick-rail-position-v4";
+const POSITION_STORAGE_KEY = "harwick-rail-position-v5";
 
-type RailMode = "feed" | "chat" | "channels";
+type RailMode = "feed" | "chat";
 
-type RailState = {
+type RailPosition = {
   open: boolean;
   mode: RailMode;
   x: number;
@@ -40,7 +42,7 @@ type RailState = {
   maximized: boolean;
 };
 
-function makeDefaultState(): RailState {
+function makeDefaultPosition(): RailPosition {
   const width = 440;
   const initialX = typeof window === "undefined" ? 24 : Math.max(24, window.innerWidth - width - 24);
   return {
@@ -54,19 +56,21 @@ function makeDefaultState(): RailState {
   };
 }
 
-function readState(): RailState {
-  if (typeof window === "undefined") return makeDefaultState();
+// Only window placement is persisted in localStorage — never chat content,
+// thread state, or channel data. Threads live in harwick_chat_threads.
+function readPosition(): RailPosition {
+  if (typeof window === "undefined") return makeDefaultPosition();
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (raw === null) return makeDefaultState();
-    const parsed = JSON.parse(raw) as Partial<RailState>;
-    return { ...makeDefaultState(), ...parsed };
+    const raw = window.localStorage.getItem(POSITION_STORAGE_KEY);
+    if (raw === null) return makeDefaultPosition();
+    const parsed = JSON.parse(raw) as Partial<RailPosition>;
+    return { ...makeDefaultPosition(), ...parsed };
   } catch {
-    return makeDefaultState();
+    return makeDefaultPosition();
   }
 }
 
-function clampPosition(state: RailState): RailState {
+function clampPosition(state: RailPosition): RailPosition {
   if (typeof window === "undefined") return state;
   const maxX = Math.max(8, window.innerWidth - state.w - 8);
   const maxY = Math.max(8, window.innerHeight - state.h - 8);
@@ -215,6 +219,68 @@ function FeedMode({ workspaceId, role, onSwitchToChat }: { workspaceId: string; 
   );
 }
 
+function ThreadPicker(props: {
+  threads: ReturnType<typeof useRailThreads>["threads"];
+  activeThreadId: string | null;
+  onSelect: (threadId: string) => void;
+  onNewThread: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const active = props.threads.find((thread) => thread.id === props.activeThreadId);
+
+  return (
+    <div className="relative flex items-center gap-1 border-b border-white/[0.06] bg-white/[0.015] px-3 py-1.5">
+      <button
+        type="button"
+        className="flex min-w-0 flex-1 items-center gap-1.5 rounded-[7px] px-2 py-1 text-left text-[11.5px] font-medium text-white/82 transition hover:bg-white/[0.04]"
+        onClick={() => setOpen((value) => !value)}
+        title="Switch thread"
+      >
+        <span className="truncate">{active === undefined ? "No threads yet" : active.title}</span>
+        <ChevronDown className="size-3 shrink-0 text-white/52" aria-hidden="true" />
+      </button>
+      <button
+        type="button"
+        className="flex items-center gap-1 rounded-[7px] border border-white/[0.08] bg-white/[0.025] px-2 py-1 text-[11px] font-medium text-white/82 transition hover:border-white/[0.16] hover:bg-white/[0.05]"
+        onClick={() => {
+          props.onNewThread();
+          setOpen(false);
+        }}
+        title="Start a new Harwick thread"
+      >
+        <MessageSquarePlus className="size-3" aria-hidden="true" />
+        New
+      </button>
+
+      {open && props.threads.length > 0 ? (
+        <div
+          className="absolute left-3 right-3 top-full z-10 mt-1 max-h-72 overflow-y-auto rounded-[10px] border border-[color:var(--panel-line-strong)] bg-[color:var(--panel-1)] py-1 shadow-[0_12px_30px_-8px_rgba(0,0,0,0.55)]"
+          onMouseLeave={() => setOpen(false)}
+        >
+          {props.threads.map((thread) => (
+            <button
+              type="button"
+              key={thread.id}
+              className={cn(
+                "block w-full truncate px-3 py-1.5 text-left text-[12px] transition",
+                thread.id === props.activeThreadId
+                  ? "bg-white/[0.04] text-white"
+                  : "text-white/76 hover:bg-white/[0.03] hover:text-white",
+              )}
+              onClick={() => {
+                props.onSelect(thread.id);
+                setOpen(false);
+              }}
+            >
+              {thread.title}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function RailHeader(props: {
   mode: RailMode;
   role: WorkspaceRole;
@@ -235,7 +301,7 @@ function RailHeader(props: {
       </div>
       <div className="ml-auto flex items-center gap-1">
         <div className="inline-flex rounded-[7px] border border-[color:var(--panel-line)] bg-[color:var(--panel-2)] p-0.5">
-          {(["feed", "chat", "channels"] as const).map((mode) => (
+          {(["feed", "chat"] as const).map((mode) => (
             <button
               key={mode}
               type="button"
@@ -244,9 +310,9 @@ function RailHeader(props: {
                 props.mode === mode ? "bg-white text-[color:var(--panel-0)]" : "text-[color:var(--graphite-text-muted)] hover:text-[color:var(--graphite-text)]",
               )}
               onClick={() => props.onModeChange(mode)}
-              title={mode === "feed" ? "Today's feed" : mode === "chat" ? "Chat with Harwick" : "Workspace rooms"}
+              title={mode === "feed" ? "Today's feed" : "Chat with Harwick"}
             >
-              {mode === "channels" ? "rooms" : mode}
+              {mode}
             </button>
           ))}
         </div>
@@ -271,19 +337,58 @@ function RailHeader(props: {
   );
 }
 
+function ChatMode(props: { workspaceId: string }) {
+  const threads = useRailThreads(props.workspaceId);
+
+  // Auto-create the first thread on first chat-mode entry so the chat has
+  // something to write into. Only fires once threads have loaded and the
+  // workspace genuinely has none.
+  useEffect(() => {
+    if (!threads.loaded) return;
+    if (threads.threads.length === 0 && threads.activeThreadId === null) {
+      void threads.startNewThread();
+    }
+  }, [threads.loaded, threads.threads.length, threads.activeThreadId, threads]);
+
+  if (!threads.loaded) {
+    return (
+      <div className="flex flex-1 items-center justify-center text-[12px] text-white/52">
+        Loading threads…
+      </div>
+    );
+  }
+
+  if (threads.activeThreadId === null) {
+    return (
+      <div className="flex flex-1 items-center justify-center text-[12px] text-white/52">
+        Starting first thread…
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <ThreadPicker
+        threads={threads.threads}
+        activeThreadId={threads.activeThreadId}
+        onSelect={threads.select}
+        onNewThread={() => {
+          void threads.startNewThread();
+        }}
+      />
+      <HarwickChat workspaceId={props.workspaceId} threadId={threads.activeThreadId} />
+    </div>
+  );
+}
+
 export function HarwickRail(props: { workspaceId: string; operatorRole: WorkspaceRole }) {
   const [mounted, setMounted] = useState(false);
-  const [state, setState] = useState<RailState>(() => makeDefaultState());
-  const [teamMembers, setTeamMembers] = useState<TeamPresenceMember[]>([]);
+  const [position, setPosition] = useState<RailPosition>(() => makeDefaultPosition());
   const [isMobile, setIsMobile] = useState(false);
   const windowRef = useRef<HTMLDivElement | null>(null);
 
-  // Single in-memory chat session per page load. When server-side rooms land,
-  // this will become a per-room id and messages will persist server-side.
-  const chatThreadId = useMemo(() => `rail-${props.workspaceId}`, [props.workspaceId]);
-
   useEffect(() => {
-    setState(clampPosition(readState()));
+    setPosition(clampPosition(readPosition()));
     setMounted(true);
     const check = () => setIsMobile(window.innerWidth < 768);
     check();
@@ -293,58 +398,15 @@ export function HarwickRail(props: { workspaceId: string; operatorRole: Workspac
 
   useEffect(() => {
     if (!mounted) return;
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }, [mounted, state]);
+    window.localStorage.setItem(POSITION_STORAGE_KEY, JSON.stringify(position));
+  }, [mounted, position]);
 
   useEffect(() => {
     if (!mounted) return;
-    const onResize = () => setState((current) => clampPosition(current));
+    const onResize = () => setPosition((current) => clampPosition(current));
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, [mounted]);
-
-  // Team presence for channels-mode picker (piggybacks on /api/home).
-  useEffect(() => {
-    if (!mounted) return;
-    let cancelled = false;
-    async function loadTeam() {
-      try {
-        const response = await fetch(`/api/home?workspaceId=${props.workspaceId}`, { cache: "no-store" });
-        if (!response.ok || cancelled) return;
-        const payload = (await response.json()) as { teamPresence?: { members?: unknown } };
-        const raw = payload.teamPresence?.members;
-        if (!Array.isArray(raw)) return;
-        const members = raw.flatMap((item): TeamPresenceMember[] => {
-          if (item === null || typeof item !== "object") return [];
-          const record = item as Record<string, unknown>;
-          const id = typeof record["id"] === "string" ? record["id"] : null;
-          const name = typeof record["name"] === "string" ? record["name"] : null;
-          const initials = typeof record["initials"] === "string" ? record["initials"] : null;
-          const roleLabel = typeof record["roleLabel"] === "string" ? record["roleLabel"] : "Member";
-          if (id === null || name === null || initials === null) return [];
-          return [{
-            id,
-            workspaceId: typeof record["workspaceId"] === "string" ? record["workspaceId"] : props.workspaceId,
-            activeLeadCount: typeof record["activeLeadCount"] === "number" ? record["activeLeadCount"] : 0,
-            avatarUrl: typeof record["avatarUrl"] === "string" ? record["avatarUrl"] : null,
-            initials,
-            lastSeen: typeof record["lastSeen"] === "string" ? record["lastSeen"] : "—",
-            lastSeenAt: typeof record["lastSeenAt"] === "string" ? record["lastSeenAt"] : null,
-            name,
-            openWork: typeof record["openWork"] === "number" ? record["openWork"] : 0,
-            role: (typeof record["role"] === "string" ? record["role"] : "agent") as TeamPresenceMember["role"],
-            roleLabel,
-            status: (typeof record["status"] === "string" ? record["status"] : "online") as TeamPresenceMember["status"],
-          }];
-        });
-        if (!cancelled) setTeamMembers(members);
-      } catch {
-        // swallow
-      }
-    }
-    void loadTeam();
-    return () => { cancelled = true; };
-  }, [mounted, props.workspaceId]);
 
   const onPointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement;
@@ -363,7 +425,7 @@ export function HarwickRail(props: { workspaceId: string; operatorRole: Workspac
     const onMove = (moveEvent: PointerEvent) => {
       const dx = moveEvent.clientX - startMouseX;
       const dy = moveEvent.clientY - startMouseY;
-      setState((current) => clampPosition({
+      setPosition((current) => clampPosition({
         ...current,
         maximized: false,
         x: startLeft + dx,
@@ -383,15 +445,15 @@ export function HarwickRail(props: { workspaceId: string; operatorRole: Workspac
     event.stopPropagation();
     const startMouseX = event.clientX;
     const startMouseY = event.clientY;
-    const startW = state.w;
-    const startH = state.h;
+    const startW = position.w;
+    const startH = position.h;
     const target = event.currentTarget;
     target.setPointerCapture(event.pointerId);
 
     const onMove = (moveEvent: PointerEvent) => {
       const dx = startMouseX - moveEvent.clientX;
       const dy = startMouseY - moveEvent.clientY;
-      setState((current) => ({
+      setPosition((current) => ({
         ...current,
         maximized: false,
         w: Math.min(720, Math.max(340, startW + dx)),
@@ -405,19 +467,19 @@ export function HarwickRail(props: { workspaceId: string; operatorRole: Workspac
     };
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
-  }, [state.h, state.w]);
+  }, [position.h, position.w]);
 
   const onRailLinkClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
     const target = event.target instanceof Element ? event.target.closest("a[href]") : null;
     if (!(target instanceof HTMLAnchorElement)) return;
     const href = target.getAttribute("href");
     if (href === null || href.length === 0 || href.startsWith("#") || target.target === "_blank") return;
-    setState((current) => ({ ...current, open: false }));
+    setPosition((current) => ({ ...current, open: false }));
   }, []);
 
   if (!mounted) return null;
 
-  if (!state.open) {
+  if (!position.open) {
     return (
       <button
         type="button"
@@ -427,7 +489,7 @@ export function HarwickRail(props: { workspaceId: string; operatorRole: Workspac
             ? "right-4 bottom-[calc(env(safe-area-inset-bottom,0)+5rem)]"
             : "right-5 bottom-5",
         )}
-        onClick={() => setState((current) => ({ ...current, open: true }))}
+        onClick={() => setPosition((current) => ({ ...current, open: true }))}
       >
         <HarwickMark size={18} tone="soft" />
         Ask Harwick
@@ -438,24 +500,22 @@ export function HarwickRail(props: { workspaceId: string; operatorRole: Workspac
   const railBody = (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden" onClickCapture={onRailLinkClick}>
       <RailHeader
-        mode={state.mode}
+        mode={position.mode}
         role={props.operatorRole}
-        onModeChange={(mode) => setState((current) => ({ ...current, mode }))}
-        onClose={() => setState((current) => ({ ...current, open: false }))}
-        maximized={state.maximized}
-        onMaximizeToggle={() => setState((current) => ({ ...current, maximized: !current.maximized }))}
+        onModeChange={(mode) => setPosition((current) => ({ ...current, mode }))}
+        onClose={() => setPosition((current) => ({ ...current, open: false }))}
+        maximized={position.maximized}
+        onMaximizeToggle={() => setPosition((current) => ({ ...current, maximized: !current.maximized }))}
       />
 
-      {state.mode === "feed" ? (
+      {position.mode === "feed" ? (
         <FeedMode
           workspaceId={props.workspaceId}
           role={props.operatorRole}
-          onSwitchToChat={() => setState((current) => ({ ...current, mode: "chat" }))}
+          onSwitchToChat={() => setPosition((current) => ({ ...current, mode: "chat" }))}
         />
-      ) : state.mode === "channels" ? (
-        <ChannelsMode team={teamMembers} currentMemberId={null} />
       ) : (
-        <HarwickChat workspaceId={props.workspaceId} threadId={chatThreadId} />
+        <ChatMode workspaceId={props.workspaceId} />
       )}
     </div>
   );
@@ -463,8 +523,8 @@ export function HarwickRail(props: { workspaceId: string; operatorRole: Workspac
   if (isMobile) {
     return (
       <Drawer.Root
-        open={state.open}
-        onOpenChange={(open) => setState((current) => ({ ...current, open }))}
+        open={position.open}
+        onOpenChange={(open) => setPosition((current) => ({ ...current, open }))}
         shouldScaleBackground={false}
       >
         <Drawer.Portal>
@@ -479,9 +539,9 @@ export function HarwickRail(props: { workspaceId: string; operatorRole: Workspac
     );
   }
 
-  const style: React.CSSProperties = state.maximized
+  const style: React.CSSProperties = position.maximized
     ? { left: 24, right: 24, top: 24, bottom: 24, width: "auto", height: "auto" }
-    : { left: state.x, bottom: state.y, width: state.w, height: state.h };
+    : { left: position.x, bottom: position.y, width: position.w, height: position.h };
 
   return (
     <div

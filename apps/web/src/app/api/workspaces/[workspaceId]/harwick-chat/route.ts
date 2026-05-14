@@ -162,6 +162,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ wo
     operatorRole: membership.role,
     subagentExecutorClient: createSmallModelHarwickSubagentExecutorClient(smallModel),
     subagentIntelligenceClient: createSmallModelHarwickWorkItemIntelligenceClient(smallModel),
+    openai,
   });
 
   const systemPrompt = buildHarwickChatSystemPrompt({

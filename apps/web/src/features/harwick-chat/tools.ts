@@ -1,8 +1,11 @@
 import {
+  HarwickChannelCreateSchema,
   HarwickLoopCreateSchema,
+  detectHarwickMention,
   workspaceRoleHasCapability,
   type WorkspaceRole,
 } from "@realty-ops/core";
+import type { OpenAIProvider } from "@ai-sdk/openai";
 import { tool } from "ai";
 import { z } from "zod";
 
@@ -36,6 +39,9 @@ type ToolDeps = {
   operatorRole: WorkspaceRole;
   subagentExecutorClient?: HarwickSubagentExecutorClient;
   subagentIntelligenceClient?: HarwickWorkItemIntelligenceClient;
+  // Optional OpenAI provider — present, web_search becomes a provider-managed tool.
+  // Absent (e.g. tests), web_search is omitted from the registry.
+  openai?: OpenAIProvider;
 };
 
 type LeadCard = {
@@ -787,5 +793,152 @@ export function buildHarwickChatTools(deps: ToolDeps) {
         };
       },
     }),
+
+    // Spawn a new collaborative channel. Harwick can do this autonomously when
+    // a conversation warrants a real workspace room (e.g. "let's spin up a
+    // channel for the 1234 Oak deal"). The operator who triggered Harwick is
+    // auto-added as a member alongside any explicitly named member ids.
+    create_channel: tool({
+      description: "Create a new workspace channel (or DM/group). Use this when a conversation needs its own persistent room, OR when a topic deserves a dedicated thread that other teammates should see. Returns the channel id and surface card.",
+      inputSchema: z.object({
+        name: z.string().min(1).max(80).describe("Short channel name. Examples: 'oak-ave-deal', 'q3-routing-review', 'dm-with-sarah'."),
+        kind: z.enum(["channel", "dm", "group"]).default("channel").describe("'channel' for open team rooms, 'dm' for one-on-one, 'group' for ad-hoc groups."),
+        description: z.string().max(500).optional().describe("Why this room exists. Shown in the channel header."),
+        memberIds: z.array(z.string().uuid()).max(40).default([]).describe("workspace_member ids to invite. Harwick is always implicit; the requesting operator is auto-added."),
+        kickoffMessage: z.string().max(2000).optional().describe("If provided, Harwick posts this as the first message in the new channel so the room isn't empty."),
+      }),
+      async execute({ name, kind, description, memberIds, kickoffMessage }) {
+        const parsed = HarwickChannelCreateSchema.safeParse({ name, kind, description, memberIds });
+        if (!parsed.success) {
+          return {
+            kind: "channel_card",
+            created: false,
+            error: `Could not create channel: ${parsed.error.issues.map((i) => i.message).join(", ")}`,
+          };
+        }
+
+        const { data: channel, error: channelError } = await deps.supabase
+          .from("harwick_channels")
+          .insert({
+            workspace_id: deps.workspaceId,
+            kind: parsed.data.kind,
+            name: parsed.data.name,
+            description: parsed.data.description ?? null,
+            created_by_member_id: deps.operatorMemberId,
+            created_by_kind: "harwick",
+          })
+          .select("id, name, kind, description, created_at")
+          .single();
+
+        if (channelError !== null || channel === null) {
+          return { kind: "channel_card", created: false, error: channelError?.message ?? "create_failed" };
+        }
+
+        const allMemberIds = Array.from(new Set([deps.operatorMemberId, ...parsed.data.memberIds]));
+        const memberRows = allMemberIds.map((memberId) => ({
+          channel_id: channel.id,
+          member_id: memberId,
+          workspace_id: deps.workspaceId,
+        }));
+        await deps.supabase.from("harwick_channel_members").insert(memberRows);
+
+        let kickoffMessageId: string | null = null;
+        if (kickoffMessage !== undefined && kickoffMessage.trim().length > 0) {
+          const { data: kickoff } = await deps.supabase
+            .from("harwick_channel_messages")
+            .insert({
+              channel_id: channel.id,
+              workspace_id: deps.workspaceId,
+              author_kind: "harwick",
+              author_member_id: null,
+              body: kickoffMessage.trim(),
+              mentions_harwick: false,
+              metadata: { trigger: "channel_kickoff" },
+            })
+            .select("id")
+            .single();
+          kickoffMessageId = (kickoff as { id: string } | null)?.id ?? null;
+        }
+
+        return {
+          kind: "channel_card",
+          created: true,
+          channelId: channel.id,
+          name: channel.name,
+          channelKind: channel.kind,
+          description: channel.description,
+          memberCount: allMemberIds.length,
+          kickoffMessageId,
+          openChannelHref: `/channels/${channel.id}`,
+        };
+      },
+    }),
+
+    // Post a Harwick message into a specific channel. Useful when Harwick wants
+    // to follow up on a previous channel, drop an update, or react to background
+    // work. Mentions @harwick? No — Harwick posting itself doesn't re-mention.
+    post_channel_message: tool({
+      description: "Post a message into an existing channel as Harwick. Use this to follow up on a room (status update, drafted reply, FYI). Never use this to reply in the same channel that's already invoking you — that goes through the normal reply flow.",
+      inputSchema: z.object({
+        channelId: z.string().uuid().describe("Channel id to post into."),
+        body: z.string().min(1).max(8000).describe("Message body. Plain text; use simple formatting."),
+      }),
+      async execute({ channelId, body }) {
+        // Confirm the operator is a member of the target channel (otherwise
+        // Harwick could leak across rooms when invoked from elsewhere).
+        const { data: membership } = await deps.supabase
+          .from("harwick_channel_members")
+          .select("channel_id")
+          .eq("workspace_id", deps.workspaceId)
+          .eq("channel_id", channelId)
+          .eq("member_id", deps.operatorMemberId)
+          .maybeSingle();
+        if (membership === null) {
+          return { kind: "channel_message", posted: false, error: "Operator is not a member of that channel." };
+        }
+
+        const mentionsHarwick = detectHarwickMention(body);
+        const { data, error } = await deps.supabase
+          .from("harwick_channel_messages")
+          .insert({
+            channel_id: channelId,
+            workspace_id: deps.workspaceId,
+            author_kind: "harwick",
+            author_member_id: null,
+            body,
+            mentions_harwick: mentionsHarwick,
+            metadata: { trigger: "tool_post" },
+          })
+          .select("id, created_at")
+          .single();
+        if (error !== null || data === null) {
+          return { kind: "channel_message", posted: false, error: error?.message ?? "insert_failed" };
+        }
+
+        const nowIso = new Date().toISOString();
+        await deps.supabase
+          .from("harwick_channels")
+          .update({ last_message_at: nowIso, updated_at: nowIso })
+          .eq("id", channelId);
+
+        return {
+          kind: "channel_message",
+          posted: true,
+          channelId,
+          messageId: data.id,
+          createdAt: data.created_at,
+          openChannelHref: `/channels/${channelId}`,
+        };
+      },
+    }),
+
+    // Web search — provider-managed (OpenAI hosted). Harwick can use this when
+    // it needs facts beyond the workspace: market trends, neighborhood data,
+    // mortgage rate changes, comparable listings, etc. If the openai provider
+    // wasn't supplied to buildHarwickChatTools (e.g. in tests), web_search is
+    // omitted; the model won't see it and won't try to call it.
+    ...(deps.openai === undefined
+      ? {}
+      : { web_search: deps.openai.tools.webSearchPreview({}) }),
   };
 }
