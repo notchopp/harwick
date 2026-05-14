@@ -1989,12 +1989,14 @@ export type Database = {
           lead_type: string
           next_followup_at: string | null
           phone: string | null
+          qualification_summary: string | null
           score: number
           source_channel: string
           source_comment_id: string | null
           source_post_id: string | null
           source_provider_id: string | null
           status: string
+          tags: string[]
           target_area: string | null
           timeline: string | null
           updated_at: string
@@ -2017,12 +2019,14 @@ export type Database = {
           lead_type: string
           next_followup_at?: string | null
           phone?: string | null
+          qualification_summary?: string | null
           score?: number
           source_channel: string
           source_comment_id?: string | null
           source_post_id?: string | null
           source_provider_id?: string | null
           status: string
+          tags?: string[]
           target_area?: string | null
           timeline?: string | null
           updated_at?: string
@@ -2045,12 +2049,14 @@ export type Database = {
           lead_type?: string
           next_followup_at?: string | null
           phone?: string | null
+          qualification_summary?: string | null
           score?: number
           source_channel?: string
           source_comment_id?: string | null
           source_post_id?: string | null
           source_provider_id?: string | null
           status?: string
+          tags?: string[]
           target_area?: string | null
           timeline?: string | null
           updated_at?: string

@@ -8,6 +8,8 @@ import { createSmallModelHarwickSubagentExecutorClient } from "../../../../../fe
 import { createSmallModelHarwickWorkItemIntelligenceClient } from "../../../../../features/agent-runtime/harwick-work-item-intelligence";
 import { buildHarwickChatTools } from "../../../../../features/harwick-chat/tools";
 import { buildHarwickChatSystemPrompt } from "../../../../../features/harwick-chat/system-prompt";
+import { OPERATOR_CHAT_REGISTRY } from "../../../../../features/harwick-tools/operator-chat";
+import { buildHarwickToolsForScope } from "../../../../../features/harwick-tools/registry";
 import { authorizeWorkspaceRequest } from "../../../../../lib/api/workspace-auth";
 import { getServerEnvironment } from "../../../../../lib/server-env";
 import { createSupabaseAgentTrajectoryStore } from "../../../../../lib/supabase/agent-trajectory-store";
@@ -153,7 +155,13 @@ export async function POST(request: NextRequest, context: { params: Promise<{ wo
   // tool-capable model (NOT mini, which fails structured output reliably).
   const modelName = process.env["OPENAI_HARWICK_CHAT_MODEL"] ?? "gpt-4o";
 
-  const tools = buildHarwickChatTools({
+  // Two tool sources merged into one record for the model:
+  //   1. The original inline rail tools (list_leads, surface_lead, etc.)
+  //   2. The unified registry of new smart tools (memory, semantic search,
+  //      calendar, pipeline mutations, cross-channel, self-awareness,
+  //      briefings, query_workspace, delegate_complex_task).
+  // The registry filters by scope + role capability automatically.
+  const inlineTools = buildHarwickChatTools({
     supabase,
     workspaceId,
     workspaceName: membership.workspaceName,
@@ -164,6 +172,20 @@ export async function POST(request: NextRequest, context: { params: Promise<{ wo
     subagentIntelligenceClient: createSmallModelHarwickWorkItemIntelligenceClient(smallModel),
     openai,
   });
+  const registryTools = buildHarwickToolsForScope({
+    registry: OPERATOR_CHAT_REGISTRY,
+    scope: "operator_chat",
+    deps: {
+      supabase,
+      workspaceId,
+      workspaceName: membership.workspaceName,
+      operatorMemberId: membership.memberId,
+      operatorName: membership.displayName,
+      operatorRole: membership.role,
+      openai,
+    },
+  });
+  const tools = { ...inlineTools, ...registryTools };
 
   const systemPrompt = buildHarwickChatSystemPrompt({
     operatorName: membership.displayName,
