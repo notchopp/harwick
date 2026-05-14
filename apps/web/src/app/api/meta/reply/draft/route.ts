@@ -12,6 +12,7 @@ import {
   createOpenAIHarwickAiRuntime,
   toLegacyAiReplyDraft,
 } from "@realty-ops/integrations";
+import { createAiSdkHarwickAiRuntime } from "../../../../../features/lead-intake/ai-sdk-runtime";
 import { checkRateLimit, rateLimitKeyFromRequest } from "../../../../../lib/rate-limit";
 import { getServerEnvironment } from "../../../../../lib/server-env";
 import {
@@ -160,12 +161,15 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // Two paths: legacy openai responses API + JSON parser (default), or the
+  // ai-sdk path using generateObject with HarwickAiTurnSchema for guaranteed
+  // structured output. Flip per workspace via HARWICK_LEAD_RUNTIME=ai-sdk.
+  const useAiSdkRuntime = process.env["HARWICK_LEAD_RUNTIME"] === "ai-sdk";
   const aiRuntime = useLocalDrafts || openAiApiKey === undefined
     ? createLocalHarwickAiRuntime()
-    : createOpenAIHarwickAiRuntime({
-        apiKey: openAiApiKey,
-        model: environment.OPENAI_REPLY_MODEL,
-      });
+    : useAiSdkRuntime
+      ? createAiSdkHarwickAiRuntime({ apiKey: openAiApiKey, model: environment.OPENAI_REPLY_MODEL })
+      : createOpenAIHarwickAiRuntime({ apiKey: openAiApiKey, model: environment.OPENAI_REPLY_MODEL });
   const runtimeInput = HarwickAiRuntimeInputSchema.parse({
     workspaceName,
     channel,

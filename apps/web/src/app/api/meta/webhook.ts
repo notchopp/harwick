@@ -18,6 +18,7 @@ import { createSupabaseMetaCredentialRepository } from "../../../lib/supabase/in
 import { createSupabaseSocialPostRepository } from "../../../lib/supabase/social-posts";
 import { createLogger } from "@realty-ops/core";
 import { createOpenAIHarwickAiRuntime, createOpenAIVisionClient } from "@realty-ops/integrations";
+import { createAiSdkHarwickAiRuntime } from "../../../features/lead-intake/ai-sdk-runtime";
 import { createSupabaseHarwickAiAutomationPolicyRepository, createSupabaseHarwickAiTurnRepository } from "../../../lib/supabase/harwick-ai-turns";
 import { generateAndExecuteHarwickAiTurnSync } from "../../../features/lead-intake/harwick-ai-turn-executor";
 import { createSupabaseSocialReplyQueueRepository } from "../../../lib/supabase/operator-queues";
@@ -83,10 +84,17 @@ export function createMetaWebhookPostDependencies(): MetaWebhookPostDependencies
   const turnRepository = createSupabaseHarwickAiTurnRepository(supabase);
   const policyRepository = createSupabaseHarwickAiAutomationPolicyRepository(supabase);
   const queueRepository = createSupabaseSocialReplyQueueRepository(supabase);
-  const runtimeClient = createOpenAIHarwickAiRuntime({
-    apiKey: environment.OPENAI_API_KEY ?? "",
-    model: environment.OPENAI_REPLY_MODEL,
-  });
+  // Flip per environment: HARWICK_LEAD_RUNTIME=ai-sdk uses generateObject with
+  // HarwickAiTurnSchema (no JSON-parse fragility, provider-agnostic).
+  const runtimeClient = process.env["HARWICK_LEAD_RUNTIME"] === "ai-sdk"
+    ? createAiSdkHarwickAiRuntime({
+        apiKey: environment.OPENAI_API_KEY ?? "",
+        model: environment.OPENAI_REPLY_MODEL,
+      })
+    : createOpenAIHarwickAiRuntime({
+        apiKey: environment.OPENAI_API_KEY ?? "",
+        model: environment.OPENAI_REPLY_MODEL,
+      });
 
   // Conversation message persistence
   const conversationMessageRepository = createSupabaseConversationMessageRepository(supabase);
