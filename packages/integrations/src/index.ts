@@ -12,7 +12,6 @@ export * from "./meta-oauth.js";
 export * from "./openai-embeddings.js";
 export * from "./openai-small-model.js";
 export * from "./openai-vision.js";
-export * from "./openai-reply.js";
 export * from "./repliers.js";
 export * from "./retell-provisioning.js";
 export * from "./retell.js";

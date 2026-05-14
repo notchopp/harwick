@@ -4,8 +4,7 @@ import {
   UuidSchema,
   type HarwickAssistantResponse,
 } from "@realty-ops/core";
-import { createOpenAIHarwickAiRuntime } from "@realty-ops/integrations";
-import { createAiSdkHarwickAiRuntime } from "../../../../../features/lead-intake/ai-sdk-runtime";
+import { createHarwickAiRuntime } from "../../../../../features/lead-intake/ai-sdk-runtime";
 import { NextResponse, type NextRequest } from "next/server";
 
 import {
@@ -252,18 +251,10 @@ export async function POST(
     }),
   ]);
 
-  // HARWICK_LEAD_RUNTIME=ai-sdk routes through generateObject with
-  // HarwickAiTurnSchema (no JSON-parse fragility, provider-agnostic). Legacy
-  // openai responses path stays default until rollout completes.
-  const runtimeClient = process.env["HARWICK_LEAD_RUNTIME"] === "ai-sdk"
-    ? createAiSdkHarwickAiRuntime({
-        apiKey: environment.OPENAI_API_KEY,
-        model: environment.OPENAI_REPLY_MODEL,
-      })
-    : createOpenAIHarwickAiRuntime({
-        apiKey: environment.OPENAI_API_KEY,
-        model: environment.OPENAI_REPLY_MODEL,
-      });
+  const runtimeClient = createHarwickAiRuntime({
+    apiKey: environment.OPENAI_API_KEY,
+    model: environment.OPENAI_REPLY_MODEL,
+  });
   const assistantRuntime = createDefaultHomeHarwickRuntimeService({
     supabase,
     runtime: runtimeClient,

@@ -1,11 +1,11 @@
 import { HarwickAiRuntimeInputSchema } from "@realty-ops/core";
 import { describe, expect, it } from "vitest";
 
-import { createAiSdkHarwickAiRuntime } from "./ai-sdk-runtime";
+import { createHarwickAiRuntime } from "./ai-sdk-runtime";
 
-describe("createAiSdkHarwickAiRuntime", () => {
+describe("createHarwickAiRuntime", () => {
   it("returns a HarwickAiRuntimeClient with runTurn()", () => {
-    const client = createAiSdkHarwickAiRuntime({ apiKey: "sk-test", model: "gpt-4o" });
+    const client = createHarwickAiRuntime({ apiKey: "sk-test", model: "gpt-4o" });
     expect(typeof client.runTurn).toBe("function");
   });
 
@@ -26,22 +26,21 @@ describe("createAiSdkHarwickAiRuntime", () => {
 
     // Just constructing the client should not perform any network call;
     // sanity-check it doesn't blow up at construction time.
-    const client = createAiSdkHarwickAiRuntime({ apiKey: "sk-test", model: "gpt-4o" });
+    const client = createHarwickAiRuntime({ apiKey: "sk-test", model: "gpt-4o" });
     expect(client).toBeDefined();
   });
 
   it("rejects invalid HarwickAiRuntimeInput up front (via schema parse)", async () => {
-    const client = createAiSdkHarwickAiRuntime({ apiKey: "sk-test", model: "gpt-4o" });
+    const client = createHarwickAiRuntime({ apiKey: "sk-test", model: "gpt-4o" });
     // Missing required workspaceName — schema parse should throw before any
     // network call is attempted.
     await expect(
       client.runTurn({
-        // @ts-expect-error — deliberately malformed for the test
-        workspaceName: 5,
+        workspaceName: 5 as unknown as string,
         channel: "instagram_dm",
         inboundText: "test",
         conversation: [],
-      }),
+      } as Parameters<typeof client.runTurn>[0]),
     ).rejects.toThrow();
   });
 });

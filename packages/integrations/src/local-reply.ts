@@ -1,9 +1,28 @@
 import { type AiReplyDraft } from "@realty-ops/core";
+import { z } from "zod";
 import { createLocalHarwickAiRuntime, toLegacyAiReplyDraft } from "./harwick-ai-runtime.js";
-import {
-  AiReplyDraftInputSchema,
-  type AiReplyDraftInput,
-} from "./openai-reply.js";
+
+// Reply-drafting input shape. Lives here (alongside the local runtime) because
+// the legacy OpenAI Responses adapter that used to own this schema has been
+// removed — the production lead runtime is now ai-sdk's generateObject path in
+// apps/web/src/features/lead-intake/ai-sdk-runtime.ts.
+export const AiReplyDraftInputSchema = z.object({
+  workspaceName: z.string().trim().min(1).max(120),
+  channel: z.enum(["instagram_dm", "instagram_comment", "facebook_dm", "facebook_comment"]),
+  leadText: z.string().trim().min(1).max(4000),
+  leadContext: z.string().trim().max(2000).nullable().default(null),
+  postContext: z.object({
+    caption: z.string().trim().max(8000).nullable().default(null),
+    ctaLabel: z.string().trim().max(120).nullable().default(null),
+    areasMentioned: z.array(z.string().trim().min(1).max(120)).max(20).default([]),
+    listingHints: z.array(z.string().trim().min(1).max(240)).max(30).default([]),
+    permalink: z.string().trim().url().nullable().default(null),
+  }).nullable().default(null),
+  buyerBlueprintUrl: z.string().trim().url().nullable().default(null),
+  listingContext: z.string().trim().max(2000).nullable().default(null),
+});
+
+export type AiReplyDraftInput = z.input<typeof AiReplyDraftInputSchema>;
 
 export function createLocalReplyClient() {
   const runtime = createLocalHarwickAiRuntime();

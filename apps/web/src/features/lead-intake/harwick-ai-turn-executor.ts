@@ -10,9 +10,9 @@ import {
 } from "@realty-ops/core";
 import {
   createGoogleCalendarClient,
-  createOpenAIHarwickAiRuntime,
   createOpenAISmallModelClient,
   runHarwickAiAgenticLoop,
+  type HarwickAiRuntimeClient,
   type HarwickAiToolHandlers,
 } from "@realty-ops/integrations";
 import { buildClassifierFallback, classifyInboundLead } from "./lead-classifier";
@@ -56,7 +56,7 @@ export type HarwickAiExecutorDependencies = {
   policyRepository: HarwickAiAutomationPolicyRepository;
   leadEventRepository: LeadEventPersistenceRepository;
   queueRepository: SocialReplyQueueRepository;
-  runtimeClient: ReturnType<typeof createOpenAIHarwickAiRuntime>;
+  runtimeClient: HarwickAiRuntimeClient;
   credentialSecret: string | undefined;
 };
 

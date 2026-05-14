@@ -10,26 +10,17 @@ import { generateObject } from "ai";
 import type { HarwickAiRuntimeClient } from "@realty-ops/integrations";
 
 /**
- * ai-sdk-based Harwick lead-conversation runtime. Drop-in replacement for
- * createOpenAIHarwickAiRuntime — same HarwickAiRuntimeClient interface, same
- * HarwickAiTurn output, but uses ai-sdk's `generateObject` with a zod schema
- * so the structured-output guarantee replaces the fragile JSON-parser path.
- *
- * Two structural wins over the legacy runtime:
- *   - No parseHarwickAiTurn fallback safety nets — generateObject either
- *     returns a HarwickAiTurn that satisfies the schema or throws.
- *   - Provider-agnostic — swap to anthropic / xai / etc by changing the
- *     `model` argument; no need to rewrite the request/response handling.
- *
- * Today this is wired behind HARWICK_LEAD_RUNTIME=ai-sdk so we can flip
- * call sites one at a time. Legacy path stays default until full rollout.
+ * The Harwick lead-conversation runtime. Backed by ai-sdk's `generateObject`
+ * with HarwickAiTurnSchema so the structured-output guarantee replaces any
+ * hand-rolled JSON parsing. Provider-agnostic — swap `openai("gpt-4o")` for
+ * an anthropic / xai / google model and nothing else needs to change.
  */
-export type AiSdkHarwickRuntimeOptions = {
+export type HarwickAiRuntimeOptions = {
   apiKey: string;
   model: string;
 };
 
-export function createAiSdkHarwickAiRuntime(options: AiSdkHarwickRuntimeOptions): HarwickAiRuntimeClient {
+export function createHarwickAiRuntime(options: HarwickAiRuntimeOptions): HarwickAiRuntimeClient {
   const openai = createOpenAI({ apiKey: options.apiKey });
 
   return {
