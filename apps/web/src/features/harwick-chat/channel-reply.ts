@@ -8,6 +8,8 @@ import { createSmallModelHarwickWorkItemIntelligenceClient } from "../agent-runt
 import { getServerEnvironment } from "../../lib/server-env";
 import type { RealtyOpsSupabaseClient } from "../../lib/supabase/server-client";
 
+import { OPERATOR_CHAT_REGISTRY } from "../harwick-tools/operator-chat";
+import { buildHarwickToolsForScope } from "../harwick-tools/registry";
 import { buildHarwickChatTools } from "./tools";
 import { buildHarwickChatSystemPrompt } from "./system-prompt";
 
@@ -118,7 +120,7 @@ export async function enqueueHarwickChannelReply(params: {
   });
   const modelName = process.env["OPENAI_HARWICK_CHAT_MODEL"] ?? "gpt-4o";
 
-  const tools = buildHarwickChatTools({
+  const inlineTools = buildHarwickChatTools({
     supabase: params.supabase,
     workspaceId: params.workspaceId,
     workspaceName: params.operator.workspaceName,
@@ -127,7 +129,22 @@ export async function enqueueHarwickChannelReply(params: {
     operatorRole: params.operator.role,
     subagentExecutorClient: createSmallModelHarwickSubagentExecutorClient(smallModel),
     subagentIntelligenceClient: createSmallModelHarwickWorkItemIntelligenceClient(smallModel),
+    openai,
   });
+  const registryTools = buildHarwickToolsForScope({
+    registry: OPERATOR_CHAT_REGISTRY,
+    scope: "channel_mention",
+    deps: {
+      supabase: params.supabase,
+      workspaceId: params.workspaceId,
+      workspaceName: params.operator.workspaceName,
+      operatorMemberId: params.operator.memberId,
+      operatorName: params.operator.displayName,
+      operatorRole: params.operator.role,
+      openai,
+    },
+  });
+  const tools = { ...inlineTools, ...registryTools };
 
   const systemPrompt = [
     buildHarwickChatSystemPrompt({
