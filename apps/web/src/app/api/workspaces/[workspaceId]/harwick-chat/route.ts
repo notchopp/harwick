@@ -212,51 +212,101 @@ export async function POST(request: NextRequest, context: { params: Promise<{ wo
     originalMessages: body.messages,
     async onFinish(event) {
       if (event.isAborted) return;
+      const userText = readTextFromMessage(body.messages[body.messages.length - 1]);
+      const assistantText = readTextFromMessage(event.responseMessage);
+      const nowIso = new Date().toISOString();
+
+      // Persist the turn (trajectory + step + completion). Each await is
+      // wrapped so a single failure doesn't skip the rest — completion has
+      // to land or every trajectory shows up as "pending forever".
+      let trajectoryId: string | null = null;
       try {
-        const userText = readTextFromMessage(body.messages[body.messages.length - 1]);
-        const assistantText = readTextFromMessage(event.responseMessage);
-        const nowIso = new Date().toISOString();
-        const { trajectoryId } = await trajectoryStore.startTrajectory({
+        const result = await trajectoryStore.startTrajectory({
           workspaceId,
           leadId: null,
           channel: "harwick_chat",
           threadId,
           startedAt: nowIso,
         });
-        const toolExecutions = summarizeToolExecutions(event.messages);
-        await trajectoryStore.appendStep({
-          trajectoryId,
-          workspaceId,
-          leadId: null,
-          iteration: 1,
-          inputSnapshot: {
-            threadId,
-            inboundText: userText,
-            messageCount: body.messages.length,
-          },
-          turnOutput: {
-            reply: assistantText,
-            finishReason: event.finishReason ?? null,
-            uiMessages: event.messages,
-          },
-          toolExecutions,
-          selfGateAutoExecute: null,
-          selfGateReason: null,
-          deterministicGateAutoExecute: null,
-          gatesAgreed: null,
-          exitReason: event.finishReason ?? null,
-          harwickAiTurnId: null,
-        });
-        await trajectoryStore.completeTrajectory({
-          trajectoryId,
-          completedAt: nowIso,
-          completionReason: event.finishReason ?? "completed",
-          stepCount: 1,
-          summaryText: assistantText,
-          outcomeLabel: "pending",
-        });
+        trajectoryId = result.trajectoryId;
       } catch (error) {
-        console.error("[harwick-chat] persistence failed", error);
+        console.error("[harwick-chat] startTrajectory failed", error);
+      }
+
+      if (trajectoryId !== null) {
+        const toolExecutions = summarizeToolExecutions(event.messages);
+        try {
+          await trajectoryStore.appendStep({
+            trajectoryId,
+            workspaceId,
+            leadId: null,
+            iteration: 1,
+            inputSnapshot: {
+              threadId,
+              inboundText: userText,
+              messageCount: body.messages.length,
+            },
+            turnOutput: {
+              reply: assistantText,
+              finishReason: event.finishReason ?? null,
+              uiMessages: event.messages,
+            },
+            toolExecutions,
+            selfGateAutoExecute: null,
+            selfGateReason: null,
+            deterministicGateAutoExecute: null,
+            gatesAgreed: null,
+            exitReason: event.finishReason ?? null,
+            harwickAiTurnId: null,
+          });
+        } catch (error) {
+          console.error("[harwick-chat] appendStep failed", error);
+        }
+
+        try {
+          await trajectoryStore.completeTrajectory({
+            trajectoryId,
+            completedAt: nowIso,
+            completionReason: event.finishReason ?? "completed",
+            stepCount: 1,
+            summaryText: assistantText,
+            outcomeLabel: "pending",
+          });
+        } catch (error) {
+          console.error("[harwick-chat] completeTrajectory failed", error);
+        }
+      }
+
+      // Auto-title the thread on the first turn so "New chat" doesn't linger.
+      // Cheap heuristic: derive a 3-7 word title from the user's first message
+      // and only write if the thread is still on the default title.
+      if (userText !== null && userText.length > 0) {
+        try {
+          const derivedTitle = userText
+            .replace(/\s+/g, " ")
+            .trim()
+            .split(" ")
+            .slice(0, 7)
+            .join(" ")
+            .slice(0, 60);
+          if (derivedTitle.length >= 3) {
+            await supabase
+              .from("harwick_chat_threads")
+              .update({ title: derivedTitle, updated_at: nowIso, last_message_at: nowIso })
+              .eq("workspace_id", workspaceId)
+              .eq("id", threadId)
+              .eq("title", "New chat");
+            // If the title was already customized, the .eq() filter no-ops it.
+            // Always bump last_message_at separately so list ordering stays fresh.
+            await supabase
+              .from("harwick_chat_threads")
+              .update({ last_message_at: nowIso, updated_at: nowIso })
+              .eq("workspace_id", workspaceId)
+              .eq("id", threadId);
+          }
+        } catch (error) {
+          console.error("[harwick-chat] thread title update failed", error);
+        }
       }
     },
     onError(error) {

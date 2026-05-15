@@ -23,6 +23,10 @@
     {
       "path": "/api/agent-runtime/loops",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/agent-runtime/subagents",
+      "schedule": "*/5 * * * *"
     }
   ]
 }
