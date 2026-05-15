@@ -346,11 +346,15 @@ export function createSupabaseHarwickWorkItemRepository(
     },
 
     async listVisibleHomeWorkItems(params) {
+      // Home queue shows items that still want operator attention. 'seen' means
+      // the operator clicked "Mark seen" to acknowledge — so we drop it from
+      // /home and let it live in /queue or /activity for revisit. 'pending' and
+      // 'surfaced' are the genuinely-open states.
       const { data, error } = await supabase
         .from("harwick_work_items")
         .select("id, workspace_id, lead_id, item_type, status, priority, title, summary, recommended_action, reason, target_member_id, target_role, created_at, due_at, payload")
         .eq("workspace_id", params.workspaceId)
-        .in("status", ["pending", "surfaced", "seen"])
+        .in("status", ["pending", "surfaced"])
         .order("priority", { ascending: false })
         .order("created_at", { ascending: false })
         .limit(Math.max(params.limit * 3, params.limit));
