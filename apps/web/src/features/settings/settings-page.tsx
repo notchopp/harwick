@@ -185,7 +185,7 @@ function BillingPanel(props: {
         <div>
           <div className="text-[11px] uppercase tracking-[0.12em] text-muted-subtle">Billing</div>
           <div className="mt-1 font-display text-[18px] font-medium text-foreground">{currentPlan}</div>
-          <div className="mt-1 text-[11.5px] text-muted">
+          <div className="mt-1 text-[11.5px] text-muted-foreground">
             {props.billing === null
               ? "Choose a plan to unlock production usage gates."
               : `${currentStatus}${props.billing.cancelAtPeriodEnd ? " / cancels at period end" : ""} / renews ${formatPeriodEnd(props.billing.currentPeriodEnd)}`}
@@ -478,15 +478,15 @@ function HarwickLoopsPanel(props: {
                   "rounded-full border px-2 py-[2px] text-[10px] uppercase",
                   loop.status === "active"
                     ? "border-qualified/25 bg-qualified-soft text-qualified"
-                    : "border-border bg-surface-muted text-muted",
+                    : "border-border bg-surface-muted text-muted-foreground",
                 )}>
                   {loop.status}
                 </span>
-                <span className="rounded-full border border-border bg-surface-muted px-2 py-[2px] text-[10px] text-muted">
+                <span className="rounded-full border border-border bg-surface-muted px-2 py-[2px] text-[10px] text-muted-foreground">
                   {loopOutputModeLabel(loop.outputMode)}
                 </span>
               </div>
-              <div className="mt-1 line-clamp-2 text-[12px] text-muted">{loop.instruction}</div>
+              <div className="mt-1 line-clamp-2 text-[12px] text-muted-foreground">{loop.instruction}</div>
               <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-subtle">
                 <span>{loop.scheduleSpec ?? loop.eventType ?? "manual"}</span>
                 <span>next {formatHarwickLoopDate(loop.nextRunAt)}</span>
@@ -625,7 +625,7 @@ function HarwickMemoryReviewPanel(props: {
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-[12px] border border-border bg-surface-muted/55 p-4">
         <div>
           <div className="text-[11px] uppercase tracking-[0.12em] text-muted-subtle">Workspace memory</div>
-          <div className="mt-1 text-[12px] text-muted">
+          <div className="mt-1 text-[12px] text-muted-foreground">
             Review the patterns Harwick has learned before they shape future routing and conversation context.
           </div>
         </div>
@@ -636,7 +636,7 @@ function HarwickMemoryReviewPanel(props: {
                 "rounded-[8px] px-3 py-[6px] text-[11px] transition-colors",
                 filterStatus === reviewStatus
                   ? "bg-harwick-ink text-white"
-                  : "text-muted hover:bg-surface-muted hover:text-foreground",
+                  : "text-muted-foreground hover:bg-surface-muted hover:text-foreground",
               )}
               key={reviewStatus}
               onClick={() => setFilterStatus(reviewStatus)}
@@ -667,7 +667,7 @@ function HarwickMemoryReviewPanel(props: {
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="text-[13px] font-medium text-foreground">{memory.title}</div>
-                    <span className="rounded-full border border-border bg-surface-muted px-2 py-[2px] text-[10px] uppercase text-muted">
+                    <span className="rounded-full border border-border bg-surface-muted px-2 py-[2px] text-[10px] uppercase text-muted-foreground">
                       {workspaceMemoryTypeLabel(memory.memoryType)}
                     </span>
                     <span className={cn(
@@ -676,12 +676,12 @@ function HarwickMemoryReviewPanel(props: {
                         ? "border-qualified/25 bg-qualified-soft text-qualified"
                         : memory.reviewStatus === "dismissed"
                           ? "border-oxblood-soft bg-oxblood-soft/25 text-hot"
-                          : "border-border bg-surface-muted text-muted",
+                          : "border-border bg-surface-muted text-muted-foreground",
                     )}>
                       {workspaceMemoryStatusLabel(memory.reviewStatus)}
                     </span>
                   </div>
-                  <div className="mt-2 text-[12px] leading-5 text-muted">{memory.body}</div>
+                  <div className="mt-2 text-[12px] leading-5 text-muted-foreground">{memory.body}</div>
                   <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-subtle">
                     <span>{formatWorkspaceMemoryConfidence(memory.confidence)}</span>
                     <span>observed {formatWorkspaceMemoryDate(memory.lastObservedAt)}</span>
