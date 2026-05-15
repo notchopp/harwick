@@ -13,6 +13,7 @@ import { useEffect, useState, type ComponentType, type SVGProps } from "react";
 
 import { initialsFor } from "../lib/initials";
 import { cn } from "../lib/utils";
+import { NotificationsPopover } from "./notifications-popover";
 
 type NavItem = {
   label: string;
@@ -37,6 +38,7 @@ export function MobileTopBar(props: {
   pathname: string;
   notificationCount?: number;
   notificationHref?: string;
+  workspaceId?: string;
 }) {
   const notificationCount = Math.max(0, props.notificationCount ?? 0);
   const notificationHref = props.notificationHref ?? "/queue";
@@ -77,18 +79,22 @@ export function MobileTopBar(props: {
           </span>
         </span>
       </a>
-      <a
-        href={notificationHref}
-        className="relative flex size-9 items-center justify-center rounded-[10px] border border-white/[0.075] bg-[#1a1a1c] text-white/64 transition active:bg-[#222225]"
-        aria-label={`${notificationCount} pending notifications`}
-      >
-        <Bell className="size-4" aria-hidden="true" />
-        {notificationCount > 0 ? (
-          <span className="absolute right-1 top-1 flex min-w-3.5 items-center justify-center rounded-full bg-[#e69588] px-1 text-[9px] font-semibold leading-3.5 text-[#140b0a]">
-            {notificationCount > 9 ? "9+" : notificationCount}
-          </span>
-        ) : null}
-      </a>
+      {props.workspaceId === undefined ? (
+        <a
+          href={notificationHref}
+          className="relative flex size-9 items-center justify-center rounded-[10px] border border-white/[0.075] bg-[#1a1a1c] text-white/64 transition active:bg-[#222225]"
+          aria-label={`${notificationCount} pending notifications`}
+        >
+          <Bell className="size-4" aria-hidden="true" />
+          {notificationCount > 0 ? (
+            <span className="absolute right-1 top-1 flex min-w-3.5 items-center justify-center rounded-full bg-[#e69588] px-1 text-[9px] font-semibold leading-3.5 text-[#140b0a]">
+              {notificationCount > 9 ? "9+" : notificationCount}
+            </span>
+          ) : null}
+        </a>
+      ) : (
+        <NotificationsPopover workspaceId={props.workspaceId} darkTone />
+      )}
     </header>
   );
 }

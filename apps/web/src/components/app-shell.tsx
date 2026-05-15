@@ -222,6 +222,7 @@ export function AppShell(props: AppShellProps) {
           pathname={pathname}
           notificationCount={notificationCount}
           notificationHref={notificationHref}
+          {...(props.workspaceId === undefined ? {} : { workspaceId: props.workspaceId })}
         />
       ) : null}
       <div className={cn("harwick-app-frame flex min-h-screen overflow-hidden", darkTone ? "gap-2.5 p-2.5 max-md:gap-0 max-md:p-0 max-md:pb-16" : "")}>
