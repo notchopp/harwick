@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { UIMessage } from "ai";
 
 import { cn } from "../../lib/utils";
+import { tryRenderSmartCard } from "./tool-result-cards";
 import { useHarwickChat } from "./use-harwick-chat";
 
 const HINTS: Array<{ label: string; prompt: string }> = [
@@ -252,6 +253,11 @@ function SubagentTaskCard({ task }: { task: SubagentTaskResult }) {
 }
 
 function ToolResultCard({ toolName, output }: { toolName: string; output: unknown }) {
+  // New smart-tool kinds first — memory, semantic search, calendar, pipeline
+  // mutations, briefings, query_workspace, delegate_complex_task, etc.
+  const smartCard = tryRenderSmartCard(output);
+  if (smartCard !== null) return smartCard;
+
   if (isLeadCardResult(output)) {
     return <LeadCard lead={output} />;
   }
@@ -400,6 +406,11 @@ function ToolResultCard({ toolName, output }: { toolName: string; output: unknow
   );
 }
 
+// Lookup tools render no card on their own — Harwick uses them silently to
+// gather context for its prose reply. New smart-tool lookups (recall_fact,
+// find_similar_leads, search_listings, find_comps, check_availability,
+// summarize_call_recording, query_workspace) DO render cards because their
+// shape carries useful structured info for the operator to scan.
 const SILENT_TOOL_TYPES = new Set([
   "tool-list_leads",
   "tool-list_routing_desk",
