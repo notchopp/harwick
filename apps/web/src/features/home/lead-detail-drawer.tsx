@@ -251,6 +251,41 @@ function descriptorFor(item: HomeDetailItem): QueueDescriptor {
     };
   }
 
+  // Subagent-produced insights get their own descriptor because they're
+  // finished analytical reports, not approve/dismiss approvals. The decision
+  // is "did this help" — and the report itself is the body.
+  if (item.item.type === "insight" && item.item.subagentType !== undefined) {
+    const subagentLabel = item.item.subagentType === "research"
+      ? "Research subagent"
+      : item.item.subagentType === "writer"
+        ? "Writer subagent"
+        : item.item.subagentType === "calendar"
+          ? "Calendar subagent"
+          : "Routing subagent";
+    const confidence = item.item.subagentConfidence;
+    const confidencePill = confidence === undefined
+      ? null
+      : `${Math.round(confidence * 100)}% confidence`;
+    const subtitleParts = [subagentLabel];
+    if (confidencePill !== null) subtitleParts.push(confidencePill);
+    return {
+      title: item.item.title,
+      subtitle: subtitleParts.join(" · "),
+      source,
+      priorityLabel: priority.label,
+      priorityClassName: priority.className,
+      decisionLabel: "What Harwick found",
+      decisionText: item.item.detail,
+      whyLabel: "Why it matters",
+      whyText: item.item.reason ?? "No additional reasoning recorded.",
+      nextText: item.item.action,
+      afterApprovalText: "Marking this useful trains future Harwick subagents on what kind of analysis you want more of. Dismiss removes it from the queue.",
+      primaryHref: lead ?? "/activity",
+      primaryHrefLabel: lead === null ? "Open activity" : "Open lead",
+      secondaryHref: convo,
+    };
+  }
+
   return {
     title: item.item.title,
     subtitle: item.item.workItemType === "approval" ? "Harwick approval" : "Harwick insight",

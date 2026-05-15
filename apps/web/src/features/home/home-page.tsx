@@ -168,6 +168,12 @@ export type Task = {
   tone: Tone;
   icon: typeof Phone;
   loopDetail?: LoopDetail;
+  // Subagent-originated insights carry these so the drawer can render the full
+  // analysis context (what was investigated, by which subagent, with what
+  // confidence) instead of generic "Harwick surfaced this" language.
+  subagentType?: "research" | "writer" | "calendar" | "routing";
+  subagentConfidence?: number;
+  subagentTaskId?: string;
 };
 
 type DashboardHealthRow = { label: string; value: string; tone: "green" | "amber" | "red"; detail?: string | null };
@@ -316,13 +322,16 @@ function toneFromHarwickPriority(priority: HarwickHomeWorkItem["priority"]): Ton
 
 function mapHarwickWorkItemToQueueItem(item: HarwickHomeWorkItem, thread: ConversationInboxThread | null): WorkItem {
   const loopDetail = mapHarwickLoopPayloadToDetail(item.payload);
+  // Strip the "Subagent result: " prefix so titles read like the analysis they
+  // are, not like a debug log line.
+  const cleanedTitle = item.title.replace(/^subagent result:\s*/i, "");
   const task: Task = {
     workspaceId: item.workspaceId,
     workItemId: item.id,
     workItemType: item.type,
     type: "insight",
     label: item.type === "approval" ? "Approval" : "Insight",
-    title: item.title,
+    title: cleanedTitle,
     detail: item.summary,
     reason: item.reason,
     time: item.dueAt ?? item.createdAt,
@@ -333,6 +342,22 @@ function mapHarwickWorkItemToQueueItem(item: HarwickHomeWorkItem, thread: Conver
   if (item.leadId !== null) task.leadId = item.leadId;
   if (loopDetail !== null) task.loopDetail = loopDetail;
   if (thread !== null) task.thread = thread;
+
+  // Surface subagent-source metadata for the drawer when this work item was
+  // produced by the subagent executor.
+  const payload = item.payload;
+  const subagentType = payload["subagentType"];
+  if (subagentType === "research" || subagentType === "writer" || subagentType === "calendar" || subagentType === "routing") {
+    task.subagentType = subagentType;
+  }
+  const confidence = payload["confidence"];
+  if (typeof confidence === "number" && Number.isFinite(confidence)) {
+    task.subagentConfidence = confidence;
+  }
+  const taskId = payload["taskId"];
+  if (typeof taskId === "string" && taskId.length > 0) {
+    task.subagentTaskId = taskId;
+  }
 
   return {
     kind: "task",
