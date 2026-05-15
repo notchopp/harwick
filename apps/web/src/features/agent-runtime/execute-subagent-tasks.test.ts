@@ -42,6 +42,35 @@ function createTaskRepository(params: {
   };
 }
 
+// Minimal valid rich-result body for the test fixtures. Real subagents return
+// 2-10 specific findings; the tests only need the schema to pass.
+const richResultExtras = {
+  findings: [
+    {
+      subject: "Lead Danielle",
+      observation: "Danielle responded to last week's Oak Ave DM within 2 hours and asked about closing timeline.",
+      implication: "Hot intent — same-day follow-up converts ~3x better than next-day for this profile.",
+      confidence: 0.8,
+    },
+    {
+      subject: "Lead Keisha",
+      observation: "Keisha has gone 14 days without a touch after asking about financing.",
+      implication: "Drop-off risk; financing questions tend to cool off after 10+ days of silence.",
+      confidence: 0.7,
+    },
+  ],
+  nextSteps: [
+    {
+      who: "Sarah",
+      action: "Send Danielle a Calendly link with 3 Saturday showing slots for 1234 Oak Ave.",
+      why: "She named the listing and the weekend specifically.",
+      urgency: "now" as const,
+    },
+  ],
+  blockers: [],
+  dataGaps: [],
+};
+
 describe("executeHarwickSubagentTasks", () => {
   it("executes one known task immediately for interactive chat", async () => {
     const created: HarwickWorkItemCreate[] = [];
@@ -63,12 +92,13 @@ describe("executeHarwickSubagentTasks", () => {
           reason: "Danielle has the freshest high-intent social signal.",
           confidence: 0.78,
           priority: "high" as const,
+          ...richResultExtras,
         })),
       },
       now: () => new Date("2026-05-05T12:00:00.000Z"),
     });
 
-    expect(report).toEqual({
+    expect(report).toMatchObject({
       status: "completed",
       result: {
         summary: "Danielle and Keisha both need next-touch research.",
@@ -98,6 +128,7 @@ describe("executeHarwickSubagentTasks", () => {
           reason: "The workload distribution is uneven.",
           confidence: "0.76",
           priority: "normal" as const,
+          ...richResultExtras,
         } as never)),
       },
       now: () => new Date("2026-05-05T12:00:00.000Z"),
@@ -126,6 +157,7 @@ describe("executeHarwickSubagentTasks", () => {
           reason: "The payload has enough names for a review but no reliable load metric.",
           confidence: "nan",
           priority: "normal" as const,
+          ...richResultExtras,
         } as never)),
       },
       now: () => new Date("2026-05-05T12:00:00.000Z"),
@@ -158,6 +190,7 @@ describe("executeHarwickSubagentTasks", () => {
           reason: "The lead has a clear location signal.",
           confidence: 0.82,
           priority: "urgent" as const,
+          ...richResultExtras,
         })),
       },
       now: () => new Date("2026-05-05T12:00:00.000Z"),

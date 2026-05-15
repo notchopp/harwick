@@ -490,6 +490,99 @@ export function LeadDetailDrawer(props: QueueActionDrawerProps) {
               </div>
             </Card>
 
+            {isWorkItem(detailItem) && detailItem.kind === "task" && detailItem.item.subagentFindings !== undefined && detailItem.item.subagentFindings.length > 0 ? (
+              <Card className="p-4">
+                <div className="mb-3 flex items-center gap-2">
+                  <Bot className="size-3.5 text-[var(--sage)]" aria-hidden="true" />
+                  <MicroLabel>findings</MicroLabel>
+                </div>
+                <ul className="space-y-3">
+                  {detailItem.item.subagentFindings.map((finding, index) => (
+                    <li key={`finding-${index}`} className="rounded-[10px] border border-[color:var(--panel-line-soft)] bg-[color:var(--panel-3)]/25 p-3">
+                      <div className="mb-1 flex items-center justify-between gap-2">
+                        <span className="truncate text-[12px] font-semibold text-[color:var(--graphite-text)]">{finding.subject}</span>
+                        <span className="shrink-0 font-mono text-[10px] text-[color:var(--graphite-text-faint)]">{Math.round(finding.confidence * 100)}%</span>
+                      </div>
+                      <p className="text-[12.5px] leading-5 text-[color:var(--graphite-text)]">{finding.observation}</p>
+                      <p className="mt-1.5 text-[11.5px] leading-4 text-[color:var(--graphite-text-muted)]">{finding.implication}</p>
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+            ) : null}
+
+            {isWorkItem(detailItem) && detailItem.kind === "task" && detailItem.item.subagentNextSteps !== undefined && detailItem.item.subagentNextSteps.length > 0 ? (
+              <Card className="p-4">
+                <div className="mb-3 flex items-center gap-2">
+                  <CheckCircle2 className="size-3.5 text-[var(--clay)]" aria-hidden="true" />
+                  <MicroLabel>next steps</MicroLabel>
+                </div>
+                <ol className="space-y-2">
+                  {detailItem.item.subagentNextSteps.map((step, index) => {
+                    const urgencyLabel = step.urgency === "now"
+                      ? "now"
+                      : step.urgency === "this_week"
+                        ? "this week"
+                        : step.urgency === "this_month"
+                          ? "this month"
+                          : "later";
+                    const urgencyClass = step.urgency === "now"
+                      ? "text-[var(--oxblood)]"
+                      : step.urgency === "this_week"
+                        ? "text-[var(--clay)]"
+                        : "text-[color:var(--graphite-text-muted)]";
+                    return (
+                      <li key={`step-${index}`} className="rounded-[10px] border border-[color:var(--panel-line-soft)] bg-[color:var(--panel-3)]/25 p-3">
+                        <div className="mb-1 flex items-center justify-between gap-2">
+                          <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--graphite-text-muted)]">{step.who}</span>
+                          <span className={cn("text-[10.5px] font-semibold uppercase tracking-[0.08em]", urgencyClass)}>{urgencyLabel}</span>
+                        </div>
+                        <p className="text-[12.5px] font-semibold leading-5 text-[color:var(--graphite-text)]">{step.action}</p>
+                        <p className="mt-1 text-[11.5px] leading-4 text-[color:var(--graphite-text-muted)]">{step.why}</p>
+                      </li>
+                    );
+                  })}
+                </ol>
+              </Card>
+            ) : null}
+
+            {isWorkItem(detailItem) && detailItem.kind === "task"
+              && ((detailItem.item.subagentBlockers !== undefined && detailItem.item.subagentBlockers.length > 0)
+                || (detailItem.item.subagentDataGaps !== undefined && detailItem.item.subagentDataGaps.length > 0)) ? (
+              <Card className="p-4">
+                {detailItem.item.subagentBlockers !== undefined && detailItem.item.subagentBlockers.length > 0 ? (
+                  <div className="mb-3">
+                    <div className="mb-2 flex items-center gap-2">
+                      <ShieldAlert className="size-3.5 text-[var(--oxblood)]" aria-hidden="true" />
+                      <MicroLabel>blockers</MicroLabel>
+                    </div>
+                    <ul className="space-y-1.5">
+                      {detailItem.item.subagentBlockers.map((blocker, index) => (
+                        <li key={`blocker-${index}`} className="rounded-[8px] border border-[var(--oxblood)]/30 bg-[var(--oxblood-soft)] px-2.5 py-1.5 text-[12px] leading-5 text-[color:var(--graphite-text)]">
+                          {blocker}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+                {detailItem.item.subagentDataGaps !== undefined && detailItem.item.subagentDataGaps.length > 0 ? (
+                  <div>
+                    <div className="mb-2 flex items-center gap-2">
+                      <Database className="size-3.5 text-[color:var(--graphite-text-muted)]" aria-hidden="true" />
+                      <MicroLabel>data gaps</MicroLabel>
+                    </div>
+                    <ul className="space-y-1">
+                      {detailItem.item.subagentDataGaps.map((gap, index) => (
+                        <li key={`gap-${index}`} className="text-[11.5px] leading-4 text-[color:var(--graphite-text-muted)]">
+                          — {gap}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+              </Card>
+            ) : null}
+
             <Card className="p-4">
               <div className="mb-3 flex items-center gap-2">
                 <UserRound className="size-3.5 text-[color:var(--graphite-text-muted)]" aria-hidden="true" />

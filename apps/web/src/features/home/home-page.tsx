@@ -174,6 +174,20 @@ export type Task = {
   subagentType?: "research" | "writer" | "calendar" | "routing";
   subagentConfidence?: number;
   subagentTaskId?: string;
+  subagentFindings?: Array<{
+    subject: string;
+    observation: string;
+    implication: string;
+    confidence: number;
+  }>;
+  subagentNextSteps?: Array<{
+    who: string;
+    action: string;
+    why: string;
+    urgency: "now" | "this_week" | "this_month" | "later";
+  }>;
+  subagentBlockers?: string[];
+  subagentDataGaps?: string[];
 };
 
 type DashboardHealthRow = { label: string; value: string; tone: "green" | "amber" | "red"; detail?: string | null };
@@ -357,6 +371,62 @@ function mapHarwickWorkItemToQueueItem(item: HarwickHomeWorkItem, thread: Conver
   const taskId = payload["taskId"];
   if (typeof taskId === "string" && taskId.length > 0) {
     task.subagentTaskId = taskId;
+  }
+
+  // Findings + next-steps + blockers + dataGaps come through as arrays on the
+  // payload. Validate shape per element so a malformed payload doesn't crash
+  // the home queue.
+  type Finding = { subject: string; observation: string; implication: string; confidence: number };
+  const rawFindings = payload["findings"];
+  if (Array.isArray(rawFindings)) {
+    const findings: Finding[] = rawFindings.flatMap((entry): Finding[] => {
+      if (entry === null || typeof entry !== "object") return [];
+      const row = entry as Record<string, unknown>;
+      if (typeof row["subject"] !== "string" || typeof row["observation"] !== "string"
+        || typeof row["implication"] !== "string" || typeof row["confidence"] !== "number") {
+        return [];
+      }
+      return [{
+        subject: row["subject"],
+        observation: row["observation"],
+        implication: row["implication"],
+        confidence: row["confidence"],
+      }];
+    });
+    if (findings.length > 0) task.subagentFindings = findings;
+  }
+
+  const rawNextSteps = payload["nextSteps"];
+  if (Array.isArray(rawNextSteps)) {
+    const steps = rawNextSteps.flatMap((entry) => {
+      if (entry === null || typeof entry !== "object") return [];
+      const row = entry as Record<string, unknown>;
+      const urgency = row["urgency"];
+      if (typeof row["who"] !== "string" || typeof row["action"] !== "string"
+        || typeof row["why"] !== "string"
+        || (urgency !== "now" && urgency !== "this_week" && urgency !== "this_month" && urgency !== "later")) {
+        return [];
+      }
+      return [{
+        who: row["who"],
+        action: row["action"],
+        why: row["why"],
+        urgency: urgency as "now" | "this_week" | "this_month" | "later",
+      }];
+    });
+    if (steps.length > 0) task.subagentNextSteps = steps;
+  }
+
+  const rawBlockers = payload["blockers"];
+  if (Array.isArray(rawBlockers)) {
+    const blockers = rawBlockers.filter((entry): entry is string => typeof entry === "string");
+    if (blockers.length > 0) task.subagentBlockers = blockers;
+  }
+
+  const rawDataGaps = payload["dataGaps"];
+  if (Array.isArray(rawDataGaps)) {
+    const gaps = rawDataGaps.filter((entry): entry is string => typeof entry === "string");
+    if (gaps.length > 0) task.subagentDataGaps = gaps;
   }
 
   return {
