@@ -72,6 +72,7 @@ function safePropertyType(value: string | null): RoutingPropertyType | null {
     "townhome",
     "new_construction",
     "luxury",
+    "investment",
     "lease",
     "land",
   ];

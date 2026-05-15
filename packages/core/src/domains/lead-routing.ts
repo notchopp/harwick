@@ -9,6 +9,7 @@ export const RoutingPropertyTypeSchema = z.enum([
   "townhome",
   "new_construction",
   "luxury",
+  "investment",
   "lease",
   "land",
 ]);

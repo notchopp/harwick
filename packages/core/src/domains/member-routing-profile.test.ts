@@ -29,6 +29,22 @@ describe("MemberRoutingProfileCreateRequestSchema", () => {
     }
   });
 
+  it("allows investment as a routing specialty for investor-focused agents", () => {
+    const result = MemberRoutingProfileCreateRequestSchema.safeParse({
+      memberId,
+      roleLabel: "investor and resale specialist",
+      areas: ["Houston"],
+      propertyTypes: ["single_family", "townhome", "investment"],
+      leadTypes: ["investor"],
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.propertyTypes).toContain("investment");
+      expect(result.data.leadTypes).toEqual(["investor"]);
+    }
+  });
+
   it("applies default values for optional fields", () => {
     const result = MemberRoutingProfileCreateRequestSchema.safeParse({
       memberId,

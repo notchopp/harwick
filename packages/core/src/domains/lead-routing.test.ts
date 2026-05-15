@@ -201,4 +201,50 @@ describe("decideLeadRouting", () => {
     });
     expect(decision.reasons).toContain("calendar connected for request + approve showings");
   });
+
+  it("routes investor leads to investment-specialist profiles", () => {
+    const investorId = "123e4567-e89b-12d3-a456-426614174013";
+    const decision = decideLeadRouting({
+      qualification: {
+        leadId,
+        workspaceId,
+        leadType: "investor",
+        targetArea: "Houston",
+        propertyType: "investment",
+        budgetMin: 250_000,
+        budgetMax: 450_000,
+        timeline: "30 days",
+        financingStatus: "cash",
+        score: 88,
+        sourceOwnerMemberId: null,
+      },
+      agents: [
+        {
+          memberId: investorId,
+          displayName: "Malik J.",
+          roleLabel: "investor and resale specialist",
+          areas: ["Houston"],
+          propertyTypes: ["single_family", "townhome", "investment"],
+          leadTypes: ["investor"],
+          budgetMin: 150_000,
+          budgetMax: 600_000,
+          activeLeadCount: 2,
+          maxActiveLeads: 10,
+          acceptsNewLeads: true,
+          notificationPreference: "app",
+          calendarStatus: "unknown",
+          showingMode: null,
+        },
+      ],
+      escalationMemberId: ademolaId,
+      roundRobinCursorMemberId: null,
+    });
+
+    expect(decision).toMatchObject({
+      status: "assigned",
+      assignedMemberId: investorId,
+      assignedDisplayName: "Malik J.",
+    });
+    expect(decision.reasons).toContain("investment specialist");
+  });
 });

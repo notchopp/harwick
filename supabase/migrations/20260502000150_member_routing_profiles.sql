@@ -45,7 +45,7 @@ create policy "routing managers can delete routing profiles"
 
 comment on table public.member_routing_profiles is 'Agent routing profiles for lead assignment. Each workspace member can have one profile defining their area coverage, property types, lead types, capacity, and preferences.';
 comment on column public.member_routing_profiles.areas is 'Array of area names the agent covers. Routing matches against target_area from leads.';
-comment on column public.member_routing_profiles.property_types is 'Array of property types: single_family, condo, townhome, new_construction, luxury, lease, land.';
+comment on column public.member_routing_profiles.property_types is 'Array of property types/specialties: single_family, condo, townhome, new_construction, luxury, investment, lease, land.';
 comment on column public.member_routing_profiles.lead_types is 'Array of lead types: buyer, seller, renter, investor (not unknown).';
 comment on column public.member_routing_profiles.budget_min is 'Minimum budget the agent handles. Null means no minimum.';
 comment on column public.member_routing_profiles.budget_max is 'Maximum budget the agent handles. Null means no maximum.';
