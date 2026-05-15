@@ -27,6 +27,7 @@ import { useEffect, useState } from "react";
 
 import { HarwickRail } from "./harwick-rail/harwick-rail";
 import { MobileBottomNav, MobileTopBar, usePathname } from "./mobile-nav";
+import { NotificationsPopover } from "./notifications-popover";
 import { Avatar, AvatarFallback } from "./ui/avatar";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
@@ -394,26 +395,25 @@ export function AppShell(props: AppShellProps) {
               <CircleDot aria-hidden="true" className="size-3 text-sage" />
               {memberRole}
             </span>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  asChild
-                  className={cn("harwick-topbar-icon relative size-9 rounded-[10px]", darkTone ? "text-white/58 hover:bg-white/[0.04] hover:text-white" : "text-harwick-ink-soft hover:bg-harwick-linen hover:text-harwick-ink")}
-                  size="icon"
-                  variant="ghost"
-                >
-                  <a href={notificationHref} aria-label={`${notificationCount} pending notifications`}>
-                    <Bell aria-hidden="true" className="size-4" />
-                    {notificationCount > 0 ? (
-                      <span className="absolute right-1 top-1 flex min-w-3.5 items-center justify-center rounded-full bg-oxblood px-1 text-[9px] font-semibold leading-3.5 text-white">
-                        {notificationCount > 9 ? "9+" : notificationCount}
-                      </span>
-                    ) : null}
-                  </a>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Notifications</TooltipContent>
-            </Tooltip>
+            {props.workspaceId === undefined ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    asChild
+                    className={cn("harwick-topbar-icon relative size-9 rounded-[10px]", darkTone ? "text-white/58 hover:bg-white/[0.04] hover:text-white" : "text-harwick-ink-soft hover:bg-harwick-linen hover:text-harwick-ink")}
+                    size="icon"
+                    variant="ghost"
+                  >
+                    <a href={notificationHref} aria-label="Notifications">
+                      <Bell aria-hidden="true" className="size-4" />
+                    </a>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Notifications</TooltipContent>
+              </Tooltip>
+            ) : (
+              <NotificationsPopover workspaceId={props.workspaceId} darkTone={darkTone} />
+            )}
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button className={cn("harwick-topbar-icon size-9 rounded-[10px]", darkTone ? "text-white/58 hover:bg-white/[0.04] hover:text-white" : "text-harwick-ink-soft hover:bg-harwick-linen hover:text-harwick-ink")} size="icon" variant="ghost">
