@@ -30,14 +30,18 @@ const basePolicy: HarwickAiAutomationPolicy = {
 
 describe("home Harwick runtime", () => {
   it("routes the home assistant through the shared Harwick runtime and queues subagents", async () => {
+    // The runtime now does multi-step natively via ai-sdk's stopWhen, so the
+    // outer agentic loop is a single iteration. The test mocks runTurn to
+    // return one consolidated turn — what the model would have produced after
+    // its internal multi-step chain (dispatch_subagent then the final reply).
     const runTurn = vi.fn<(input: HarwickAiRuntimeInput) => Promise<HarwickAiTurn>>()
       .mockResolvedValueOnce({
           intent: "general_follow_up",
           nextAction: "dispatch_subagent",
           missingFields: [],
-          confidence: 0.86,
+          confidence: 0.88,
           safetyFlags: ["safe_to_send"],
-          reply: "I am checking the routing desk in the background now.",
+          reply: "I queued a routing subagent and consolidated the current desk pressure into one brief.",
           statePatch: {
             currentIntent: null,
             leadType: null,
@@ -60,31 +64,6 @@ describe("home Harwick runtime", () => {
               instructions: "Review today's routing pressure and recommend the best owner action.",
             },
           }],
-          selfGateAutoExecute: true,
-          selfGateReason: "internal workspace analysis is allowed.",
-          documentUpdate: "",
-          endTurn: false,
-        } satisfies HarwickAiTurn)
-      .mockResolvedValueOnce({
-          intent: "general_follow_up",
-          nextAction: "send_reply",
-          missingFields: [],
-          confidence: 0.88,
-          safetyFlags: ["safe_to_send"],
-          reply: "I queued a routing subagent and consolidated the current desk pressure into one brief.",
-          statePatch: {
-            currentIntent: null,
-            leadType: null,
-            intent: null,
-            timeline: null,
-            budget: null,
-            targetArea: null,
-            propertyType: null,
-            financingStatus: null,
-            knownFacts: [],
-          },
-          handoffBrief: null,
-          toolCalls: [],
           selfGateAutoExecute: true,
           selfGateReason: "internal workspace analysis is allowed.",
           documentUpdate: "",
@@ -172,7 +151,7 @@ describe("home Harwick runtime", () => {
 
     expect(response.answer).toContain("queued a routing subagent");
     expect(response.toolCalls[0]?.tool).toBe("dispatch_subagent");
-    expect(runTurn).toHaveBeenCalledTimes(2);
+    expect(runTurn).toHaveBeenCalledTimes(1);
     const initialInput = runTurn.mock.calls[0]?.[0];
     expect(initialInput).toBeDefined();
     if (initialInput === undefined) {

@@ -150,83 +150,36 @@ export async function runHarwickAiAgenticLoop(params: {
     previousResults: HarwickAiToolExecutionResult[];
   }) => HarwickAiRuntimeInput;
 }): Promise<AgenticLoopOutcome> {
-  const maxIterations = params.maxIterations ?? 6;
-  const steps: AgenticLoopStep[] = [];
+  // The hand-rolled multi-iteration loop is gone — multi-step now lives inside
+  // runtime.runTurn (ai-sdk's stopWhen: stepCountIs(6) drives it natively).
+  // This function reduces to a single iteration: invoke the runtime, evaluate
+  // automation policy on the proposed tool calls, execute approved ones, and
+  // return a one-step AgenticLoopOutcome shaped exactly as before so existing
+  // callers (executor + trajectory persistence) keep working.
+  const turn = await params.runtime.runTurn(params.initialInput);
 
-  let currentInput = params.initialInput;
-  let currentTurn: HarwickAiTurn | null = null;
-  let exitReason: AgenticLoopOutcome["exitReason"] = "max_iterations";
+  const automation = evaluateHarwickAiAutomation({ turn, policy: params.policy });
+  const results = await executeHarwickAiToolCalls({
+    toolCalls: turn.toolCalls,
+    handlers: params.handlers,
+    approvedTools: automation.approvedTools,
+  });
 
-  for (let iteration = 1; iteration <= maxIterations; iteration += 1) {
-    const turn = await params.runtime.runTurn(currentInput);
-    currentTurn = turn;
-
-    const automation = evaluateHarwickAiAutomation({ turn, policy: params.policy });
-    const results = await executeHarwickAiToolCalls({
-      toolCalls: turn.toolCalls,
-      handlers: params.handlers,
-      approvedTools: automation.approvedTools,
-    });
-
-    steps.push({ iteration, turn, automation, results });
-
-    if (turn.toolCalls.length === 0) {
-      exitReason = "no_tool_calls";
-      break;
-    }
-
-    if (results.some((result) => result.status === "queued_for_approval")) {
-      exitReason = "queued_for_approval";
-      break;
-    }
-
-    if (results.some((result) => result.status === "failed")) {
-      exitReason = "tool_failed";
-      break;
-    }
-
-    if (turn.endTurn) {
-      exitReason = "model_end_turn";
-      break;
-    }
-
-    // Continue the loop: hand the model the previous results and let it
-    // pick the next step. If the caller didn't supply a follow-up builder,
-    // we synthesize one that appends the previous turn's reply + tool
-    // results into the conversation history.
-    if (params.buildFollowupInput !== undefined) {
-      currentInput = params.buildFollowupInput({
-        previousInput: currentInput,
-        previousTurn: turn,
-        previousResults: results,
-      });
-    } else {
-      const summary = results
-        .map((result) => `[${result.tool} ${result.status}] ${result.reason}`)
-        .join("\n");
-      currentInput = {
-        ...currentInput,
-        conversation: [
-          ...(currentInput.conversation ?? []),
-          {
-            id: `tool-step-${iteration}`,
-            actor: "system" as const,
-            body: `Tool results from previous step:\n${summary}`,
-            occurredAt: new Date().toISOString(),
-          },
-        ],
-        inboundText: `[continuation of agentic step ${iteration}] respond based on tool results above.`,
-      };
-    }
-  }
-
-  if (currentTurn === null) {
-    throw new Error("Agentic loop produced no turns; this should not happen.");
+  const step: AgenticLoopStep = { iteration: 1, turn, automation, results };
+  let exitReason: AgenticLoopOutcome["exitReason"];
+  if (results.some((result) => result.status === "failed")) {
+    exitReason = "tool_failed";
+  } else if (results.some((result) => result.status === "queued_for_approval")) {
+    exitReason = "queued_for_approval";
+  } else if (turn.toolCalls.length === 0) {
+    exitReason = "no_tool_calls";
+  } else {
+    exitReason = "model_end_turn";
   }
 
   return {
-    steps,
-    finalTurn: currentTurn,
+    steps: [step],
+    finalTurn: turn,
     exitReason,
   };
 }
