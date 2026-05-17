@@ -118,7 +118,7 @@ export async function routeLeadWithHarwick(params: {
   auditRepository: LeadRoutingAuditWriter;
   auditSource?: LeadRoutingAuditSource;
 }): Promise<RouteLeadActionResult> {
-  RouteLeadRequestSchema.parse(params.input);
+  const parsedInput = RouteLeadRequestSchema.parse(params.input);
 
   if (!canRouteLead(params.viewer)) {
     return { status: "forbidden" };
@@ -160,6 +160,79 @@ export async function routeLeadWithHarwick(params: {
       showingMode: calendarSignals[profile.member_id]?.showingMode ?? null,
     })];
   });
+
+  // Manual mode: the operator picked a specific agent in the assign sheet.
+  // Skip the routing algorithm and produce an "assigned" decision pointed at
+  // the chosen member. The agent must still exist in this workspace's
+  // routing profiles so we don't write an assignment we can't ship from.
+  if (parsedInput.mode === "manual" && parsedInput.manualMemberId !== undefined) {
+    const manualAgent = agentProfiles.find((agent) => agent.memberId === parsedInput.manualMemberId);
+    if (manualAgent === undefined) {
+      return {
+        status: "no_assignment",
+        response: {
+          leadId: lead.id,
+          status: "unrouted",
+          assignedMemberId: null,
+          assignedDisplayName: null,
+          reasons: ["Selected member has no routing profile in this workspace."],
+          routingDecisionId: null,
+        },
+      };
+    }
+    const manualDecision = {
+      status: "assigned" as const,
+      assignedMemberId: manualAgent.memberId,
+      assignedDisplayName: manualAgent.displayName,
+      sourceOwnerMemberId,
+      escalationMemberId: findEscalationMember(members),
+      matchScore: 100,
+      taskLabel: "manual_assignment",
+      reasons: [parsedInput.manualReason ?? `Manual assignment by ${params.viewer.role}.`],
+    };
+
+    const routingDecisionId = await insertRoutingDecision({
+      repository: params.repository,
+      workspaceId: params.workspaceId,
+      lead,
+      decision: manualDecision,
+      viewer: params.viewer,
+      auditSource,
+    });
+
+    const updatedLead = await params.repository.updateLeadAssignment({
+      workspaceId: params.workspaceId,
+      leadId: lead.id,
+      assignedMemberId: manualAgent.memberId,
+    });
+
+    await params.auditRepository.insertAuditLog({
+      workspaceId: params.workspaceId,
+      userId: null,
+      actorType: "user",
+      action: lead.assigned_agent_id === null ? "lead.assigned" : "lead.reassigned",
+      resourceType: "lead",
+      resourceId: lead.id,
+      metadata: {
+        mode: "manual",
+        routingDecisionId,
+        previousAssignedMemberId: lead.assigned_agent_id,
+        assignedMemberId: manualAgent.memberId,
+        reasons: manualDecision.reasons,
+        source: auditSource,
+        approverMemberId: params.viewer.memberId,
+        manualReason: parsedInput.manualReason ?? null,
+      },
+    });
+
+    return {
+      status: "routed",
+      response: {
+        ...responseFromDecision({ leadId: updatedLead.id, decision: manualDecision, routingDecisionId }),
+        leadId: updatedLead.id,
+      },
+    };
+  }
 
   const decision = decideLeadRouting({
     qualification: {

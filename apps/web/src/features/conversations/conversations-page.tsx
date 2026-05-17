@@ -65,6 +65,96 @@ function composerContextLabel(thread: ConversationInboxThread): string {
     : `Replying via ${thread.sourceLabel} ${thread.channelLabel}`;
 }
 
+/**
+ * Meta's messaging policy: replies to Instagram/Messenger DMs are free-form for
+ * 24h after the lead's last inbound message. From 24h to 7d, replies must carry
+ * the `human_agent` message tag (and only one such reply per conversation).
+ * Beyond 7d, no programmatic outreach until the lead messages again.
+ *
+ * This is the operator-visible state of that policy — the timer renders above
+ * the composer so it's obvious which window we're in before they hit send.
+ */
+type MessagingWindowState =
+  | { kind: "fresh"; remainingMs: number }
+  | { kind: "human_agent"; remainingMs: number }
+  | { kind: "expired" }
+  | { kind: "no_inbound" }
+  | { kind: "not_applicable" };
+
+const FRESH_WINDOW_MS = 24 * 60 * 60 * 1000;
+const HUMAN_AGENT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+function computeMessagingWindow(thread: ConversationInboxThread, nowMs: number): MessagingWindowState {
+  if (thread.source !== "instagram" && thread.source !== "facebook") {
+    return { kind: "not_applicable" };
+  }
+  const lastInbound = [...thread.messages]
+    .reverse()
+    .find((message) => message.kind === "lead");
+  if (lastInbound === undefined) {
+    return { kind: "no_inbound" };
+  }
+  const elapsed = nowMs - new Date(lastInbound.occurredAt).getTime();
+  if (elapsed < 0 || elapsed < FRESH_WINDOW_MS) {
+    return { kind: "fresh", remainingMs: Math.max(0, FRESH_WINDOW_MS - Math.max(0, elapsed)) };
+  }
+  if (elapsed < HUMAN_AGENT_WINDOW_MS) {
+    return { kind: "human_agent", remainingMs: HUMAN_AGENT_WINDOW_MS - elapsed };
+  }
+  return { kind: "expired" };
+}
+
+function formatRemaining(ms: number): string {
+  const totalMinutes = Math.max(0, Math.round(ms / 60_000));
+  if (totalMinutes < 60) return `${totalMinutes}m left`;
+  const hours = Math.round(totalMinutes / 60);
+  if (hours < 24) return `${hours}h left`;
+  const days = Math.round(hours / 24);
+  return `${days}d left`;
+}
+
+function MessagingWindowIndicator({ thread, nowMs }: { thread: ConversationInboxThread; nowMs: number }) {
+  const state = computeMessagingWindow(thread, nowMs);
+  if (state.kind === "not_applicable") return null;
+  const base = "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-[0.08em]";
+  if (state.kind === "fresh") {
+    return (
+      <span className={`${base} border-[var(--sage)]/35 bg-[var(--sage-soft)] text-[var(--sage)]`}>
+        <span className="size-1.5 rounded-full bg-[var(--sage)]" aria-hidden="true" />
+        24h window · {formatRemaining(state.remainingMs)}
+      </span>
+    );
+  }
+  if (state.kind === "human_agent") {
+    return (
+      <span
+        className={`${base} border-[var(--clay)]/35 bg-[var(--clay-soft)] text-[var(--clay)]`}
+        title="Outside the 24h window. Reply will use Meta's human_agent tag (7-day extension, one reply allowed)."
+      >
+        <span className="size-1.5 rounded-full bg-[var(--clay)]" aria-hidden="true" />
+        human_agent tag · {formatRemaining(state.remainingMs)}
+      </span>
+    );
+  }
+  if (state.kind === "expired") {
+    return (
+      <span
+        className={`${base} border-[var(--oxblood)]/35 bg-[var(--oxblood-soft)] text-[var(--oxblood)]`}
+        title="The 7-day human-agent window has elapsed. Meta blocks unsolicited replies until the lead messages again."
+      >
+        <span className="size-1.5 rounded-full bg-[var(--oxblood)]" aria-hidden="true" />
+        outside reply window
+      </span>
+    );
+  }
+  // no_inbound — lead hasn't messaged yet; nothing to time off of
+  return (
+    <span className={`${base} border-white/[0.08] bg-white/[0.025] text-white/56`}>
+      no inbound yet
+    </span>
+  );
+}
+
 function applyLocalDraft(thread: ConversationInboxThread, draft: string): ConversationInboxThread {
   const nextMessages = [
     ...thread.messages.filter((message) => message.kind !== "ai_action"),
@@ -423,6 +513,11 @@ export function ConversationsPageContent(props: {
   const [actionBusy, setActionBusy] = useState(false);
   const [actionStatus, setActionStatus] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ConversationViewMode>("transcript");
+  const [composerNowMs, setComposerNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setComposerNowMs(Date.now()), 60_000);
+    return () => window.clearInterval(id);
+  }, []);
 
   function replaceConversationQuery(thread: ConversationInboxThread | null) {
     const params = new URLSearchParams(searchParams.toString());
@@ -1102,7 +1197,10 @@ export function ConversationsPageContent(props: {
                 style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
               >
                 <div className="mb-2 flex items-center justify-between gap-2 text-[11px] text-white/56">
-                  <span className="min-w-0 truncate">{composerContextLabel(selectedThread)}</span>
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="min-w-0 truncate">{composerContextLabel(selectedThread)}</span>
+                    <MessagingWindowIndicator thread={selectedThread} nowMs={composerNowMs} />
+                  </div>
                   <button
                     className="inline-flex shrink-0 items-center gap-1 rounded-[9px] border border-[color:var(--graphite-line)] bg-[var(--graphite-text)] px-2.5 py-1 text-[11px] font-semibold text-[var(--graphite-0)] shadow-[var(--shadow-elev-1)] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
                     disabled={actionBusy}

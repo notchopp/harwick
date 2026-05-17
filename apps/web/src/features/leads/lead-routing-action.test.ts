@@ -17,6 +17,7 @@ const baseLead: LeadRoutingActionLeadRow = {
   workspace_id: workspaceId,
   status: "hot",
   assigned_agent_id: null,
+  full_name: "Test Lead",
   lead_type: "buyer",
   intent: "high",
   timeline: "60 days",

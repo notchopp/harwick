@@ -13,6 +13,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppShell } from "../../components/app-shell";
 import { cn } from "../../lib/utils";
 import { EmptyQueueState, QueueRow, type QueueRowAction } from "./queue-row";
+import { RoutingAssignSheet } from "./routing-assign-sheet";
 
 type QueuePageProps = {
   workspaceId: string;
@@ -196,6 +197,7 @@ export function QueuePage(props: QueuePageProps) {
   const [busyRow, setBusyRow] = useState<{ id: string; action: QueueRowAction } | null>(null);
   const [showCleared, setShowCleared] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const [assignTarget, setAssignTarget] = useState<{ leadId: string; leadName: string } | null>(null);
 
   const lens = roleLensFor(props.operatorRole);
   const enabled = props.operatorRole !== "viewer";
@@ -450,6 +452,16 @@ export function QueuePage(props: QueuePageProps) {
                             window.location.href = item.href;
                           }
                         }}
+                        {...(item.kind === "routing" && item.leadId !== null
+                          ? {
+                              onAssignRouting: () => {
+                                setAssignTarget({
+                                  leadId: item.leadId as string,
+                                  leadName: item.title.replace(/^Route\s+/i, "").replace(/\s+to.*$/i, "") || "this lead",
+                                });
+                              },
+                            }
+                          : {})}
                       />
                     ))}
                   </div>
@@ -479,6 +491,21 @@ export function QueuePage(props: QueuePageProps) {
           </div>
         </details>
       </main>
+      {assignTarget !== null ? (
+        <RoutingAssignSheet
+          open={assignTarget !== null}
+          onOpenChange={(open) => {
+            if (!open) setAssignTarget(null);
+          }}
+          workspaceId={props.workspaceId}
+          leadId={assignTarget.leadId}
+          leadName={assignTarget.leadName}
+          onAssigned={() => {
+            void fetchQueue();
+            setActionStatus("Lead routed.");
+          }}
+        />
+      ) : null}
     </AppShell>
   );
 }

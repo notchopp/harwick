@@ -20,6 +20,7 @@ function createLoop(overrides: Partial<HarwickLoop> = {}): HarwickLoop {
     id: loopId,
     workspaceId,
     createdByMemberId: memberId,
+    ownerMemberId: null,
     name: "Monday market pulse",
     instruction: "Every Monday, review workspace memories and surface the highest-signal market update.",
     triggerType: "schedule",

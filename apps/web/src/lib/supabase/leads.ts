@@ -87,6 +87,7 @@ export type LeadRoutingActionLeadRow = Pick<
   | "workspace_id"
   | "status"
   | "assigned_agent_id"
+  | "full_name"
   | "lead_type"
   | "intent"
   | "timeline"
@@ -418,7 +419,7 @@ export function createSupabaseLeadRoutingActionRepository(
     async findLeadForRoutingAction(params) {
       const { data, error } = await supabase
         .from("leads")
-        .select("id, workspace_id, status, assigned_agent_id, lead_type, intent, timeline, budget_min, budget_max, target_area, financing_status, score")
+        .select("id, workspace_id, status, assigned_agent_id, full_name, lead_type, intent, timeline, budget_min, budget_max, target_area, financing_status, score")
         .eq("workspace_id", params.workspaceId)
         .eq("id", params.leadId)
         .maybeSingle<LeadRoutingActionLeadRow>();

@@ -457,9 +457,20 @@ export function createSupabaseLeadEventRepository(
         return [];
       }
 
+      // Webhook idempotency: lead_events has a UNIQUE INDEX on
+      // (workspace_id, provider, provider_event_id). The provider_event_id is
+      // the Meta message `mid` for DMs or the comment `id` for comment events
+      // — i.e. the natural deduplication key. We pre-check via
+      // findExistingLeadEventIdentities above, but in the rare case where two
+      // concurrent webhook deliveries both pass the pre-check, the DB
+      // constraint protects us. We use upsert with ignoreDuplicates so the
+      // race is silently absorbed rather than thrown.
       const { data, error } = await supabase
         .from("lead_events")
-        .insert(rows)
+        .upsert(rows, {
+          onConflict: "workspace_id,provider,provider_event_id",
+          ignoreDuplicates: true,
+        })
         .select("id, workspace_id, provider, provider_event_id, lead_id")
         .returns<LeadEventInsertedRow[]>();
 

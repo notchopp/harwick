@@ -31,6 +31,7 @@ describe("harwick loop settings helpers", () => {
         outputMode: "agent_loop",
         toolAllowlist: ["dispatch_subagent", "workspace_memory.search"],
         nextRunAt: null,
+        ownerMemberId: null,
       },
     });
   });
@@ -78,6 +79,7 @@ describe("harwick loop settings helpers", () => {
         outputMode: "draft",
         toolAllowlist: ["dispatch_subagent"],
         nextRunAt: null,
+        ownerMemberId: null,
       },
     });
   });

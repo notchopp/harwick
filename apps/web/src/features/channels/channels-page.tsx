@@ -1,12 +1,64 @@
 "use client";
 
 import type { HarwickChannel, HarwickChannelMessage, WorkspaceRole } from "@realty-ops/core";
-import { Hash, Lock, MessageSquarePlus, Send, Sparkles, Users, X } from "lucide-react";
+import { Hash, Lock, MessageSquarePlus, Send, Users, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { HarwickMark } from "../../components/harwick-rail/harwick-mark";
+import { ToolResultCard } from "../../components/harwick-rail/harwick-chat";
 import { cn } from "../../lib/utils";
 import { useChannels } from "./use-channels";
 import { useChannelMessages } from "./use-channel-messages";
+
+const HARWICK_THINKING_TIMEOUT_MS = 90_000;
+
+type HarwickCard = { toolName: string; output: unknown };
+
+function HarwickThinkingBubble() {
+  return (
+    <div className="flex w-full gap-2 justify-start">
+      <HarwickMark size={28} tone="default" className="shrink-0" />
+      <div className="flex max-w-[78%] min-w-0 flex-col gap-1.5 items-start">
+        <div className="rounded-[12px] rounded-tl-[4px] border border-[var(--sage)]/30 bg-[var(--sage-soft)] px-3 py-2.5 text-white shadow-[0_1px_2px_rgba(0,0,0,0.18)]">
+          <div className="mb-1 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-[var(--sage)]">
+            Harwick <span className="ml-1 font-normal normal-case opacity-60">thinking…</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="size-1.5 rounded-full bg-white/72 animate-[harwick-think_1.2s_ease-in-out_infinite]" />
+            <span className="size-1.5 rounded-full bg-white/72 animate-[harwick-think_1.2s_ease-in-out_0.15s_infinite]" />
+            <span className="size-1.5 rounded-full bg-white/72 animate-[harwick-think_1.2s_ease-in-out_0.3s_infinite]" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function shouldShowHarwickThinking(messages: HarwickChannelMessage[], nowMs: number): boolean {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i];
+    if (msg === undefined) continue;
+    if (msg.authorKind === "harwick") return false;
+    if (msg.authorKind === "member" && msg.mentionsHarwick) {
+      // Negative age happens when the server timestamp is microseconds ahead of
+      // the client clock; treat it as "just posted" not "ignore".
+      const age = Math.max(0, nowMs - new Date(msg.createdAt).getTime());
+      return age < HARWICK_THINKING_TIMEOUT_MS;
+    }
+  }
+  return false;
+}
+
+function extractHarwickCards(metadata: HarwickChannelMessage["metadata"]): HarwickCard[] {
+  const raw = (metadata as { cards?: unknown }).cards;
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((entry) => {
+    if (entry === null || typeof entry !== "object") return [];
+    const obj = entry as { toolName?: unknown; output?: unknown };
+    if (typeof obj.toolName !== "string") return [];
+    return [{ toolName: obj.toolName, output: obj.output }];
+  });
+}
 
 type Props = {
   workspaceId: string;
@@ -224,33 +276,44 @@ function MessageBubble({ message, currentMemberId, memberNames }: {
 
   const authorLabel = isHarwick ? "Harwick" : memberNames.get(message.authorMemberId ?? "") ?? "Member";
   const time = new Date(message.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  const cards = isHarwick ? extractHarwickCards(message.metadata) : [];
 
   return (
     <div className={cn("flex w-full gap-2", isMe ? "justify-end" : "justify-start")}>
       {!isMe ? (
-        <div className={cn(
-          "flex size-7 shrink-0 items-center justify-center rounded-full text-[10.5px] font-semibold",
-          isHarwick ? "bg-gradient-to-br from-[var(--sage)] to-[var(--sage-soft)] text-[#0f1c12]" : "bg-white/[0.06] text-white/82",
-        )}>
-          {isHarwick ? <Sparkles className="size-3" aria-hidden="true" /> : authorLabel.slice(0, 2).toUpperCase()}
-        </div>
-      ) : null}
-      <div className={cn(
-        "max-w-[72%] rounded-[12px] px-3 py-2 text-[13px] leading-5 whitespace-pre-wrap break-words shadow-[0_1px_2px_rgba(0,0,0,0.18)]",
-        isMe
-          ? "bg-white text-[#0f1011] rounded-tr-[4px]"
-          : isHarwick
-            ? "bg-[var(--sage-soft)] text-white border border-[var(--sage)]/30 rounded-tl-[4px]"
-            : "bg-white/[0.05] text-white border border-white/[0.06] rounded-tl-[4px]",
-      )}>
-        {!isMe ? (
-          <div className={cn("mb-0.5 text-[10.5px] font-semibold uppercase tracking-[0.08em]", isHarwick ? "text-[var(--sage)]" : "text-white/64")}>
-            {authorLabel} <span className="ml-1 font-normal normal-case opacity-60">{time}</span>
+        isHarwick ? (
+          <HarwickMark size={28} tone="default" className="shrink-0" />
+        ) : (
+          <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-white/[0.06] text-[10.5px] font-semibold text-white/82">
+            {authorLabel.slice(0, 2).toUpperCase()}
           </div>
-        ) : null}
-        <p>{message.body}</p>
-        {isMe ? (
-          <div className="mt-0.5 text-right text-[9.5px] font-normal opacity-60">{time}</div>
+        )
+      ) : null}
+      <div className={cn("flex min-w-0 flex-col gap-1.5", isHarwick ? "max-w-[78%]" : "max-w-[72%]", isMe ? "items-end" : "items-start")}>
+        <div className={cn(
+          "rounded-[12px] px-3 py-2 text-[13px] leading-5 whitespace-pre-wrap break-words shadow-[0_1px_2px_rgba(0,0,0,0.18)]",
+          isMe
+            ? "bg-white text-[#0f1011] rounded-tr-[4px]"
+            : isHarwick
+              ? "bg-[var(--sage-soft)] text-white border border-[var(--sage)]/30 rounded-tl-[4px]"
+              : "bg-white/[0.05] text-white border border-white/[0.06] rounded-tl-[4px]",
+        )}>
+          {!isMe ? (
+            <div className={cn("mb-0.5 text-[10.5px] font-semibold uppercase tracking-[0.08em]", isHarwick ? "text-[var(--sage)]" : "text-white/64")}>
+              {authorLabel} <span className="ml-1 font-normal normal-case opacity-60">{time}</span>
+            </div>
+          ) : null}
+          <p>{message.body}</p>
+          {isMe ? (
+            <div className="mt-0.5 text-right text-[9.5px] font-normal opacity-60">{time}</div>
+          ) : null}
+        </div>
+        {cards.length > 0 ? (
+          <div className="w-full space-y-2">
+            {cards.map((card, index) => (
+              <ToolResultCard key={`${card.toolName}-${index}`} toolName={card.toolName} output={card.output} />
+            ))}
+          </div>
         ) : null}
       </div>
     </div>
@@ -297,11 +360,28 @@ export function ChannelsPage(props: Props) {
   );
 
   const messages = useChannelMessages(props.workspaceId, activeChannel === null ? null : activeChannel.id);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const showThinking = shouldShowHarwickThinking(messages.messages, nowMs);
+
+  // Refresh the clock whenever the message list changes so a freshly-posted
+  // @harwick message is evaluated against current time, not the mount time.
+  // Without this the indicator stays hidden on stale pages until a hard refresh.
+  useEffect(() => {
+    setNowMs(Date.now());
+  }, [messages.messages.length]);
+
+  // Tick while Harwick may be working so the indicator auto-clears at timeout.
+  // No interval at all when there's nothing to wait on.
+  useEffect(() => {
+    if (!showThinking) return;
+    const id = window.setInterval(() => setNowMs(Date.now()), 5_000);
+    return () => window.clearInterval(id);
+  }, [showThinking]);
 
   useEffect(() => {
     if (messagesEndRef.current === null) return;
     messagesEndRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [messages.messages.length]);
+  }, [messages.messages.length, showThinking]);
 
   return (
     <div className="flex h-[calc(100vh-72px)] min-h-0 overflow-hidden rounded-[var(--panel-radius-lg)] border border-[color:var(--panel-line)] bg-[color:var(--panel-1)]">
@@ -394,6 +474,7 @@ export function ChannelsPage(props: Props) {
                       memberNames={memberNames}
                     />
                   ))}
+                  {showThinking ? <HarwickThinkingBubble /> : null}
                   <div ref={messagesEndRef} />
                 </div>
               )}

@@ -14,6 +14,7 @@ export function createSupabaseRoutingDeskRepository(
         .from("leads")
         .select("*")
         .eq("workspace_id", params.workspaceId)
+        .is("assigned_agent_id", null)
         .neq("status", "archived")
         .neq("status", "closed_lost")
         .neq("status", "closed_won")

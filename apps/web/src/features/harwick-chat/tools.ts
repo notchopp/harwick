@@ -727,16 +727,17 @@ export function buildHarwickChatTools(deps: ToolDeps) {
     }),
 
     create_scheduled_loop: tool({
-      description: "Create a recurring Harwick loop from a plain-English operator request. Use when the operator asks Harwick to do something on a cadence, like daily news, weekly queue review, recurring lead audit, or ongoing market research. This persists a real loop and future runs use the cost-effective loop planner/subagent path before surfacing reviewable work.",
+      description: "Create a recurring Harwick loop from a plain-English operator request. Use when the operator asks Harwick to do something on a cadence, like daily news, weekly queue review, recurring lead audit, or ongoing market research. This persists a real loop and future runs use the cost-effective loop planner/subagent path before surfacing reviewable work. Pick `scope`: 'personal' when the operator asks for something scoped to *them* ('my leads', 'me'), 'workspace' when it's for the whole team.",
       inputSchema: z.object({
         name: z.string().min(1).max(120).describe("Short name for the recurring loop."),
         instruction: z.string().min(1).max(4000).describe("The full recurring job Harwick should perform."),
         scheduleSpec: z.string().min(1).max(240).describe("Plain-English cadence, for example 'every day 9am', 'daily 8am', or 'every Monday 9am'."),
+        scope: z.enum(["personal", "workspace"]).default("workspace").describe("'personal' — only visible to the operator; 'workspace' — visible to the whole team. Default workspace."),
         outputMode: z.enum(["work_item", "draft", "agent_loop"]).default("agent_loop"),
         approvalMode: z.enum(["suggest_only", "approval_required", "auto_execute"]).default("approval_required"),
         toolAllowlist: z.array(z.string().min(1).max(80)).max(30).default(["dispatch_subagent"]),
       }),
-      async execute({ name, instruction, scheduleSpec, outputMode, approvalMode, toolAllowlist }) {
+      async execute({ name, instruction, scheduleSpec, scope, outputMode, approvalMode, toolAllowlist }) {
         if (!canCreateLoops(deps.operatorRole)) {
           return {
             kind: "harwick_loop",
@@ -749,6 +750,7 @@ export function buildHarwickChatTools(deps: ToolDeps) {
         const parsed = HarwickLoopCreateSchema.safeParse({
           workspaceId: deps.workspaceId,
           createdByMemberId: deps.operatorMemberId,
+          ownerMemberId: scope === "personal" ? deps.operatorMemberId : null,
           name,
           instruction,
           triggerType: "schedule",
@@ -782,6 +784,8 @@ export function buildHarwickChatTools(deps: ToolDeps) {
           outputMode: loop.outputMode,
           approvalMode: loop.approvalMode,
           toolAllowlist: loop.toolAllowlist,
+          scope: loop.ownerMemberId === null ? "workspace" : "personal",
+          ownerName: loop.ownerMemberId === null ? null : deps.operatorName,
         };
       },
     }),

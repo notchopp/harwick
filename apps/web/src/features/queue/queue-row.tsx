@@ -76,7 +76,7 @@ function ActionButton(props: {
   busy?: boolean;
   icon?: ReactNode;
 }) {
-  const base = "inline-flex items-center gap-1 rounded-[7px] px-2 py-1 text-[11px] font-semibold transition disabled:cursor-not-allowed disabled:opacity-50";
+  const base = "inline-flex h-7 items-center justify-center gap-1 rounded-[7px] px-2.5 text-[11.5px] font-semibold transition disabled:cursor-not-allowed disabled:opacity-50";
   const variants = {
     primary: "border border-[var(--sage)]/40 bg-[var(--sage-soft)] text-[var(--sage)] hover:bg-[var(--sage-soft)]/80 hover:border-[var(--sage)]/60",
     ghost: "border border-white/[0.08] bg-white/[0.025] text-white/68 hover:border-white/[0.16] hover:bg-white/[0.05] hover:text-white",
@@ -105,6 +105,7 @@ export function QueueRow(props: {
   busyAction: QueueRowAction | null;
   onAction: (action: QueueRowAction) => void;
   onOpenDetail?: () => void;
+  onAssignRouting?: () => void;
 }) {
   const meta = KIND_META[props.item.kind];
   const Icon = meta.icon;
@@ -183,7 +184,7 @@ export function QueueRow(props: {
               <a
                 href={props.item.href}
                 onClick={(event) => event.stopPropagation()}
-                className="ml-auto inline-flex items-center gap-1 rounded-[7px] px-2 py-1 text-[11px] font-medium text-white/48 transition hover:text-white"
+                className="ml-auto inline-flex h-7 items-center justify-center gap-1 rounded-[7px] px-2.5 text-[11.5px] font-medium text-white/48 transition hover:text-white"
               >
                 {props.item.actionLabel}
                 <ArrowUpRight className="size-3" aria-hidden="true" />
@@ -191,14 +192,28 @@ export function QueueRow(props: {
             </>
           ) : (
             <>
-              <a
-                href={props.item.href}
-                onClick={(event) => event.stopPropagation()}
-                className="inline-flex items-center gap-1 rounded-[7px] border border-[var(--sage)]/35 bg-[var(--sage-soft)] px-2 py-1 text-[11px] font-semibold text-[var(--sage)] transition hover:bg-[var(--sage-soft)]/80"
-              >
-                {props.item.actionLabel}
-                <ArrowUpRight className="size-3" aria-hidden="true" />
-              </a>
+              {props.item.kind === "routing" && props.item.leadId !== null && props.onAssignRouting !== undefined ? (
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    props.onAssignRouting?.();
+                  }}
+                  className="inline-flex h-7 items-center justify-center gap-1 rounded-[7px] border border-[var(--sage)]/35 bg-[var(--sage-soft)] px-2.5 text-[11.5px] font-semibold text-[var(--sage)] transition hover:bg-[var(--sage-soft)]/80"
+                >
+                  Assign agent
+                  <ArrowUpRight className="size-3" aria-hidden="true" />
+                </button>
+              ) : (
+                <a
+                  href={props.item.href}
+                  onClick={(event) => event.stopPropagation()}
+                  className="inline-flex h-7 items-center justify-center gap-1 rounded-[7px] border border-[var(--sage)]/35 bg-[var(--sage-soft)] px-2.5 text-[11.5px] font-semibold text-[var(--sage)] transition hover:bg-[var(--sage-soft)]/80"
+                >
+                  {props.item.actionLabel}
+                  <ArrowUpRight className="size-3" aria-hidden="true" />
+                </a>
+              )}
               {props.item.reason === null ? null : (
                 <span className="text-[10.5px] text-white/40 line-clamp-1">
                   {props.item.reason}

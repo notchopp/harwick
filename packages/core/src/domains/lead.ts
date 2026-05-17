@@ -118,7 +118,9 @@ export const UpdateLeadQualificationResponseSchema = z.object({
 });
 
 export const RouteLeadRequestSchema = z.object({
-  mode: z.literal("auto").default("auto"),
+  mode: z.enum(["auto", "manual"]).default("auto"),
+  manualMemberId: UuidSchema.optional(),
+  manualReason: z.string().trim().min(1).max(400).optional(),
 });
 
 export const RouteLeadResponseSchema = z.object({

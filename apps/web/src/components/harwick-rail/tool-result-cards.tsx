@@ -15,9 +15,12 @@ import {
   MapPin,
   MessageSquareReply,
   Notebook,
+  Repeat,
   Send,
   Sparkles,
   Tag,
+  User,
+  Users2,
 } from "lucide-react";
 import type { ReactNode } from "react";
 
@@ -367,6 +370,58 @@ function DelegatedTaskCard({ output }: { output: ToolOutput }) {
   );
 }
 
+function HarwickLoopCard({ output }: { output: ToolOutput }) {
+  const created = asBool(output["created"]);
+  if (!created) {
+    return (
+      <Card
+        icon={<Repeat className="size-3.5" aria-hidden="true" />}
+        title="Could not create loop"
+        subtitle={asString(output["error"])}
+        tone="alert"
+      />
+    );
+  }
+  const name = asString(output["name"]) ?? "Recurring loop";
+  const schedule = asString(output["scheduleSpec"]) ?? "scheduled";
+  const scope = asString(output["scope"]); // "personal" | "workspace"
+  const ownerName = asString(output["ownerName"]);
+  const approval = asString(output["approvalMode"]); // suggest_only|approval_required|auto_execute
+  const nextRunIso = asString(output["nextRunAt"]);
+  const nextRunLabel = nextRunIso === null
+    ? null
+    : new Date(nextRunIso).toLocaleString([], { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  const instruction = asString(output["instruction"]);
+
+  const scopeBadge = scope === "personal"
+    ? <span className="inline-flex items-center gap-1 rounded-full border border-[var(--sage)]/35 bg-[var(--sage-soft)] px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-[0.08em] text-[var(--sage)]"><User className="size-2.5" aria-hidden="true" />{ownerName === null ? "personal" : `${ownerName.split(/\s+/)[0]} only`}</span>
+    : <span className="inline-flex items-center gap-1 rounded-full border border-white/[0.08] bg-white/[0.04] px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-[0.08em] text-white/68"><Users2 className="size-2.5" aria-hidden="true" />workspace</span>;
+
+  const approvalLabel = approval === "auto_execute" ? "auto" : approval === "approval_required" ? "needs approval" : "suggest only";
+  const approvalTone = approval === "auto_execute"
+    ? "border-[var(--sage)]/30 bg-[var(--sage-soft)] text-[var(--sage)]"
+    : approval === "approval_required"
+      ? "border-[var(--clay)]/35 bg-[var(--clay-soft)] text-[var(--clay)]"
+      : "border-white/[0.08] bg-white/[0.04] text-white/68";
+
+  return (
+    <Card
+      icon={<Repeat className="size-3.5" aria-hidden="true" />}
+      title={name}
+      subtitle={`${schedule}${nextRunLabel === null ? "" : ` · next ${nextRunLabel}`}`}
+      tone="good"
+    >
+      <div className="flex flex-wrap items-center gap-1.5">
+        {scopeBadge}
+        <span className={cn("inline-flex items-center rounded-full border px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-[0.08em]", approvalTone)}>{approvalLabel}</span>
+      </div>
+      {instruction === null ? null : (
+        <p className="mt-1.5 line-clamp-3 text-[10.5px] leading-4 text-white/56">{instruction}</p>
+      )}
+    </Card>
+  );
+}
+
 function ChannelCard({ output }: { output: ToolOutput }) {
   const created = asBool(output["created"]);
   return (
@@ -447,6 +502,8 @@ export function tryRenderSmartCard(output: unknown): ReactNode | null {
       return <WorkspaceQueryCard output={obj} />;
     case "delegated_task":
       return <DelegatedTaskCard output={obj} />;
+    case "harwick_loop":
+      return <HarwickLoopCard output={obj} />;
     case "channel_card":
       return <ChannelCard output={obj} />;
     case "channel_message":

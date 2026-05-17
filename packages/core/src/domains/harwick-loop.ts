@@ -39,6 +39,7 @@ function validateLoopTrigger(
 const HarwickLoopBaseFieldsSchema = z.object({
   workspaceId: UuidSchema,
   createdByMemberId: UuidSchema.nullable(),
+  ownerMemberId: UuidSchema.nullable().default(null),
   name: z.string().trim().min(1).max(120),
   instruction: z.string().trim().min(1).max(4000),
   triggerType: HarwickLoopTriggerTypeSchema,
@@ -72,6 +73,7 @@ export const HarwickLoopCreateSchema = HarwickLoopBaseFieldsSchema.extend({
 export const HarwickLoopCreateRequestSchema = z.object({
   name: z.string().trim().min(1).max(120),
   instruction: z.string().trim().min(1).max(4000),
+  ownerMemberId: UuidSchema.nullable().default(null),
   triggerType: HarwickLoopTriggerTypeSchema.default("schedule"),
   scheduleSpec: z.string().trim().min(1).max(240).nullable().default(null),
   eventType: z.string().trim().min(1).max(120).nullable().default(null),

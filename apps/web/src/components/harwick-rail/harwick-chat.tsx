@@ -252,7 +252,7 @@ function SubagentTaskCard({ task }: { task: SubagentTaskResult }) {
   );
 }
 
-function ToolResultCard({ toolName, output }: { toolName: string; output: unknown }) {
+export function ToolResultCard({ toolName, output }: { toolName: string; output: unknown }) {
   // New smart-tool kinds first — memory, semantic search, calendar, pipeline
   // mutations, briefings, query_workspace, delegate_complex_task, etc.
   const smartCard = tryRenderSmartCard(output);

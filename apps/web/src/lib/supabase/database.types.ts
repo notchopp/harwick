@@ -1327,6 +1327,7 @@ export type Database = {
           name: string
           next_run_at: string | null
           output_mode: string
+          owner_member_id: string | null
           schedule_spec: string | null
           status: string
           tool_allowlist: string[]
@@ -1346,6 +1347,7 @@ export type Database = {
           name: string
           next_run_at?: string | null
           output_mode?: string
+          owner_member_id?: string | null
           schedule_spec?: string | null
           status?: string
           tool_allowlist?: string[]
@@ -1365,6 +1367,7 @@ export type Database = {
           name?: string
           next_run_at?: string | null
           output_mode?: string
+          owner_member_id?: string | null
           schedule_spec?: string | null
           status?: string
           tool_allowlist?: string[]

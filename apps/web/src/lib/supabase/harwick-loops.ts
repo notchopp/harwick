@@ -19,6 +19,7 @@ type HarwickLoopDbRow = {
   id: string;
   workspace_id: string;
   created_by_member_id: string | null;
+  owner_member_id: string | null;
   name: string;
   instruction: string;
   trigger_type: string;
@@ -93,6 +94,7 @@ function mapRowToLoop(row: HarwickLoopDbRow): HarwickLoop {
     id: row.id,
     workspaceId: row.workspace_id,
     createdByMemberId: row.created_by_member_id,
+    ownerMemberId: row.owner_member_id,
     name: row.name,
     instruction: row.instruction,
     triggerType: row.trigger_type,
@@ -115,6 +117,7 @@ function mapCreateToInsert(loop: HarwickLoopCreate): HarwickLoopInsertRow {
   return {
     workspace_id: parsed.workspaceId,
     created_by_member_id: parsed.createdByMemberId,
+    owner_member_id: parsed.ownerMemberId,
     name: parsed.name,
     instruction: parsed.instruction,
     trigger_type: parsed.triggerType,
