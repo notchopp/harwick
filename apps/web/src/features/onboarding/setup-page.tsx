@@ -182,12 +182,6 @@ function OnboardingShell({
         {/* Top spacer / brand mark */}
         <div className="flex w-full items-center justify-between text-[11px] uppercase tracking-[0.18em] text-white/45">
           <span className="font-display text-white/75">Harwick</span>
-          <a
-            href="/home"
-            className="rounded-full border border-white/12 px-3 py-1 text-[10.5px] text-white/55 transition hover:border-white/30 hover:text-white"
-          >
-            Skip for now
-          </a>
         </div>
 
         {/* Glass card — animated swap per step */}
@@ -296,7 +290,7 @@ function PrimaryCta({
       type={type}
       onClick={onClick}
       disabled={disabled || loading}
-      className="h-12 w-full rounded-full text-[13.5px] font-semibold text-[#0a0d0f] shadow-[0_18px_40px_-15px_rgba(255,255,255,0.35)] transition hover:brightness-105 disabled:opacity-60"
+      className="inline-flex h-12 w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-full text-[13.5px] font-semibold text-[#0a0d0f] shadow-[0_18px_40px_-15px_rgba(255,255,255,0.35)] transition hover:brightness-105 disabled:opacity-60 [&_svg]:shrink-0"
       style={{ background: accent }}
     >
       {loading ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null}
@@ -368,7 +362,7 @@ function WelcomeStep({
         <div className="mt-7 flex flex-col gap-2">
           <PrimaryCta accent={palette.accent} onClick={onContinue}>
             Let&apos;s get started
-            <ArrowRight className="ml-1 size-4" aria-hidden="true" />
+            <ArrowRight className="size-4" aria-hidden="true" />
           </PrimaryCta>
           <p className="text-[11px] text-white/40">
             You picked the <span className="text-white/65">{planLabel(planTier)}</span> plan ·
@@ -621,9 +615,9 @@ function IdentityStep({
         ) : null}
 
         <div className="mt-6">
-          <PrimaryCta accent={palette.accent} disabled={!canSubmit} loading={submitting} onClick={submit}>
+          <PrimaryCta accent={palette.accent} disabled={!canSubmit} loading={submitting} onClick={() => void submit()}>
             Continue
-            <ArrowRight className="ml-1 size-4" aria-hidden="true" />
+            <ArrowRight className="size-4" aria-hidden="true" />
           </PrimaryCta>
         </div>
       </div>
@@ -762,9 +756,9 @@ function ReplyExamplesStep({
         ) : null}
 
         <div className="mt-6">
-          <PrimaryCta accent={palette.accent} disabled={!canSubmit} loading={submitting} onClick={submit}>
+          <PrimaryCta accent={palette.accent} disabled={!canSubmit} loading={submitting} onClick={() => void submit()}>
             Continue
-            <ArrowRight className="ml-1 size-4" aria-hidden="true" />
+            <ArrowRight className="size-4" aria-hidden="true" />
           </PrimaryCta>
         </div>
       </div>
@@ -925,11 +919,11 @@ function ChannelsStep({
         ) : null}
 
         <div className="mt-6">
-          <PrimaryCta accent={palette.accent} disabled={!canSubmit} loading={submitting} onClick={submit}>
+          <PrimaryCta accent={palette.accent} disabled={!canSubmit} loading={submitting} onClick={() => void submit()}>
             {activeIntents.length === 0
               ? "Pick at least one channel"
               : `Finish setup (${activeIntents.length} channel${activeIntents.length === 1 ? "" : "s"})`}
-            <ArrowRight className="ml-1 size-4" aria-hidden="true" />
+            <ArrowRight className="size-4" aria-hidden="true" />
           </PrimaryCta>
         </div>
       </div>
@@ -977,7 +971,7 @@ function DoneStep({ workspaceName }: { workspaceName: string }) {
         <div className="mt-7">
           <PrimaryCta accent={palette.accent} onClick={() => window.location.assign("/home")}>
             Open my workspace
-            <ArrowRight className="ml-1 size-4" aria-hidden="true" />
+            <ArrowRight className="size-4" aria-hidden="true" />
           </PrimaryCta>
         </div>
       </div>

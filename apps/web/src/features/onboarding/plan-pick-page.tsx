@@ -169,7 +169,7 @@ export function PlanPickPage({ defaultWorkspaceName }: { defaultWorkspaceName: s
           </p>
         </header>
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={(event) => void handleSubmit(event)}>
           <div className="mx-auto mb-8 max-w-[520px]">
             <label className="block">
               <span className="mb-2 block text-[11px] uppercase tracking-[0.12em] text-white/55">

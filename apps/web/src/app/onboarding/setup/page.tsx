@@ -45,7 +45,7 @@ export default async function Page({
       }
     : state;
 
-  const planTier = (subscription?.planTier ?? "free") as "free" | "solo" | "team" | "brokerage";
+  const planTier = subscription?.planTier ?? "free";
 
   return (
     <OnboardingSetupPage

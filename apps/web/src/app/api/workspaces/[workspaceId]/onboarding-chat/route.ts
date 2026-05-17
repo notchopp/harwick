@@ -32,7 +32,7 @@ export async function POST(
   const membership = await authorizeWorkspaceRequest({
     request,
     workspaceId,
-    allowedRoles: new Set(["owner", "admin"] as const),
+    allowedRoles: new Set(["owner", "admin"]),
   });
   if (membership === null) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
@@ -58,7 +58,7 @@ export async function POST(
     getWorkspaceOnboardingState(supabase, workspaceId),
     getWorkspaceSubscription(supabase, workspaceId),
   ]);
-  const planTier = (subscription?.planTier ?? "free") as "free" | "solo" | "team" | "brokerage";
+  const planTier = subscription?.planTier ?? "free";
 
   const openai = createOpenAI({ apiKey: environment.OPENAI_API_KEY });
   const modelName = process.env["OPENAI_ONBOARDING_CHAT_MODEL"]
