@@ -32,8 +32,12 @@ export async function requireWorkspaceSession(nextPath = "/home") {
     redirect(`/login?next=${encodeURIComponent(normalizeAuthRedirect(nextPath))}`);
   }
 
+  // A signed-in user with no workspace memberships is mid-onboarding —
+  // route them into the plan picker instead of bouncing back to /login with
+  // an error. /onboarding/page.tsx itself handles the "already has a
+  // workspace" case so there's no loop risk for steady-state users.
   if (session.memberships.length === 0) {
-    redirect("/login?error=no_workspace");
+    redirect("/onboarding");
   }
 
   return session;

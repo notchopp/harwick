@@ -77,7 +77,26 @@ const textShimmer = `linear-gradient(170deg,
   rgba(255,255,255,0.88) 70%,
   rgba(255,255,255,0.38) 100%)`;
 
-export const PLAN_MATERIALS: Record<"solo" | "team" | "brokerage", PlanMaterial> = {
+// Free is included in the onboarding plan picker but NOT in the marketing
+// pricing section (which renders 3 cards only). Keeping it here is intentional.
+export const PLAN_MATERIALS: Record<"free" | "solo" | "team" | "brokerage", PlanMaterial> = {
+  // Free — cool quiet (cyan + cream), low intensity so the paid tiers visually upsell
+  free: {
+    background: buildBackground({
+      baseAngle: 145,
+      darkStops: ["#0d1213", "#0f1518", "#0c1112"],
+      blooms: [
+        { h: 195, s: 0.55, l: 0.55, x: 18, y: 22, size: 52, opacity: 0.42 },
+        { h: 170, s: 0.45, l: 0.5, x: 78, y: 72, size: 48, opacity: 0.34 },
+        { h: 215, s: 0.4, l: 0.52, x: 50, y: 92, size: 56, opacity: 0.28 },
+      ],
+    }),
+    edgeShadow,
+    textShimmer,
+    ringColor: "rgba(123,166,255,0.32)",
+    accentColor: "#a8c2ff",
+  },
+
   // Solo — warm amber
   solo: {
     background: buildBackground({
