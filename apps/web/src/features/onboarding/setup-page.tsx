@@ -294,7 +294,9 @@ function PrimaryCta({
       style={{ background: accent }}
     >
       {loading ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null}
-      <span>{children}</span>
+      <span className="inline-flex min-w-0 items-center justify-center gap-1.5 whitespace-nowrap leading-none">
+        {children}
+      </span>
     </Button>
   );
 }
