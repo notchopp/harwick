@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { IsoDateTimeSchema, UuidSchema } from "./common.js";
 
-export const BillingPlanTierSchema = z.enum(["solo", "team", "brokerage"]);
+export const BillingPaidPlanTierSchema = z.enum(["solo", "team", "brokerage"]);
+export const BillingPlanTierSchema = z.enum(["free", "solo", "team", "brokerage"]);
 
 export const BillingIntervalSchema = z.enum(["month", "year"]);
 
@@ -19,7 +20,7 @@ export const SubscriptionStatusSchema = z.enum([
 export const WorkspaceSubscriptionSchema = z.object({
   id: UuidSchema,
   workspaceId: UuidSchema,
-  planTier: BillingPlanTierSchema,
+  planTier: BillingPaidPlanTierSchema,
   billingInterval: BillingIntervalSchema,
   status: SubscriptionStatusSchema,
   providerSubscriptionId: z.string().trim().min(1).max(120).nullable(),
@@ -73,6 +74,7 @@ export const WorkspaceUsageSummarySchema = z.object({
 });
 
 export type BillingPlanTier = z.infer<typeof BillingPlanTierSchema>;
+export type BillingPaidPlanTier = z.infer<typeof BillingPaidPlanTierSchema>;
 export type BillingInterval = z.infer<typeof BillingIntervalSchema>;
 export type SubscriptionStatus = z.infer<typeof SubscriptionStatusSchema>;
 export type WorkspaceSubscription = z.infer<typeof WorkspaceSubscriptionSchema>;
@@ -80,15 +82,112 @@ export type UsageEventType = z.infer<typeof UsageEventTypeSchema>;
 export type WorkspaceUsageEvent = z.infer<typeof WorkspaceUsageEventSchema>;
 export type WorkspaceUsageSummary = z.infer<typeof WorkspaceUsageSummarySchema>;
 
-export const planCapabilities = {
+export const PlanLimitsSchema = z.object({
+  listings: z.number().int().positive().nullable(),
+  socialTurnsPerMonth: z.number().int().positive().nullable(),
+  voiceMinutesPerMonth: z.number().int().positive().nullable(),
+  seats: z.number().int().positive().nullable(),
+  autoSendAllowed: z.boolean(),
+  fubSyncAllowed: z.boolean(),
+  harwickBrandingOnOutbound: z.boolean(),
+  workspaceMemoryEnabled: z.boolean(),
+});
+
+export type PlanLimits = z.infer<typeof PlanLimitsSchema>;
+
+export const PLAN_LIMITS = {
+  free: {
+    listings: 3,
+    socialTurnsPerMonth: 100,
+    voiceMinutesPerMonth: 50,
+    seats: 1,
+    autoSendAllowed: false,
+    fubSyncAllowed: false,
+    harwickBrandingOnOutbound: true,
+    workspaceMemoryEnabled: false,
+  },
   solo: {
-    maxSeats: 1,
+    listings: 10,
+    socialTurnsPerMonth: 2000,
+    voiceMinutesPerMonth: 500,
+    seats: 2,
+    autoSendAllowed: true,
+    fubSyncAllowed: true,
+    harwickBrandingOnOutbound: false,
+    workspaceMemoryEnabled: true,
+  },
+  team: {
+    listings: 50,
+    socialTurnsPerMonth: 8000,
+    voiceMinutesPerMonth: 2000,
+    seats: 10,
+    autoSendAllowed: true,
+    fubSyncAllowed: true,
+    harwickBrandingOnOutbound: false,
+    workspaceMemoryEnabled: true,
+  },
+  brokerage: {
+    listings: null,
+    socialTurnsPerMonth: 25000,
+    voiceMinutesPerMonth: 6000,
+    seats: null,
+    autoSendAllowed: true,
+    fubSyncAllowed: true,
+    harwickBrandingOnOutbound: false,
+    workspaceMemoryEnabled: true,
+  },
+} as const satisfies Record<BillingPlanTier, PlanLimits>;
+
+export function getPlanLimits(tier: BillingPlanTier): PlanLimits {
+  return PLAN_LIMITS[tier];
+}
+
+type LegacyPlanCapabilities = {
+  maxSeats: number | null;
+  maxInstagramAccounts: number | null;
+  maxFacebookAccounts: number | null;
+  maxVoiceAgents: number | null;
+  maxPhoneNumbers: number | null;
+  maxListings: number | null;
+  maxLeadEventsPerMonth: number | null;
+  teamRouting: boolean;
+  memberRouting: boolean;
+  rainmakerAttribution: boolean;
+  multiTeamStructure: boolean;
+  advancedNurture: boolean;
+  csvListingImport: boolean;
+  brokerDashboard: boolean;
+  dedicatedSupport: boolean;
+} & PlanLimits;
+
+export const planCapabilities = {
+  free: {
+    ...PLAN_LIMITS.free,
+    maxSeats: PLAN_LIMITS.free.seats,
     maxInstagramAccounts: 1,
     maxFacebookAccounts: 1,
     maxVoiceAgents: 1,
     maxPhoneNumbers: 1,
-    maxListings: 25,
-    maxLeadEventsPerMonth: 200,
+    maxListings: PLAN_LIMITS.free.listings,
+    maxLeadEventsPerMonth: PLAN_LIMITS.free.socialTurnsPerMonth,
+    teamRouting: false,
+    memberRouting: false,
+    rainmakerAttribution: false,
+    multiTeamStructure: false,
+    advancedNurture: false,
+    csvListingImport: false,
+    brokerDashboard: false,
+    dedicatedSupport: false,
+  },
+  solo: {
+    ...PLAN_LIMITS.solo,
+    maxSeats: PLAN_LIMITS.solo.seats,
+    maxInstagramAccounts: 1,
+    maxFacebookAccounts: 1,
+    maxVoiceAgents: 1,
+    maxPhoneNumbers: 1,
+    maxListings: PLAN_LIMITS.solo.listings,
+    maxLeadEventsPerMonth: PLAN_LIMITS.solo.socialTurnsPerMonth,
     teamRouting: false,
     memberRouting: false,
     rainmakerAttribution: false,
@@ -99,13 +198,14 @@ export const planCapabilities = {
     dedicatedSupport: false,
   },
   team: {
-    maxSeats: 5,
+    ...PLAN_LIMITS.team,
+    maxSeats: PLAN_LIMITS.team.seats,
     maxInstagramAccounts: 2,
     maxFacebookAccounts: 2,
     maxVoiceAgents: 2,
     maxPhoneNumbers: 2,
-    maxListings: 100,
-    maxLeadEventsPerMonth: 500,
+    maxListings: PLAN_LIMITS.team.listings,
+    maxLeadEventsPerMonth: PLAN_LIMITS.team.socialTurnsPerMonth,
     teamRouting: true,
     memberRouting: true,
     rainmakerAttribution: true,
@@ -116,13 +216,14 @@ export const planCapabilities = {
     dedicatedSupport: false,
   },
   brokerage: {
-    maxSeats: null,
+    ...PLAN_LIMITS.brokerage,
+    maxSeats: PLAN_LIMITS.brokerage.seats,
     maxInstagramAccounts: null,
     maxFacebookAccounts: null,
     maxVoiceAgents: null,
     maxPhoneNumbers: null,
-    maxListings: null,
-    maxLeadEventsPerMonth: null,
+    maxListings: PLAN_LIMITS.brokerage.listings,
+    maxLeadEventsPerMonth: PLAN_LIMITS.brokerage.socialTurnsPerMonth,
     teamRouting: true,
     memberRouting: true,
     rainmakerAttribution: true,
@@ -134,23 +235,7 @@ export const planCapabilities = {
   },
 } as const satisfies Record<
   BillingPlanTier,
-  {
-    maxSeats: number | null;
-    maxInstagramAccounts: number | null;
-    maxFacebookAccounts: number | null;
-    maxVoiceAgents: number | null;
-    maxPhoneNumbers: number | null;
-    maxListings: number | null;
-    maxLeadEventsPerMonth: number | null;
-    teamRouting: boolean;
-    memberRouting: boolean;
-    rainmakerAttribution: boolean;
-    multiTeamStructure: boolean;
-    advancedNurture: boolean;
-    csvListingImport: boolean;
-    brokerDashboard: boolean;
-    dedicatedSupport: boolean;
-  }
+  LegacyPlanCapabilities
 >;
 
 export type PlanCapabilities = (typeof planCapabilities)[BillingPlanTier];
@@ -169,7 +254,7 @@ export const PlanGateResultSchema = z.object({
 export type PlanGateResult = z.infer<typeof PlanGateResultSchema>;
 
 export const BillingCheckoutRequestSchema = z.object({
-  planTier: BillingPlanTierSchema,
+  planTier: BillingPaidPlanTierSchema,
   billingInterval: BillingIntervalSchema,
 });
 
@@ -187,7 +272,7 @@ export const BillingPortalResponseSchema = z.object({
 
 export const BillingSubscriptionReconciliationSchema = z.object({
   workspaceId: UuidSchema,
-  planTier: BillingPlanTierSchema,
+  planTier: BillingPaidPlanTierSchema,
   billingInterval: BillingIntervalSchema,
   status: SubscriptionStatusSchema,
   providerSubscriptionId: z.string().trim().min(1).max(120),

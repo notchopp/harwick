@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  PLAN_LIMITS,
+  BillingPaidPlanTierSchema,
   BillingPlanTierSchema,
   SubscriptionStatusSchema,
   UsageEventTypeSchema,
@@ -7,6 +9,7 @@ import {
   WorkspaceUsageEventSchema,
   WorkspaceUsageSummarySchema,
   getPlanCapabilities,
+  getPlanLimits,
   canAccessFeature,
   checkUsageLimit,
   PlanGateResultSchema,
@@ -19,6 +22,7 @@ import {
 
 describe("BillingPlanTierSchema", () => {
   it("accepts valid plan tiers", () => {
+    expect(BillingPlanTierSchema.parse("free")).toBe("free");
     expect(BillingPlanTierSchema.parse("solo")).toBe("solo");
     expect(BillingPlanTierSchema.parse("team")).toBe("team");
     expect(BillingPlanTierSchema.parse("brokerage")).toBe("brokerage");
@@ -26,7 +30,15 @@ describe("BillingPlanTierSchema", () => {
 
   it("rejects invalid plan tiers", () => {
     expect(() => BillingPlanTierSchema.parse("enterprise")).toThrow();
-    expect(() => BillingPlanTierSchema.parse("free")).toThrow();
+  });
+});
+
+describe("BillingPaidPlanTierSchema", () => {
+  it("accepts only paid plan tiers", () => {
+    expect(BillingPaidPlanTierSchema.parse("solo")).toBe("solo");
+    expect(BillingPaidPlanTierSchema.parse("team")).toBe("team");
+    expect(BillingPaidPlanTierSchema.parse("brokerage")).toBe("brokerage");
+    expect(() => BillingPaidPlanTierSchema.parse("free")).toThrow();
   });
 });
 
@@ -191,20 +203,70 @@ describe("WorkspaceUsageSummarySchema", () => {
   });
 });
 
+describe("PLAN_LIMITS", () => {
+  it("defines the free plan operating limits", () => {
+    expect(PLAN_LIMITS.free).toEqual({
+      listings: 3,
+      socialTurnsPerMonth: 100,
+      voiceMinutesPerMonth: 50,
+      seats: 1,
+      autoSendAllowed: false,
+      fubSyncAllowed: false,
+      harwickBrandingOnOutbound: true,
+      workspaceMemoryEnabled: false,
+    });
+  });
+
+  it("defines paid plan capacity from one source of truth", () => {
+    expect(getPlanLimits("solo")).toMatchObject({
+      listings: 10,
+      socialTurnsPerMonth: 2000,
+      voiceMinutesPerMonth: 500,
+      seats: 2,
+    });
+    expect(getPlanLimits("team")).toMatchObject({
+      listings: 50,
+      socialTurnsPerMonth: 8000,
+      voiceMinutesPerMonth: 2000,
+      seats: 10,
+    });
+    expect(getPlanLimits("brokerage")).toMatchObject({
+      listings: null,
+      socialTurnsPerMonth: 25000,
+      voiceMinutesPerMonth: 6000,
+      seats: null,
+    });
+  });
+});
+
 describe("getPlanCapabilities", () => {
+  it("returns correct capabilities for free plan", () => {
+    const capabilities = getPlanCapabilities("free");
+    expect(capabilities.maxSeats).toBe(1);
+    expect(capabilities.maxListings).toBe(3);
+    expect(capabilities.maxLeadEventsPerMonth).toBe(100);
+    expect(capabilities.autoSendAllowed).toBe(false);
+    expect(capabilities.fubSyncAllowed).toBe(false);
+    expect(capabilities.harwickBrandingOnOutbound).toBe(true);
+  });
+
   it("returns correct capabilities for solo plan", () => {
     const capabilities = getPlanCapabilities("solo");
-    expect(capabilities.maxSeats).toBe(1);
-    expect(capabilities.maxLeadEventsPerMonth).toBe(200);
+    expect(capabilities.maxSeats).toBe(2);
+    expect(capabilities.maxListings).toBe(10);
+    expect(capabilities.maxLeadEventsPerMonth).toBe(2000);
     expect(capabilities.teamRouting).toBe(false);
     expect(capabilities.memberRouting).toBe(false);
     expect(capabilities.advancedNurture).toBe(false);
+    expect(capabilities.autoSendAllowed).toBe(true);
+    expect(capabilities.fubSyncAllowed).toBe(true);
   });
 
   it("returns correct capabilities for team plan", () => {
     const capabilities = getPlanCapabilities("team");
-    expect(capabilities.maxSeats).toBe(5);
-    expect(capabilities.maxLeadEventsPerMonth).toBe(500);
+    expect(capabilities.maxSeats).toBe(10);
+    expect(capabilities.maxListings).toBe(50);
+    expect(capabilities.maxLeadEventsPerMonth).toBe(8000);
     expect(capabilities.teamRouting).toBe(true);
     expect(capabilities.memberRouting).toBe(true);
     expect(capabilities.advancedNurture).toBe(true);
@@ -214,7 +276,9 @@ describe("getPlanCapabilities", () => {
   it("returns correct capabilities for brokerage plan", () => {
     const capabilities = getPlanCapabilities("brokerage");
     expect(capabilities.maxSeats).toBeNull();
-    expect(capabilities.maxLeadEventsPerMonth).toBeNull();
+    expect(capabilities.maxListings).toBeNull();
+    expect(capabilities.maxLeadEventsPerMonth).toBe(25000);
+    expect(capabilities.voiceMinutesPerMonth).toBe(6000);
     expect(capabilities.teamRouting).toBe(true);
     expect(capabilities.multiTeamStructure).toBe(true);
     expect(capabilities.brokerDashboard).toBe(true);
@@ -249,53 +313,53 @@ describe("checkUsageLimit", () => {
     expect(result.allowed).toBe(true);
     expect(result.reason).toBeNull();
     expect(result.currentCount).toBe(0);
-    expect(result.maxCount).toBe(1);
+    expect(result.maxCount).toBe(2);
   });
 
   it("blocks solo plan at seat limit", () => {
-    const result = checkUsageLimit("solo", "maxSeats", 1);
+    const result = checkUsageLimit("solo", "maxSeats", 2);
     expect(result.allowed).toBe(false);
-    expect(result.reason).toContain("maxSeats is 1");
-    expect(result.currentCount).toBe(1);
-    expect(result.maxCount).toBe(1);
+    expect(result.reason).toContain("maxSeats is 2");
+    expect(result.currentCount).toBe(2);
+    expect(result.maxCount).toBe(2);
   });
 
   it("allows usage within team plan lead event limits", () => {
     const result = checkUsageLimit("team", "maxLeadEventsPerMonth", 350);
     expect(result.allowed).toBe(true);
     expect(result.currentCount).toBe(350);
-    expect(result.maxCount).toBe(500);
+    expect(result.maxCount).toBe(8000);
   });
 
   it("blocks usage at team plan lead event limit", () => {
-    const result = checkUsageLimit("team", "maxLeadEventsPerMonth", 500);
+    const result = checkUsageLimit("team", "maxLeadEventsPerMonth", 8000);
     expect(result.allowed).toBe(false);
-    expect(result.reason).toContain("maxLeadEventsPerMonth is 500");
-    expect(result.currentCount).toBe(500);
-    expect(result.maxCount).toBe(500);
+    expect(result.reason).toContain("maxLeadEventsPerMonth is 8000");
+    expect(result.currentCount).toBe(8000);
+    expect(result.maxCount).toBe(8000);
   });
 
-  it("always allows brokerage plan unlimited resources", () => {
+  it("allows brokerage plan unlimited seat and listing resources", () => {
     const seatResult = checkUsageLimit("brokerage", "maxSeats", 999);
     expect(seatResult.allowed).toBe(true);
     expect(seatResult.maxCount).toBeNull();
 
-    const eventResult = checkUsageLimit("brokerage", "maxLeadEventsPerMonth", 10000);
-    expect(eventResult.allowed).toBe(true);
-    expect(eventResult.maxCount).toBeNull();
+    const listingResult = checkUsageLimit("brokerage", "maxListings", 10000);
+    expect(listingResult.allowed).toBe(true);
+    expect(listingResult.maxCount).toBeNull();
   });
 
   it("blocks solo plan from exceeding listing limit", () => {
-    const result = checkUsageLimit("solo", "maxListings", 25);
+    const result = checkUsageLimit("solo", "maxListings", 10);
     expect(result.allowed).toBe(false);
-    expect(result.reason).toContain("maxListings is 25");
+    expect(result.reason).toContain("maxListings is 10");
   });
 
   it("allows team plan within listing limit", () => {
-    const result = checkUsageLimit("team", "maxListings", 50);
+    const result = checkUsageLimit("team", "maxListings", 49);
     expect(result.allowed).toBe(true);
-    expect(result.currentCount).toBe(50);
-    expect(result.maxCount).toBe(100);
+    expect(result.currentCount).toBe(49);
+    expect(result.maxCount).toBe(50);
   });
 });
 
@@ -337,6 +401,13 @@ describe("billing checkout contracts", () => {
     expect(request.planTier).toBe("team");
   });
 
+  it("does not allow a free plan through Stripe checkout", () => {
+    expect(() => BillingCheckoutRequestSchema.parse({
+      planTier: "free",
+      billingInterval: "month",
+    })).toThrow();
+  });
+
   it("validates a Stripe checkout response without leaking secrets", () => {
     const response = BillingCheckoutResponseSchema.parse({
       provider: "stripe",
@@ -376,6 +447,23 @@ describe("billing webhook reconciliation contracts", () => {
     });
 
     expect(update.providerSubscriptionId).toBe("sub_123");
+  });
+
+  it("does not reconcile free plans as provider subscriptions", () => {
+    expect(() => BillingSubscriptionReconciliationSchema.parse({
+      workspaceId: "123e4567-e89b-12d3-a456-426614174000",
+      planTier: "free",
+      billingInterval: "month",
+      status: "active",
+      providerSubscriptionId: "sub_123",
+      providerCustomerId: "cus_123",
+      currentPeriodStart: "2026-05-01T00:00:00.000Z",
+      currentPeriodEnd: "2026-06-01T00:00:00.000Z",
+      canceledAt: null,
+      cancelAtPeriodEnd: false,
+      trialStart: null,
+      trialEnd: null,
+    })).toThrow();
   });
 
   it("validates webhook process results without provider secrets", () => {

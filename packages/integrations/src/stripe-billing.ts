@@ -1,11 +1,11 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import {
   BillingIntervalSchema,
-  BillingPlanTierSchema,
+  BillingPaidPlanTierSchema,
   BillingSubscriptionReconciliationSchema,
   SubscriptionStatusSchema,
   type BillingInterval,
-  type BillingPlanTier,
+  type BillingPaidPlanTier,
   type BillingSubscriptionReconciliation,
 } from "@realty-ops/core";
 import { z } from "zod";
@@ -82,7 +82,7 @@ const StripeBillingEventSchema = z.object({
 
 export type StripeCheckoutSessionRequest = {
   workspaceId: string;
-  planTier: BillingPlanTier;
+  planTier: BillingPaidPlanTier;
   billingInterval: BillingInterval;
   priceId: string;
   successUrl: string;
@@ -276,7 +276,7 @@ export function normalizeStripeSubscriptionForBilling(params: {
     ...params.subscription.metadata,
   };
   const workspaceId = metadata["workspace_id"];
-  const planTier = BillingPlanTierSchema.safeParse(metadata["plan_tier"]);
+  const planTier = BillingPaidPlanTierSchema.safeParse(metadata["plan_tier"]);
   const billingInterval = resolveBillingInterval(params.subscription, metadata);
 
   if (workspaceId === undefined || !planTier.success || billingInterval === null) {

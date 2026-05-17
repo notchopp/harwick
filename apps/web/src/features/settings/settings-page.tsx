@@ -6,6 +6,7 @@ import {
   WorkspaceMemoryReviewListResponseSchema,
   WorkspaceMemoryReviewUpdateResponseSchema,
   type BillingInterval,
+  type BillingPaidPlanTier,
   type BillingPlanTier,
   type HarwickLoop,
   type HarwickLoopApprovalMode,
@@ -87,6 +88,7 @@ type BillingSummary = {
 } | null;
 
 function planLabel(planTier: BillingPlanTier): string {
+  if (planTier === "free") return "Free";
   if (planTier === "solo") return "Solo";
   if (planTier === "team") return "Team";
   return "Brokerage";
@@ -130,13 +132,13 @@ function BillingPanel(props: {
   canManageBilling: boolean;
   workspaceId: string;
 }) {
-  const [busyAction, setBusyAction] = useState<"portal" | "solo" | "team" | "brokerage" | null>(null);
+  const [busyAction, setBusyAction] = useState<"portal" | BillingPaidPlanTier | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const currentPlan = props.billing === null ? "No active plan" : `${planLabel(props.billing.planTier)} / ${intervalLabel(props.billing.billingInterval)}`;
   const currentStatus = props.billing === null ? "not configured" : statusLabel(props.billing.status);
 
-  async function startCheckout(planTier: BillingPlanTier) {
+  async function startCheckout(planTier: BillingPaidPlanTier) {
     if (!props.canManageBilling) return;
     setBusyAction(planTier);
     setError(null);
