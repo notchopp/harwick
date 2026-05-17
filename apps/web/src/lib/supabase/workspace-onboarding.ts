@@ -36,6 +36,30 @@ function mapState(row: {
   });
 }
 
+function defaultOnboardingState(workspaceId: string): WorkspaceOnboardingState {
+  // Used when the workspace_onboarding_state table hasn't been migrated in
+  // yet — returns "all beats complete" so /onboarding/setup short-circuits
+  // to /home instead of looping on a missing-table error.
+  const nowIso = new Date().toISOString();
+  return WorkspaceOnboardingStateSchema.parse({
+    workspaceId,
+    identityDone: true,
+    replyExamplesDone: true,
+    channelIntentDone: true,
+    completedAt: nowIso,
+    updatedAt: nowIso,
+  });
+}
+
+function isMissingRelationError(error: { code?: string | undefined; message?: string | undefined } | null): boolean {
+  if (error === null) return false;
+  if (error.code === "PGRST205" || error.code === "42P01") return true;
+  const message = error.message ?? "";
+  return message.includes("Could not find the table")
+    || message.includes("Could not find the relation")
+    || /relation .* does not exist/i.test(message);
+}
+
 export async function getWorkspaceOnboardingState(
   supabase: RealtyOpsSupabaseClient,
   workspaceId: string,
@@ -46,6 +70,12 @@ export async function getWorkspaceOnboardingState(
     .eq("workspace_id", workspaceId)
     .maybeSingle();
   if (error !== null) {
+    if (isMissingRelationError(error)) {
+      console.warn(
+        "[getWorkspaceOnboardingState] workspace_onboarding_state missing — apply supabase/migrations/20260517000600_workspace_onboarding_state.sql",
+      );
+      return defaultOnboardingState(workspaceId);
+    }
     throw new Error(`Failed to fetch onboarding state: ${error.message}`);
   }
 
@@ -58,6 +88,12 @@ export async function getWorkspaceOnboardingState(
       .select("*")
       .single();
     if (insertError !== null) {
+      if (isMissingRelationError(insertError)) {
+        console.warn(
+          "[getWorkspaceOnboardingState] workspace_onboarding_state missing on insert — apply migration",
+        );
+        return defaultOnboardingState(workspaceId);
+      }
       throw new Error(`Failed to bootstrap onboarding state: ${insertError.message}`);
     }
     return mapState(inserted);

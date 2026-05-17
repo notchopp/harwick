@@ -30,6 +30,25 @@ async function countQuery(query: PromiseLike<{ count: number | null; error: { me
   return count ?? 0;
 }
 
+/**
+ * Returns true for PostgREST/PG errors that mean "this relation doesn't exist
+ * yet in the live DB". This happens when a developer pulls a branch that
+ * adds new tables/views but hasn't run the migrations. We treat it as a
+ * non-fatal "no data" instead of a 500 so /settings keeps rendering and the
+ * console warning tells the operator what to do.
+ *
+ * PostgREST: PGRST205 ("Could not find the table/relation in the schema cache").
+ * Postgres:  42P01  ("relation ... does not exist").
+ */
+function isMissingRelationError(error: { code?: string | undefined; message?: string | undefined } | null): boolean {
+  if (error === null) return false;
+  if (error.code === "PGRST205" || error.code === "42P01") return true;
+  const message = error.message ?? "";
+  return message.includes("Could not find the table")
+    || message.includes("Could not find the relation")
+    || /relation .* does not exist/i.test(message);
+}
+
 export async function getWorkspaceSubscription(
   supabase: RealtyOpsSupabaseClient,
   workspaceId: string
@@ -263,6 +282,12 @@ export async function listWalletsPendingAutoRecharge(
     .returns<WorkspaceUsageWalletRow[]>();
 
   if (error) {
+    if (isMissingRelationError(error)) {
+      console.warn(
+        "[listWalletsPendingAutoRecharge] workspace_usage_wallet missing — apply wallet migrations",
+      );
+      return [];
+    }
     throw new Error(`Failed to list wallets pending auto-recharge: ${error.message}`);
   }
 
@@ -279,6 +304,12 @@ export async function clearWalletAutoRechargePending(
     .eq("workspace_id", workspaceId);
 
   if (error) {
+    if (isMissingRelationError(error)) {
+      console.warn(
+        "[clearWalletAutoRechargePending] workspace_usage_wallet missing — skipping",
+      );
+      return;
+    }
     throw new Error(`Failed to clear wallet auto-recharge pending flag: ${error.message}`);
   }
 }
@@ -311,6 +342,12 @@ export async function getLatestMonthlyUsageSummary(
     .maybeSingle<MonthlyUsageSummaryRow>();
 
   if (error) {
+    if (isMissingRelationError(error)) {
+      console.warn(
+        "[getLatestMonthlyUsageSummary] monthly_usage_summary view missing — apply supabase/migrations/20260517000100_workspace_usage_wallet.sql",
+      );
+      return null;
+    }
     throw new Error(`Failed to fetch monthly usage summary: ${error.message}`);
   }
 
@@ -328,6 +365,12 @@ export async function getWorkspaceUsageWallet(
     .maybeSingle<WorkspaceUsageWalletRow>();
 
   if (error) {
+    if (isMissingRelationError(error)) {
+      console.warn(
+        "[getWorkspaceUsageWallet] workspace_usage_wallet missing — apply supabase/migrations/20260517000100_workspace_usage_wallet.sql",
+      );
+      return null;
+    }
     throw new Error(`Failed to fetch workspace usage wallet: ${error.message}`);
   }
 
