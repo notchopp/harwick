@@ -26,6 +26,13 @@ export type BillingWebhookStore = {
     errorMessage?: string | null;
   }): Promise<void>;
   upsertSubscription(update: BillingSubscriptionReconciliation): Promise<void>;
+  creditWallet(params: {
+    workspaceId: string;
+    amountCents: number;
+    stripePaymentMethodId: string | null;
+    providerPaymentIntentId: string;
+    idempotencyKey: string;
+  }): Promise<void>;
 };
 
 function eventObjectId(event: StripeBillingWebhookEvent): string | null {
@@ -83,9 +90,44 @@ async function resolveSubscriptionUpdate(params: {
     };
   }
 
+  if ("subscription" in params.event) {
+    return {
+      update: normalizeStripeSubscriptionForBilling({ subscription: params.event.subscription }),
+      reason: null,
+    };
+  }
+
+  return { update: null, reason: "unsupported_event_type" };
+}
+
+function resolveWalletCredit(event: StripeBillingWebhookEvent): {
+  workspaceId: string;
+  amountCents: number;
+  stripePaymentMethodId: string | null;
+  providerPaymentIntentId: string;
+  idempotencyKey: string;
+} | null {
+  if ("ignored" in event || event.type !== "payment_intent.succeeded") {
+    return null;
+  }
+
+  const kind = event.paymentIntent.metadata["kind"];
+  if (kind !== "wallet_top_up" && kind !== "wallet_auto_recharge") {
+    return null;
+  }
+
+  const workspaceId = event.paymentIntent.metadata["workspace_id"];
+  const idempotencyKey = event.paymentIntent.metadata["idempotency_key"];
+  if (workspaceId === undefined || idempotencyKey === undefined) {
+    return null;
+  }
+
   return {
-    update: normalizeStripeSubscriptionForBilling({ subscription: params.event.subscription }),
-    reason: null,
+    workspaceId,
+    amountCents: event.paymentIntent.amount_received ?? event.paymentIntent.amount,
+    stripePaymentMethodId: event.paymentIntent.payment_method ?? null,
+    providerPaymentIntentId: event.paymentIntent.id,
+    idempotencyKey,
   };
 }
 
@@ -111,6 +153,23 @@ export async function handleStripeBillingWebhookEvent(params: {
   }
 
   try {
+    const walletCredit = resolveWalletCredit(params.event);
+    if (walletCredit !== null) {
+      await params.store.creditWallet(walletCredit);
+      await params.store.completeEvent({
+        eventId: claim.eventId,
+        status: "processed",
+        workspaceId: walletCredit.workspaceId,
+      });
+
+      return result({
+        eventId: params.event.id,
+        eventType: params.event.type,
+        status: "processed",
+        workspaceId: walletCredit.workspaceId,
+      });
+    }
+
     const resolved = await resolveSubscriptionUpdate({
       event: params.event,
       stripeClient: params.stripeClient,

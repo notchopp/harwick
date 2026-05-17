@@ -3521,6 +3521,14 @@ export type Database = {
         Args: { target_workspace_id: string }
         Returns: boolean
       }
+      credit_workspace_usage_wallet: {
+        Args: {
+          p_workspace_id: string
+          p_amount_cents: number
+          p_stripe_payment_method_id?: string | null
+        }
+        Returns: number
+      }
       can_manage_workspace_routing: {
         Args: { target_workspace_id: string }
         Returns: boolean
@@ -3830,7 +3838,9 @@ export type BillingUsageEventInsertRow = TablesInsert<"usage_events">;
 export type WorkspaceSubscriptionRow = Tables<"workspace_subscriptions">;
 export type WorkspaceUsageEventInsertRow = TablesInsert<"workspace_usage_events">;
 export type WorkspaceUsageSummaryRow = Tables<"workspace_usage_summaries">;
+export type MonthlyUsageSummaryRow = Tables<"monthly_usage_summary">;
 export type WorkspaceUsageWalletRow = Tables<"workspace_usage_wallet">;
+export type WorkspaceUsageWalletInsertRow = TablesInsert<"workspace_usage_wallet">;
 export type WorkspaceUsageWalletUpdateRow = TablesUpdate<"workspace_usage_wallet">;
 export type WorkspaceMemoryDocumentRow = Tables<"workspace_memory_documents">;
 export type WorkspaceMemoryDocumentInsertRow = TablesInsert<"workspace_memory_documents">;

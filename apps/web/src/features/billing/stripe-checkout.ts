@@ -1,4 +1,4 @@
-import type { BillingCheckoutRequest, BillingInterval, BillingPlanTier, ServerEnvironment } from "@realty-ops/core";
+import type { BillingCheckoutRequest, BillingInterval, BillingPaidPlanTier, ServerEnvironment } from "@realty-ops/core";
 import type { StripeBillingClient } from "@realty-ops/integrations";
 
 type StripePriceKey =
@@ -17,7 +17,7 @@ export type WorkspaceBillingCheckoutParams = {
   providerCustomerId?: string | null;
 };
 
-function stripePriceKey(planTier: BillingPlanTier, billingInterval: BillingInterval): StripePriceKey {
+function stripePriceKey(planTier: BillingPaidPlanTier, billingInterval: BillingInterval): StripePriceKey {
   const interval = billingInterval === "year" ? "YEARLY" : "MONTHLY";
   if (planTier === "solo") return `STRIPE_SOLO_${interval}_PRICE_ID`;
   if (planTier === "team") return `STRIPE_TEAM_${interval}_PRICE_ID`;

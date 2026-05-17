@@ -16,6 +16,8 @@ import {
   BillingCheckoutRequestSchema,
   BillingCheckoutResponseSchema,
   BillingPortalResponseSchema,
+  BillingWalletTopUpRequestSchema,
+  BillingWalletTopUpResponseSchema,
   BillingSubscriptionReconciliationSchema,
   BillingUsageEventSchema,
   BillingWalletUsageEventTypeSchema,
@@ -508,6 +510,34 @@ describe("billing checkout contracts", () => {
     });
 
     expect(response.portalUrl).toContain("billing.stripe.com");
+  });
+
+  it("defaults wallet top-ups to fifty dollars", () => {
+    const request = BillingWalletTopUpRequestSchema.parse({});
+    expect(request.amountCents).toBe(5000);
+  });
+
+  it("validates wallet top-up amount and saved payment method override", () => {
+    const request = BillingWalletTopUpRequestSchema.parse({
+      amountCents: 2500,
+      paymentMethodId: "pm_123",
+    });
+
+    expect(request.amountCents).toBe(2500);
+    expect(request.paymentMethodId).toBe("pm_123");
+    expect(() => BillingWalletTopUpRequestSchema.parse({ amountCents: 100 })).toThrow();
+  });
+
+  it("validates a Stripe wallet top-up response", () => {
+    const response = BillingWalletTopUpResponseSchema.parse({
+      provider: "stripe",
+      providerPaymentIntentId: "pi_123",
+      status: "succeeded",
+      amountCents: 5000,
+      clientSecret: null,
+    });
+
+    expect(response.providerPaymentIntentId).toBe("pi_123");
   });
 });
 

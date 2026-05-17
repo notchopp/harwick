@@ -322,6 +322,19 @@ export const BillingPortalResponseSchema = z.object({
   portalUrl: z.string().trim().url(),
 });
 
+export const BillingWalletTopUpRequestSchema = z.object({
+  amountCents: z.number().int().min(500).max(500_000).default(5000),
+  paymentMethodId: z.string().trim().min(1).max(200).optional(),
+});
+
+export const BillingWalletTopUpResponseSchema = z.object({
+  provider: z.literal("stripe"),
+  providerPaymentIntentId: z.string().trim().min(1).max(200),
+  status: z.string().trim().min(1).max(80),
+  amountCents: z.number().int().positive(),
+  clientSecret: z.string().trim().min(1).max(500).nullable(),
+});
+
 export const BillingSubscriptionReconciliationSchema = z.object({
   workspaceId: UuidSchema,
   planTier: BillingPaidPlanTierSchema,
@@ -350,6 +363,8 @@ export const BillingWebhookProcessResultSchema = z.object({
 export type BillingCheckoutRequest = z.infer<typeof BillingCheckoutRequestSchema>;
 export type BillingCheckoutResponse = z.infer<typeof BillingCheckoutResponseSchema>;
 export type BillingPortalResponse = z.infer<typeof BillingPortalResponseSchema>;
+export type BillingWalletTopUpRequest = z.infer<typeof BillingWalletTopUpRequestSchema>;
+export type BillingWalletTopUpResponse = z.infer<typeof BillingWalletTopUpResponseSchema>;
 export type BillingSubscriptionReconciliation = z.infer<typeof BillingSubscriptionReconciliationSchema>;
 export type BillingWebhookProcessResult = z.infer<typeof BillingWebhookProcessResultSchema>;
 

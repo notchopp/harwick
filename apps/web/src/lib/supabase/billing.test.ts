@@ -9,6 +9,7 @@ import {
   canAccessPlanFeature,
   recordUsageEvent,
   recordBillingUsageEvent,
+  creditWorkspaceUsageWallet,
   recordCurrentPeriodUsageEvent,
   upsertWorkspaceSubscriptionFromProvider,
   claimBillingWebhookEvent,
@@ -724,6 +725,33 @@ describe("billing service", () => {
         sourceId: "call-123",
         idempotencyKey: "retell_call:call-123",
       })).resolves.toBe(false);
+    });
+  });
+
+  describe("creditWorkspaceUsageWallet", () => {
+    it("credits wallet balance through the atomic database function", async () => {
+      let rpcName: string | null = null;
+      let rpcArgs: Record<string, unknown> | null = null;
+      const mockSupabase = {
+        rpc: (name: string, args: Record<string, unknown>) => {
+          rpcName = name;
+          rpcArgs = args;
+          return Promise.resolve({ data: 7500, error: null });
+        },
+      } as unknown as RealtyOpsSupabaseClient;
+
+      await expect(creditWorkspaceUsageWallet(mockSupabase, {
+        workspaceId: "workspace-123",
+        amountCents: 2500,
+        stripePaymentMethodId: "pm_123",
+      })).resolves.toBe(7500);
+
+      expect(rpcName).toBe("credit_workspace_usage_wallet");
+      expect(rpcArgs).toEqual({
+        p_workspace_id: "workspace-123",
+        p_amount_cents: 2500,
+        p_stripe_payment_method_id: "pm_123",
+      });
     });
   });
 

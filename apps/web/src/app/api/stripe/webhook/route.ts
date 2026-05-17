@@ -8,6 +8,7 @@ import { handleStripeBillingWebhookEvent } from "../../../../features/billing/st
 import {
   claimBillingWebhookEvent,
   completeBillingWebhookEvent,
+  creditWorkspaceUsageWallet,
   upsertWorkspaceSubscriptionFromProvider,
 } from "../../../../lib/supabase/billing";
 import { getServerEnvironment } from "../../../../lib/server-env";
@@ -60,6 +61,13 @@ export async function POST(request: NextRequest) {
         },
         async upsertSubscription(update) {
           await upsertWorkspaceSubscriptionFromProvider(supabase, update);
+        },
+        async creditWallet(params) {
+          await creditWorkspaceUsageWallet(supabase, {
+            workspaceId: params.workspaceId,
+            amountCents: params.amountCents,
+            stripePaymentMethodId: params.stripePaymentMethodId,
+          });
         },
       },
     });

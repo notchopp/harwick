@@ -219,7 +219,9 @@ function HeroHeadline() {
   );
 }
 
-function Hero(_props: LandingProps) {
+function Hero(props: LandingProps) {
+  void props.isAuthenticated;
+
   return (
     <section className="relative isolate w-full overflow-hidden" style={{ minHeight: "94vh", background: "#0a0807" }}>
       {/* Real photo background — full-bleed. */}
@@ -398,20 +400,27 @@ function HowItWorks() {
 
         <div className="mt-16 flex flex-col">
           {STAGES.map((stage, i) => (
-            <Fragment key={stage.n}>
-              <StagePanel stage={stage} />
-              {CONNECTOR_LABELS[i] ? (
-                <AnimatedConnector
-                  label={CONNECTOR_LABELS[i]!.pill}
-                  sub={CONNECTOR_LABELS[i]!.sub}
-                />
-              ) : null}
-            </Fragment>
+            <StageWithConnector key={stage.n} index={i} stage={stage} />
           ))}
           <LoopbackArc />
         </div>
       </div>
     </section>
+  );
+}
+
+function StageWithConnector({ index, stage }: { index: number; stage: Stage }) {
+  const connector = CONNECTOR_LABELS[index] ?? null;
+  return (
+    <Fragment>
+      <StagePanel stage={stage} />
+      {connector === null ? null : (
+        <AnimatedConnector
+          label={connector.pill}
+          sub={connector.sub}
+        />
+      )}
+    </Fragment>
   );
 }
 
@@ -982,7 +991,7 @@ function ChannelChip({ kind }: { kind: "ig" | "fb" | "sms" | "phone" }) {
   );
 }
 
-function InboundFragment() {
+export function InboundFragment() {
   const rows: Array<{ kind: "ig" | "fb" | "sms" | "phone"; who: string; body: string; when: string }> = [
     { kind: "ig", who: "@miacarter", body: "Saw your post about Bellaire. Is this still available?", when: "11:47 PM" },
     { kind: "fb", who: "noah_realestate", body: "what are the schools nearby?", when: "11:46 PM" },
@@ -1009,7 +1018,7 @@ function InboundFragment() {
   );
 }
 
-function MemoryFragment() {
+export function MemoryFragment() {
   const items: Array<{ label: string; sub: string; tone: "good" | "blue" | "clay" }> = [
     { label: "247 past leads", sub: "similar buyer patterns matched", tone: "good" },
     { label: "4126 Maple", sub: "listing facts, photos, HOA, schools", tone: "blue" },
@@ -1041,7 +1050,7 @@ function MemoryFragment() {
   );
 }
 
-function DraftFragment() {
+export function DraftFragment() {
   return (
     <FragmentShell label="Draft · awaiting your approval" accent="sage">
       <div className="rounded-[12px] p-3" style={{ background: "rgba(154,181,170,0.10)", border: "1px solid rgba(154,181,170,0.32)" }}>
@@ -1129,7 +1138,7 @@ function ControlFragment() {
   );
 }
 
-function RoutingFragment() {
+export function RoutingFragment() {
   const reasons: ReadonlyArray<string> = ["covers Bellaire", "calendar open", "4 active leads", "match score 92"];
   return (
     <FragmentShell label="Routing decision" accent="sage">
@@ -1706,11 +1715,12 @@ const PRICING_TIERS: ReadonlyArray<PricingTier> = [
     href: PRIMARY_HREF,
     highlight: false,
     features: [
-      "1 workspace seat",
+      "2 workspace seats",
       "Instagram + Facebook intake",
-      "Drafted replies, you approve",
+      "Auto-send when policy allows",
       "Follow Up Boss sync",
-      "25 active listings",
+      "10 active listings",
+      "2,000 social turns + 500 voice minutes",
       "Standing rules + recurring loops",
     ],
   },
@@ -1724,11 +1734,11 @@ const PRICING_TIERS: ReadonlyArray<PricingTier> = [
     highlight: true,
     inherits: "Solo",
     features: [
-      "Up to 8 seats",
+      "Up to 10 seats",
       "Routing profiles + agent assignment",
       "Calendar showings + tour booking",
       "Workspace memory across closed deals",
-      "SMS + voicemail handling",
+      "50 listings, 8,000 turns, 2,000 voice minutes",
       "Per-channel reply mode controls",
     ],
   },
@@ -1742,12 +1752,13 @@ const PRICING_TIERS: ReadonlyArray<PricingTier> = [
     highlight: false,
     inherits: "Team",
     features: [
-      "Expanded seats",
+      "Unlimited seats and listings",
       "Many connected Pages and IG accounts",
       "Owner review queue",
+      "25,000 social turns + 6,000 voice minutes",
       "White-glove setup",
       "Priority support",
-      "Custom integrations (Salesforce, kvCORE, BoomTown)",
+      "Custom integrations",
     ],
   },
 ];

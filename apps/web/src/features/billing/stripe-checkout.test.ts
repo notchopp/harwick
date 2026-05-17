@@ -58,6 +58,7 @@ describe("createWorkspaceBillingCheckoutSession", () => {
         createCheckoutSession,
         createCustomerPortalSession: vi.fn(),
         retrieveSubscription: vi.fn(),
+        createPaymentIntent: vi.fn(),
       },
       workspaceId: "00000000-0000-0000-0000-000000000001",
       request: {
@@ -94,6 +95,7 @@ describe("createWorkspaceBillingPortalSession", () => {
         createCheckoutSession: vi.fn(),
         createCustomerPortalSession,
         retrieveSubscription: vi.fn(),
+        createPaymentIntent: vi.fn(),
       },
       providerCustomerId: "cus_123",
     });

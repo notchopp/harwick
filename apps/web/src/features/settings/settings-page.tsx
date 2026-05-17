@@ -13,15 +13,19 @@ import {
   type HarwickLoopOutputMode,
   type HarwickLoopTriggerType,
   type SubscriptionStatus,
+  type MonthlyUsageSummary,
   type WorkspaceMemoryDocument,
   type WorkspaceMemoryReviewStatus,
   type WorkspaceRole,
+  type WorkspaceUsageWallet,
+  getPlanLimits,
 } from "@realty-ops/core";
 import { useEffect, useState } from "react";
 
 import { Button } from "../../components/ui/button";
 import { WorkspaceTopbar } from "../../components/workspace-topbar";
 import { cn } from "../../lib/utils";
+import { getPlanMaterial } from "../marketing/plan-card-material";
 import {
   buildHarwickLoopCreateRequest,
   formatHarwickLoopDate,
@@ -57,7 +61,7 @@ function SettingsSection(props: { children: React.ReactNode; title: string; dang
   return (
     <section
       className={cn(
-        "harwick-card px-[18px] py-[18px]",
+        "rounded-[16px] border border-harwick-border bg-[linear-gradient(180deg,var(--harwick-paper),var(--harwick-linen))] px-[18px] py-[18px] shadow-[0_16px_38px_rgba(24,33,29,0.07)]",
         props.danger && "border-oxblood-soft",
       )}
     >
@@ -102,6 +106,23 @@ function statusLabel(status: SubscriptionStatus): string {
   return status.replace(/_/g, " ");
 }
 
+function money(cents: number): string {
+  return new Intl.NumberFormat("en-US", {
+    currency: "USD",
+    maximumFractionDigits: 0,
+    style: "currency",
+  }).format(cents / 100);
+}
+
+function compactNumber(value: number): string {
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 }).format(value);
+}
+
+function usagePercent(used: number, limit: number | null): number {
+  if (limit === null || limit <= 0) return 0;
+  return Math.min(100, Math.round((used / limit) * 100));
+}
+
 function roleLabel(role: WorkspaceRole): string {
   if (role === "team_lead") return "Team Lead";
   if (role === "lead_manager") return "Lead Manager";
@@ -129,14 +150,21 @@ function formatPeriodEnd(value: string): string {
 
 function BillingPanel(props: {
   billing: BillingSummary;
+  billingUsage: MonthlyUsageSummary | null;
+  billingWallet: WorkspaceUsageWallet | null;
   canManageBilling: boolean;
   workspaceId: string;
 }) {
-  const [busyAction, setBusyAction] = useState<"portal" | BillingPaidPlanTier | null>(null);
+  const [busyAction, setBusyAction] = useState<"portal" | "topup" | BillingPaidPlanTier | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const currentPlan = props.billing === null ? "No active plan" : `${planLabel(props.billing.planTier)} / ${intervalLabel(props.billing.billingInterval)}`;
+  const activeTier = props.billing?.planTier ?? "free";
+  const limits = getPlanLimits(activeTier);
+  const currentPlan = props.billing === null ? "Free / no subscription" : `${planLabel(props.billing.planTier)} / ${intervalLabel(props.billing.billingInterval)}`;
   const currentStatus = props.billing === null ? "not configured" : statusLabel(props.billing.status);
+  const turnsUsed = props.billingUsage?.turnsUsed ?? 0;
+  const minutesUsed = props.billingUsage?.minutesUsed ?? 0;
+  const walletBalance = props.billingWallet?.balanceCents ?? 0;
 
   async function startCheckout(planTier: BillingPaidPlanTier) {
     if (!props.canManageBilling) return;
@@ -181,44 +209,107 @@ function BillingPanel(props: {
     }
   }
 
+  async function topUpWallet() {
+    if (!props.canManageBilling || busyAction !== null) return;
+    setBusyAction("topup");
+    setError(null);
+    try {
+      const response = await fetch(`/api/workspaces/${props.workspaceId}/billing/wallet/top-up`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amountCents: 5000 }),
+      });
+      const body = (await response.json().catch(() => null)) as { error?: string; status?: string } | null;
+      if (!response.ok) {
+        throw new Error(body?.error ?? "wallet_top_up_failed");
+      }
+      setBusyAction(null);
+    } catch (topUpError) {
+      setError(topUpError instanceof Error ? topUpError.message : "wallet_top_up_failed");
+      setBusyAction(null);
+    }
+  }
+
+  const plans: ReadonlyArray<{
+    tier: BillingPaidPlanTier;
+    price: string;
+    label: string;
+    details: string;
+  }> = [
+    {
+      tier: "solo",
+      price: "$299",
+      label: "Solo",
+      details: "2 seats · 10 listings · 2k turns",
+    },
+    {
+      tier: "team",
+      price: "$799",
+      label: "Team",
+      details: "10 seats · 50 listings · 8k turns",
+    },
+    {
+      tier: "brokerage",
+      price: "Custom",
+      label: "Brokerage",
+      details: "Unlimited seats/listings · 25k turns",
+    },
+  ];
+
   return (
-    <div className="rounded-[12px] border border-border bg-surface-muted/55 p-4">
+    <div className="space-y-4">
+      <div className="overflow-hidden rounded-[14px] border border-harwick-border-strong bg-[linear-gradient(135deg,var(--harwick-paper)_0%,var(--harwick-linen)_100%)] p-4 shadow-[0_18px_42px_rgba(24,33,29,0.08)]">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <div className="text-[11px] uppercase tracking-[0.12em] text-muted-subtle">Billing</div>
+          <div className="text-[11px] uppercase tracking-[0.12em] text-muted-subtle">Plan & usage</div>
           <div className="mt-1 font-display text-[18px] font-medium text-foreground">{currentPlan}</div>
           <div className="mt-1 text-[11.5px] text-muted-foreground">
             {props.billing === null
-              ? "Choose a plan to unlock production usage gates."
+              ? "Free workspace with wallet-backed overages when funded."
               : `${currentStatus}${props.billing.cancelAtPeriodEnd ? " / cancels at period end" : ""} / renews ${formatPeriodEnd(props.billing.currentPeriodEnd)}`}
           </div>
         </div>
-        <Button
-          className="text-[11px]"
-          disabled={!props.canManageBilling || props.billing?.providerCustomerId === null || props.billing?.providerCustomerId === undefined || busyAction !== null}
-          onClick={() => void openPortal()}
-          size="sm"
-          type="button"
-          variant="outline"
-        >
-          {busyAction === "portal" ? "Opening..." : "Manage in Stripe"}
-        </Button>
-      </div>
-
-      <div className="mt-4 grid gap-2 sm:grid-cols-3">
-        {(["solo", "team", "brokerage"] as const).map((planTier) => (
+        <div className="flex flex-wrap gap-2">
           <Button
-            className="justify-center text-[11px]"
-            disabled={!props.canManageBilling || busyAction !== null || props.billing?.planTier === planTier}
-            key={planTier}
-            onClick={() => void startCheckout(planTier)}
+            className="text-[11px]"
+            disabled={!props.canManageBilling || busyAction !== null}
+            onClick={() => void topUpWallet()}
             size="sm"
             type="button"
-            variant={props.billing?.planTier === planTier ? "secondary" : "outline"}
           >
-            {busyAction === planTier ? "Starting..." : props.billing?.planTier === planTier ? `${planLabel(planTier)} active` : `Switch to ${planLabel(planTier)}`}
+            {busyAction === "topup" ? "Adding..." : "Add $50"}
           </Button>
-        ))}
+          <Button
+            className="text-[11px]"
+            disabled={!props.canManageBilling || props.billing?.providerCustomerId === null || props.billing?.providerCustomerId === undefined || busyAction !== null}
+            onClick={() => void openPortal()}
+            size="sm"
+            type="button"
+            variant="outline"
+          >
+            {busyAction === "portal" ? "Opening..." : "Manage Stripe"}
+          </Button>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-3">
+        <div className="rounded-[12px] border border-harwick-border bg-harwick-paper/80 p-3">
+          <div className="text-[10px] uppercase tracking-[0.12em] text-muted-subtle">Wallet</div>
+          <div className="mt-1 font-display text-[22px] font-medium text-foreground">{money(walletBalance)}</div>
+          <div className="mt-1 text-[11px] text-muted-subtle">
+            {props.billingWallet?.autoRechargeEnabled ? `Auto adds ${money(props.billingWallet.autoRechargeAmountCents)} below ${money(props.billingWallet.autoRechargeThresholdCents)}` : "Auto-recharge off"}
+          </div>
+        </div>
+        <UsageMeter
+          label="Social turns"
+          limit={limits.socialTurnsPerMonth}
+          used={turnsUsed}
+        />
+        <UsageMeter
+          label="Voice minutes"
+          limit={limits.voiceMinutesPerMonth}
+          used={minutesUsed}
+        />
       </div>
 
       {props.canManageBilling ? null : (
@@ -229,6 +320,95 @@ function BillingPanel(props: {
           {error}
         </div>
       )}
+      </div>
+
+      <div className="grid gap-3 lg:grid-cols-3">
+        {plans.map((plan) => (
+          <PlanUpgradeCard
+            active={props.billing?.planTier === plan.tier}
+            busy={busyAction === plan.tier}
+            canManageBilling={props.canManageBilling}
+            details={plan.details}
+            key={plan.tier}
+            label={plan.label}
+            onChoose={() => void startCheckout(plan.tier)}
+            price={plan.price}
+            tier={plan.tier}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function UsageMeter(props: { label: string; used: number; limit: number | null }) {
+  const percent = usagePercent(props.used, props.limit);
+  return (
+    <div className="rounded-[12px] border border-harwick-border bg-harwick-paper/80 p-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-[10px] uppercase tracking-[0.12em] text-muted-subtle">{props.label}</div>
+        <div className="text-[11px] font-medium text-foreground">
+          {compactNumber(props.used)} / {props.limit === null ? "unlimited" : compactNumber(props.limit)}
+        </div>
+      </div>
+      <div className="mt-3 h-2 overflow-hidden rounded-full bg-harwick-linen-strong">
+        <div
+          className="h-full rounded-full bg-[linear-gradient(90deg,var(--harwick-brass),var(--sage))]"
+          style={{ width: props.limit === null ? "35%" : `${percent}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function PlanUpgradeCard(props: {
+  active: boolean;
+  busy: boolean;
+  canManageBilling: boolean;
+  details: string;
+  label: string;
+  onChoose: () => void;
+  price: string;
+  tier: BillingPaidPlanTier;
+}) {
+  const material = getPlanMaterial(props.tier);
+  return (
+    <div
+      className="relative overflow-hidden rounded-[16px] p-4 text-white shadow-[0_24px_56px_rgba(0,0,0,0.22)]"
+      style={{
+        background: material.background,
+        border: `1px solid ${material.ringColor}`,
+        boxShadow: `${material.edgeShadow}, 0 22px 50px -24px rgba(0,0,0,0.55)`,
+      }}
+    >
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(110deg,transparent_35%,rgba(255,255,255,0.045)_50%,transparent_65%)]" />
+      <div className="relative">
+        <div className="flex items-center justify-between gap-3">
+          <div className="font-display text-[15px] font-medium">{props.label}</div>
+          {props.active ? (
+            <span className="rounded-full border px-2 py-[2px] text-[10px] uppercase" style={{ borderColor: material.ringColor, color: material.accentColor }}>
+              active
+            </span>
+          ) : null}
+        </div>
+        <div className="mt-3 flex items-baseline gap-1.5">
+          <span className="bg-clip-text font-display text-[30px] font-semibold text-transparent" style={{ backgroundImage: material.textShimmer }}>
+            {props.price}
+          </span>
+          {props.price === "Custom" ? null : <span className="text-[11px] text-white/55">/mo</span>}
+        </div>
+        <div className="mt-1 text-[12px] leading-5 text-white/72">{props.details}</div>
+        <Button
+          className="mt-4 h-9 w-full border-white/15 bg-white/10 text-[11px] text-white hover:bg-white/15 hover:text-white"
+          disabled={!props.canManageBilling || props.active || props.busy}
+          onClick={props.onChoose}
+          size="sm"
+          type="button"
+          variant="outline"
+        >
+          {props.busy ? "Starting..." : props.active ? "Current plan" : `Switch to ${props.label}`}
+        </Button>
+      </div>
     </div>
   );
 }
@@ -743,6 +923,8 @@ function HarwickMemoryReviewPanel(props: {
 
 export function SettingsPageContent(props: {
   billing: BillingSummary;
+  billingUsage: MonthlyUsageSummary | null;
+  billingWallet: WorkspaceUsageWallet | null;
   memberDisplayName: string;
   memberEmail: string | null;
   memberRole: WorkspaceRole;
@@ -871,7 +1053,7 @@ export function SettingsPageContent(props: {
   const signaturePreview = `- ${props.memberDisplayName}, ${props.workspaceName}`;
 
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-background">
+    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-[radial-gradient(900px_420px_at_75%_-140px,rgba(96,120,109,0.14),transparent_58%),linear-gradient(180deg,var(--harwick-parchment),var(--harwick-linen))]">
       <WorkspaceTopbar context="profile & settings" workspaceName={props.workspaceName}>
         <Button
           className="ml-auto px-4 text-[11px]"
@@ -928,6 +1110,8 @@ export function SettingsPageContent(props: {
             <SettingsSection title="Billing">
               <BillingPanel
                 billing={props.billing}
+                billingUsage={props.billingUsage}
+                billingWallet={props.billingWallet}
                 canManageBilling={props.memberRole === "owner" || props.memberRole === "admin"}
                 workspaceId={props.workspaceId}
               />

@@ -1,6 +1,7 @@
 import type { RealtyOpsSupabaseClient } from "./server-client";
 import {
   WorkspaceSubscription,
+  MonthlyUsageSummary,
   WorkspaceUsageWallet,
   WorkspaceUsageSummary,
   type BillingWalletUsageEventType,
@@ -14,6 +15,7 @@ import type {
   BillingUsageEventInsertRow,
   BillingWebhookEventRow,
   Json,
+  MonthlyUsageSummaryRow,
   WorkspaceUsageEventInsertRow,
   WorkspaceUsageWalletRow,
 } from "./database.types";
@@ -246,6 +248,40 @@ function mapWorkspaceUsageWalletRow(data: WorkspaceUsageWalletRow): WorkspaceUsa
   };
 }
 
+function mapMonthlyUsageSummaryRow(data: MonthlyUsageSummaryRow): MonthlyUsageSummary {
+  return {
+    workspaceId: data.workspace_id ?? "",
+    month: data.month ?? new Date().toISOString().slice(0, 10),
+    turnsUsed: data.turns_used ?? 0,
+    minutesUsed: data.minutes_used ?? 0,
+    memoryLoopsUsed: data.memory_loops_used ?? 0,
+    overageListings: data.overage_listings ?? 0,
+    overageSeats: data.overage_seats ?? 0,
+    retailCents: data.retail_cents ?? 0,
+    cogsCents: data.cogs_cents ?? 0,
+    balanceAfterCents: data.balance_after_cents ?? null,
+  };
+}
+
+export async function getLatestMonthlyUsageSummary(
+  supabase: RealtyOpsSupabaseClient,
+  workspaceId: string,
+): Promise<MonthlyUsageSummary | null> {
+  const { data, error } = await supabase
+    .from("monthly_usage_summary")
+    .select("*")
+    .eq("workspace_id", workspaceId)
+    .order("month", { ascending: false })
+    .limit(1)
+    .maybeSingle<MonthlyUsageSummaryRow>();
+
+  if (error) {
+    throw new Error(`Failed to fetch monthly usage summary: ${error.message}`);
+  }
+
+  return data === null ? null : mapMonthlyUsageSummaryRow(data);
+}
+
 export async function getWorkspaceUsageWallet(
   supabase: RealtyOpsSupabaseClient,
   workspaceId: string,
@@ -261,6 +297,27 @@ export async function getWorkspaceUsageWallet(
   }
 
   return data === null ? null : mapWorkspaceUsageWalletRow(data);
+}
+
+export async function creditWorkspaceUsageWallet(
+  supabase: RealtyOpsSupabaseClient,
+  params: {
+    workspaceId: string;
+    amountCents: number;
+    stripePaymentMethodId?: string | null;
+  },
+): Promise<number> {
+  const { data, error } = await supabase.rpc("credit_workspace_usage_wallet", {
+    p_workspace_id: params.workspaceId,
+    p_amount_cents: params.amountCents,
+    p_stripe_payment_method_id: params.stripePaymentMethodId ?? null,
+  });
+
+  if (error) {
+    throw new Error(`Failed to credit workspace usage wallet: ${error.message}`);
+  }
+
+  return data;
 }
 
 export async function recordBillingUsageEvent(

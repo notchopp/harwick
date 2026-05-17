@@ -34,6 +34,22 @@ const StripeBillingPortalResponseSchema = z.object({
   portalUrl: z.string().trim().url(),
 });
 
+const StripePaymentIntentSchema = z.object({
+  id: z.string().trim().min(1),
+  amount: z.number().int().positive(),
+  amount_received: z.number().int().nonnegative().optional(),
+  status: z.string().trim().min(1),
+  client_secret: z.string().trim().min(1).nullable().optional(),
+});
+
+const StripeBillingPaymentIntentResponseSchema = z.object({
+  provider: z.literal("stripe"),
+  providerPaymentIntentId: z.string().trim().min(1).max(200),
+  status: z.string().trim().min(1).max(80),
+  amountCents: z.number().int().positive(),
+  clientSecret: z.string().trim().min(1).max(500).nullable(),
+});
+
 const StripeMetadataSchema = z.record(z.string(), z.string()).default({});
 
 const StripeExpandableIdSchema = z.union([
@@ -72,6 +88,17 @@ const StripeCheckoutSessionSnapshotSchema = z.object({
   metadata: StripeMetadataSchema,
 }).passthrough();
 
+const StripePaymentIntentSnapshotSchema = z.object({
+  id: z.string().trim().min(1),
+  object: z.literal("payment_intent"),
+  amount: z.number().int().positive(),
+  amount_received: z.number().int().nonnegative().optional(),
+  status: z.string().trim().min(1),
+  customer: StripeExpandableIdSchema.nullable().optional(),
+  payment_method: StripeExpandableIdSchema.nullable().optional(),
+  metadata: StripeMetadataSchema,
+}).passthrough();
+
 const StripeBillingEventSchema = z.object({
   id: z.string().trim().min(1).max(200),
   type: z.string().trim().min(1).max(120),
@@ -88,6 +115,15 @@ export type StripeCheckoutSessionRequest = {
   successUrl: string;
   cancelUrl: string;
   customerId?: string | null;
+};
+
+export type StripePaymentIntentRequest = {
+  workspaceId: string;
+  amountCents: number;
+  customerId: string;
+  paymentMethodId: string;
+  idempotencyKey: string;
+  kind: "wallet_top_up" | "wallet_auto_recharge";
 };
 
 export type StripeBillingClientOptions = {
@@ -111,10 +147,18 @@ export type StripeBillingClient = {
     portalUrl: string;
   }>;
   retrieveSubscription(subscriptionId: string): Promise<StripeSubscriptionSnapshot>;
+  createPaymentIntent(params: StripePaymentIntentRequest): Promise<{
+    provider: "stripe";
+    providerPaymentIntentId: string;
+    status: string;
+    amountCents: number;
+    clientSecret: string | null;
+  }>;
 };
 
 export type StripeSubscriptionSnapshot = z.infer<typeof StripeSubscriptionSnapshotSchema>;
 export type StripeCheckoutSessionSnapshot = z.infer<typeof StripeCheckoutSessionSnapshotSchema>;
+export type StripePaymentIntentSnapshot = z.infer<typeof StripePaymentIntentSnapshotSchema>;
 
 export type StripeBillingWebhookEvent =
   | {
@@ -128,6 +172,12 @@ export type StripeBillingWebhookEvent =
       type: "checkout.session.completed";
       objectId: string;
       checkoutSession: StripeCheckoutSessionSnapshot;
+    }
+  | {
+      id: string;
+      type: "payment_intent.succeeded";
+      objectId: string;
+      paymentIntent: StripePaymentIntentSnapshot;
     }
   | {
       id: string;
@@ -156,6 +206,20 @@ function buildCheckoutSessionBody(params: StripeCheckoutSessionRequest): URLSear
     body.set("customer", params.customerId);
   }
 
+  return body;
+}
+
+function buildPaymentIntentBody(params: StripePaymentIntentRequest): URLSearchParams {
+  const body = new URLSearchParams();
+  body.set("amount", String(params.amountCents));
+  body.set("currency", "usd");
+  body.set("customer", params.customerId);
+  body.set("payment_method", params.paymentMethodId);
+  body.set("confirm", "true");
+  body.set("off_session", "true");
+  body.set("metadata[workspace_id]", params.workspaceId);
+  body.set("metadata[kind]", params.kind);
+  body.set("metadata[idempotency_key]", params.idempotencyKey);
   return body;
 }
 
@@ -255,6 +319,16 @@ export function parseStripeBillingWebhookEvent(rawBody: string): StripeBillingWe
       type: parsed.type,
       objectId: checkoutSession.id,
       checkoutSession,
+    };
+  }
+
+  if (parsed.type === "payment_intent.succeeded") {
+    const paymentIntent = StripePaymentIntentSnapshotSchema.parse(parsed.data.object);
+    return {
+      id: parsed.id,
+      type: parsed.type,
+      objectId: paymentIntent.id,
+      paymentIntent,
     };
   }
 
@@ -372,6 +446,32 @@ export function createStripeBillingClient(options: StripeBillingClientOptions): 
       }
 
       return StripeSubscriptionSnapshotSchema.parse(await response.json());
+    },
+
+    async createPaymentIntent(params) {
+      const response = await fetchImpl(`${apiBaseUrl}/payment_intents`, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${options.secretKey}`,
+          "content-type": "application/x-www-form-urlencoded",
+          "idempotency-key": params.idempotencyKey,
+        },
+        body: buildPaymentIntentBody(params),
+      });
+
+      if (!response.ok) {
+        const detail = await response.text().catch(() => "");
+        throw new Error(`Stripe payment intent failed: ${response.status} ${response.statusText} ${detail}`.trim());
+      }
+
+      const paymentIntent = StripePaymentIntentSchema.parse(await response.json());
+      return StripeBillingPaymentIntentResponseSchema.parse({
+        provider: "stripe",
+        providerPaymentIntentId: paymentIntent.id,
+        status: paymentIntent.status,
+        amountCents: paymentIntent.amount,
+        clientSecret: paymentIntent.client_secret ?? null,
+      });
     },
   };
 }

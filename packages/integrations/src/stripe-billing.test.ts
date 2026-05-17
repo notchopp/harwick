@@ -153,6 +153,63 @@ describe("createStripeBillingClient", () => {
       authorization: "Bearer sk_test_123",
     });
   });
+
+  it("creates an off-session Stripe payment intent for wallet top-up", async () => {
+    const fetchMock = vi.fn<typeof fetch>(() => Promise.resolve(new Response(JSON.stringify({
+      id: "pi_123",
+      amount: 5000,
+      amount_received: 5000,
+      status: "succeeded",
+      client_secret: null,
+    }), { status: 200 })));
+    const client = createStripeBillingClient({
+      secretKey: "sk_test_secret",
+      fetchImpl: fetchMock,
+    });
+
+    const result = await client.createPaymentIntent({
+      workspaceId: "00000000-0000-0000-0000-000000000001",
+      amountCents: 5000,
+      customerId: "cus_123",
+      paymentMethodId: "pm_123",
+      idempotencyKey: "wallet_top_up_123",
+      kind: "wallet_top_up",
+    });
+
+    expect(result).toEqual({
+      provider: "stripe",
+      providerPaymentIntentId: "pi_123",
+      status: "succeeded",
+      amountCents: 5000,
+      clientSecret: null,
+    });
+    const call = fetchMock.mock.calls[0];
+    if (call === undefined) {
+      throw new Error("Expected Stripe payment intent fetch call");
+    }
+    expect(call[0]).toBe("https://api.stripe.com/v1/payment_intents");
+    const init = call[1];
+    if (init === undefined) {
+      throw new Error("Expected Stripe payment intent fetch init");
+    }
+    expect(init.headers).toMatchObject({
+      authorization: "Bearer sk_test_secret",
+      "content-type": "application/x-www-form-urlencoded",
+      "idempotency-key": "wallet_top_up_123",
+    });
+    const body = init.body;
+    if (!(body instanceof URLSearchParams)) {
+      throw new Error("Expected Stripe form body");
+    }
+    expect(body.get("amount")).toBe("5000");
+    expect(body.get("currency")).toBe("usd");
+    expect(body.get("customer")).toBe("cus_123");
+    expect(body.get("payment_method")).toBe("pm_123");
+    expect(body.get("confirm")).toBe("true");
+    expect(body.get("off_session")).toBe("true");
+    expect(body.get("metadata[kind]")).toBe("wallet_top_up");
+    expect(body.get("metadata[idempotency_key]")).toBe("wallet_top_up_123");
+  });
 });
 
 describe("Stripe billing webhook helpers", () => {
@@ -255,5 +312,35 @@ describe("Stripe billing webhook helpers", () => {
 
     expect(update?.planTier).toBe("solo");
     expect(update?.billingInterval).toBe("year");
+  });
+
+  it("parses wallet payment intent succeeded events", () => {
+    const event = parseStripeBillingWebhookEvent(JSON.stringify({
+      id: "evt_pi",
+      type: "payment_intent.succeeded",
+      data: {
+        object: {
+          id: "pi_123",
+          object: "payment_intent",
+          amount: 5000,
+          amount_received: 5000,
+          status: "succeeded",
+          customer: "cus_123",
+          payment_method: "pm_123",
+          metadata: {
+            workspace_id: "123e4567-e89b-12d3-a456-426614174000",
+            kind: "wallet_top_up",
+            idempotency_key: "wallet_top_up_123",
+          },
+        },
+      },
+    }));
+
+    expect(event.type).toBe("payment_intent.succeeded");
+    if (!("paymentIntent" in event)) {
+      throw new Error("Expected payment intent event");
+    }
+    expect(event.paymentIntent.payment_method).toBe("pm_123");
+    expect(event.paymentIntent.metadata["kind"]).toBe("wallet_top_up");
   });
 });

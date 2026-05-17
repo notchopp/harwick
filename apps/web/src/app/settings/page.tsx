@@ -1,14 +1,23 @@
 import { AppShell } from "../../components/app-shell";
 import { SettingsPageContent } from "../../features/settings/settings-page";
 import { requireActiveWorkspace } from "../../features/auth/session";
-import { getWorkspaceSubscription } from "../../lib/supabase/billing";
+import {
+  getLatestMonthlyUsageSummary,
+  getWorkspaceSubscription,
+  getWorkspaceUsageWallet,
+} from "../../lib/supabase/billing";
 import { createServerSupabaseClient } from "../../lib/supabase/server-client";
 
 export const dynamic = "force-dynamic";
 
 export default async function Page() {
   const { session, membership } = await requireActiveWorkspace({ nextPath: "/settings" });
-  const subscription = await getWorkspaceSubscription(createServerSupabaseClient(), membership.workspaceId);
+  const supabase = createServerSupabaseClient();
+  const [subscription, wallet, usageSummary] = await Promise.all([
+    getWorkspaceSubscription(supabase, membership.workspaceId),
+    getWorkspaceUsageWallet(supabase, membership.workspaceId),
+    getLatestMonthlyUsageSummary(supabase, membership.workspaceId),
+  ]);
 
   return (
     <AppShell
@@ -29,6 +38,8 @@ export default async function Page() {
           cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
           providerCustomerId: subscription.providerCustomerId,
         }}
+        billingUsage={usageSummary}
+        billingWallet={wallet}
         memberRole={membership.role}
         memberDisplayName={membership.displayName}
         memberEmail={session.user.email}

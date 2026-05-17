@@ -28,6 +28,13 @@ function subscriptionEvent(overrides: Partial<StripeBillingWebhookEvent> = {}): 
 function createStore(options: {
   duplicate?: boolean;
   upserts?: BillingSubscriptionReconciliation[];
+  walletCredits?: Array<{
+    workspaceId: string;
+    amountCents: number;
+    stripePaymentMethodId: string | null;
+    providerPaymentIntentId: string;
+    idempotencyKey: string;
+  }>;
   completions?: Array<{
     eventId: string;
     status: "processed" | "ignored" | "failed";
@@ -49,6 +56,10 @@ function createStore(options: {
     },
     upsertSubscription(update) {
       options.upserts?.push(update);
+      return Promise.resolve();
+    },
+    creditWallet(params) {
+      options.walletCredits?.push(params);
       return Promise.resolve();
     },
   };
@@ -181,6 +192,63 @@ describe("handleStripeBillingWebhookEvent", () => {
       status: "ignored",
       workspaceId: null,
       errorMessage: "unsupported_event_type",
+    }]);
+  });
+
+  it("credits the wallet for wallet payment intent events", async () => {
+    const walletCredits: Array<{
+      workspaceId: string;
+      amountCents: number;
+      stripePaymentMethodId: string | null;
+      providerPaymentIntentId: string;
+      idempotencyKey: string;
+    }> = [];
+    const completions: Array<{
+      eventId: string;
+      status: "processed" | "ignored" | "failed";
+      workspaceId?: string | null;
+      errorMessage?: string | null;
+    }> = [];
+
+    const result = await handleStripeBillingWebhookEvent({
+      event: {
+        id: "evt_pi",
+        type: "payment_intent.succeeded",
+        objectId: "pi_123",
+        paymentIntent: {
+          id: "pi_123",
+          object: "payment_intent",
+          amount: 5000,
+          amount_received: 5000,
+          status: "succeeded",
+          customer: "cus_123",
+          payment_method: "pm_123",
+          metadata: {
+            workspace_id: "123e4567-e89b-12d3-a456-426614174000",
+            kind: "wallet_top_up",
+            idempotency_key: "wallet_top_up_123",
+          },
+        },
+      },
+      stripeClient,
+      store: createStore({ walletCredits, completions }),
+    });
+
+    expect(result).toMatchObject({
+      status: "processed",
+      workspaceId: "123e4567-e89b-12d3-a456-426614174000",
+    });
+    expect(walletCredits).toEqual([{
+      workspaceId: "123e4567-e89b-12d3-a456-426614174000",
+      amountCents: 5000,
+      stripePaymentMethodId: "pm_123",
+      providerPaymentIntentId: "pi_123",
+      idempotencyKey: "wallet_top_up_123",
+    }]);
+    expect(completions).toEqual([{
+      eventId: "ledger_123",
+      status: "processed",
+      workspaceId: "123e4567-e89b-12d3-a456-426614174000",
     }]);
   });
 });
