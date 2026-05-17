@@ -3529,6 +3529,19 @@ export type Database = {
         }
         Returns: number
       }
+      record_billing_usage_event: {
+        Args: {
+          p_workspace_id: string
+          p_event_type: string
+          p_unit_count?: number
+          p_retail_cents?: number
+          p_cogs_cents?: number
+          p_source_id?: string | null
+          p_idempotency_key?: string | null
+          p_event_metadata?: Json | null
+        }
+        Returns: boolean
+      }
       can_manage_workspace_routing: {
         Args: { target_workspace_id: string }
         Returns: boolean

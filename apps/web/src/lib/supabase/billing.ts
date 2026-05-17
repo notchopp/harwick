@@ -6,13 +6,14 @@ import {
   WorkspaceUsageSummary,
   type BillingWalletUsageEventType,
   type BillingSubscriptionReconciliation,
+  type PlanCapacityDecision,
   type UsageEventType,
+  evaluatePlanCapacity,
   getPlanCapabilities,
   checkUsageLimit,
   PlanGateResult,
 } from "@realty-ops/core";
 import type {
-  BillingUsageEventInsertRow,
   BillingWebhookEventRow,
   Json,
   MonthlyUsageSummaryRow,
@@ -333,20 +334,17 @@ export async function recordBillingUsageEvent(
     eventMetadata?: Record<string, unknown> | null;
   },
 ): Promise<boolean> {
-  const wallet = await getWorkspaceUsageWallet(supabase, params.workspaceId);
-  const row: BillingUsageEventInsertRow = {
-    workspace_id: params.workspaceId,
-    event_type: params.eventType,
-    unit_count: params.unitCount ?? 1,
-    retail_cents: params.retailCents ?? 0,
-    cogs_cents: params.cogsCents ?? 0,
-    balance_after_cents: wallet?.balanceCents ?? 0,
-    source_id: params.sourceId ?? null,
-    idempotency_key: params.idempotencyKey,
-    event_metadata: (params.eventMetadata ?? null) as Json,
-  };
+  const { data, error } = await supabase.rpc("record_billing_usage_event", {
+    p_workspace_id: params.workspaceId,
+    p_event_type: params.eventType,
+    p_unit_count: params.unitCount ?? 1,
+    p_retail_cents: params.retailCents ?? 0,
+    p_cogs_cents: params.cogsCents ?? 0,
+    p_source_id: params.sourceId ?? null,
+    p_idempotency_key: params.idempotencyKey,
+    p_event_metadata: (params.eventMetadata ?? null) as Json,
+  });
 
-  const { error } = await supabase.from("usage_events").insert(row);
   if (error) {
     const maybeCode = "code" in error ? String(error.code) : "";
     if (maybeCode === "23505") {
@@ -356,7 +354,43 @@ export async function recordBillingUsageEvent(
     throw new Error(`Failed to record billing usage event: ${error.message}`);
   }
 
-  return true;
+  return Boolean(data);
+}
+
+export async function checkPlanCapacity(
+  supabase: RealtyOpsSupabaseClient,
+  params: {
+    workspaceId: string;
+    eventType: BillingWalletUsageEventType;
+  },
+): Promise<PlanCapacityDecision> {
+  const [subscription, summary, wallet] = await Promise.all([
+    getWorkspaceSubscription(supabase, params.workspaceId),
+    getLatestMonthlyUsageSummary(supabase, params.workspaceId),
+    getWorkspaceUsageWallet(supabase, params.workspaceId),
+  ]);
+  const activePaidSubscription = subscription !== null
+    && subscription.status !== "canceled"
+    && subscription.status !== "incomplete_expired"
+    && subscription.status !== "paused"
+    && subscription.status !== "unpaid"
+    ? subscription
+    : null;
+  const planTier = activePaidSubscription?.planTier ?? "free";
+  const usedByEventType = {
+    social_turn: summary?.turnsUsed ?? 0,
+    voice_minute: summary?.minutesUsed ?? 0,
+    memory_loop: summary?.memoryLoopsUsed ?? 0,
+    overage_listing: summary?.overageListings ?? 0,
+    overage_seat: summary?.overageSeats ?? 0,
+  } satisfies Record<BillingWalletUsageEventType, number>;
+
+  return evaluatePlanCapacity({
+    planTier,
+    eventType: params.eventType,
+    used: usedByEventType[params.eventType],
+    walletBalanceCents: wallet?.balanceCents ?? 0,
+  });
 }
 
 export async function checkSeatLimit(

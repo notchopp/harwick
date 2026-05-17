@@ -9,6 +9,7 @@ import {
   canAccessPlanFeature,
   recordUsageEvent,
   recordBillingUsageEvent,
+  checkPlanCapacity,
   creditWorkspaceUsageWallet,
   recordCurrentPeriodUsageEvent,
   upsertWorkspaceSubscriptionFromProvider,
@@ -640,41 +641,15 @@ describe("billing service", () => {
   });
 
   describe("recordBillingUsageEvent", () => {
-    it("records wallet-backed usage with an idempotency key", async () => {
-      let insertedData: Record<string, unknown> | null = null;
+    it("records wallet-backed usage through the atomic usage function", async () => {
+      let rpcName: string | null = null;
+      let rpcArgs: Record<string, unknown> | null = null;
 
       const mockSupabase = {
-        from: (table: string) => {
-          if (table === "workspace_usage_wallet") {
-            return {
-              select: () => ({
-                eq: () => ({
-                  maybeSingle: () => Promise.resolve({
-                    data: {
-                      workspace_id: "workspace-123",
-                      balance_cents: 5000,
-                      auto_recharge_enabled: false,
-                      auto_recharge_threshold_cents: 1000,
-                      auto_recharge_amount_cents: 5000,
-                      stripe_payment_method_id: null,
-                      last_recharge_at: null,
-                      low_balance_notified_at: null,
-                      updated_at: "2026-05-17T12:00:00Z",
-                    },
-                    error: null,
-                  }),
-                }),
-              }),
-            };
-          }
-
-          expect(table).toBe("usage_events");
-          return {
-            insert: (data: Record<string, unknown>) => {
-              insertedData = data;
-              return Promise.resolve({ error: null });
-            },
-          };
+        rpc: (name: string, args: Record<string, unknown>) => {
+          rpcName = name;
+          rpcArgs = args;
+          return Promise.resolve({ data: true, error: null });
         },
       } as unknown as RealtyOpsSupabaseClient;
 
@@ -686,36 +661,22 @@ describe("billing service", () => {
         eventMetadata: { channel: "instagram_dm" },
       })).resolves.toBe(true);
 
-      expect(insertedData).toEqual({
-        workspace_id: "workspace-123",
-        event_type: "social_turn",
-        unit_count: 1,
-        retail_cents: 0,
-        cogs_cents: 0,
-        balance_after_cents: 5000,
-        source_id: "trajectory-123",
-        idempotency_key: "harwick_trajectory:trajectory-123",
-        event_metadata: { channel: "instagram_dm" },
+      expect(rpcName).toBe("record_billing_usage_event");
+      expect(rpcArgs).toEqual({
+        p_workspace_id: "workspace-123",
+        p_event_type: "social_turn",
+        p_unit_count: 1,
+        p_retail_cents: 0,
+        p_cogs_cents: 0,
+        p_source_id: "trajectory-123",
+        p_idempotency_key: "harwick_trajectory:trajectory-123",
+        p_event_metadata: { channel: "instagram_dm" },
       });
     });
 
     it("treats duplicate wallet usage events as already recorded", async () => {
       const mockSupabase = {
-        from: (table: string) => {
-          if (table === "workspace_usage_wallet") {
-            return {
-              select: () => ({
-                eq: () => ({
-                  maybeSingle: () => Promise.resolve({ data: null, error: null }),
-                }),
-              }),
-            };
-          }
-
-          return {
-            insert: () => Promise.resolve({ error: { code: "23505", message: "duplicate key" } }),
-          };
-        },
+        rpc: () => Promise.resolve({ data: false, error: null }),
       } as unknown as RealtyOpsSupabaseClient;
 
       await expect(recordBillingUsageEvent(mockSupabase, {
@@ -725,6 +686,157 @@ describe("billing service", () => {
         sourceId: "call-123",
         idempotencyKey: "retell_call:call-123",
       })).resolves.toBe(false);
+    });
+  });
+
+  describe("checkPlanCapacity", () => {
+    it("allows free plan usage under the current social turn quota", async () => {
+      const mockSupabase = {
+        from: (table: string) => {
+          if (table === "workspace_subscriptions") {
+            return {
+              select: () => ({
+                eq: () => ({
+                  maybeSingle: () => Promise.resolve({ data: null, error: null }),
+                }),
+              }),
+            };
+          }
+
+          if (table === "monthly_usage_summary") {
+            return {
+              select: () => ({
+                eq: () => ({
+                  order: () => ({
+                    limit: () => ({
+                      maybeSingle: () => Promise.resolve({
+                        data: {
+                          workspace_id: "workspace-123",
+                          month: "2026-05-01",
+                          turns_used: 99,
+                          minutes_used: 0,
+                          memory_loops_used: 0,
+                          overage_listings: 0,
+                          overage_seats: 0,
+                          retail_cents: 0,
+                          cogs_cents: 0,
+                          balance_after_cents: null,
+                        },
+                        error: null,
+                      }),
+                    }),
+                  }),
+                }),
+              }),
+            };
+          }
+
+          expect(table).toBe("workspace_usage_wallet");
+          return {
+            select: () => ({
+              eq: () => ({
+                maybeSingle: () => Promise.resolve({
+                  data: {
+                    workspace_id: "workspace-123",
+                    balance_cents: 0,
+                    auto_recharge_enabled: false,
+                    auto_recharge_threshold_cents: 1000,
+                    auto_recharge_amount_cents: 5000,
+                    stripe_payment_method_id: null,
+                    last_recharge_at: null,
+                    low_balance_notified_at: null,
+                    updated_at: "2026-05-17T12:00:00Z",
+                  },
+                  error: null,
+                }),
+              }),
+            }),
+          };
+        },
+      } as unknown as RealtyOpsSupabaseClient;
+
+      await expect(checkPlanCapacity(mockSupabase, {
+        workspaceId: "workspace-123",
+        eventType: "social_turn",
+      })).resolves.toMatchObject({
+        status: "allow",
+        planTier: "free",
+        retailCents: 0,
+      });
+    });
+
+    it("asks for wallet funding when free plan social turn quota is exhausted", async () => {
+      const mockSupabase = {
+        from: (table: string) => {
+          if (table === "workspace_subscriptions") {
+            return {
+              select: () => ({
+                eq: () => ({
+                  maybeSingle: () => Promise.resolve({ data: null, error: null }),
+                }),
+              }),
+            };
+          }
+
+          if (table === "monthly_usage_summary") {
+            return {
+              select: () => ({
+                eq: () => ({
+                  order: () => ({
+                    limit: () => ({
+                      maybeSingle: () => Promise.resolve({
+                        data: {
+                          workspace_id: "workspace-123",
+                          month: "2026-05-01",
+                          turns_used: 100,
+                          minutes_used: 0,
+                          memory_loops_used: 0,
+                          overage_listings: 0,
+                          overage_seats: 0,
+                          retail_cents: 0,
+                          cogs_cents: 0,
+                          balance_after_cents: null,
+                        },
+                        error: null,
+                      }),
+                    }),
+                  }),
+                }),
+              }),
+            };
+          }
+
+          return {
+            select: () => ({
+              eq: () => ({
+                maybeSingle: () => Promise.resolve({
+                  data: {
+                    workspace_id: "workspace-123",
+                    balance_cents: 0,
+                    auto_recharge_enabled: false,
+                    auto_recharge_threshold_cents: 1000,
+                    auto_recharge_amount_cents: 5000,
+                    stripe_payment_method_id: null,
+                    last_recharge_at: null,
+                    low_balance_notified_at: null,
+                    updated_at: "2026-05-17T12:00:00Z",
+                  },
+                  error: null,
+                }),
+              }),
+            }),
+          };
+        },
+      } as unknown as RealtyOpsSupabaseClient;
+
+      await expect(checkPlanCapacity(mockSupabase, {
+        workspaceId: "workspace-123",
+        eventType: "social_turn",
+      })).resolves.toMatchObject({
+        status: "needs_wallet_funded",
+        planTier: "free",
+        retailCents: 20,
+      });
     });
   });
 

@@ -6,7 +6,9 @@ import {
   deriveHarwickAiTurnPersistenceStatus,
   generatePolicyNarrative,
   buildPolicyShadowComparison,
+  getPlanLimits,
   type HarwickAiPersistedTurn,
+  type PlanCapacityDecision,
 } from "@realty-ops/core";
 import {
   createGoogleCalendarClient,
@@ -35,6 +37,8 @@ import { createSupabaseMemberCalendarConnectionRepository } from "../../lib/supa
 import { createSupabaseWorkspacePolicyNarrativeRepository } from "../../lib/supabase/workspace-policy-narrative";
 import { createSupabaseWorkspaceMemoryRepository } from "../../lib/supabase/workspace-memory";
 import { createSupabaseAgentTrajectoryStore } from "../../lib/supabase/agent-trajectory-store";
+import { checkPlanCapacity } from "../../lib/supabase/billing";
+import { createSupabaseHarwickWorkItemRepository } from "../../lib/supabase/harwick-work-items";
 import { loadAiConversationHistory } from "./harwick-ai-conversation-history";
 import { createHarwickAiToolHandlers, type HarwickAiToolContext } from "./harwick-ai-tool-handlers";
 import {
@@ -96,6 +100,21 @@ export async function generateAndExecuteHarwickAiTurnSync(
     return;
   }
 
+  const capacityDecision = await checkPlanCapacity(deps.supabase, {
+    workspaceId: params.workspaceId,
+    eventType: "social_turn",
+  });
+  if (capacityDecision.status !== "allow") {
+    await pauseForPlanCapacity({
+      supabase: deps.supabase,
+      workspaceId: params.workspaceId,
+      leadId: params.leadId,
+      event: params.event,
+      decision: capacityDecision,
+    });
+    return;
+  }
+
   // Cap #8: lead-or-not gate. Classify the inbound on a small/cheap model
   // before firing the full agent loop. `not_lead` exits early; `needs_review`
   // logs and exits without spending agent tokens; only `lead` enters the loop.
@@ -143,11 +162,18 @@ export async function generateAndExecuteHarwickAiTurnSync(
   let exitReason: string = "unknown";
 
   try {
-    const automationPolicy = await deps.policyRepository.resolveEffectivePolicy({
+    const resolvedAutomationPolicy = await deps.policyRepository.resolveEffectivePolicy({
       workspaceId: params.workspaceId,
       memberId: null,
       leadId: params.leadId,
     });
+    const planLimits = getPlanLimits(capacityDecision.planTier);
+    const automationPolicy = planLimits.autoSendAllowed
+      ? resolvedAutomationPolicy
+      : {
+          ...resolvedAutomationPolicy,
+          autoSendEnabled: false,
+        };
 
     // Look up the lead row once — handlers reuse it for assignment, calendar
     // lookup, automation pause target, etc. A fresh read each step would be
@@ -508,4 +534,79 @@ async function persistClassification(params: {
     .from("lead_events")
     .update(update)
     .eq("id", params.leadEventId);
+}
+
+async function pauseForPlanCapacity(params: {
+  supabase: RealtyOpsSupabaseClient;
+  workspaceId: string;
+  leadId: string;
+  event: NormalizedLeadEvent;
+  decision: PlanCapacityDecision;
+}): Promise<void> {
+  const conversationRepo = createSupabaseConversationMessageRepository(params.supabase);
+  const workItemRepo = createSupabaseHarwickWorkItemRepository(params.supabase);
+  const signalKey = `wallet_empty:${params.workspaceId}:${new Date().toISOString().slice(0, 7)}`;
+  const message = params.decision.status === "needs_wallet_funded"
+    ? "Harwick paused this reply because the monthly AI quota is used up and the workspace wallet needs funding. Add funds in Settings > Plan & usage to resume automatic replies."
+    : "Harwick paused this reply because this plan does not include the requested AI capacity. Upgrade the plan in Settings > Plan & usage to resume this workflow.";
+
+  try {
+    await conversationRepo.insertMessage({
+      workspace_id: params.workspaceId,
+      lead_id: params.leadId,
+      sender_type: "ai",
+      sender_id: null,
+      body: message,
+      source_channel: params.event.sourceChannel,
+      provider_message_id: null,
+      status: "sent",
+      error_code: null,
+      error_message: null,
+      agent_trajectory_id: null,
+      agent_step_id: null,
+    });
+  } catch (error) {
+    console.warn("[harwick-ai] could not write plan-capacity pause message:", error);
+  }
+
+  try {
+    const existing = await workItemRepo.findOpenInsightBySignalKey({
+      workspaceId: params.workspaceId,
+      signalKey,
+    });
+    if (existing !== null) {
+      return;
+    }
+
+    await workItemRepo.createWorkItem({
+      workspaceId: params.workspaceId,
+      leadId: params.leadId,
+      routingDecisionId: null,
+      trajectoryId: null,
+      stepId: null,
+      type: "alert",
+      status: "pending",
+      targetMemberId: null,
+      targetRole: "owner",
+      priority: "high",
+      title: "Fund Harwick wallet",
+      summary: params.decision.reason,
+      recommendedAction: "Add wallet funds or upgrade the plan.",
+      reason: "Harwick blocked an AI turn before spending model tokens because plan capacity was exhausted.",
+      payload: {
+        signalKey,
+        code: "wallet_empty",
+        leadId: params.leadId,
+        eventType: params.decision.eventType,
+        planTier: params.decision.planTier,
+        limit: params.decision.limit,
+        used: params.decision.used,
+        walletBalanceCents: params.decision.walletBalanceCents,
+        retailCents: params.decision.retailCents,
+      },
+      dueAt: null,
+    });
+  } catch (error) {
+    console.warn("[harwick-ai] could not create plan-capacity work item:", error);
+  }
 }

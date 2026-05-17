@@ -10,6 +10,8 @@ import {
   WorkspaceUsageSummarySchema,
   getPlanCapabilities,
   getPlanLimits,
+  evaluatePlanCapacity,
+  getWalletOverageCost,
   canAccessFeature,
   checkUsageLimit,
   PlanGateResultSchema,
@@ -24,6 +26,7 @@ import {
   BillingWebhookProcessResultSchema,
   MonthlyUsageSummarySchema,
   WorkspaceUsageWalletSchema,
+  PlanCapacityDecisionSchema,
 } from "./billing.js";
 
 describe("BillingPlanTierSchema", () => {
@@ -320,6 +323,83 @@ describe("PLAN_LIMITS", () => {
       voiceMinutesPerMonth: 6000,
       seats: null,
     });
+  });
+});
+
+describe("evaluatePlanCapacity", () => {
+  it("allows social turns while plan quota remains", () => {
+    const result = evaluatePlanCapacity({
+      planTier: "free",
+      eventType: "social_turn",
+      used: 99,
+      walletBalanceCents: 0,
+    });
+
+    expect(result.status).toBe("allow");
+    expect(result.limit).toBe(100);
+    expect(result.retailCents).toBe(0);
+  });
+
+  it("blocks exhausted free social turns when the wallet is not funded", () => {
+    const result = evaluatePlanCapacity({
+      planTier: "free",
+      eventType: "social_turn",
+      used: 100,
+      walletBalanceCents: 80,
+    });
+
+    expect(result.status).toBe("needs_wallet_funded");
+    expect(result.retailCents).toBe(getWalletOverageCost("social_turn").retailCents);
+    expect(result.reason).toContain("quota is exhausted");
+  });
+
+  it("allows exhausted social turns when wallet overage can be charged", () => {
+    const result = evaluatePlanCapacity({
+      planTier: "free",
+      eventType: "social_turn",
+      used: 100,
+      walletBalanceCents: 500,
+    });
+
+    expect(result.status).toBe("allow");
+    expect(result.retailCents).toBe(20);
+    expect(result.cogsCents).toBe(4);
+  });
+
+  it("blocks memory loops on plans without workspace memory", () => {
+    const result = evaluatePlanCapacity({
+      planTier: "free",
+      eventType: "memory_loop",
+      used: 0,
+      walletBalanceCents: 5000,
+    });
+
+    expect(result.status).toBe("blocked_by_plan");
+    expect(result.limit).toBe(0);
+  });
+
+  it("allows brokerage unlimited listings", () => {
+    const result = evaluatePlanCapacity({
+      planTier: "brokerage",
+      eventType: "overage_listing",
+      used: 999,
+      walletBalanceCents: 0,
+    });
+
+    expect(result.status).toBe("allow");
+    expect(result.limit).toBeNull();
+  });
+
+  it("validates capacity decisions", () => {
+    const result = PlanCapacityDecisionSchema.parse(evaluatePlanCapacity({
+      planTier: "team",
+      eventType: "voice_minute",
+      used: 2000,
+      walletBalanceCents: 1000,
+    }));
+
+    expect(result.status).toBe("allow");
+    expect(result.retailCents).toBe(100);
   });
 });
 

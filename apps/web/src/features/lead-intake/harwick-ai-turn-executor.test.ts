@@ -52,6 +52,12 @@ const mocks = vi.hoisted(() => {
   const auditRepo = {
     insertAuditLog: vi.fn(),
   };
+  const workItemRepo = {
+    createWorkItem: vi.fn(),
+    findOpenInsightBySignalKey: vi.fn(),
+    listVisibleHomeWorkItems: vi.fn(),
+    updateWorkItemStatus: vi.fn(),
+  };
 
   return {
     conversationRepo,
@@ -62,6 +68,7 @@ const mocks = vi.hoisted(() => {
     memberRoutingRepo,
     trajectoryStore,
     auditRepo,
+    workItemRepo,
     findSimilarTrajectories: vi.fn(),
     sendMetaReply: vi.fn(),
   };
@@ -119,6 +126,10 @@ vi.mock("../../lib/supabase/audit-logs", () => ({
   createSupabaseAuditLogRepository: () => mocks.auditRepo,
 }));
 
+vi.mock("../../lib/supabase/harwick-work-items", () => ({
+  createSupabaseHarwickWorkItemRepository: () => mocks.workItemRepo,
+}));
+
 vi.mock("../integrations/meta-reply-send", () => ({
   sendMetaReply: mocks.sendMetaReply,
 }));
@@ -151,7 +162,11 @@ const workspaceId = "00000000-0000-0000-0000-000000000001";
 const leadId = "00000000-0000-0000-0000-000000000002";
 const leadEventId = "00000000-0000-0000-0000-000000000003";
 
-function createSupabaseMock() {
+function createSupabaseMock(options: {
+  turnsUsed?: number;
+  walletBalanceCents?: number;
+  subscriptionTier?: "solo" | "team" | "brokerage" | null;
+} = {}) {
   const updateConversationMessages = vi.fn(() => ({
     eq: vi.fn(() => ({
       eq: vi.fn(() => ({
@@ -203,6 +218,89 @@ function createSupabaseMock() {
     if (table === "lead_events") {
       return {
         update: updateLeadEvents,
+      };
+    }
+
+    if (table === "workspace_subscriptions") {
+      const subscriptionTier = options.subscriptionTier === undefined ? "team" : options.subscriptionTier;
+      return {
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            maybeSingle: vi.fn(() => Promise.resolve({
+              data: subscriptionTier === null
+                ? null
+                : {
+                    id: "00000000-0000-0000-0000-000000000050",
+                    workspace_id: workspaceId,
+                    plan_tier: subscriptionTier,
+                    billing_interval: "month",
+                    status: "active",
+                    provider_subscription_id: "sub_123",
+                    provider_customer_id: "cus_123",
+                    current_period_start: "2026-05-01T00:00:00Z",
+                    current_period_end: "2026-06-01T00:00:00Z",
+                    canceled_at: null,
+                    cancel_at_period_end: false,
+                    trial_start: null,
+                    trial_end: null,
+                    created_at: "2026-05-01T00:00:00Z",
+                    updated_at: "2026-05-01T00:00:00Z",
+                  },
+              error: null,
+            })),
+          })),
+        })),
+      };
+    }
+
+    if (table === "monthly_usage_summary") {
+      return {
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            order: vi.fn(() => ({
+              limit: vi.fn(() => ({
+                maybeSingle: vi.fn(() => Promise.resolve({
+                  data: {
+                    workspace_id: workspaceId,
+                    month: "2026-05-01",
+                    turns_used: options.turnsUsed ?? 0,
+                    minutes_used: 0,
+                    memory_loops_used: 0,
+                    overage_listings: 0,
+                    overage_seats: 0,
+                    retail_cents: 0,
+                    cogs_cents: 0,
+                    balance_after_cents: null,
+                  },
+                  error: null,
+                })),
+              })),
+            })),
+          })),
+        })),
+      };
+    }
+
+    if (table === "workspace_usage_wallet") {
+      return {
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            maybeSingle: vi.fn(() => Promise.resolve({
+              data: {
+                workspace_id: workspaceId,
+                balance_cents: options.walletBalanceCents ?? 0,
+                auto_recharge_enabled: false,
+                auto_recharge_threshold_cents: 1000,
+                auto_recharge_amount_cents: 5000,
+                stripe_payment_method_id: null,
+                last_recharge_at: null,
+                low_balance_notified_at: null,
+                updated_at: "2026-05-17T12:00:00Z",
+              },
+              error: null,
+            })),
+          })),
+        })),
       };
     }
 
@@ -425,5 +523,88 @@ describe("generateAndExecuteHarwickAiTurnSync", () => {
         outcomeLabel: "pending",
       }),
     );
+  });
+
+  it("pauses before classifier/runtime when plan quota is exhausted and wallet is empty", async () => {
+    vi.clearAllMocks();
+    mocks.conversationRepo.insertMessage.mockResolvedValue({
+      id: "message-plan",
+      lead_id: leadId,
+      workspace_id: workspaceId,
+      sender_type: "ai",
+      sender_id: null,
+      body: "paused",
+      created_at: "2026-05-17T12:00:00Z",
+      updated_at: "2026-05-17T12:00:00Z",
+      status: "sent",
+      source_channel: "instagram_dm",
+      provider_message_id: null,
+      error_code: null,
+      error_message: null,
+      agent_trajectory_id: null,
+      agent_step_id: null,
+    });
+    mocks.workItemRepo.findOpenInsightBySignalKey.mockResolvedValue(null);
+    mocks.workItemRepo.createWorkItem.mockResolvedValue({ workItemId: "work-item-1" });
+
+    const runTurn = vi.fn();
+    const runtimeClient: HarwickAiRuntimeClient = {
+      runTurn,
+    };
+    const turnRepository: HarwickAiTurnPersistenceRepository = {
+      insertTurn: vi.fn(),
+      getTurnById: vi.fn(),
+      updateTurnStatus: vi.fn(),
+    };
+    const resolveEffectivePolicy = vi.fn();
+    const policyRepository: HarwickAiAutomationPolicyRepository = {
+      resolveEffectivePolicy,
+    };
+    const event: NormalizedLeadEvent = {
+      workspaceId,
+      provider: "meta",
+      providerAccountId: "ig-business-1",
+      providerEventId: "dm-event-1",
+      providerUserId: "ig-user-1",
+      eventType: "message_received",
+      sourceChannel: "instagram_dm",
+      sourcePostId: null,
+      sourceCommentId: null,
+      instagramUsername: "buyer_demo",
+      phone: null,
+      occurredAt: "2026-05-05T17:00:00.000Z",
+      text: "I like the Katy house. Is it still available?",
+      rawPayload: {},
+    };
+    const supabase = createSupabaseMock({ turnsUsed: 100, walletBalanceCents: 0, subscriptionTier: null });
+
+    await generateAndExecuteHarwickAiTurnSync(
+      { workspaceId, leadId, leadEventId, event },
+      {
+        supabase: supabase.client,
+        turnRepository,
+        policyRepository,
+        leadEventRepository: {} as LeadEventPersistenceRepository,
+        queueRepository: {} as SocialReplyQueueRepository,
+        runtimeClient,
+        credentialSecret: "test-secret",
+      },
+    );
+
+    expect(runTurn).not.toHaveBeenCalled();
+    expect(resolveEffectivePolicy).not.toHaveBeenCalled();
+    expect(supabase.updateLeadEvents).not.toHaveBeenCalled();
+    const insertedMessage = mocks.conversationRepo.insertMessage.mock.calls[0]?.[0] as { sender_type?: string; body?: string } | undefined;
+    expect(insertedMessage?.sender_type).toBe("ai");
+    expect(insertedMessage?.body).toContain("wallet needs funding");
+    const createdWorkItem = mocks.workItemRepo.createWorkItem.mock.calls[0]?.[0] as {
+      type?: string;
+      targetRole?: string;
+      payload?: { code?: string; planTier?: string };
+    } | undefined;
+    expect(createdWorkItem?.type).toBe("alert");
+    expect(createdWorkItem?.targetRole).toBe("owner");
+    expect(createdWorkItem?.payload?.code).toBe("wallet_empty");
+    expect(createdWorkItem?.payload?.planTier).toBe("free");
   });
 });

@@ -121,6 +121,24 @@ export const MonthlyUsageSummarySchema = z.object({
   balanceAfterCents: z.number().int().nonnegative().nullable(),
 });
 
+export const PlanCapacityStatusSchema = z.enum([
+  "allow",
+  "needs_wallet_funded",
+  "blocked_by_plan",
+]);
+
+export const PlanCapacityDecisionSchema = z.object({
+  status: PlanCapacityStatusSchema,
+  planTier: BillingPlanTierSchema,
+  eventType: BillingWalletUsageEventTypeSchema,
+  limit: z.number().int().nonnegative().nullable(),
+  used: z.number().nonnegative(),
+  walletBalanceCents: z.number().int().nonnegative(),
+  retailCents: z.number().int().nonnegative(),
+  cogsCents: z.number().int().nonnegative(),
+  reason: z.string().trim().min(1).max(240),
+});
+
 export type BillingPlanTier = z.infer<typeof BillingPlanTierSchema>;
 export type BillingPaidPlanTier = z.infer<typeof BillingPaidPlanTierSchema>;
 export type BillingInterval = z.infer<typeof BillingIntervalSchema>;
@@ -133,6 +151,8 @@ export type BillingWalletUsageEventType = z.infer<typeof BillingWalletUsageEvent
 export type WorkspaceUsageWallet = z.infer<typeof WorkspaceUsageWalletSchema>;
 export type BillingUsageEvent = z.infer<typeof BillingUsageEventSchema>;
 export type MonthlyUsageSummary = z.infer<typeof MonthlyUsageSummarySchema>;
+export type PlanCapacityStatus = z.infer<typeof PlanCapacityStatusSchema>;
+export type PlanCapacityDecision = z.infer<typeof PlanCapacityDecisionSchema>;
 
 export const PlanLimitsSchema = z.object({
   listings: z.number().int().positive().nullable(),
@@ -192,6 +212,101 @@ export const PLAN_LIMITS = {
 
 export function getPlanLimits(tier: BillingPlanTier): PlanLimits {
   return PLAN_LIMITS[tier];
+}
+
+const WALLET_MINIMUM_FUNDED_CENTS = 100;
+
+const WALLET_OVERAGE_COSTS = {
+  social_turn: { retailCents: 20, cogsCents: 4 },
+  voice_minute: { retailCents: 100, cogsCents: 25 },
+  memory_loop: { retailCents: 50, cogsCents: 10 },
+  overage_listing: { retailCents: 500, cogsCents: 0 },
+  overage_seat: { retailCents: 1500, cogsCents: 0 },
+} as const satisfies Record<BillingWalletUsageEventType, { retailCents: number; cogsCents: number }>;
+
+export function getWalletOverageCost(eventType: BillingWalletUsageEventType): { retailCents: number; cogsCents: number } {
+  return WALLET_OVERAGE_COSTS[eventType];
+}
+
+function getPlanLimitForUsageEvent(
+  tier: BillingPlanTier,
+  eventType: BillingWalletUsageEventType,
+): number | null {
+  const limits = getPlanLimits(tier);
+  if (eventType === "social_turn") return limits.socialTurnsPerMonth;
+  if (eventType === "voice_minute") return limits.voiceMinutesPerMonth;
+  if (eventType === "memory_loop") return limits.workspaceMemoryEnabled ? null : 0;
+  if (eventType === "overage_listing") return limits.listings;
+  return limits.seats;
+}
+
+export function evaluatePlanCapacity(params: {
+  planTier: BillingPlanTier;
+  eventType: BillingWalletUsageEventType;
+  used: number;
+  walletBalanceCents: number;
+}): PlanCapacityDecision {
+  const limit = getPlanLimitForUsageEvent(params.planTier, params.eventType);
+  const cost = getWalletOverageCost(params.eventType);
+  const normalized = {
+    ...params,
+    used: Math.max(0, params.used),
+    walletBalanceCents: Math.max(0, params.walletBalanceCents),
+  };
+
+  if (limit === null || normalized.used < limit) {
+    return PlanCapacityDecisionSchema.parse({
+      status: "allow",
+      planTier: normalized.planTier,
+      eventType: normalized.eventType,
+      limit,
+      used: normalized.used,
+      walletBalanceCents: normalized.walletBalanceCents,
+      retailCents: 0,
+      cogsCents: 0,
+      reason: "plan capacity available.",
+    });
+  }
+
+  if (limit === 0) {
+    return PlanCapacityDecisionSchema.parse({
+      status: "blocked_by_plan",
+      planTier: normalized.planTier,
+      eventType: normalized.eventType,
+      limit,
+      used: normalized.used,
+      walletBalanceCents: normalized.walletBalanceCents,
+      retailCents: 0,
+      cogsCents: 0,
+      reason: `${normalized.eventType} is not included on the ${normalized.planTier} plan.`,
+    });
+  }
+
+  if (normalized.walletBalanceCents < WALLET_MINIMUM_FUNDED_CENTS || normalized.walletBalanceCents < cost.retailCents) {
+    return PlanCapacityDecisionSchema.parse({
+      status: "needs_wallet_funded",
+      planTier: normalized.planTier,
+      eventType: normalized.eventType,
+      limit,
+      used: normalized.used,
+      walletBalanceCents: normalized.walletBalanceCents,
+      retailCents: cost.retailCents,
+      cogsCents: cost.cogsCents,
+      reason: `${normalized.planTier} plan ${normalized.eventType} quota is exhausted and wallet balance is below the required funded balance.`,
+    });
+  }
+
+  return PlanCapacityDecisionSchema.parse({
+    status: "allow",
+    planTier: normalized.planTier,
+    eventType: normalized.eventType,
+    limit,
+    used: normalized.used,
+    walletBalanceCents: normalized.walletBalanceCents,
+    retailCents: cost.retailCents,
+    cogsCents: cost.cogsCents,
+    reason: "plan quota exhausted; usage will be billed from wallet.",
+  });
 }
 
 type LegacyPlanCapabilities = {

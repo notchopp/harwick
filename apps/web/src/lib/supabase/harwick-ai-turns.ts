@@ -15,7 +15,7 @@ import type {
   Json,
 } from "./database.types";
 import type { RealtyOpsSupabaseClient } from "./server-client";
-import { recordBillingUsageEvent, recordCurrentPeriodUsageEvent } from "./billing";
+import { checkPlanCapacity, recordBillingUsageEvent, recordCurrentPeriodUsageEvent } from "./billing";
 
 export type HarwickAiTurnPersistenceRepository = {
   insertTurn(params: HarwickAiPersistedTurn): Promise<{ turnId: string }>;
@@ -53,11 +53,17 @@ async function recordHarwickTurnUsageSafely(
       const idempotencyKey = params.agentTrajectoryId === null
         ? `harwick_turn:${params.turnId}`
         : `harwick_trajectory:${params.agentTrajectoryId}`;
+      const capacity = await checkPlanCapacity(supabase, {
+        workspaceId: params.workspaceId,
+        eventType: "social_turn",
+      });
       await recordBillingUsageEvent(supabase, {
         workspaceId: params.workspaceId,
         eventType: "social_turn",
         sourceId: params.agentTrajectoryId ?? params.turnId,
         idempotencyKey,
+        retailCents: capacity.retailCents,
+        cogsCents: capacity.cogsCents,
         eventMetadata: {
           channel: params.channel,
           status: params.status,
