@@ -1,14 +1,22 @@
 import type { RealtyOpsSupabaseClient } from "./server-client";
 import {
   WorkspaceSubscription,
+  WorkspaceUsageWallet,
   WorkspaceUsageSummary,
+  type BillingWalletUsageEventType,
   type BillingSubscriptionReconciliation,
   type UsageEventType,
   getPlanCapabilities,
   checkUsageLimit,
   PlanGateResult,
 } from "@realty-ops/core";
-import type { BillingWebhookEventRow, Json, WorkspaceUsageEventInsertRow } from "./database.types";
+import type {
+  BillingUsageEventInsertRow,
+  BillingWebhookEventRow,
+  Json,
+  WorkspaceUsageEventInsertRow,
+  WorkspaceUsageWalletRow,
+} from "./database.types";
 
 async function countQuery(query: PromiseLike<{ count: number | null; error: { message: string } | null }>): Promise<number> {
   const { count, error } = await query;
@@ -222,6 +230,76 @@ export async function getCurrentUsageSummary(
     createdAt: data.created_at,
     updatedAt: data.updated_at,
   };
+}
+
+function mapWorkspaceUsageWalletRow(data: WorkspaceUsageWalletRow): WorkspaceUsageWallet {
+  return {
+    workspaceId: data.workspace_id,
+    balanceCents: data.balance_cents,
+    autoRechargeEnabled: data.auto_recharge_enabled,
+    autoRechargeThresholdCents: data.auto_recharge_threshold_cents,
+    autoRechargeAmountCents: data.auto_recharge_amount_cents,
+    stripePaymentMethodId: data.stripe_payment_method_id,
+    lastRechargeAt: data.last_recharge_at,
+    lowBalanceNotifiedAt: data.low_balance_notified_at,
+    updatedAt: data.updated_at,
+  };
+}
+
+export async function getWorkspaceUsageWallet(
+  supabase: RealtyOpsSupabaseClient,
+  workspaceId: string,
+): Promise<WorkspaceUsageWallet | null> {
+  const { data, error } = await supabase
+    .from("workspace_usage_wallet")
+    .select("*")
+    .eq("workspace_id", workspaceId)
+    .maybeSingle<WorkspaceUsageWalletRow>();
+
+  if (error) {
+    throw new Error(`Failed to fetch workspace usage wallet: ${error.message}`);
+  }
+
+  return data === null ? null : mapWorkspaceUsageWalletRow(data);
+}
+
+export async function recordBillingUsageEvent(
+  supabase: RealtyOpsSupabaseClient,
+  params: {
+    workspaceId: string;
+    eventType: BillingWalletUsageEventType;
+    idempotencyKey: string;
+    unitCount?: number;
+    retailCents?: number;
+    cogsCents?: number;
+    sourceId?: string | null;
+    eventMetadata?: Record<string, unknown> | null;
+  },
+): Promise<boolean> {
+  const wallet = await getWorkspaceUsageWallet(supabase, params.workspaceId);
+  const row: BillingUsageEventInsertRow = {
+    workspace_id: params.workspaceId,
+    event_type: params.eventType,
+    unit_count: params.unitCount ?? 1,
+    retail_cents: params.retailCents ?? 0,
+    cogs_cents: params.cogsCents ?? 0,
+    balance_after_cents: wallet?.balanceCents ?? 0,
+    source_id: params.sourceId ?? null,
+    idempotency_key: params.idempotencyKey,
+    event_metadata: (params.eventMetadata ?? null) as Json,
+  };
+
+  const { error } = await supabase.from("usage_events").insert(row);
+  if (error) {
+    const maybeCode = "code" in error ? String(error.code) : "";
+    if (maybeCode === "23505") {
+      return false;
+    }
+
+    throw new Error(`Failed to record billing usage event: ${error.message}`);
+  }
+
+  return true;
 }
 
 export async function checkSeatLimit(

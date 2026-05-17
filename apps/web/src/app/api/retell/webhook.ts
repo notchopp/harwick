@@ -5,7 +5,7 @@ import {
   type RetellWorkspaceResolver,
 } from "../../../features/call-intake/retell-webhook";
 import { getServerEnvironment } from "../../../lib/server-env";
-import { recordCurrentPeriodUsageEvent } from "../../../lib/supabase/billing";
+import { recordBillingUsageEvent } from "../../../lib/supabase/billing";
 import {
   createLeadEventWriter,
   createRetellWorkspaceResolver,
@@ -53,11 +53,12 @@ export function createRetellWebhookPostDependencies(): RetellWebhookPostDependen
       leadUpsertRepository,
       enqueueWorkflowJob: createWorkflowJobEnqueuer(supabase),
     }),
-    recordVoiceCallUsage: (params) => recordCurrentPeriodUsageEvent(supabase, {
+    recordVoiceCallUsage: (params) => recordBillingUsageEvent(supabase, {
       workspaceId: params.workspaceId,
-      eventType: "voice_call_minute",
-      eventCount: params.billableMinutes,
-      resourceId: null,
+      eventType: "voice_minute",
+      unitCount: params.billableMinutes,
+      sourceId: params.callId,
+      idempotencyKey: `retell_call:${params.callId}`,
       eventMetadata: {
         provider: "retell",
         providerAccountId: params.providerAccountId,

@@ -100,6 +100,7 @@ export function createHarwickAiTurnGeneratorService(params: {
       const persistedTurn: HarwickAiPersistedTurn = {
         workspaceId: generateParams.workspaceId,
         leadId: generateParams.leadId,
+        agentTrajectoryId: null,
         socialReplyReviewId: generateParams.socialReplyReviewId,
         providerThreadId: generateParams.providerThreadId,
         channel: generateParams.channel,

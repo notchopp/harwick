@@ -6,6 +6,7 @@ import {
 } from "../../../../features/agent-runtime/distill-workspace-memory";
 import { getServerEnvironment } from "../../../../lib/server-env";
 import { createServerSupabaseClient } from "../../../../lib/supabase/server-client";
+import { recordBillingUsageEvent } from "../../../../lib/supabase/billing";
 import { createSupabaseWorkspaceMemoryRepository } from "../../../../lib/supabase/workspace-memory";
 
 export const runtime = "nodejs";
@@ -45,9 +46,19 @@ export async function POST(request: NextRequest) {
         apiKey: environment.OPENAI_API_KEY,
         model: environment.OPENAI_SMALL_MODEL,
       }));
-    const repository = createSupabaseWorkspaceMemoryRepository(createServerSupabaseClient());
+    const supabase = createServerSupabaseClient();
+    const repository = createSupabaseWorkspaceMemoryRepository(supabase);
     const report = await distillWorkspaceMemory({
       repository,
+      recordUsageEvent: (params) => recordBillingUsageEvent(supabase, {
+        workspaceId: params.workspaceId,
+        eventType: "memory_loop",
+        sourceId: params.memoryId,
+        idempotencyKey: `memory_loop:${params.memoryId}`,
+        eventMetadata: {
+          memoryType: params.memoryType,
+        },
+      }).then(() => undefined),
       ...(embeddings === undefined ? {} : { embeddings }),
       ...(synthesisClient === undefined ? {} : { synthesisClient }),
     });

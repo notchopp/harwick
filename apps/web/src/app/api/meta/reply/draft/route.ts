@@ -250,6 +250,7 @@ export async function POST(request: NextRequest) {
     const { turnId } = await createSupabaseHarwickAiTurnRepository(supabase).insertTurn({
       workspaceId,
       leadId: runtimeInput.state?.leadId ?? null,
+      agentTrajectoryId: null,
       socialReplyReviewId: socialReplyReviewId !== null && UuidSchema.safeParse(socialReplyReviewId).success
         ? socialReplyReviewId
         : null,

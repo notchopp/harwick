@@ -8,6 +8,7 @@ import {
   checkIntegrationAccountLimit,
   canAccessPlanFeature,
   recordUsageEvent,
+  recordBillingUsageEvent,
   recordCurrentPeriodUsageEvent,
   upsertWorkspaceSubscriptionFromProvider,
   claimBillingWebhookEvent,
@@ -196,7 +197,7 @@ describe("billing service", () => {
       expect(result.reason).toContain("No active subscription");
     });
 
-    it("should allow solo plan with 1 seat", async () => {
+    it("should allow solo plan with seats under the plan limit", async () => {
       const mockSupabase = {
         from: (table: string) => {
           if (table === "workspace_subscriptions") {
@@ -242,10 +243,10 @@ describe("billing service", () => {
       const result = await checkSeatLimit(mockSupabase, "workspace-123");
       expect(result.allowed).toBe(true);
       expect(result.currentCount).toBe(0);
-      expect(result.maxCount).toBe(1);
+      expect(result.maxCount).toBe(2);
     });
 
-    it("should block solo plan from exceeding 1 seat", async () => {
+    it("should block solo plan from exceeding the seat limit", async () => {
       const mockSupabase = {
         from: (table: string) => {
           if (table === "workspace_subscriptions") {
@@ -290,9 +291,9 @@ describe("billing service", () => {
 
       const result = await checkSeatLimit(mockSupabase, "workspace-123");
       expect(result.allowed).toBe(false);
-      expect(result.reason).toContain("maxSeats is 1");
+      expect(result.reason).toContain("maxSeats is 2");
       expect(result.currentCount).toBe(2);
-      expect(result.maxCount).toBe(1);
+      expect(result.maxCount).toBe(2);
     });
   });
 
@@ -349,7 +350,7 @@ describe("billing service", () => {
       const result = await checkListingLimit(mockSupabase as unknown as RealtyOpsSupabaseClient, "workspace-123");
       expect(result.allowed).toBe(false);
       expect(result.currentCount).toBe(25);
-      expect(result.maxCount).toBe(25);
+      expect(result.maxCount).toBe(10);
     });
   });
 
@@ -633,6 +634,95 @@ describe("billing service", () => {
       await expect(recordCurrentPeriodUsageEvent(mockSupabase, {
         workspaceId: "workspace-123",
         eventType: "lead_event",
+      })).resolves.toBe(false);
+    });
+  });
+
+  describe("recordBillingUsageEvent", () => {
+    it("records wallet-backed usage with an idempotency key", async () => {
+      let insertedData: Record<string, unknown> | null = null;
+
+      const mockSupabase = {
+        from: (table: string) => {
+          if (table === "workspace_usage_wallet") {
+            return {
+              select: () => ({
+                eq: () => ({
+                  maybeSingle: () => Promise.resolve({
+                    data: {
+                      workspace_id: "workspace-123",
+                      balance_cents: 5000,
+                      auto_recharge_enabled: false,
+                      auto_recharge_threshold_cents: 1000,
+                      auto_recharge_amount_cents: 5000,
+                      stripe_payment_method_id: null,
+                      last_recharge_at: null,
+                      low_balance_notified_at: null,
+                      updated_at: "2026-05-17T12:00:00Z",
+                    },
+                    error: null,
+                  }),
+                }),
+              }),
+            };
+          }
+
+          expect(table).toBe("usage_events");
+          return {
+            insert: (data: Record<string, unknown>) => {
+              insertedData = data;
+              return Promise.resolve({ error: null });
+            },
+          };
+        },
+      } as unknown as RealtyOpsSupabaseClient;
+
+      await expect(recordBillingUsageEvent(mockSupabase, {
+        workspaceId: "workspace-123",
+        eventType: "social_turn",
+        sourceId: "trajectory-123",
+        idempotencyKey: "harwick_trajectory:trajectory-123",
+        eventMetadata: { channel: "instagram_dm" },
+      })).resolves.toBe(true);
+
+      expect(insertedData).toEqual({
+        workspace_id: "workspace-123",
+        event_type: "social_turn",
+        unit_count: 1,
+        retail_cents: 0,
+        cogs_cents: 0,
+        balance_after_cents: 5000,
+        source_id: "trajectory-123",
+        idempotency_key: "harwick_trajectory:trajectory-123",
+        event_metadata: { channel: "instagram_dm" },
+      });
+    });
+
+    it("treats duplicate wallet usage events as already recorded", async () => {
+      const mockSupabase = {
+        from: (table: string) => {
+          if (table === "workspace_usage_wallet") {
+            return {
+              select: () => ({
+                eq: () => ({
+                  maybeSingle: () => Promise.resolve({ data: null, error: null }),
+                }),
+              }),
+            };
+          }
+
+          return {
+            insert: () => Promise.resolve({ error: { code: "23505", message: "duplicate key" } }),
+          };
+        },
+      } as unknown as RealtyOpsSupabaseClient;
+
+      await expect(recordBillingUsageEvent(mockSupabase, {
+        workspaceId: "workspace-123",
+        eventType: "voice_minute",
+        unitCount: 2,
+        sourceId: "call-123",
+        idempotencyKey: "retell_call:call-123",
       })).resolves.toBe(false);
     });
   });

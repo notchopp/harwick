@@ -317,6 +317,7 @@ export async function generateAndExecuteHarwickAiTurnSync(
       const persistedTurn: HarwickAiPersistedTurn = {
         workspaceId: params.workspaceId,
         leadId: params.leadId,
+        agentTrajectoryId: openedTrajectoryId,
         socialReplyReviewId: null,
         providerThreadId: params.event.providerUserId,
         channel,

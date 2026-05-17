@@ -15,7 +15,7 @@ import type {
   Json,
 } from "./database.types";
 import type { RealtyOpsSupabaseClient } from "./server-client";
-import { recordCurrentPeriodUsageEvent } from "./billing";
+import { recordBillingUsageEvent, recordCurrentPeriodUsageEvent } from "./billing";
 
 export type HarwickAiTurnPersistenceRepository = {
   insertTurn(params: HarwickAiPersistedTurn): Promise<{ turnId: string }>;
@@ -45,9 +45,28 @@ async function recordHarwickTurnUsageSafely(
     channel: string;
     status: string;
     toolNames: string[];
+    agentTrajectoryId: string | null;
   },
 ): Promise<void> {
   try {
+    if (params.status !== "failed") {
+      const idempotencyKey = params.agentTrajectoryId === null
+        ? `harwick_turn:${params.turnId}`
+        : `harwick_trajectory:${params.agentTrajectoryId}`;
+      await recordBillingUsageEvent(supabase, {
+        workspaceId: params.workspaceId,
+        eventType: "social_turn",
+        sourceId: params.agentTrajectoryId ?? params.turnId,
+        idempotencyKey,
+        eventMetadata: {
+          channel: params.channel,
+          status: params.status,
+          tools: params.toolNames,
+          turnId: params.turnId,
+        },
+      });
+    }
+
     await recordCurrentPeriodUsageEvent(supabase, {
       workspaceId: params.workspaceId,
       eventType: "ai_turn",
@@ -143,6 +162,7 @@ export function createSupabaseHarwickAiTurnRepository(
         channel: parsed.channel,
         status: parsed.status,
         toolNames: parsed.toolCalls.map((toolCall) => toolCall.tool),
+        agentTrajectoryId: parsed.agentTrajectoryId,
       });
 
       return { turnId: data.id };

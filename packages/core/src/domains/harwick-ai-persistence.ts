@@ -52,6 +52,7 @@ export const HarwickAiPersistedToolCallSchema = z.object({
 export const HarwickAiPersistedTurnSchema = z.object({
   workspaceId: UuidSchema,
   leadId: UuidSchema.nullable().default(null),
+  agentTrajectoryId: UuidSchema.nullable().default(null),
   socialReplyReviewId: UuidSchema.nullable().default(null),
   providerThreadId: z.string().trim().min(1).max(180).nullable().default(null),
   channel: LeadSourceChannelSchema,

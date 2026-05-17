@@ -13,6 +13,11 @@ import type {
 
 export type WorkspaceMemoryDistillationDeps = {
   repository: WorkspaceMemoryRepository;
+  recordUsageEvent?: (params: {
+    workspaceId: string;
+    memoryId: string;
+    memoryType: string;
+  }) => Promise<void>;
   now?: () => Date;
   lookbackDays?: number;
   duplicateWindowDays?: number;
@@ -374,6 +379,17 @@ export async function distillWorkspaceMemory(
 
       const { memoryId } = await deps.repository.insertMemoryDocument(refinedMemory.memory);
       created += 1;
+      if (deps.recordUsageEvent !== undefined) {
+        try {
+          await deps.recordUsageEvent({
+            workspaceId: refinedMemory.memory.workspaceId,
+            memoryId,
+            memoryType: refinedMemory.memory.memoryType,
+          });
+        } catch (usageError) {
+          console.warn("[distillWorkspaceMemory] failed to record usage", refinedMemory.memory.workspaceId, memoryId, usageError);
+        }
+      }
 
       if (deps.embeddings !== undefined) {
         const embeddingText = buildWorkspaceMemoryEmbeddingText(refinedMemory.memory);
