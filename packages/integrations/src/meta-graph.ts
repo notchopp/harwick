@@ -180,6 +180,68 @@ export function createMetaGraphClient(options: MetaGraphClientOptions = {}) {
       };
     },
 
+    // Subscribe a connected Page to the Meta webhook events our app cares
+    // about. Without this call, no inbound DMs/comments will be delivered
+    // to /api/meta/webhook regardless of whether the user granted the
+    // permission. Idempotent on Meta's side.
+    //
+    // Page subscription covers:
+    //   - messages: Page DMs (Messenger)
+    //   - messaging_postbacks: structured button replies
+    //   - feed: Page post comments
+    //   - message_reactions: emoji reactions on DMs
+    // The linked Instagram Business Account's DMs + comments also flow
+    // through the Page subscription when connected via Facebook Login.
+    async subscribePageToWebhooks(params: {
+      pageId: string;
+      pageAccessToken: string;
+    }): Promise<{ success: boolean }> {
+      const url = new URL(`${GRAPH_API_BASE_URL}/${params.pageId}/subscribed_apps`);
+      url.searchParams.set("access_token", params.pageAccessToken);
+      url.searchParams.set(
+        "subscribed_fields",
+        [
+          "messages",
+          "messaging_postbacks",
+          "messaging_seen",
+          "message_reactions",
+          "feed",
+        ].join(","),
+      );
+
+      const response = await fetchImpl(url, { method: "POST" });
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`Meta Page webhook subscribe failed (${response.status}): ${text}`);
+      }
+      const body = (await response.json()) as { success?: boolean };
+      return { success: body.success === true };
+    },
+
+    // Subscribe an Instagram Business Account directly to webhook events
+    // (used when the user authorized via Instagram Login instead of through
+    // a linked Facebook Page). Endpoint shape mirrors the Page subscribe
+    // call but routes to the IG user id.
+    async subscribeInstagramAccountToWebhooks(params: {
+      instagramBusinessAccountId: string;
+      instagramAccessToken: string;
+    }): Promise<{ success: boolean }> {
+      const url = new URL(`${GRAPH_API_BASE_URL}/${params.instagramBusinessAccountId}/subscribed_apps`);
+      url.searchParams.set("access_token", params.instagramAccessToken);
+      url.searchParams.set(
+        "subscribed_fields",
+        ["messages", "messaging_postbacks", "comments", "mentions", "message_reactions"].join(","),
+      );
+
+      const response = await fetchImpl(url, { method: "POST" });
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`Meta IG webhook subscribe failed (${response.status}): ${text}`);
+      }
+      const body = (await response.json()) as { success?: boolean };
+      return { success: body.success === true };
+    },
+
     async fetchPostContext(params: MetaGraphPostLookup): Promise<SocialPostContext> {
       const url = new URL(`${GRAPH_API_BASE_URL}/${params.sourcePostId}`);
       url.searchParams.set("access_token", params.accessToken);

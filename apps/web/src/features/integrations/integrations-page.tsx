@@ -16,7 +16,7 @@ import { WorkspaceTopbar } from "../../components/workspace-topbar";
 import { cn } from "../../lib/utils";
 import type { IntegrationsPageData, WorkspaceIntegrationAccount } from "./integrations-data";
 
-type IntegrationAction = "meta" | "fub" | "fub_test" | "calendar" | null;
+type IntegrationAction = "meta" | "meta_disconnect" | "fub" | "fub_test" | "calendar" | null;
 
 type IntegrationsPageContentProps = {
   data: IntegrationsPageData;
@@ -171,6 +171,34 @@ export function IntegrationsPageContent(props: IntegrationsPageContentProps) {
     window.location.href = body.authorizationUrl;
   }
 
+  async function disconnectMeta() {
+    if (typeof window !== "undefined" && !window.confirm(
+      "Disconnect Meta?\n\nThis revokes Harwick's access tokens for your Page and Instagram Business Account, "
+      + "stops the webhook feed, and queues a 30-day deletion of associated conversation data. "
+      + "Reconnecting later requires Meta's OAuth flow again.",
+    )) {
+      return;
+    }
+    setBusyAction("meta_disconnect");
+    setMessage(null);
+    const response = await fetch(`/api/workspaces/${props.workspaceId}/integrations/meta/disconnect`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    });
+    const body = await response.json().catch(() => null) as { confirmationCode?: string; disconnectedAccounts?: number; error?: string } | null;
+    setBusyAction(null);
+    if (!response.ok) {
+      setMessage(body?.error ?? "Meta disconnect failed.");
+      return;
+    }
+    const code = body?.confirmationCode?.slice(0, 8) ?? "—";
+    setMessage(`Meta disconnected. Confirmation code: ${code}. Associated data will be deleted within 30 days.`);
+    // Refresh so the card reflects the new status.
+    if (typeof window !== "undefined") {
+      window.setTimeout(() => window.location.reload(), 1200);
+    }
+  }
+
   async function connectFub() {
     setBusyAction("fub");
     setMessage(null);
@@ -270,10 +298,18 @@ export function IntegrationsPageContent(props: IntegrationsPageContentProps) {
           <IntegrationCard
             account={metaAccount}
             action={
-              <Button className="px-4 text-[12px]" disabled={busyAction !== null} onClick={() => { void connectMeta(); }} type="button">
-                {busyAction === "meta" ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <ExternalLink className="mr-2 h-3.5 w-3.5" />}
-                connect Meta
-              </Button>
+              <div className="flex flex-col items-stretch gap-2">
+                <Button className="px-4 text-[12px]" disabled={busyAction !== null} onClick={() => { void connectMeta(); }} type="button">
+                  {busyAction === "meta" ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <ExternalLink className="mr-2 h-3.5 w-3.5" />}
+                  {metaAccount?.status === "connected" ? "reconnect Meta" : "connect Meta"}
+                </Button>
+                {metaAccount !== null && metaAccount.status !== "disconnected" ? (
+                  <Button className="px-4 text-[12px]" disabled={busyAction !== null} onClick={() => { void disconnectMeta(); }} type="button" variant="outline">
+                    {busyAction === "meta_disconnect" ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : null}
+                    disconnect Meta
+                  </Button>
+                ) : null}
+              </div>
             }
             description="Instagram and Facebook intake. This is where DMs, comments, page identity, and reply permissions start."
             icon={<MetaProviderMarks />}
@@ -284,6 +320,7 @@ export function IntegrationsPageContent(props: IntegrationsPageContentProps) {
               <span className="harwick-pill px-2.5 py-1">DM intake</span>
               <span className="harwick-pill px-2.5 py-1">comment intake</span>
               <span className="harwick-pill px-2.5 py-1">reply approval</span>
+              <a className="harwick-pill px-2.5 py-1 underline" href="/connect/meta">what we read</a>
             </div>
           </IntegrationCard>
 

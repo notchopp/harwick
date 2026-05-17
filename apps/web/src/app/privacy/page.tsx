@@ -5,11 +5,14 @@ export const metadata = {
   description: "How Harwick collects, uses, and protects data from Meta, integrations, and workspace activity.",
 };
 
-const LAST_UPDATED = "2026-05-07";
+const LAST_UPDATED = "2026-05-15";
 
 export default function Page() {
   return (
     <main className="mx-auto max-w-[760px] px-6 py-12 text-[14px] leading-6 text-foreground">
+      <a className="mb-6 inline-flex items-center gap-1.5 text-[12px] text-muted hover:text-foreground" href="/">
+        <span aria-hidden="true">&larr;</span> Back to home
+      </a>
       <header className="mb-8">
         <p className="text-[11px] uppercase tracking-[0.16em] text-muted-subtle">harwick</p>
         <h1 className="mt-2 font-display text-[28px] font-medium">Privacy Policy</h1>
@@ -53,6 +56,23 @@ export default function Page() {
           <li>To detect provider failures, RLS policy violations, and abuse, and to keep the platform safe.</li>
         </ul>
         <p>We do not sell data. We do not use Meta-derived data to advertise to your end users.</p>
+      </section>
+
+      <section className="mb-8 space-y-3">
+        <h2 className="font-display text-[18px] font-medium">3a. Meta Platform Data</h2>
+        <p>
+          &quot;Meta Platform Data&quot; means data, including Facebook user data, Page data, Instagram Business Account data,
+          messages, comments, and any insights, derived from Meta&apos;s APIs and made available to Harwick when a workspace
+          connects its Facebook Page or Instagram Business Account.
+        </p>
+        <ul className="list-disc space-y-1 pl-6">
+          <li>We use Meta Platform Data <strong>only</strong> to operate the lead-management features the workspace explicitly enables — capturing inbound DMs and comments, qualifying and routing leads, drafting and sending replies on behalf of the workspace, and syncing qualified leads to the workspace&apos;s CRM.</li>
+          <li>We do <strong>not</strong> sell, license, rent, or transfer Meta Platform Data to any third party for advertising, data brokerage, ad-targeting, audience-building, or any commercial purpose unrelated to the service the workspace is using.</li>
+          <li>We do <strong>not</strong> use Meta Platform Data to train, fine-tune, or improve any generalized, foundation, or third-party AI model. The sub-processors that handle Meta Platform Data are configured with training disabled (see the OpenAI line in Sub-processors).</li>
+          <li>We retain Meta Platform Data only as long as a workspace remains connected, plus the standard 30-day deletion window. When a workspace disconnects its Meta integration, associated tokens are revoked and conversation data linked to that integration is purged within 30 days unless legally required to retain.</li>
+          <li>We host Meta Platform Data in the United States on Supabase (Postgres) and Vercel infrastructure, encrypted at rest with AES-256 and in transit with TLS 1.2+.</li>
+          <li>Members of the workspace that connected the account, plus the Harwick operations team for support and abuse response, are the only parties with access. Access by Harwick staff is logged.</li>
+        </ul>
       </section>
 
       <section className="mb-8 space-y-3">

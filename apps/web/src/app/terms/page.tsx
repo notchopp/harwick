@@ -10,6 +10,9 @@ const LAST_UPDATED = "2026-05-07";
 export default function Page() {
   return (
     <main className="mx-auto max-w-[760px] px-6 py-12 text-[14px] leading-6 text-foreground">
+      <a className="mb-6 inline-flex items-center gap-1.5 text-[12px] text-muted hover:text-foreground" href="/">
+        <span aria-hidden="true">&larr;</span> Back to home
+      </a>
       <header className="mb-8">
         <p className="text-[11px] uppercase tracking-[0.16em] text-muted-subtle">harwick</p>
         <h1 className="mt-2 font-display text-[28px] font-medium">Terms of Service</h1>

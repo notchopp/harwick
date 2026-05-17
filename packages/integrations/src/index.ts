@@ -9,6 +9,7 @@ export * from "./meta.js";
 export * from "./meta-graph.js";
 export * from "./meta-messaging.js";
 export * from "./meta-oauth.js";
+export * from "./instagram-oauth.js";
 export * from "./openai-embeddings.js";
 export * from "./openai-small-model.js";
 export * from "./openai-vision.js";

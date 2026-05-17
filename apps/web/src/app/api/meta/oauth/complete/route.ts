@@ -34,12 +34,28 @@ export async function POST(request: Request) {
     repository: createSupabaseMetaOAuthRepository(supabase),
     credentialSecret: environment.CREDENTIAL_ENCRYPTION_KEY,
     onConnected: async ({ connectedIntegration, connectedAccount, connectedCredential }) => {
+      const graphClient = createMetaGraphClient();
+      // Subscribe the chosen Page to webhooks before bootstrapping the
+      // foundation, so inbound DMs and comments start delivering at
+      // /api/meta/webhook the moment the selection completes.
+      try {
+        await graphClient.subscribePageToWebhooks({
+          pageId: connectedCredential.pageId,
+          pageAccessToken: connectedCredential.pageAccessToken,
+        });
+      } catch (error) {
+        logger.error("meta page webhook subscribe failed after oauth completion", {
+          workspaceId: connectedIntegration.workspaceId,
+          pageId: connectedCredential.pageId,
+          error,
+        });
+      }
       try {
         await bootstrapMetaAccountFoundation({
           connectedIntegration,
           connectedAccount,
           connectedCredential,
-          graphClient: createMetaGraphClient(),
+          graphClient,
           repository: foundationRepository,
           logger,
         });

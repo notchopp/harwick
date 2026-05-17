@@ -4,6 +4,19 @@ import { checkRateLimit, rateLimitKeyFromRequest } from "../../../../lib/rate-li
 import { getServerEnvironment } from "../../../../lib/server-env";
 import { getMetaWebhook, postMetaWebhook } from "../webhook";
 
+/**
+ * Meta webhook entry point. Two layers of safety:
+ *
+ *   1. Signature: every POST verifies the X-Hub-Signature-256 HMAC against the
+ *      app secret. Mismatched payloads return 403 before any side effect.
+ *   2. Idempotency: lead_events has a UNIQUE INDEX on
+ *      (workspace_id, provider, provider_event_id). The provider_event_id maps
+ *      to the Meta message `mid` (DMs) or comment `id` (comment events) — the
+ *      same natural key Meta uses to identify a delivery. Replays — whether
+ *      from Meta's retry policy (up to 36h) or a reviewer probe — are absorbed
+ *      both at the application layer (pre-check) and the DB layer (constraint).
+ *      See `insertLeadEventRows` in lib/supabase/lead-events.ts.
+ */
 export const runtime = "nodejs";
 
 function getQueryRecord(request: NextRequest): Record<string, string | undefined> {

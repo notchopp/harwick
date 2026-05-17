@@ -343,6 +343,7 @@ describe("createSupabaseWorkflowJobServices.processHarwickAiReply", () => {
     vi.mocked(createMetaMessagingClient).mockReturnValue({
       sendDirectMessage,
       replyToComment: vi.fn(),
+      replyToInstagramComment: vi.fn(),
     });
     vi.mocked(executeHarwickAiToolCalls).mockImplementation(async (params) => {
       const handler = params.handlers.send_meta_dm;
@@ -434,6 +435,7 @@ describe("createSupabaseWorkflowJobServices.processHarwickAiReply", () => {
     vi.mocked(createMetaMessagingClient).mockReturnValue({
       sendDirectMessage,
       replyToComment: vi.fn(),
+      replyToInstagramComment: vi.fn(),
     });
     vi.mocked(executeHarwickAiToolCalls).mockImplementation(async (params) => {
       const handler = params.handlers.send_meta_message;

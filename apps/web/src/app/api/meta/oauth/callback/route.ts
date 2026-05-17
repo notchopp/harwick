@@ -39,12 +39,29 @@ export async function GET(request: NextRequest) {
     credentialSecret: environment.CREDENTIAL_ENCRYPTION_KEY,
     appBaseUrl: environment.NEXT_PUBLIC_APP_URL,
     onConnected: async ({ connectedIntegration, connectedAccount, connectedCredential }) => {
+      const graphClient = createMetaGraphClient();
+      // Subscribe the Page to webhooks so inbound DMs + comments start
+      // arriving at /api/meta/webhook. Without this, the OAuth grant is
+      // useless. Wrap independently so a failure here doesn't block the
+      // foundation bootstrap below.
+      try {
+        await graphClient.subscribePageToWebhooks({
+          pageId: connectedCredential.pageId,
+          pageAccessToken: connectedCredential.pageAccessToken,
+        });
+      } catch (error) {
+        logger.error("meta page webhook subscribe failed after oauth callback", {
+          workspaceId: connectedIntegration.workspaceId,
+          pageId: connectedCredential.pageId,
+          error,
+        });
+      }
       try {
         await bootstrapMetaAccountFoundation({
           connectedIntegration,
           connectedAccount,
           connectedCredential,
-          graphClient: createMetaGraphClient(),
+          graphClient,
           repository: foundationRepository,
           logger,
         });

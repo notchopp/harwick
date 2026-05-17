@@ -85,13 +85,25 @@ export function buildMetaOAuthUrl(params: {
   url.searchParams.set("redirect_uri", params.redirectUri);
   url.searchParams.set("state", params.state);
   url.searchParams.set("response_type", "code");
+  // Permissions bundled by the Facebook Login for Business path. Maps to two
+  // App Review Use Cases:
+  //   - "Messaging on Messenger": pages_show_list, pages_manage_metadata,
+  //     pages_messaging, pages_read_engagement
+  //   - "Manage everything on your Page" (engagement subset):
+  //     pages_manage_engagement
+  // For Instagram (DMs + comments via the FB Login → linked IG path):
+  //     instagram_basic, instagram_manage_messages, instagram_manage_comments
+  // The new Instagram Login flow lives at /api/meta/oauth/instagram and uses
+  // the modern instagram_business_* scope namespace.
   url.searchParams.set("scope", [
     "pages_show_list",
     "pages_manage_metadata",
-    "instagram_basic",
-    "instagram_manage_messages",
     "pages_messaging",
     "pages_read_engagement",
+    "pages_manage_engagement",
+    "instagram_basic",
+    "instagram_manage_messages",
+    "instagram_manage_comments",
   ].join(","));
 
   return url.toString();

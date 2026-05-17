@@ -75,5 +75,27 @@ export function createMetaMessagingClient(options: MetaMessagingClientOptions = 
         providerEventId: response.id,
       };
     },
+
+    // Reply to an Instagram comment. Endpoint shape mirrors the Facebook
+    // version (POST /{comment-id}/replies) but the access token must be the
+    // one tied to the Instagram Business Account (either the Page access
+    // token under the legacy Facebook-Login path, or the IG user access
+    // token under the new Instagram Login path).
+    async replyToInstagramComment(params: {
+      instagramCommentId: string;
+      accessToken: string;
+      reply: string;
+    }): Promise<{ providerEventId: string }> {
+      const url = new URL(`${GRAPH_API_BASE_URL}/${params.instagramCommentId}/replies`);
+      url.searchParams.set("access_token", params.accessToken);
+
+      const response = MetaCommentReplyResponseSchema.parse(await request(url, {
+        message: params.reply,
+      }));
+
+      return {
+        providerEventId: response.id,
+      };
+    },
   };
 }
