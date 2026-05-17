@@ -3399,6 +3399,7 @@ export type Database = {
         Row: {
           auto_recharge_amount_cents: number
           auto_recharge_enabled: boolean
+          auto_recharge_pending_at: string | null
           auto_recharge_threshold_cents: number
           balance_cents: number
           last_recharge_at: string | null
@@ -3410,6 +3411,7 @@ export type Database = {
         Insert: {
           auto_recharge_amount_cents?: number
           auto_recharge_enabled?: boolean
+          auto_recharge_pending_at?: string | null
           auto_recharge_threshold_cents?: number
           balance_cents?: number
           last_recharge_at?: string | null
@@ -3421,6 +3423,7 @@ export type Database = {
         Update: {
           auto_recharge_amount_cents?: number
           auto_recharge_enabled?: boolean
+          auto_recharge_pending_at?: string | null
           auto_recharge_threshold_cents?: number
           balance_cents?: number
           last_recharge_at?: string | null

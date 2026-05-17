@@ -245,8 +245,42 @@ function mapWorkspaceUsageWalletRow(data: WorkspaceUsageWalletRow): WorkspaceUsa
     stripePaymentMethodId: data.stripe_payment_method_id,
     lastRechargeAt: data.last_recharge_at,
     lowBalanceNotifiedAt: data.low_balance_notified_at,
+    autoRechargePendingAt: data.auto_recharge_pending_at,
     updatedAt: data.updated_at,
   };
+}
+
+export async function listWalletsPendingAutoRecharge(
+  supabase: RealtyOpsSupabaseClient,
+  params: { limit?: number } = {},
+): Promise<WorkspaceUsageWallet[]> {
+  const { data, error } = await supabase
+    .from("workspace_usage_wallet")
+    .select("*")
+    .not("auto_recharge_pending_at", "is", null)
+    .eq("auto_recharge_enabled", true)
+    .limit(params.limit ?? 25)
+    .returns<WorkspaceUsageWalletRow[]>();
+
+  if (error) {
+    throw new Error(`Failed to list wallets pending auto-recharge: ${error.message}`);
+  }
+
+  return (data ?? []).map(mapWorkspaceUsageWalletRow);
+}
+
+export async function clearWalletAutoRechargePending(
+  supabase: RealtyOpsSupabaseClient,
+  workspaceId: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from("workspace_usage_wallet")
+    .update({ auto_recharge_pending_at: null, updated_at: new Date().toISOString() })
+    .eq("workspace_id", workspaceId);
+
+  if (error) {
+    throw new Error(`Failed to clear wallet auto-recharge pending flag: ${error.message}`);
+  }
 }
 
 function mapMonthlyUsageSummaryRow(data: MonthlyUsageSummaryRow): MonthlyUsageSummary {

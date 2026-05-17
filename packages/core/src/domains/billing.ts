@@ -90,6 +90,10 @@ export const WorkspaceUsageWalletSchema = z.object({
   stripePaymentMethodId: z.string().trim().min(1).max(200).nullable(),
   lastRechargeAt: IsoDateTimeSchema.nullable(),
   lowBalanceNotifiedAt: IsoDateTimeSchema.nullable(),
+  // Set by the debit RPC when balance crosses below the threshold; cleared
+  // by the credit RPC on a successful recharge. Cron polls and fires the
+  // Stripe PaymentIntent for any non-null value.
+  autoRechargePendingAt: IsoDateTimeSchema.nullable().default(null),
   updatedAt: IsoDateTimeSchema,
 });
 
