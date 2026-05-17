@@ -8,7 +8,11 @@ import { getWorkspaceOnboardingState } from "../../../lib/supabase/workspace-onb
 
 export const dynamic = "force-dynamic";
 
-export default async function Page() {
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: Promise<{ reset?: string }>;
+}) {
   const { session, membership } = await requireActiveWorkspace({
     nextPath: "/onboarding/setup",
     skipOnboardingCheck: true,
@@ -20,10 +24,26 @@ export default async function Page() {
     getWorkspaceSubscription(supabase, membership.workspaceId),
   ]);
 
-  // Operator already finished setup once — drop them straight into /home.
-  if (state.completedAt !== null) {
+  // Already finished — only bounce to /home if the operator didn't ask to
+  // re-run. ?reset=1 lets them step back through setup intentionally (e.g.
+  // to refresh reply examples or change channel intent).
+  const params = await searchParams;
+  const forceReset = params.reset === "1" || params.reset === "true";
+  if (state.completedAt !== null && !forceReset) {
     redirect("/home");
   }
+
+  // When re-running, present the operator with a blank-slate state so the
+  // chat starts at the first beat and the progress strip reads empty.
+  const renderState = forceReset
+    ? {
+        ...state,
+        identityDone: false,
+        replyExamplesDone: false,
+        channelIntentDone: false,
+        completedAt: null,
+      }
+    : state;
 
   const planTier = (subscription?.planTier ?? "free") as "free" | "solo" | "team" | "brokerage";
 
@@ -33,7 +53,7 @@ export default async function Page() {
       workspaceName={membership.workspaceName}
       operatorName={membership.displayName ?? session.user.email ?? "Operator"}
       planTier={planTier}
-      initialState={state}
+      initialState={renderState}
     />
   );
 }
