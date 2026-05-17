@@ -152,12 +152,52 @@ export const WorkspaceCreateResponseSchema = z.object({
   planTier: BillingPlanTierSchema,
 });
 
+// Workspace invitations — owner/admin invites a teammate by email, recipient
+// receives a /invite/<token> URL, signs up or signs in with that email, and
+// the membership is created atomically on accept.
+export const WorkspaceInvitationRoleSchema = z.enum(["admin", "member", "viewer"]);
+
+export const WorkspaceInvitationCreateRequestSchema = z.object({
+  email: z.string().trim().toLowerCase().email().max(180),
+  role: WorkspaceInvitationRoleSchema.default("member"),
+});
+
+export const WorkspaceInvitationCreateResponseSchema = z.object({
+  invitationId: UuidSchema,
+  token: z.string().min(16).max(128),
+  inviteUrl: z.string().url(),
+  expiresAt: IsoDateTimeSchema,
+});
+
+export const WorkspaceInvitationPreviewSchema = z.object({
+  workspaceId: UuidSchema,
+  workspaceName: z.string().min(1).max(120),
+  workspaceSlug: z.string().min(1).max(80),
+  invitedEmail: z.string().email(),
+  role: WorkspaceInvitationRoleSchema,
+  inviterDisplayName: z.string().nullable(),
+  expiresAt: IsoDateTimeSchema,
+  acceptedAt: IsoDateTimeSchema.nullable(),
+  revokedAt: IsoDateTimeSchema.nullable(),
+  expired: z.boolean(),
+});
+
+export const WorkspaceInvitationAcceptResponseSchema = z.object({
+  workspaceId: UuidSchema,
+  workspaceSlug: z.string().min(1).max(80),
+});
+
 export type WorkspaceRole = z.infer<typeof WorkspaceRoleSchema>;
 export type WorkspaceCapability = z.infer<typeof WorkspaceCapabilitySchema>;
 export type Workspace = z.infer<typeof WorkspaceSchema>;
 export type WorkspaceMember = z.infer<typeof WorkspaceMemberSchema>;
 export type WorkspaceCreateRequest = z.infer<typeof WorkspaceCreateRequestSchema>;
 export type WorkspaceCreateResponse = z.infer<typeof WorkspaceCreateResponseSchema>;
+export type WorkspaceInvitationRole = z.infer<typeof WorkspaceInvitationRoleSchema>;
+export type WorkspaceInvitationCreateRequest = z.infer<typeof WorkspaceInvitationCreateRequestSchema>;
+export type WorkspaceInvitationCreateResponse = z.infer<typeof WorkspaceInvitationCreateResponseSchema>;
+export type WorkspaceInvitationPreview = z.infer<typeof WorkspaceInvitationPreviewSchema>;
+export type WorkspaceInvitationAcceptResponse = z.infer<typeof WorkspaceInvitationAcceptResponseSchema>;
 
 export function getWorkspaceRoleCapabilities(role: WorkspaceRole): readonly WorkspaceCapability[] {
   return roleCapabilities[role];

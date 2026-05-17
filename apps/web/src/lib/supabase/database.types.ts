@@ -3289,6 +3289,63 @@ export type Database = {
         }
         Relationships: []
       }
+      workspace_invitations: {
+        Row: {
+          id: string
+          workspace_id: string
+          invited_by_member_id: string
+          email: string
+          role: string
+          token: string
+          expires_at: string
+          accepted_at: string | null
+          accepted_by_member_id: string | null
+          revoked_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          workspace_id: string
+          invited_by_member_id: string
+          email: string
+          role: string
+          token: string
+          expires_at?: string
+          accepted_at?: string | null
+          accepted_by_member_id?: string | null
+          revoked_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          workspace_id?: string
+          invited_by_member_id?: string
+          email?: string
+          role?: string
+          token?: string
+          expires_at?: string
+          accepted_at?: string | null
+          accepted_by_member_id?: string | null
+          revoked_at?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_invitations_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workspace_invitations_invited_by_member_id_fkey"
+            columns: ["invited_by_member_id"]
+            isOneToOne: false
+            referencedRelation: "workspace_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workspace_onboarding_state: {
         Row: {
           workspace_id: string
@@ -3652,6 +3709,27 @@ export type Database = {
           p_name: string
           p_slug_base: string
         }
+        Returns: {
+          workspace_id: string
+          workspace_slug: string
+        }[]
+      }
+      preview_workspace_invitation: {
+        Args: { p_token: string }
+        Returns: {
+          workspace_id: string
+          workspace_name: string
+          workspace_slug: string
+          invited_email: string
+          role: string
+          inviter_display_name: string | null
+          expires_at: string
+          accepted_at: string | null
+          revoked_at: string | null
+        }[]
+      }
+      accept_workspace_invitation: {
+        Args: { p_token: string }
         Returns: {
           workspace_id: string
           workspace_slug: string
