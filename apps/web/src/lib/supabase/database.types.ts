@@ -3203,6 +3203,59 @@ export type Database = {
           },
         ]
       }
+      usage_events: {
+        Row: {
+          balance_after_cents: number
+          cogs_cents: number
+          created_at: string
+          event_metadata: Json | null
+          event_type: string
+          id: string
+          idempotency_key: string
+          occurred_at: string
+          retail_cents: number
+          source_id: string | null
+          unit_count: number
+          workspace_id: string
+        }
+        Insert: {
+          balance_after_cents: number
+          cogs_cents?: number
+          created_at?: string
+          event_metadata?: Json | null
+          event_type: string
+          id?: string
+          idempotency_key: string
+          occurred_at?: string
+          retail_cents?: number
+          source_id?: string | null
+          unit_count: number
+          workspace_id: string
+        }
+        Update: {
+          balance_after_cents?: number
+          cogs_cents?: number
+          created_at?: string
+          event_metadata?: Json | null
+          event_type?: string
+          id?: string
+          idempotency_key?: string
+          occurred_at?: string
+          retail_cents?: number
+          source_id?: string | null
+          unit_count?: number
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "usage_events_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workspaces: {
         Row: {
           created_at: string
@@ -3342,6 +3395,50 @@ export type Database = {
           },
         ]
       }
+      workspace_usage_wallet: {
+        Row: {
+          auto_recharge_amount_cents: number
+          auto_recharge_enabled: boolean
+          auto_recharge_threshold_cents: number
+          balance_cents: number
+          last_recharge_at: string | null
+          low_balance_notified_at: string | null
+          stripe_payment_method_id: string | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          auto_recharge_amount_cents?: number
+          auto_recharge_enabled?: boolean
+          auto_recharge_threshold_cents?: number
+          balance_cents?: number
+          last_recharge_at?: string | null
+          low_balance_notified_at?: string | null
+          stripe_payment_method_id?: string | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          auto_recharge_amount_cents?: number
+          auto_recharge_enabled?: boolean
+          auto_recharge_threshold_cents?: number
+          balance_cents?: number
+          last_recharge_at?: string | null
+          low_balance_notified_at?: string | null
+          stripe_payment_method_id?: string | null
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_usage_wallet_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: true
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workspace_usage_summaries: {
         Row: {
           active_integration_account_count: number
@@ -3403,7 +3500,21 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      monthly_usage_summary: {
+        Row: {
+          balance_after_cents: number | null
+          cogs_cents: number | null
+          memory_loops_used: number | null
+          minutes_used: number | null
+          month: string | null
+          overage_listings: number | null
+          overage_seats: number | null
+          retail_cents: number | null
+          turns_used: number | null
+          workspace_id: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       can_manage_workspace_operations: {
@@ -3714,9 +3825,13 @@ export type ProviderErrorLogRow = Tables<"provider_error_logs">;
 export type BillingWebhookEventRow = Tables<"billing_webhook_events">;
 export type BillingWebhookEventInsertRow = TablesInsert<"billing_webhook_events">;
 export type BillingWebhookEventUpdateRow = TablesUpdate<"billing_webhook_events">;
+export type BillingUsageEventRow = Tables<"usage_events">;
+export type BillingUsageEventInsertRow = TablesInsert<"usage_events">;
 export type WorkspaceSubscriptionRow = Tables<"workspace_subscriptions">;
 export type WorkspaceUsageEventInsertRow = TablesInsert<"workspace_usage_events">;
 export type WorkspaceUsageSummaryRow = Tables<"workspace_usage_summaries">;
+export type WorkspaceUsageWalletRow = Tables<"workspace_usage_wallet">;
+export type WorkspaceUsageWalletUpdateRow = TablesUpdate<"workspace_usage_wallet">;
 export type WorkspaceMemoryDocumentRow = Tables<"workspace_memory_documents">;
 export type WorkspaceMemoryDocumentInsertRow = TablesInsert<"workspace_memory_documents">;
 export type WorkspaceMemoryDocumentUpdateRow = TablesUpdate<"workspace_memory_documents">;

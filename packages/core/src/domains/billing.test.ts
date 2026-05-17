@@ -17,7 +17,11 @@ import {
   BillingCheckoutResponseSchema,
   BillingPortalResponseSchema,
   BillingSubscriptionReconciliationSchema,
+  BillingUsageEventSchema,
+  BillingWalletUsageEventTypeSchema,
   BillingWebhookProcessResultSchema,
+  MonthlyUsageSummarySchema,
+  WorkspaceUsageWalletSchema,
 } from "./billing.js";
 
 describe("BillingPlanTierSchema", () => {
@@ -200,6 +204,84 @@ describe("WorkspaceUsageSummarySchema", () => {
     };
 
     expect(() => WorkspaceUsageSummarySchema.parse(summary)).toThrow();
+  });
+});
+
+describe("billing wallet contracts", () => {
+  it("validates wallet-backed usage event types", () => {
+    expect(BillingWalletUsageEventTypeSchema.parse("social_turn")).toBe("social_turn");
+    expect(BillingWalletUsageEventTypeSchema.parse("voice_minute")).toBe("voice_minute");
+    expect(BillingWalletUsageEventTypeSchema.parse("memory_loop")).toBe("memory_loop");
+    expect(() => BillingWalletUsageEventTypeSchema.parse("ai_turn")).toThrow();
+  });
+
+  it("validates workspace usage wallet rows", () => {
+    const wallet = WorkspaceUsageWalletSchema.parse({
+      workspaceId: "550e8400-e29b-41d4-a716-446655440001",
+      balanceCents: 5000,
+      autoRechargeEnabled: true,
+      autoRechargeThresholdCents: 1000,
+      autoRechargeAmountCents: 5000,
+      stripePaymentMethodId: "pm_123",
+      lastRechargeAt: "2026-05-17T12:00:00Z",
+      lowBalanceNotifiedAt: null,
+      updatedAt: "2026-05-17T12:00:00Z",
+    });
+
+    expect(wallet.balanceCents).toBe(5000);
+    expect(wallet.autoRechargeEnabled).toBe(true);
+  });
+
+  it("rejects negative wallet balances", () => {
+    expect(() => WorkspaceUsageWalletSchema.parse({
+      workspaceId: "550e8400-e29b-41d4-a716-446655440001",
+      balanceCents: -1,
+      autoRechargeEnabled: false,
+      autoRechargeThresholdCents: 1000,
+      autoRechargeAmountCents: 5000,
+      stripePaymentMethodId: null,
+      lastRechargeAt: null,
+      lowBalanceNotifiedAt: null,
+      updatedAt: "2026-05-17T12:00:00Z",
+    })).toThrow();
+  });
+
+  it("validates append-only usage ledger events", () => {
+    const event = BillingUsageEventSchema.parse({
+      id: "550e8400-e29b-41d4-a716-446655440000",
+      workspaceId: "550e8400-e29b-41d4-a716-446655440001",
+      occurredAt: "2026-05-17T12:00:00Z",
+      eventType: "social_turn",
+      unitCount: 1,
+      retailCents: 20,
+      cogsCents: 4,
+      balanceAfterCents: 4980,
+      sourceId: "trajectory_123",
+      idempotencyKey: "trajectory_123",
+      eventMetadata: { model: "gpt-4.1-mini" },
+      createdAt: "2026-05-17T12:00:00Z",
+    });
+
+    expect(event.eventType).toBe("social_turn");
+    expect(event.balanceAfterCents).toBe(4980);
+  });
+
+  it("validates monthly usage summary rows", () => {
+    const summary = MonthlyUsageSummarySchema.parse({
+      workspaceId: "550e8400-e29b-41d4-a716-446655440001",
+      month: "2026-05-01",
+      turnsUsed: 12,
+      minutesUsed: 3.5,
+      memoryLoopsUsed: 2,
+      overageListings: 0,
+      overageSeats: 0,
+      retailCents: 240,
+      cogsCents: 48,
+      balanceAfterCents: 4760,
+    });
+
+    expect(summary.month).toBe("2026-05-01");
+    expect(summary.turnsUsed).toBe(12);
   });
 });
 

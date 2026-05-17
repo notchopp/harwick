@@ -73,6 +73,54 @@ export const WorkspaceUsageSummarySchema = z.object({
   updatedAt: IsoDateTimeSchema,
 });
 
+export const BillingWalletUsageEventTypeSchema = z.enum([
+  "social_turn",
+  "voice_minute",
+  "memory_loop",
+  "overage_listing",
+  "overage_seat",
+]);
+
+export const WorkspaceUsageWalletSchema = z.object({
+  workspaceId: UuidSchema,
+  balanceCents: z.number().int().nonnegative(),
+  autoRechargeEnabled: z.boolean(),
+  autoRechargeThresholdCents: z.number().int().nonnegative(),
+  autoRechargeAmountCents: z.number().int().nonnegative(),
+  stripePaymentMethodId: z.string().trim().min(1).max(200).nullable(),
+  lastRechargeAt: IsoDateTimeSchema.nullable(),
+  lowBalanceNotifiedAt: IsoDateTimeSchema.nullable(),
+  updatedAt: IsoDateTimeSchema,
+});
+
+export const BillingUsageEventSchema = z.object({
+  id: UuidSchema,
+  workspaceId: UuidSchema,
+  occurredAt: IsoDateTimeSchema,
+  eventType: BillingWalletUsageEventTypeSchema,
+  unitCount: z.number().positive(),
+  retailCents: z.number().int().nonnegative(),
+  cogsCents: z.number().int().nonnegative(),
+  balanceAfterCents: z.number().int().nonnegative(),
+  sourceId: z.string().trim().min(1).max(200).nullable(),
+  idempotencyKey: z.string().trim().min(1).max(240),
+  eventMetadata: z.record(z.string(), z.unknown()).nullable(),
+  createdAt: IsoDateTimeSchema,
+});
+
+export const MonthlyUsageSummarySchema = z.object({
+  workspaceId: UuidSchema,
+  month: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  turnsUsed: z.number().nonnegative(),
+  minutesUsed: z.number().nonnegative(),
+  memoryLoopsUsed: z.number().nonnegative(),
+  overageListings: z.number().nonnegative(),
+  overageSeats: z.number().nonnegative(),
+  retailCents: z.number().int().nonnegative(),
+  cogsCents: z.number().int().nonnegative(),
+  balanceAfterCents: z.number().int().nonnegative().nullable(),
+});
+
 export type BillingPlanTier = z.infer<typeof BillingPlanTierSchema>;
 export type BillingPaidPlanTier = z.infer<typeof BillingPaidPlanTierSchema>;
 export type BillingInterval = z.infer<typeof BillingIntervalSchema>;
@@ -81,6 +129,10 @@ export type WorkspaceSubscription = z.infer<typeof WorkspaceSubscriptionSchema>;
 export type UsageEventType = z.infer<typeof UsageEventTypeSchema>;
 export type WorkspaceUsageEvent = z.infer<typeof WorkspaceUsageEventSchema>;
 export type WorkspaceUsageSummary = z.infer<typeof WorkspaceUsageSummarySchema>;
+export type BillingWalletUsageEventType = z.infer<typeof BillingWalletUsageEventTypeSchema>;
+export type WorkspaceUsageWallet = z.infer<typeof WorkspaceUsageWalletSchema>;
+export type BillingUsageEvent = z.infer<typeof BillingUsageEventSchema>;
+export type MonthlyUsageSummary = z.infer<typeof MonthlyUsageSummarySchema>;
 
 export const PlanLimitsSchema = z.object({
   listings: z.number().int().positive().nullable(),
