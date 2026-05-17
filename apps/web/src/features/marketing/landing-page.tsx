@@ -29,7 +29,7 @@ import { getPlanMaterial } from "./plan-card-material";
  */
 
 type LandingProps = { isAuthenticated: boolean };
-const PRIMARY_HREF = "/login";
+const PRIMARY_HREF = "/signup";
 
 // =====================================================================
 // Tokens
@@ -133,7 +133,7 @@ function TopBar({ isAuthenticated }: LandingProps) {
           <a
             className="hidden text-[13px] font-medium hover:text-white sm:inline-flex"
             style={{ color: "rgba(255,255,255,0.82)", textShadow }}
-            href={PRIMARY_HREF}
+            href={isAuthenticated ? "/home" : "/login"}
           >
             {isAuthenticated ? "dashboard" : "sign in"}
           </a>

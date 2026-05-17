@@ -48,7 +48,7 @@ Status values:
 | --- | --- | --- | --- |
 | Monorepo boundaries | done | `apps/web`, `apps/worker`, `packages/core`, `packages/integrations`, `packages/api-client`, `supabase/migrations` | Keep all new work in the established boundaries. |
 | Product docs and guardrails | done | engineering grail, product memory, security model, integration model, design guide, constraints file | Keep this map current as launch state changes. |
-| Supabase auth UI | done | `/login`, Supabase cookie auth, protected app pages, workspace selection, and role-aware redirects exist | Keep invite/signup UX aligned with workspace membership rules. |
+| Supabase auth UI | done | `/login`, `/signup`, Supabase cookie auth, protected app pages, workspace selection, and role-aware redirects exist | Keep invite/signup UX aligned with workspace membership rules. |
 | Workspace membership and roles | done | owner/admin/team lead/lead manager/operator/agent/viewer roles, role capability helpers, workspace resolver, route/API auth helpers, and billing/routing role gates exist | Keep new APIs using `authorizeWorkspaceRequest` or server-component workspace helpers. |
 | RLS and tenant boundaries | done | tenant tables have RLS, newer loops/billing/calendar/memory/work-item tables are covered by `rls_workspace_boundaries.sql`, and remote `supabase:test:rls` passes owner/assigned/unassigned/outsider behavior | Re-run `npm run supabase:test:rls` after every sensitive migration. |
 | Meta intake | done | webhook intake, normalization, post context, reply send, social queue exist, E2E flow verified with real IG DMs | Continue with production signature checks, OAuth connection, and real approval/send loop. |
