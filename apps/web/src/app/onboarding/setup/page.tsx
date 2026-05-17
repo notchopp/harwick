@@ -1,16 +1,36 @@
 import { redirect } from "next/navigation";
 
 import { requireActiveWorkspace } from "../../../features/auth/session";
+import { OnboardingSetupPage } from "../../../features/onboarding/setup-page";
+import { getWorkspaceSubscription } from "../../../lib/supabase/billing";
+import { createServerSupabaseClient } from "../../../lib/supabase/server-client";
+import { getWorkspaceOnboardingState } from "../../../lib/supabase/workspace-onboarding";
 
 export const dynamic = "force-dynamic";
 
-/**
- * Stub for ONBOARD-3 (conversational setup with the real Harwick LLM).
- * Until that ships, drop the operator straight into /home — every other
- * onboarding entry point routes through here so #104 can swap in the real
- * setup surface without re-wiring callers.
- */
 export default async function Page() {
-  await requireActiveWorkspace({ nextPath: "/onboarding/setup" });
-  redirect("/home");
+  const { session, membership } = await requireActiveWorkspace({ nextPath: "/onboarding/setup" });
+
+  const supabase = createServerSupabaseClient();
+  const [state, subscription] = await Promise.all([
+    getWorkspaceOnboardingState(supabase, membership.workspaceId),
+    getWorkspaceSubscription(supabase, membership.workspaceId),
+  ]);
+
+  // Operator already finished setup once — drop them straight into /home.
+  if (state.completedAt !== null) {
+    redirect("/home");
+  }
+
+  const planTier = (subscription?.planTier ?? "free") as "free" | "solo" | "team" | "brokerage";
+
+  return (
+    <OnboardingSetupPage
+      workspaceId={membership.workspaceId}
+      workspaceName={membership.workspaceName}
+      operatorName={membership.displayName ?? session.user.email ?? "Operator"}
+      planTier={planTier}
+      initialState={state}
+    />
+  );
 }

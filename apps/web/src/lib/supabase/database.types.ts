@@ -3289,6 +3289,108 @@ export type Database = {
         }
         Relationships: []
       }
+      workspace_onboarding_state: {
+        Row: {
+          workspace_id: string
+          identity_done: boolean
+          reply_examples_done: boolean
+          channel_intent_done: boolean
+          completed_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          workspace_id: string
+          identity_done?: boolean
+          reply_examples_done?: boolean
+          channel_intent_done?: boolean
+          completed_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          workspace_id?: string
+          identity_done?: boolean
+          reply_examples_done?: boolean
+          channel_intent_done?: boolean
+          completed_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_onboarding_state_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: true
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workspace_reply_examples: {
+        Row: {
+          id: string
+          workspace_id: string
+          body: string
+          source: string
+          captured_at: string
+        }
+        Insert: {
+          id?: string
+          workspace_id: string
+          body: string
+          source?: string
+          captured_at?: string
+        }
+        Update: {
+          id?: string
+          workspace_id?: string
+          body?: string
+          source?: string
+          captured_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_reply_examples_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workspace_channel_intents: {
+        Row: {
+          id: string
+          workspace_id: string
+          channel: string
+          desired_mode: string
+          notes: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          workspace_id: string
+          channel: string
+          desired_mode: string
+          notes?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          workspace_id?: string
+          channel?: string
+          desired_mode?: string
+          notes?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_channel_intents_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workspace_subscriptions: {
         Row: {
           billing_interval: string

@@ -1,4 +1,5 @@
 export * from "./domains/audit-log.js";
+export * from "./domains/workspace-onboarding.js";
 export * from "./domains/auth.js";
 export * from "./domains/billing.js";
 export * from "./domains/calendar.js";
