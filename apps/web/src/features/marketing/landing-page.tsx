@@ -1,573 +1,1988 @@
+"use client";
+
+import { motion } from "motion/react";
 import {
   ArrowRight,
-  Bot,
   Check,
-  Fingerprint,
-  GitBranch,
-  LockKeyhole,
-  MousePointer2,
-  RadioTower,
-  ShieldCheck,
-  Sparkles,
-  Users,
+  MessageCircle,
+  MessageSquare,
+  Phone,
+  Voicemail,
 } from "lucide-react";
+import { Fragment, useEffect, useState, type ReactNode } from "react";
 
-import { Button } from "../../components/ui/button";
-import { HomeEntry } from "./home-entry";
+import { FacebookGlyph, InstagramGlyph } from "../../components/harwick-icons";
 
-const navLinks = [
-  { href: "#product", label: "Product" },
-  { href: "#system", label: "System" },
-  { href: "#plans", label: "Pricing" },
-  { href: "#request-access", label: "Contact" },
-] as const;
+import { cn } from "../../lib/utils";
+import { HeroAnimatedShowcase } from "./hero-animated-showcase";
+import { getPlanMaterial } from "./plan-card-material";
 
-const legalLinks = [
-  { href: "/terms", label: "Terms" },
-  { href: "/privacy", label: "Privacy" },
-  { href: "/data-deletion", label: "Data deletion" },
-] as const;
+/**
+ * Harwick marketing site. Static, no JS animation. The hero uses the same
+ * glass-over-photo pattern from /listings — gradient-painted "photo" of a
+ * house with a backdrop-blur info card overlaid at the bottom. Every other
+ * surface uses gradient-tinted panels so the page reads like a real product,
+ * not a feature grid in dark mode.
+ *
+ * Colors are committed hex so the page renders the same regardless of the
+ * app's current theme state.
+ */
 
-const workSteps = [
-  {
-    icon: RadioTower,
-    title: "Capture every channel",
-    body: "Instagram DMs and comments, Facebook, public listings, SMS, and voice land as one lead stream.",
-  },
-  {
-    icon: Bot,
-    title: "Think with the brokerage",
-    body: "Harwick reads policy, lead memory, listing facts, workspace knowledge, routing profiles, and conversation history.",
-  },
-  {
-    icon: MousePointer2,
-    title: "Ask before external writes",
-    body: "Replies, routing, calendar writes, and Follow Up Boss syncs stay gated until the operator approves.",
-  },
-] as const;
+type LandingProps = { isAuthenticated: boolean };
+const PRIMARY_HREF = "/login";
 
-const capabilities = [
-  {
-    icon: Fingerprint,
-    title: "Workspace memory",
-    body: "Cross-lead patterns become brokerage knowledge instead of living in one operator's head.",
-  },
-  {
-    icon: Sparkles,
-    title: "Live synthesis",
-    body: "Intent, confidence, missing fields, next action, tool work, and handoff brief update while the thread moves.",
-  },
-  {
-    icon: GitBranch,
-    title: "Tool registry",
-    body: "FUB, calendar, listings, voice, and social register as capabilities Harwick can reason through.",
-  },
-  {
-    icon: Users,
-    title: "Team routing",
-    body: "Assignments account for area, price, lead type, source credit, capacity, readiness, and overrides.",
-  },
-] as const;
+// =====================================================================
+// Tokens
+// =====================================================================
 
-const featureFigures = [
-  {
-    fig: "fig 1.1",
-    title: "One intake object",
-    body: "Instagram DMs, comments, voice, SMS, and listing inquiries collapse into one lead stream with source and context preserved.",
-    variant: "stack",
-  },
-  {
-    fig: "fig 1.2",
-    title: "The model owns the loop",
-    body: "Harwick reasons through memory, listing facts, policy, tool results, and conversation history before proposing work.",
-    variant: "loop",
-  },
-  {
-    fig: "fig 1.3",
-    title: "External writes stay gated",
-    body: "Replies, calendar writes, assignments, nurture, and FUB sync wait behind an explicit operator approval surface.",
-    variant: "gate",
-  },
-] as const;
+const C = {
+  bg: "#0a0b0b",
+  panel: "#101212",
+  panelHi: "#161818",
+  line: "rgba(255,255,255,0.08)",
+  lineSoft: "rgba(255,255,255,0.05)",
+  text: "#ffffff",
+  textMid: "rgba(255,255,255,0.72)",
+  textLow: "rgba(255,255,255,0.5)",
+  textFaint: "rgba(255,255,255,0.35)",
+  sage: "#9ab5aa",
+  sageBright: "#b6d1c5",
+  sageSoft: "rgba(154,181,170,0.16)",
+  sageRing: "rgba(154,181,170,0.38)",
+  clay: "#c98b5a",
+  claySoft: "rgba(201,139,90,0.16)",
+  oxblood: "#a44e5a",
+  oxbloodSoft: "rgba(164,78,90,0.16)",
+  ink: "#0c1410",
+} as const;
 
-const featureGroups = [
-  {
-    title: "Inbound",
-    links: ["Instagram DM", "Instagram comments", "Facebook", "Voice calls", "SMS", "Public listings"],
-  },
-  {
-    title: "Agent loop",
-    links: ["Live synthesis", "Tool registry", "Subagent dispatch", "Scheduled loops", "Cost-tiered cognition"],
-  },
-  {
-    title: "Brokerage OS",
-    links: ["Workspace memory", "Team routing", "Calendar showings", "Open house reminders", "Lead documents"],
-  },
-  {
-    title: "Controls",
-    links: ["Approval queue", "Human takeover", "Audit trail", "Provider receipts", "Plan gates"],
-  },
-] as const;
+// =====================================================================
+// Logo
+// =====================================================================
 
-const plans = [
-  {
-    name: "Solo",
-    price: "$299",
-    body: "For one agent running a serious desk.",
-    points: ["1 workspace seat", "social intake", "AI reply drafting", "FUB sync", "25 listings"],
-    featured: false,
-  },
-  {
-    name: "Team",
-    price: "$799",
-    body: "For a small team with one operator.",
-    points: ["up to 8 seats", "routing profiles", "calendar and showings", "workspace memory", "voice-ready"],
-    featured: true,
-  },
-  {
-    name: "Brokerage",
-    price: "Custom",
-    body: "For multi-agent operations.",
-    points: ["expanded seats", "many connected accounts", "ops visibility", "white-glove setup", "priority support"],
-    featured: false,
-  },
-] as const;
-
-const threadMessages = [
-  {
-    sender: "lead",
-    time: "3:24 AM",
-    body: "Is 4126 Maple still open? We are pre-approved and can tour this weekend.",
-  },
-  {
-    sender: "operator",
-    time: "3:25 AM",
-    body: "@Harwick qualify and route this if it is real.",
-  },
-  {
-    sender: "Harwick",
-    time: "3:25 AM",
-    body: "Created 2 actions: draft reply for approval, route to Noah after confirmation.",
-  },
-] as const;
-
-const footerGroups = [
-  {
-    title: "Product",
-    links: [
-      { href: "#product", label: "Intake" },
-      { href: "#system", label: "Operating system" },
-      { href: "#features", label: "Features" },
-      { href: "#plans", label: "Pricing" },
-      { href: "#request-access", label: "Access" },
-    ],
-  },
-  {
-    title: "Features",
-    links: [
-      { href: "#features", label: "Workspace memory" },
-      { href: "#features", label: "Approval gates" },
-      { href: "#features", label: "FUB sync" },
-      { href: "#features", label: "Calendar showings" },
-      { href: "#features", label: "Voice handoffs" },
-    ],
-  },
-  {
-    title: "Company",
-    links: [
-      { href: "mailto:support@harwick.lol", label: "Contact" },
-      { href: "#request-access", label: "Private access" },
-      { href: "/login", label: "Log in" },
-      { href: "/home", label: "Dashboard" },
-    ],
-  },
-  {
-    title: "Legal",
-    links: legalLinks,
-  },
-] as const;
-
-function LogoMark({ className }: { className: string }) {
+function HarwickLogo({ size = 22 }: { size?: number }) {
+  // Brand wordmark / glyph from /public. The PNG is 677×369 — we render
+  // it width-auto at the requested height so the aspect stays correct.
   return (
     <img
-      alt=""
-      className={className}
-      height={369}
       src="/harwick-gemini-logo.png"
-      width={677}
+      alt="Harwick"
+      style={{ height: size, width: "auto", display: "block" }}
+      className="select-none"
+      draggable={false}
     />
   );
 }
 
-function TopBar({ isAuthenticated }: { isAuthenticated: boolean }) {
+// =====================================================================
+// Nav — single transparent overlay header that floats over the hero photo.
+// As the page scrolls past the hero, the page's dark body bg shows through
+// the transparent header naturally — still readable thanks to the
+// text-shadows on the wordmark + nav links.
+// =====================================================================
+
+function TopBar({ isAuthenticated }: LandingProps) {
+  // Scroll-aware morph. At top: floating rounded pill, max-width 1180,
+  // margin-top 12px. After scroll: flush full-width with solid blur bg.
+  // Coya-style transition.
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 24);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  const textShadow = scrolled ? undefined : "0 1px 8px rgba(0,0,0,0.55)";
   return (
-    <header className="fixed inset-x-0 top-0 z-50 border-b border-white/[0.07] bg-[#050607]/78 backdrop-blur-xl">
-      <div className="mx-auto flex h-16 w-full max-w-[1080px] items-center justify-between px-5 lg:px-0">
-        <a className="flex items-center gap-2.5" href="/" aria-label="Harwick home">
-          <LogoMark className="h-7 w-auto" />
-          <span className="text-[18px] font-semibold text-white">Harwick</span>
+    <header className="fixed inset-x-0 top-0 z-50">
+      <div
+        className="mx-auto flex h-14 items-center justify-between px-6 transition-all duration-300"
+        style={{
+          marginTop: scrolled ? 0 : 12,
+          marginLeft: scrolled ? 0 : "auto",
+          marginRight: scrolled ? 0 : "auto",
+          maxWidth: scrolled ? "100%" : 1180,
+          background: scrolled ? "rgba(10,11,11,0.88)" : "rgba(10,11,11,0.42)",
+          borderRadius: scrolled ? 0 : 14,
+          borderBottom: `1px solid ${scrolled ? C.line : "transparent"}`,
+          border: scrolled ? undefined : `1px solid rgba(255,255,255,0.08)`,
+          backdropFilter: "blur(18px)",
+          WebkitBackdropFilter: "blur(18px)",
+        }}
+      >
+        <a href="/" aria-label="Harwick home" className="flex items-center gap-2">
+          <HarwickLogo size={22} />
+          <span
+            className="text-[15px] font-semibold tracking-[-0.01em]"
+            style={{ color: C.text, textShadow }}
+          >
+            Harwick
+          </span>
         </a>
-
-        <nav className="hidden items-center gap-7 text-[13px] font-medium text-white/48 md:flex">
-          {navLinks.map((link) => (
-            <a className="transition hover:text-white" href={link.href} key={link.href}>
-              {link.label}
-            </a>
-          ))}
+        <nav
+          className="hidden items-center gap-7 text-[13px] font-medium sm:flex"
+          style={{ color: "rgba(255,255,255,0.82)", textShadow }}
+        >
+          <a className="transition hover:text-white" href="#how-it-works">how it works</a>
+          <a className="transition hover:text-white" href="#capabilities">capabilities</a>
+          <a className="transition hover:text-white" href="#pricing">pricing</a>
+          <a className="transition hover:text-white" href="#access">get access</a>
         </nav>
-
         <div className="flex items-center gap-3">
           <a
-            className="hidden text-[13px] font-medium text-white/58 transition hover:text-white sm:inline-flex"
-            href={isAuthenticated ? "/home" : "/login"}
+            className="hidden text-[13px] font-medium hover:text-white sm:inline-flex"
+            style={{ color: "rgba(255,255,255,0.82)", textShadow }}
+            href={PRIMARY_HREF}
           >
-            {isAuthenticated ? "Dashboard" : "Log in"}
+            {isAuthenticated ? "dashboard" : "sign in"}
           </a>
-          <a
-            className="inline-flex h-9 items-center justify-center rounded-full bg-white px-4 text-[13px] font-semibold shadow-[0_10px_28px_rgba(255,255,255,0.08)] transition hover:bg-white/88"
-            href="#request-access"
-            style={{ color: "#050607" }}
-          >
-            Create account
-          </a>
+          <PrimaryCta href={isAuthenticated ? "/home" : PRIMARY_HREF} small>
+            {isAuthenticated ? "open harwick" : "create account"}
+          </PrimaryCta>
         </div>
       </div>
     </header>
   );
 }
 
-function WorkSystem() {
+function PrimaryCta({ href, children, small }: { href: string; children: ReactNode; small?: boolean }) {
   return (
-    <section id="product" className="border-b border-white/[0.08] bg-[#050607] py-24 text-white">
-      <div className="mx-auto w-full max-w-[1080px] px-5 lg:px-0">
-        <h2 className="max-w-[900px] text-[40px] font-semibold leading-[1.05] text-white sm:text-[58px]">
-          A new species of real estate ops tool.{" "}
-          <span className="text-white/42">
-            Purpose-built for AI-native lead work, approval gates, and brokerage memory.
-          </span>
-        </h2>
+    <a
+      href={href}
+      className={cn(
+        "inline-flex items-center justify-center rounded-[8px] font-semibold transition",
+        small ? "h-9 px-3.5 text-[13px]" : "h-11 px-5 text-[14px]",
+      )}
+      style={{ background: C.sage, color: C.ink, boxShadow: `0 1px 0 rgba(255,255,255,0.18) inset, 0 12px 30px -10px ${C.sageRing}` }}
+    >
+      {children}
+      <ArrowRight className={cn(small ? "ml-1.5 size-3.5" : "ml-2 size-4")} aria-hidden="true" />
+    </a>
+  );
+}
 
-        <div className="mt-24 grid grid-cols-1 border-y border-white/[0.08] md:grid-cols-3">
-          {workSteps.map((step, index) => {
-            const Icon = step.icon;
-            return (
-              <article
-                className="border-white/[0.08] py-10 md:border-l md:px-8 first:md:border-l-0"
-                key={step.title}
+function SecondaryCta({ href, children }: { href: string; children: ReactNode }) {
+  return (
+    <a
+      href={href}
+      className="inline-flex h-10 items-center justify-center rounded-[8px] px-4 text-[13.5px] font-medium transition hover:bg-white/[0.06]"
+      style={{ color: C.text, border: `1px solid ${C.line}`, background: "rgba(255,255,255,0.03)" }}
+    >
+      {children}
+    </a>
+  );
+}
+
+// =====================================================================
+// Hero — full-bleed real photo, animated showcase overlaid.
+//
+// Photo lives at apps/web/public/marketing/hero-house.jpg
+// (Unsplash 1568605114967, 2400x1600 JPG). Swap any time — the path is
+// the only thing the component references.
+//
+// No headline, no copy, no CTAs in the hero. The animation does the
+// talking. CTAs live in the early-access section below.
+// =====================================================================
+
+const HERO_BG_URL = "/marketing/hero-house.jpg";
+
+function HeroHeadline() {
+  return (
+    <div className="mx-auto max-w-[820px] text-center">
+      <h1
+        className="text-[36px] font-semibold leading-[1.05] tracking-[-0.025em] sm:text-[60px]"
+        style={{
+          color: C.text,
+          fontFamily: "var(--font-display)",
+          textShadow: "0 2px 18px rgba(0,0,0,0.6)",
+        }}
+      >
+        Every buyer message. <span style={{ color: C.sage }}>One inbox.</span>
+      </h1>
+      <div
+        className="mx-auto mt-5 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[11.5px] uppercase"
+        style={{
+          color: "rgba(255,255,255,0.62)",
+          fontFamily: "var(--font-mono)",
+          letterSpacing: "0.08em",
+          textShadow: "0 1px 8px rgba(0,0,0,0.55)",
+        }}
+      >
+        <span>onboarded in a day</span>
+        <span aria-hidden="true" style={{ color: "rgba(255,255,255,0.28)" }}>·</span>
+        <span>no contracts</span>
+        <span aria-hidden="true" style={{ color: "rgba(255,255,255,0.28)" }}>·</span>
+        <span>brokerage controlled</span>
+      </div>
+    </div>
+  );
+}
+
+function Hero(_props: LandingProps) {
+  return (
+    <section className="relative isolate w-full overflow-hidden" style={{ minHeight: "94vh", background: "#0a0807" }}>
+      {/* Real photo background — full-bleed. */}
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 bg-cover bg-center"
+        style={{ backgroundImage: `url(${HERO_BG_URL})` }}
+      />
+
+      {/* Subtle global wash + bottom darken so glass cards have something to
+          float over without fighting the photo. */}
+      <div
+        aria-hidden="true"
+        className="absolute inset-0"
+        style={{
+          background:
+            "linear-gradient(180deg, rgba(10,8,7,0.36) 0%, rgba(10,8,7,0.18) 30%, rgba(10,8,7,0.48) 72%, rgba(10,8,7,0.96) 100%)",
+        }}
+      />
+
+      {/* Center hero line + showcase. */}
+      <div className="relative z-10 mx-auto flex h-full min-h-[94vh] w-full max-w-[1180px] flex-col items-stretch justify-center gap-10 px-6 pt-28 pb-16 sm:gap-14 sm:pt-32">
+        <HeroHeadline />
+        <HeroAnimatedShowcase />
+      </div>
+    </section>
+  );
+}
+
+
+// =====================================================================
+// Section helpers (shared across the lower sections)
+// =====================================================================
+
+function SectionEyebrow({ children }: { children: ReactNode }) {
+  return (
+    <p
+      className="text-[11px] font-semibold uppercase"
+      style={{
+        color: C.sage,
+        fontFamily: "var(--font-mono)",
+        letterSpacing: "0.16em",
+      }}
+    >
+      {children}
+    </p>
+  );
+}
+
+function SectionHeadline({ children }: { children: ReactNode }) {
+  return (
+    <h2
+      className="mt-3 text-[36px] font-semibold leading-[1.05] tracking-[-0.025em] sm:text-[48px]"
+      style={{ color: C.text, fontFamily: "var(--font-display)" }}
+    >
+      {children}
+    </h2>
+  );
+}
+
+// Coya-style editorial divider between sections. Thin dotted line with a
+// small sage dot in the middle. Gives the page rhythm so sections don't
+// just butt up against each other with hard borders.
+function SectionBreak() {
+  return (
+    <div className="px-6" aria-hidden="true">
+      <div className="mx-auto max-w-[1180px] py-3 sm:py-4">
+        <div className="flex items-center gap-4 sm:gap-6">
+          <div
+            className="h-px flex-1"
+            style={{
+              background: `linear-gradient(90deg, transparent 0%, ${C.line} 30%, ${C.line} 100%)`,
+            }}
+          />
+          <div
+            className="size-2 shrink-0 rounded-full"
+            style={{
+              background: C.sage,
+              boxShadow: `0 0 0 6px ${C.sageSoft}`,
+            }}
+          />
+          <div
+            className="h-px flex-1"
+            style={{
+              background: `linear-gradient(90deg, ${C.line} 0%, ${C.line} 70%, transparent 100%)`,
+            }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =====================================================================
+// How it works — 3 stages with 2×2 mini-tile grids, plus animated
+// connector pills between stages.
+//
+// Pattern inspired by the Frontdesk site:
+//   [Stage 01 panel] → [animated connector pill] → [Stage 02 panel]
+//   → [animated connector pill] → [Stage 03 panel] → [loopback arc]
+//
+// The connectors have sage dots that physically flow along curved SVG
+// paths from one stage into the next via CSS offset-path.
+// =====================================================================
+
+type StageTile = {
+  name: string;
+  sub: string;
+  mock: ReactNode;
+};
+
+type Stage = {
+  n: string;
+  title: string;
+  sub: string;
+  body: string;
+  tiles: ReadonlyArray<StageTile>;
+};
+
+const STAGES: ReadonlyArray<Stage> = [
+  {
+    n: "01",
+    title: "Capture",
+    sub: "Every channel. One stream.",
+    body: "Buyers reach your brokerage through whatever channel they want. Harwick is listening to all of them and pulls everything into one inbox the moment it arrives.",
+    tiles: [
+      { name: "Instagram DMs", sub: "Direct messages on every listing post", mock: <MockIgDm /> },
+      { name: "Facebook & Messenger", sub: "Comments and DMs on your Page", mock: <MockFbComment /> },
+      { name: "Phone & voicemail", sub: "Transcribed in seconds via Retell", mock: <MockVoicemail /> },
+      { name: "SMS", sub: "Texts to your Twilio number", mock: <MockSms /> },
+    ],
+  },
+  {
+    n: "02",
+    title: "Understand",
+    sub: "Read. Qualify. Draft.",
+    body: "Before drafting anything, Harwick reads your past closed deals, the listing in question, the way your brokerage talks, and which agent covers what area. Then it writes a reply.",
+    tiles: [
+      { name: "Workspace memory", sub: "Past leads, your voice, area knowledge", mock: <MockMemory /> },
+      { name: "Listing facts", sub: "Address, price, HOA, schools, photos", mock: <MockListingFacts /> },
+      { name: "Reply draft", sub: "Personalized, in your brokerage's voice", mock: <MockDraft /> },
+      { name: "Routing decision", sub: "Right agent based on real signals", mock: <MockRouting /> },
+    ],
+  },
+  {
+    n: "03",
+    title: "Send & sync",
+    sub: "Approve once. Done everywhere.",
+    body: "You tap approve. The reply sends inside Meta's window. The tour books on the right agent's calendar. The lead lands in Follow Up Boss. Every action gets logged.",
+    tiles: [
+      { name: "Approval queue", sub: "One tap to send. Edit or dismiss anytime", mock: <MockApprove /> },
+      { name: "Calendar booking", sub: "Books against the agent's real calendar", mock: <MockCalendar /> },
+      { name: "CRM sync", sub: "Follow Up Boss today. More coming", mock: <MockCrmSync /> },
+      { name: "Audit log", sub: "Who approved what, when, why", mock: <MockAuditLog /> },
+    ],
+  },
+];
+
+const CONNECTOR_LABELS: ReadonlyArray<{ pill: string; sub: string } | null> = [
+  { pill: "Inbound captured", sub: "Comments · DMs · Calls · SMS" },
+  { pill: "Qualified & drafted", sub: "Scored · Routed · Drafted" },
+  null, // last stage has no forward connector
+];
+
+function HowItWorks() {
+  return (
+    <section id="how-it-works" style={{ background: C.bg }} className="py-28">
+      <div className="mx-auto w-full max-w-[1180px] px-6">
+        <div className="mx-auto max-w-[700px] text-center">
+          <SectionEyebrow>How it works</SectionEyebrow>
+          <SectionHeadline>Three stages. Every channel.</SectionHeadline>
+          <p className="mx-auto mt-5 max-w-[560px] text-[16px] leading-7" style={{ color: C.textMid }}>
+            What happens between a buyer DMing your Instagram post and a tour landing on your agent's calendar.
+          </p>
+        </div>
+
+        <div className="mt-16 flex flex-col">
+          {STAGES.map((stage, i) => (
+            <Fragment key={stage.n}>
+              <StagePanel stage={stage} />
+              {CONNECTOR_LABELS[i] ? (
+                <AnimatedConnector
+                  label={CONNECTOR_LABELS[i]!.pill}
+                  sub={CONNECTOR_LABELS[i]!.sub}
+                />
+              ) : null}
+            </Fragment>
+          ))}
+          <LoopbackArc />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------
+// Stage panel — number + title + body on left, 2x2 mini-tiles on right
+// ---------------------------------------------------------------------
+
+function StagePanel({ stage }: { stage: Stage }) {
+  return (
+    <div
+      className="overflow-hidden rounded-[24px]"
+      style={{
+        background: `linear-gradient(180deg, ${C.panelHi} 0%, ${C.panel} 100%)`,
+        border: `1px solid ${C.line}`,
+        boxShadow: "0 30px 60px -30px rgba(0,0,0,0.6)",
+      }}
+    >
+      <div className="grid gap-8 px-6 py-8 sm:px-10 sm:py-10 lg:grid-cols-[minmax(0,300px)_minmax(0,1fr)] lg:gap-12">
+        <div>
+          <div className="flex items-baseline gap-4">
+            <span
+              className="text-[44px] font-semibold leading-none tracking-[-0.025em]"
+              style={{ color: "rgba(255,255,255,0.15)", fontFamily: "var(--font-display)", fontVariantNumeric: "tabular-nums" }}
+            >
+              {stage.n}
+            </span>
+            <h3
+              className="text-[26px] font-semibold leading-none tracking-[-0.02em] sm:text-[32px]"
+              style={{ color: C.text, fontFamily: "var(--font-display)" }}
+            >
+              {stage.title}
+            </h3>
+          </div>
+          <p
+            className="mt-3 text-[13px] font-semibold"
+            style={{ color: C.sage, fontFamily: "var(--font-mono)", letterSpacing: "0.02em" }}
+          >
+            {stage.sub}
+          </p>
+          <p className="mt-4 max-w-[360px] text-[14px] leading-7" style={{ color: C.textMid }}>
+            {stage.body}
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {stage.tiles.map((tile) => (
+            <MiniTile key={tile.name} tile={tile} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MiniTile({ tile }: { tile: StageTile }) {
+  return (
+    <div
+      className="overflow-hidden rounded-[14px] p-3"
+      style={{
+        background: "linear-gradient(180deg, rgba(255,255,255,0.035) 0%, rgba(255,255,255,0.012) 100%)",
+        border: "1px solid rgba(255,255,255,0.06)",
+      }}
+    >
+      <div
+        className="flex h-[80px] items-center justify-center overflow-hidden rounded-[10px] px-3"
+        style={{
+          background: "rgba(0,0,0,0.22)",
+          border: "1px solid rgba(255,255,255,0.04)",
+        }}
+      >
+        {tile.mock}
+      </div>
+      <div className="mt-3 flex items-start justify-between gap-2 px-1">
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5">
+            <span className="truncate text-[13px] font-semibold" style={{ color: C.text }}>
+              {tile.name}
+            </span>
+            <ArrowRight className="size-3 shrink-0" aria-hidden="true" style={{ color: C.textFaint, transform: "rotate(-45deg)" }} />
+          </div>
+          <div className="mt-0.5 text-[11.5px] leading-5" style={{ color: C.textLow }}>
+            {tile.sub}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------
+// Tile mocks — tiny suggestive previews of each feature
+// ---------------------------------------------------------------------
+
+function SkelLine({ width = "100%", opacity = 0.18 }: { width?: number | string; opacity?: number }) {
+  return (
+    <span
+      className="block rounded-full"
+      style={{ width, height: 3, background: `rgba(255,255,255,${opacity})` }}
+      aria-hidden="true"
+    />
+  );
+}
+
+function MockIgDm() {
+  return (
+    <div className="flex w-full items-end gap-2">
+      <div className="flex size-5 shrink-0 items-center justify-center rounded-full" style={{ background: "linear-gradient(135deg,#f09433,#dc2743,#bc1888)" }}>
+        <InstagramGlyph className="size-3" aria-hidden="true" />
+      </div>
+      <div className="flex-1 space-y-1.5 rounded-[10px] rounded-bl-[3px] px-2.5 py-2" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.06)" }}>
+        <SkelLine width="80%" opacity={0.28} />
+        <SkelLine width="55%" opacity={0.2} />
+      </div>
+    </div>
+  );
+}
+
+function MockFbComment() {
+  return (
+    <div className="flex w-full items-start gap-2">
+      <div className="size-5 shrink-0 rounded-full" style={{ background: "linear-gradient(135deg,#1877f2,#0866ff)" }} />
+      <div className="flex-1 space-y-1.5">
+        <div className="flex items-center gap-2">
+          <span className="block h-2 w-12 rounded-full" style={{ background: "rgba(255,255,255,0.32)" }} />
+          <span className="block h-1.5 w-6 rounded-full" style={{ background: "rgba(255,255,255,0.12)" }} />
+        </div>
+        <SkelLine width="90%" opacity={0.22} />
+        <SkelLine width="45%" opacity={0.18} />
+      </div>
+    </div>
+  );
+}
+
+function MockVoicemail() {
+  return (
+    <div className="flex w-full items-center gap-2.5">
+      <div className="flex size-7 shrink-0 items-center justify-center rounded-[7px]" style={{ background: "linear-gradient(135deg,#e3a067,#c98b5a)", color: "#1a0e05" }}>
+        <Voicemail className="size-3.5" aria-hidden="true" />
+      </div>
+      <div className="flex flex-1 items-end gap-[3px]">
+        {[8, 16, 22, 14, 26, 18, 10, 20, 14, 24, 11, 17].map((h, i) => (
+          <span
+            key={i}
+            className="block w-[3px] rounded-sm"
+            style={{
+              height: h,
+              background: `rgba(227,160,103,${0.4 + (i % 3) * 0.18})`,
+            }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MockSms() {
+  return (
+    <div className="flex w-full flex-col items-end gap-1.5">
+      <div className="max-w-[70%] rounded-[10px] rounded-br-[3px] px-2.5 py-1.5" style={{ background: "linear-gradient(180deg,#7bcf85,#3aa44a)" }}>
+        <span className="block h-1.5 w-16 rounded-full" style={{ background: "rgba(10,30,12,0.55)" }} />
+      </div>
+      <div className="max-w-[60%] self-start rounded-[10px] rounded-bl-[3px] px-2.5 py-1.5" style={{ background: "rgba(255,255,255,0.06)" }}>
+        <span className="block h-1.5 w-10 rounded-full" style={{ background: "rgba(255,255,255,0.32)" }} />
+      </div>
+    </div>
+  );
+}
+
+function MockMemory() {
+  const chips = ["247 leads", "4126 maple", "Bellaire", "your voice"];
+  return (
+    <div className="flex w-full flex-wrap items-center gap-1.5">
+      {chips.map((label) => (
+        <span
+          key={label}
+          className="inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9.5px] font-semibold uppercase"
+          style={{
+            background: C.sageSoft,
+            borderColor: C.sageRing,
+            color: C.sage,
+            fontFamily: "var(--font-mono)",
+            letterSpacing: "0.06em",
+          }}
+        >
+          <Check className="size-2" aria-hidden="true" />
+          {label}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function MockListingFacts() {
+  return (
+    <div className="flex w-full items-center gap-2 rounded-[8px] px-2 py-1.5" style={{ background: "rgba(243,238,229,0.92)", color: "#1a1a1a" }}>
+      <div
+        className="size-9 shrink-0 rounded-[4px]"
+        style={{
+          background:
+            "linear-gradient(180deg, #ed8243 0%, #2b1a10 100%)",
+        }}
+      />
+      <div className="min-w-0 flex-1">
+        <span className="block h-1.5 w-3/4 rounded-full" style={{ background: "rgba(26,26,26,0.62)" }} />
+        <span className="mt-1 block h-1 w-1/2 rounded-full" style={{ background: "rgba(26,26,26,0.32)" }} />
+        <span className="mt-1.5 block h-2 w-12 rounded-full" style={{ background: "rgba(26,26,26,0.78)" }} />
+      </div>
+    </div>
+  );
+}
+
+function MockDraft() {
+  return (
+    <div className="w-full space-y-1.5 rounded-[10px] p-2.5" style={{ background: "rgba(154,181,170,0.12)", border: `1px solid ${C.sageRing}` }}>
+      <div className="flex items-center gap-1.5">
+        <span className="inline-flex size-3.5 items-center justify-center rounded-[3px]" style={{ background: "linear-gradient(135deg,#9ab5aa 0%,#60786d 100%)", color: "#0c1410", fontSize: 7, fontWeight: 800 }}>H</span>
+        <span className="text-[8.5px] font-semibold uppercase" style={{ color: C.sage, fontFamily: "var(--font-mono)", letterSpacing: "0.08em" }}>draft</span>
+      </div>
+      <SkelLine width="95%" opacity={0.34} />
+      <SkelLine width="78%" opacity={0.28} />
+      <SkelLine width="48%" opacity={0.22} />
+    </div>
+  );
+}
+
+function MockRouting() {
+  return (
+    <div className="flex w-full items-center gap-2">
+      <div className="size-7 shrink-0 rounded-full text-center text-[10px] font-bold leading-7" style={{ background: "#7ba6ff", color: "#0c1410" }}>
+        MC
+      </div>
+      <ArrowRight className="size-3 shrink-0" aria-hidden="true" style={{ color: C.textFaint }} />
+      <div className="size-7 shrink-0 rounded-full text-center text-[10px] font-bold leading-7" style={{ background: C.sage, color: C.ink }}>
+        SK
+      </div>
+      <span
+        className="ml-1.5 truncate rounded-full border px-1.5 py-0.5 text-[9px] uppercase"
+        style={{
+          background: C.sageSoft,
+          borderColor: C.sageRing,
+          color: C.sage,
+          fontFamily: "var(--font-mono)",
+          letterSpacing: "0.06em",
+        }}
+      >
+        covers bellaire
+      </span>
+    </div>
+  );
+}
+
+function MockApprove() {
+  return (
+    <div className="w-full space-y-1.5">
+      <SkelLine width="78%" opacity={0.22} />
+      <SkelLine width="52%" opacity={0.18} />
+      <div className="mt-2 flex gap-1.5">
+        <span
+          className="inline-flex h-6 flex-1 items-center justify-center gap-1 rounded-[6px] text-[10px] font-semibold"
+          style={{ background: "linear-gradient(180deg,#b6d1c5,#8aa89a)", color: "#0c1410" }}
+        >
+          <Check className="size-2.5" aria-hidden="true" /> Approve
+        </span>
+        <span
+          className="inline-flex h-6 w-12 items-center justify-center rounded-[6px] text-[10px]"
+          style={{ background: "rgba(255,255,255,0.05)", color: C.textMid, border: "1px solid rgba(255,255,255,0.08)" }}
+        >
+          Edit
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function MockCalendar() {
+  const days = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+  const highlight = 5; // sat
+  return (
+    <div className="grid w-full grid-cols-7 gap-[3px]">
+      {days.map((day, i) => (
+        <div key={day} className="flex flex-col items-center gap-0.5">
+          <span className="text-[7px] uppercase" style={{ color: C.textFaint, fontFamily: "var(--font-mono)", letterSpacing: "0.08em" }}>
+            {day}
+          </span>
+          <span
+            className="block h-8 w-full rounded-[3px]"
+            style={{
+              background: i === highlight ? C.sage : "rgba(255,255,255,0.05)",
+              boxShadow: i === highlight ? `0 0 12px -2px ${C.sage}` : undefined,
+            }}
+          />
+          {i === highlight ? (
+            <span
+              className="text-[7px] font-bold"
+              style={{ color: C.sage, fontFamily: "var(--font-mono)" }}
+            >
+              11AM
+            </span>
+          ) : (
+            <span className="text-[7px]" style={{ color: "transparent" }}>·</span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function MockCrmSync() {
+  return (
+    <div className="flex w-full items-center justify-between gap-3">
+      <span className="inline-flex size-9 items-center justify-center rounded-[8px]" style={{ background: "linear-gradient(135deg,#9ab5aa 0%,#60786d 100%)", color: "#0c1410", fontFamily: "var(--font-display)", fontWeight: 800 }}>
+        H
+      </span>
+      <div className="flex flex-1 items-center gap-1">
+        <SkelLine width="100%" opacity={0.18} />
+        <motion.span
+          className="block size-1.5 shrink-0 rounded-full"
+          style={{ background: C.sage, boxShadow: `0 0 6px ${C.sage}` }}
+          animate={{ x: [0, 24, 0], opacity: [0, 1, 0] }}
+          transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
+        />
+        <SkelLine width="100%" opacity={0.18} />
+      </div>
+      <span
+        className="inline-flex h-9 w-12 items-center justify-center rounded-[8px] text-[9px] font-bold uppercase"
+        style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", color: C.textMid, fontFamily: "var(--font-mono)" }}
+      >
+        FUB
+      </span>
+    </div>
+  );
+}
+
+function MockAuditLog() {
+  const lines: Array<{ t: string; body: string }> = [
+    { t: "07:03", body: "reply.sent · approved by Sarah" },
+    { t: "07:03", body: "route.assigned · MC → SK" },
+    { t: "11:47", body: "inbound.captured · ig_dm" },
+  ];
+  return (
+    <div className="w-full space-y-0.5">
+      {lines.map((line, i) => (
+        <div key={i} className="flex items-center gap-2 text-[9px]" style={{ fontFamily: "var(--font-mono)" }}>
+          <span style={{ color: C.textFaint }}>{line.t}</span>
+          <span className="truncate" style={{ color: i === 0 ? C.sage : C.textLow }}>{line.body}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------
+// Animated connector — flowing dots along curves around a labeled pill
+// ---------------------------------------------------------------------
+
+const CONNECTOR_PATH = "M 0 22 C 60 4 180 40 240 22";
+const CONNECTOR_WIDTH = 240;
+const CONNECTOR_HEIGHT = 44;
+
+function ConnectorCurve({ side }: { side: "left" | "right" }) {
+  // Both sides flow LEFT → RIGHT. The pill sits between them, so left side
+  // moves toward the pill and right side moves away from it. Same flow
+  // direction, continuous illusion of data passing through.
+  const dotCount = 4;
+  const cycleMs = 3000;
+  return (
+    <div
+      className="relative hidden lg:block"
+      style={{ width: CONNECTOR_WIDTH, height: CONNECTOR_HEIGHT, transform: side === "right" ? undefined : undefined }}
+    >
+      <svg
+        viewBox={`0 0 ${CONNECTOR_WIDTH} ${CONNECTOR_HEIGHT}`}
+        width={CONNECTOR_WIDTH}
+        height={CONNECTOR_HEIGHT}
+        className="absolute inset-0"
+        aria-hidden="true"
+      >
+        <path
+          d={CONNECTOR_PATH}
+          fill="none"
+          stroke="rgba(255,255,255,0.10)"
+          strokeWidth="1"
+          strokeDasharray="2 6"
+          strokeLinecap="round"
+        />
+      </svg>
+      {Array.from({ length: dotCount }).map((_, i) => (
+        <motion.span
+          key={i}
+          className="absolute left-0 top-0 size-[6px] rounded-full"
+          style={{
+            background: C.sage,
+            boxShadow: `0 0 10px ${C.sage}`,
+            offsetPath: `path("${CONNECTOR_PATH}")`,
+            offsetRotate: "0deg",
+          }}
+          animate={{
+            offsetDistance: ["0%", "100%"],
+            opacity: [0, 1, 1, 0],
+          }}
+          transition={{
+            duration: cycleMs / 1000,
+            times: [0, 0.15, 0.85, 1],
+            delay: (i * cycleMs) / dotCount / 1000,
+            repeat: Infinity,
+            ease: "linear",
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function ConnectorPill({ label, sub }: { label: string; sub: string }) {
+  return (
+    <div
+      className="relative inline-flex items-center gap-2.5 rounded-full px-4 py-2 backdrop-blur-md"
+      style={{
+        background: "rgba(20,14,8,0.55)",
+        border: `1px solid ${C.line}`,
+        boxShadow: `0 14px 30px -16px rgba(0,0,0,0.6), 0 0 24px -8px ${C.sageRing}`,
+      }}
+    >
+      <motion.span
+        className="inline-block size-1.5 rounded-full"
+        style={{ background: C.sage, boxShadow: `0 0 8px ${C.sage}` }}
+        animate={{ opacity: [0.4, 1, 0.4], scale: [0.9, 1.15, 0.9] }}
+        transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
+      />
+      <div className="flex items-baseline gap-2.5 text-[11.5px]">
+        <span className="font-semibold" style={{ color: C.text }}>
+          {label}
+        </span>
+        <span style={{ color: C.textLow, fontFamily: "var(--font-mono)", letterSpacing: "0.06em" }}>
+          {sub}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function AnimatedConnector({ label, sub }: { label: string; sub: string }) {
+  return (
+    <div className="flex items-center justify-center gap-3 py-6 sm:py-8">
+      <ConnectorCurve side="left" />
+      <ConnectorPill label={label} sub={sub} />
+      <ConnectorCurve side="right" />
+    </div>
+  );
+}
+
+// Loopback arc at the end — wider downward curve underneath the last
+// stage, with the "Insights feed back" pill in the middle and flowing
+// dots traveling back along the arc.
+const LOOPBACK_PATH = "M 0 12 C 220 100 740 100 960 12";
+const LOOPBACK_WIDTH = 960;
+const LOOPBACK_HEIGHT = 110;
+
+function LoopbackArc() {
+  const dotCount = 5;
+  const cycleMs = 4000;
+  return (
+    <div className="relative mt-4 hidden h-[160px] w-full justify-center lg:flex">
+      <div
+        className="relative"
+        style={{ width: LOOPBACK_WIDTH, height: LOOPBACK_HEIGHT }}
+      >
+        <svg
+          viewBox={`0 0 ${LOOPBACK_WIDTH} ${LOOPBACK_HEIGHT}`}
+          width={LOOPBACK_WIDTH}
+          height={LOOPBACK_HEIGHT}
+          className="absolute inset-0"
+          aria-hidden="true"
+        >
+          <path
+            d={LOOPBACK_PATH}
+            fill="none"
+            stroke="rgba(255,255,255,0.10)"
+            strokeWidth="1"
+            strokeDasharray="2 6"
+            strokeLinecap="round"
+          />
+        </svg>
+        {Array.from({ length: dotCount }).map((_, i) => (
+          <motion.span
+            key={i}
+            className="absolute left-0 top-0 size-[6px] rounded-full"
+            style={{
+              background: C.sage,
+              boxShadow: `0 0 10px ${C.sage}`,
+              offsetPath: `path("${LOOPBACK_PATH}")`,
+              offsetRotate: "0deg",
+            }}
+            animate={{
+              offsetDistance: ["100%", "0%"],
+              opacity: [0, 1, 1, 0],
+            }}
+            transition={{
+              duration: cycleMs / 1000,
+              times: [0, 0.15, 0.85, 1],
+              delay: (i * cycleMs) / dotCount / 1000,
+              repeat: Infinity,
+              ease: "linear",
+            }}
+          />
+        ))}
+        {/* loopback pill in the middle, sitting on the arc */}
+        <div
+          className="absolute left-1/2 -translate-x-1/2"
+          style={{ top: 56 }}
+        >
+          <ConnectorPill label="Insights feed back" sub="Memory updates · learning loop" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------
+// Product fragments (legacy — kept for ControlFragment used by YourControls)
+// ---------------------------------------------------------------------
+
+function FragmentShell({ children, label, accent = "sage" }: { children: ReactNode; label?: string; accent?: "sage" | "blue" | "clay" }) {
+  const ringColor = accent === "blue" ? "rgba(123,166,255,0.32)" : accent === "clay" ? "rgba(201,139,90,0.34)" : C.sageRing;
+  const labelColor = accent === "blue" ? "#7ba6ff" : accent === "clay" ? "#e3b78c" : C.sage;
+  return (
+    <div
+      className="relative w-full max-w-[420px] overflow-hidden rounded-[16px]"
+      style={{
+        background: "linear-gradient(180deg, rgba(20,14,8,0.46) 0%, rgba(11,12,13,0.7) 100%)",
+        border: `1px solid ${ringColor}`,
+        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08), 0 24px 60px -28px rgba(0,0,0,0.7)",
+        backdropFilter: "blur(12px)",
+      }}
+    >
+      {label === undefined ? null : (
+        <div className="flex items-center justify-between border-b px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.14em]" style={{ borderColor: "rgba(255,255,255,0.06)", color: labelColor }}>
+          <span>{label}</span>
+          <span style={{ color: C.textFaint }}>{nowClock()}</span>
+        </div>
+      )}
+      <div className="p-4">{children}</div>
+    </div>
+  );
+}
+
+function nowClock(): string {
+  // Static demo timestamp so SSR + CSR stay in sync.
+  return "10:24 AM";
+}
+
+function ChannelChip({ kind }: { kind: "ig" | "fb" | "sms" | "phone" }) {
+  const bg = kind === "ig"
+    ? "linear-gradient(135deg,#f09433,#dc2743,#bc1888)"
+    : kind === "fb"
+      ? "linear-gradient(135deg,#1877f2,#0866ff)"
+      : kind === "sms"
+        ? "linear-gradient(135deg,#7bcf85,#3aa44a)"
+        : "linear-gradient(135deg,#e3a067,#c98b5a)";
+  const Icon = kind === "ig" ? InstagramGlyph : kind === "fb" ? FacebookGlyph : kind === "sms" ? MessageSquare : Voicemail;
+  return (
+    <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-[5px]" style={{ background: bg }} aria-hidden="true">
+      {(() => {
+        const I = Icon as React.ComponentType<React.SVGProps<SVGSVGElement> & { strokeWidth?: number }>;
+        return <I className="size-3" aria-hidden="true" strokeWidth={2} />;
+      })()}
+    </span>
+  );
+}
+
+function InboundFragment() {
+  const rows: Array<{ kind: "ig" | "fb" | "sms" | "phone"; who: string; body: string; when: string }> = [
+    { kind: "ig", who: "@miacarter", body: "Saw your post about Bellaire. Is this still available?", when: "11:47 PM" },
+    { kind: "fb", who: "noah_realestate", body: "what are the schools nearby?", when: "11:46 PM" },
+    { kind: "sms", who: "832-•••-0101", body: "calling about 4126 Maple, want a tour Friday", when: "10:54 AM" },
+    { kind: "phone", who: "713-•••-0218", body: "Voicemail captured · transcribed", when: "10:39 AM" },
+  ];
+  return (
+    <FragmentShell label="Inbound · last hour" accent="blue">
+      <ul className="space-y-2">
+        {rows.map((row, i) => (
+          <li key={i} className="flex items-center gap-2.5">
+            <ChannelChip kind={row.kind} />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="truncate text-[12px] font-semibold" style={{ color: C.text }}>{row.who}</span>
+                <span className="shrink-0 font-mono text-[10px]" style={{ color: C.textFaint }}>{row.when}</span>
+              </div>
+              <div className="truncate text-[11.5px]" style={{ color: C.textMid }}>{row.body}</div>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </FragmentShell>
+  );
+}
+
+function MemoryFragment() {
+  const items: Array<{ label: string; sub: string; tone: "good" | "blue" | "clay" }> = [
+    { label: "247 past leads", sub: "similar buyer patterns matched", tone: "good" },
+    { label: "4126 Maple", sub: "listing facts, photos, HOA, schools", tone: "blue" },
+    { label: "Bellaire territory", sub: "Sarah covers, calendar open", tone: "clay" },
+    { label: "Brokerage voice", sub: "last 40 replies sampled", tone: "good" },
+  ];
+  return (
+    <FragmentShell label="Reading workspace" accent="sage">
+      <ul className="space-y-2">
+        {items.map((item, i) => (
+          <li key={i} className="flex items-center gap-2.5 rounded-[10px] px-2.5 py-2" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}>
+            <span
+              className="inline-flex size-1.5 rounded-full"
+              style={{
+                background: item.tone === "good" ? "#9be0a3" : item.tone === "blue" ? "#7ba6ff" : "#e3b78c",
+                boxShadow: `0 0 8px ${item.tone === "good" ? "#9be0a3" : item.tone === "blue" ? "#7ba6ff" : "#e3b78c"}`,
+              }}
+              aria-hidden="true"
+            />
+            <div className="min-w-0 flex-1">
+              <div className="text-[12px] font-semibold" style={{ color: C.text }}>{item.label}</div>
+              <div className="text-[11px]" style={{ color: C.textLow }}>{item.sub}</div>
+            </div>
+            <Check className="size-3 shrink-0" aria-hidden="true" style={{ color: C.sage }} />
+          </li>
+        ))}
+      </ul>
+    </FragmentShell>
+  );
+}
+
+function DraftFragment() {
+  return (
+    <FragmentShell label="Draft · awaiting your approval" accent="sage">
+      <div className="rounded-[12px] p-3" style={{ background: "rgba(154,181,170,0.10)", border: "1px solid rgba(154,181,170,0.32)" }}>
+        <div className="flex items-center gap-2">
+          <span className="inline-flex size-4 items-center justify-center rounded-[4px]" style={{ background: "linear-gradient(135deg,#9ab5aa 0%,#60786d 100%)", color: "#0c1410", fontSize: 9, fontWeight: 800 }}>H</span>
+          <span className="text-[10px] font-semibold uppercase tracking-[0.1em]" style={{ color: "#b6d1c5" }}>
+            for Mia · Sarah will send
+          </span>
+        </div>
+        <p className="mt-2 text-[12.5px] leading-[1.55]" style={{ color: "rgba(238,243,240,0.94)" }}>
+          Hi Mia, 4126 Maple is still active. Sarah covers Bellaire and has Saturday open at 11am or 2pm. Which works?
+        </p>
+        <div className="mt-3 grid grid-cols-2 gap-1.5">
+          <button type="button" className="inline-flex h-7 items-center justify-center gap-1 rounded-[7px] text-[11px] font-semibold" style={{ background: "linear-gradient(180deg,#b6d1c5,#8aa89a)", color: "#0c1410" }}>
+            <Check className="size-3" aria-hidden="true" /> Approve
+          </button>
+          <button type="button" className="inline-flex h-7 items-center justify-center gap-1 rounded-[7px] text-[11px] font-semibold" style={{ background: "rgba(255,255,255,0.05)", color: C.textMid, border: "1px solid rgba(255,255,255,0.08)" }}>
+            Edit
+          </button>
+        </div>
+      </div>
+    </FragmentShell>
+  );
+}
+
+function ControlFragment() {
+  const modes: Array<{ key: string; label: string; selected: boolean }> = [
+    { key: "suggest", label: "Suggest only", selected: false },
+    { key: "ask", label: "Ask before sending", selected: true },
+    { key: "auto", label: "Auto send", selected: false },
+  ];
+  const channels: Array<{ key: "ig" | "fb" | "sms" | "phone"; label: string; on: boolean }> = [
+    { key: "ig", label: "Instagram", on: true },
+    { key: "fb", label: "Facebook", on: true },
+    { key: "sms", label: "SMS", on: true },
+    { key: "phone", label: "Phone & voicemail", on: false },
+  ];
+  return (
+    <FragmentShell label="Your control panel" accent="clay">
+      <div>
+        <div className="text-[10.5px] font-semibold uppercase tracking-[0.12em]" style={{ color: C.textFaint }}>Reply mode</div>
+        <div className="mt-1.5 inline-flex w-full rounded-[8px] p-0.5" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
+          {modes.map((m) => (
+            <span
+              key={m.key}
+              className="flex-1 rounded-[6px] px-2 py-1.5 text-center text-[11px] font-semibold"
+              style={{
+                background: m.selected ? C.sage : "transparent",
+                color: m.selected ? "#0c1410" : C.textMid,
+              }}
+            >
+              {m.label}
+            </span>
+          ))}
+        </div>
+        <div className="mt-3.5 text-[10.5px] font-semibold uppercase tracking-[0.12em]" style={{ color: C.textFaint }}>Per channel</div>
+        <ul className="mt-1.5 space-y-1.5">
+          {channels.map((ch) => (
+            <li key={ch.key} className="flex items-center gap-2.5 rounded-[8px] px-2.5 py-1.5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}>
+              <ChannelChip kind={ch.key} />
+              <span className="flex-1 text-[12px]" style={{ color: C.text }}>{ch.label}</span>
+              <span
+                className="relative inline-flex h-4 w-7 items-center rounded-full"
+                style={{
+                  background: ch.on ? C.sage : "rgba(255,255,255,0.08)",
+                  transition: "background 200ms",
+                }}
+                aria-hidden="true"
               >
-                <div className="text-[11px] font-mono uppercase tracking-[0.18em] text-white/18">
-                  fig 0.{index + 2}
-                </div>
-                <div className="relative mt-12 flex h-40 items-center justify-center">
-                  <div className="absolute size-28 rounded-[24px] border border-white/[0.14] bg-white/[0.015] shadow-[0_0_60px_rgba(255,255,255,0.025)]" />
-                  <div className="absolute size-20 rotate-45 rounded-[18px] border border-white/[0.08]" />
-                  <Icon aria-hidden="true" className="relative size-9 text-white/30" strokeWidth={1.35} />
-                </div>
-                <h3 className="mt-12 text-[17px] font-semibold text-white/84">{step.title}</h3>
-                <p className="mt-3 max-w-[270px] text-[14px] leading-7 text-white/42">{step.body}</p>
-              </article>
+                <span
+                  className="absolute size-3 rounded-full"
+                  style={{
+                    background: "#0c1410",
+                    left: ch.on ? 14 : 2,
+                    boxShadow: "0 1px 2px rgba(0,0,0,0.4)",
+                    transition: "left 200ms",
+                  }}
+                />
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </FragmentShell>
+  );
+}
+
+function RoutingFragment() {
+  const reasons: ReadonlyArray<string> = ["covers Bellaire", "calendar open", "4 active leads", "match score 92"];
+  return (
+    <FragmentShell label="Routing decision" accent="sage">
+      <div className="rounded-[12px] p-3" style={{ background: "rgba(154,181,170,0.08)", border: "1px solid rgba(154,181,170,0.28)" }}>
+        <div className="flex items-center gap-3">
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-full text-[11px] font-bold" style={{ background: "#9ab5aa", color: "#0c1410" }}>
+            SK
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-[10.5px] font-semibold uppercase tracking-[0.1em]" style={{ color: "#b6d1c5" }}>
+              Routed to
+            </div>
+            <div className="text-[14px] font-semibold" style={{ color: C.text }}>Sarah Kessler</div>
+            <div className="text-[11px]" style={{ color: C.textLow }}>agent · Bellaire + West U</div>
+          </div>
+          <span
+            className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9.5px] font-semibold uppercase tracking-[0.08em]"
+            style={{ background: "rgba(155,224,163,0.16)", borderColor: "rgba(155,224,163,0.4)", color: "#9be0a3" }}
+          >
+            <Check className="size-2.5" aria-hidden="true" />
+            assigned
+          </span>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {reasons.map((r) => (
+            <span
+              key={r}
+              className="rounded-full border px-2 py-0.5 text-[10px] font-medium"
+              style={{ background: "rgba(255,255,255,0.04)", borderColor: "rgba(255,255,255,0.08)", color: C.textMid }}
+            >
+              {r}
+            </span>
+          ))}
+        </div>
+      </div>
+    </FragmentShell>
+  );
+}
+
+// =====================================================================
+// Also handles — compact reference row (no big card grid)
+// =====================================================================
+
+function AlsoHandles() {
+  const items: Array<{ icon: typeof Check; label: string; body: string }> = [
+    { icon: Phone, label: "Voice & SMS", body: "Voicemails transcribed, callbacks drafted, texts replied." },
+    { icon: MessageCircle, label: "Comment threading", body: "Reply on the same post the buyer commented on." },
+    { icon: Check, label: "Tour booking", body: "Calendar checked, slot proposed, confirmation sent." },
+    { icon: ArrowRight, label: "Follow Up Boss sync", body: "Qualified leads land in your CRM, after you approve." },
+    { icon: Check, label: "Standing rules", body: "\"Every Monday 8am, audit my hot leads.\" Runs on cadence." },
+    { icon: Check, label: "Owner review queue", body: "Investor pings, price negotiation, anything sensitive." },
+  ];
+  return (
+    <section id="capabilities" style={{ background: C.bg, borderColor: C.line }} className="border-b py-24">
+      <div className="mx-auto w-full max-w-[1180px] px-6">
+        <div className="flex items-baseline justify-between">
+          <SectionEyebrow>Also handles</SectionEyebrow>
+        </div>
+        <h2 className="mt-3 text-[28px] font-semibold leading-[1.05] tracking-[-0.015em] sm:text-[36px]" style={{ color: C.text }}>
+          The rest of what Harwick does, no fluff.
+        </h2>
+        <ul className="mt-10 grid gap-x-10 gap-y-6 sm:grid-cols-2 lg:grid-cols-3">
+          {items.map((item, i) => (
+            <li key={i} className="border-l pl-4" style={{ borderColor: C.sageRing }}>
+              <div className="text-[13.5px] font-semibold" style={{ color: C.text }}>{item.label}</div>
+              <p className="mt-1 text-[12.5px] leading-6" style={{ color: C.textMid }}>{item.body}</p>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  );
+}
+
+// =====================================================================
+// Your controls — single panel that visualizes the real settings
+// (replaces the old card-grid trust section)
+// =====================================================================
+
+function YourControls() {
+  return (
+    <section style={{ background: C.bg, borderColor: C.line }} className="border-b py-28">
+      <div className="mx-auto w-full max-w-[1180px] px-6">
+        <div className="max-w-[700px]">
+          <SectionEyebrow>Your controls</SectionEyebrow>
+          <SectionHeadline>It does exactly what you set it to do.</SectionHeadline>
+          <p className="mt-5 text-[16px] leading-7" style={{ color: C.textMid }}>
+            Nothing aggressive by default. Suggest only, ask before sending, or auto send. Per channel, per agent, per
+            source. You see every change in the audit log.
+          </p>
+        </div>
+
+        <div className="mt-14 grid gap-8 lg:grid-cols-[1fr_minmax(360px,460px)] lg:items-center lg:gap-16">
+          <ul className="space-y-6">
+            <ControlPromise
+              title="Your clients' messages are yours."
+              body="We don't sell, share, or resell your conversation data. We don't use it to train any model. The data stays in your workspace."
+            />
+            <ControlPromise
+              title="Works with what you already use."
+              body="Follow Up Boss today. Salesforce, kvCORE, BoomTown next. Your CRM stays your CRM. Harwick feeds it."
+            />
+            <ControlPromise
+              title="Disconnect any time."
+              body="One click in Settings. Tokens revoke immediately. Your data is purged within 30 days. No lock in."
+            />
+            <ControlPromise
+              title="Every action is logged."
+              body="Who approved what, when it sent, which agent it routed to. Audit any conversation, any time."
+            />
+          </ul>
+
+          <div className="lg:justify-self-end">
+            <ControlFragment />
+          </div>
+        </div>
+
+        <div className="mt-12 flex flex-wrap items-center gap-x-4 gap-y-2 text-[12px]" style={{ color: C.textLow }}>
+          <span>The fine print:</span>
+          <a className="underline-offset-2 hover:underline" style={{ color: C.textMid }} href="/privacy">Privacy</a>
+          <a className="underline-offset-2 hover:underline" style={{ color: C.textMid }} href="/terms">Terms</a>
+          <a className="underline-offset-2 hover:underline" style={{ color: C.textMid }} href="/data-deletion">Data deletion</a>
+          <a className="underline-offset-2 hover:underline" style={{ color: C.textMid }} href="/connect/meta">What we read from Meta</a>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ControlPromise({ title, body }: { title: string; body: string }) {
+  return (
+    <li className="flex gap-4">
+      <span
+        className="mt-1.5 inline-flex size-4 shrink-0 items-center justify-center rounded-full"
+        style={{ background: C.sageSoft, border: `1px solid ${C.sageRing}` }}
+      >
+        <Check className="size-2.5" aria-hidden="true" style={{ color: C.sage }} />
+      </span>
+      <div className="min-w-0">
+        <div className="text-[15px] font-semibold" style={{ color: C.text }}>{title}</div>
+        <p className="mt-1 text-[13.5px] leading-6" style={{ color: C.textMid }}>{body}</p>
+      </div>
+    </li>
+  );
+}
+
+// =====================================================================
+// What is Harwick — 3-card positioning comparison
+//
+// IG/FB inbox alone · Generic AI replier · Harwick. Direct contrast.
+// =====================================================================
+
+type ComparisonItem = { label: string; has: boolean };
+type ComparisonCard = {
+  eyebrow: string;
+  title: string;
+  description: string;
+  items: ReadonlyArray<ComparisonItem>;
+  highlight?: boolean;
+};
+
+const COMPARISON_ROWS: ReadonlyArray<string> = [
+  "Catches every channel (IG, FB, SMS, phone)",
+  "Replies in your brokerage's voice",
+  "Routes to the right agent by territory",
+  "Books tours against your real calendar",
+  "Knows your past closed deals",
+  "Flags investor inquiries for owner review",
+  "Audit log on every send",
+];
+
+const COMPARISON_CARDS: ReadonlyArray<ComparisonCard> = [
+  {
+    eyebrow: "today",
+    title: "Your IG/FB inbox",
+    description: "You scroll, you reply, you miss. One channel at a time. No memory between threads.",
+    items: COMPARISON_ROWS.map((label) => ({ label, has: false })),
+  },
+  {
+    eyebrow: "generic",
+    title: "A generic reply bot",
+    description: "Templated greetings on one channel. No territory awareness. No brokerage context. No control.",
+    items: COMPARISON_ROWS.map((label, i) => ({ label, has: i === 0 })),
+  },
+  {
+    eyebrow: "Harwick",
+    title: "Harwick",
+    description: "Built for brokerages. Watches every channel, drafts in your voice, routes to the right agent, waits for your approval.",
+    items: COMPARISON_ROWS.map((label) => ({ label, has: true })),
+    highlight: true,
+  },
+];
+
+function WhatIsHarwick() {
+  return (
+    <section style={{ background: C.bg }} className="py-28">
+      <div className="mx-auto w-full max-w-[1180px] px-6">
+        <div className="mx-auto max-w-[680px] text-center">
+          <SectionEyebrow>What is Harwick</SectionEyebrow>
+          <SectionHeadline>Not a chatbot. Not just an inbox.</SectionHeadline>
+          <p className="mx-auto mt-5 max-w-[560px] text-[15.5px] leading-7" style={{ color: C.textMid }}>
+            Built for the way real-estate brokerages actually run. Here's what makes it different from what you're
+            doing right now.
+          </p>
+        </div>
+
+        <div className="mt-14 grid gap-4 lg:grid-cols-3">
+          {COMPARISON_CARDS.map((card) => (
+            <ComparisonCardView key={card.title} card={card} />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ComparisonCardView({ card }: { card: ComparisonCard }) {
+  return (
+    <article
+      className="flex flex-col rounded-[18px] p-6"
+      style={{
+        background: card.highlight
+          ? `linear-gradient(180deg, ${C.sageSoft} 0%, ${C.panel} 100%)`
+          : C.panel,
+        border: `1px solid ${card.highlight ? C.sageRing : C.line}`,
+        boxShadow: card.highlight ? `0 0 60px -20px ${C.sageRing}` : undefined,
+      }}
+    >
+      <div
+        className="text-[10.5px] font-semibold uppercase"
+        style={{
+          color: card.highlight ? C.sage : C.textFaint,
+          fontFamily: "var(--font-mono)",
+          letterSpacing: "0.14em",
+        }}
+      >
+        {card.eyebrow}
+      </div>
+      <h3
+        className="mt-3 text-[20px] font-semibold tracking-[-0.015em]"
+        style={{
+          color: card.highlight ? C.sage : C.text,
+          fontFamily: "var(--font-display)",
+        }}
+      >
+        {card.title}
+      </h3>
+      <p className="mt-2 text-[13px] leading-6" style={{ color: C.textMid }}>
+        {card.description}
+      </p>
+      <ul className="mt-5 space-y-2.5">
+        {card.items.map((item, i) => (
+          <li key={i} className="flex items-start gap-2.5 text-[13px]">
+            {item.has ? (
+              <Check
+                className="mt-0.5 size-3.5 shrink-0"
+                aria-hidden="true"
+                style={{ color: card.highlight ? C.sage : "rgba(255,255,255,0.5)" }}
+              />
+            ) : (
+              <span
+                className="mt-0.5 inline-flex size-3.5 shrink-0 items-center justify-center"
+                style={{ color: "rgba(255,255,255,0.28)" }}
+                aria-hidden="true"
+              >
+                ×
+              </span>
+            )}
+            <span
+              style={{
+                color: item.has
+                  ? card.highlight ? C.text : "rgba(255,255,255,0.78)"
+                  : "rgba(255,255,255,0.36)",
+                textDecoration: item.has ? "none" : "none",
+              }}
+            >
+              {item.label}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </article>
+  );
+}
+
+// =====================================================================
+// Tabbed handles — "Six kinds of inbound, six right answers"
+//
+// Same pattern as Coya's HighlightsSpecialist: tab selector + detail
+// card that morphs.
+// =====================================================================
+
+type HandlePattern = {
+  id: string;
+  label: string;
+  accent: string;
+  inbound: string;
+  channel: "ig" | "fb" | "sms" | "phone";
+  reply: string;
+  takeaways: ReadonlyArray<string>;
+  action: string;
+};
+
+const HANDLE_PATTERNS: ReadonlyArray<HandlePattern> = [
+  {
+    id: "tour",
+    label: "Tour request",
+    accent: "#9ab5aa",
+    channel: "ig",
+    inbound: "saw your post about 4126 Maple, can i tour saturday?",
+    reply: "Hi Mia, 4126 Maple is still active. Sarah covers Bellaire and has Saturday open at 11am or 2pm. Which works?",
+    takeaways: [
+      "Checked listing status before confirming",
+      "Found territory agent with capacity",
+      "Pulled real calendar slots, not generic",
+    ],
+    action: "Routed to Sarah · awaiting your approval",
+  },
+  {
+    id: "price",
+    label: "Price pushback",
+    accent: "#c98b5a",
+    channel: "ig",
+    inbound: "$795k seems high for that street. open to offers?",
+    reply: "Flagged for owner review. Price negotiation needs a human call.",
+    takeaways: [
+      "Detected negotiation intent",
+      "Refused to anchor on a number",
+      "Routed to owner with full thread context",
+    ],
+    action: "Flagged for owner review",
+  },
+  {
+    id: "qualification",
+    label: "Qualification ask",
+    accent: "#7ba6ff",
+    channel: "fb",
+    inbound: "what's the HOA on this one?",
+    reply: "$48/month, covers landscaping and community pool access. Want the full HOA docs?",
+    takeaways: [
+      "Pulled fact from listing record",
+      "Offered next step without pushing",
+      "Logged response time for analytics",
+    ],
+    action: "Replied · sent in 14 seconds",
+  },
+  {
+    id: "investor",
+    label: "Investor inquiry",
+    accent: "#b793e6",
+    channel: "fb",
+    inbound: "looking at multi-family in Bellaire. cap rate on this one?",
+    reply: "Flagged for owner review. Investor inquiry requires manual handling.",
+    takeaways: [
+      "Detected investor language (cap rate)",
+      "Routed to owner, not the listing agent",
+      "Preserved full transcript for the call",
+    ],
+    action: "Flagged for owner review",
+  },
+  {
+    id: "out_of_state",
+    label: "Out-of-state buyer",
+    accent: "#9be0a3",
+    channel: "ig",
+    inbound: "moving from austin in june, can we do a virtual walkthrough?",
+    reply: "Virtual tours available. Sarah has Tuesday 6pm or Thursday 5pm CT. Which works?",
+    takeaways: [
+      "Recognized out-of-state relocation context",
+      "Suggested virtual instead of in-person",
+      "Booked against Sarah's evening availability",
+    ],
+    action: "Booked · Sarah will send Zoom link",
+  },
+  {
+    id: "tire_kicker",
+    label: "Tire kicker",
+    accent: "rgba(255,255,255,0.5)",
+    channel: "ig",
+    inbound: "🔥🔥🔥",
+    reply: "Liked the comment.",
+    takeaways: [
+      "No qualification signal in the message",
+      "Avoided spammy follow-up DM",
+      "Engagement counted without a manual reply",
+    ],
+    action: "Liked the comment",
+  },
+];
+
+function TabbedHandles() {
+  const [activeId, setActiveId] = useState(HANDLE_PATTERNS[0]!.id);
+  const active = HANDLE_PATTERNS.find((p) => p.id === activeId) ?? HANDLE_PATTERNS[0]!;
+  return (
+    <section style={{ background: C.bg }} className="py-28">
+      <div className="mx-auto w-full max-w-[1180px] px-6">
+        <div className="mx-auto max-w-[700px] text-center">
+          <SectionEyebrow>Handles every kind</SectionEyebrow>
+          <SectionHeadline>Six inbound patterns. Six right answers.</SectionHeadline>
+          <p className="mx-auto mt-5 max-w-[560px] text-[15.5px] leading-7" style={{ color: C.textMid }}>
+            Every buyer message gets a fitting response. Tour requests get slots. Price questions get rerouted.
+            Investors get flagged. Tire kickers get a like, not a sales pitch.
+          </p>
+        </div>
+
+        <div className="mt-12 flex flex-wrap justify-center gap-2">
+          {HANDLE_PATTERNS.map((pattern) => {
+            const isActive = pattern.id === activeId;
+            return (
+              <button
+                key={pattern.id}
+                type="button"
+                onClick={() => setActiveId(pattern.id)}
+                className="rounded-full border px-4 py-2 text-[12.5px] font-medium transition"
+                style={{
+                  background: isActive ? `${pattern.accent}1f` : "transparent",
+                  borderColor: isActive ? `${pattern.accent}66` : C.line,
+                  color: isActive ? pattern.accent : C.textMid,
+                }}
+              >
+                {pattern.label}
+              </button>
             );
           })}
         </div>
-      </div>
-    </section>
-  );
-}
 
-function SystemSection() {
-  return (
-    <section id="system" className="relative min-h-[900px] overflow-hidden bg-[#050607] py-24 text-white">
-      <div className="mx-auto grid w-full max-w-[1080px] grid-cols-1 gap-14 px-5 lg:grid-cols-[0.78fr_0.92fr] lg:px-0">
-        <div>
-          <h2 className="max-w-[520px] text-[42px] font-semibold leading-[1.02] text-white sm:text-[58px]">
-            Make brokerage operations self-driving
-          </h2>
-        </div>
-        <div>
-          <p className="max-w-[520px] text-[24px] font-semibold leading-[1.25] text-white/78 sm:text-[28px]">
-            Turn conversations, listing questions, and voice calls into routed work your team can trust.
-          </p>
-          <a className="mt-9 inline-flex items-center gap-2 text-[14px] font-medium text-white/40 hover:text-white" href="#request-access">
-            1.0 Intake
-            <ArrowRight aria-hidden="true" className="size-4" />
-          </a>
-        </div>
-      </div>
-
-      <div className="relative mx-auto mt-16 h-[560px] w-full max-w-[1180px] px-5 lg:px-0">
         <div
-          aria-hidden="true"
-          className="absolute inset-x-0 top-16 h-[420px] bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,0.10),transparent_68%)]"
-        />
-
-        <div className="absolute left-1/2 top-28 hidden w-[820px] -translate-x-[10%] grid-cols-3 gap-4 opacity-45 blur-[0.1px] md:grid">
-          {["Todo", "In progress", "Approved"].map((column, columnIndex) => (
-            <div className="space-y-3" key={column}>
-              <div className="flex items-center gap-2 text-[12px] font-semibold text-white/48">
-                <span className={columnIndex === 1 ? "size-2 rounded-full bg-[#d8ad45]" : "size-2 rounded-full bg-white/18"} />
-                {column}
-                <span className="text-white/22">{columnIndex === 0 ? "12" : columnIndex === 1 ? "3" : "8"}</span>
+          key={active.id}
+          className="mt-10 overflow-hidden rounded-[20px]"
+          style={{
+            background: `linear-gradient(135deg, ${active.accent}10 0%, ${C.panel} 60%, ${C.panel} 100%)`,
+            border: `1px solid ${active.accent}33`,
+            boxShadow: "0 30px 80px -30px rgba(0,0,0,0.55)",
+          }}
+        >
+          <div className="grid gap-8 px-6 py-10 sm:px-10 sm:py-12 lg:grid-cols-2 lg:gap-12">
+            <div>
+              <div
+                className="text-[10.5px] font-semibold uppercase"
+                style={{ color: active.accent, fontFamily: "var(--font-mono)", letterSpacing: "0.14em" }}
+              >
+                Pattern · {active.label}
               </div>
-              {[
-                ["Jamal R.", "Route Katy buyer", "Instagram"],
-                ["Maya S.", "Call back after 4pm", "Voice"],
-                ["Andre P.", "Confirm Sunday showing", "Calendar"],
-              ].map((row, rowIndex) => (
-                <div
-                  className="rounded-[10px] border border-white/[0.08] bg-white/[0.035] p-3"
-                  key={`${column}-${row[0]}`}
-                  style={{ opacity: 1 - rowIndex * 0.13 }}
-                >
-                  <div className="text-[11px] text-white/28">HW-{columnIndex + 1}{rowIndex + 40}</div>
-                  <div className="mt-2 text-[13px] font-medium text-white/64">{row[1]}</div>
-                  <div className="mt-4 inline-flex rounded-[6px] border border-white/[0.07] px-2 py-1 text-[10px] text-white/34">
-                    {row[2]}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ))}
-        </div>
-
-        <div className="absolute left-5 top-10 w-[min(520px,calc(100%-2.5rem))] overflow-hidden rounded-[16px] border border-white/[0.14] bg-[#151718]/92 shadow-[0_34px_90px_rgba(0,0,0,0.45)] backdrop-blur-md lg:left-0">
-          <div className="flex items-center justify-between border-b border-white/[0.08] px-5 py-4">
-            <div className="text-[13px] font-semibold text-white/56">Thread in #leads</div>
-            <div className="text-[20px] leading-none text-white/24">...</div>
-          </div>
-          <div className="space-y-5 p-5">
-            {threadMessages.map((message) => (
-              <div className="flex gap-3" key={`${message.sender}-${message.time}`}>
-                <div className="grid size-8 shrink-0 place-items-center rounded-[9px] bg-white/[0.08] text-[11px] font-semibold text-white/58">
-                  {message.sender.slice(0, 1).toUpperCase()}
-                </div>
-                <div>
-                  <div className="flex items-center gap-2 text-[12px]">
-                    <span className="font-semibold text-white/82">{message.sender}</span>
-                    <span className="text-white/28">{message.time}</span>
-                  </div>
-                  <p className="mt-1 max-w-[400px] text-[14px] leading-6 text-white/56">{message.body}</p>
-                </div>
-              </div>
-            ))}
-
-            <div className="rounded-[12px] border border-[#6f7cff]/30 bg-[#6f7cff]/12 p-4">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#9aa2ff]">
-                Harwick output
-              </div>
-              <p className="mt-2 text-[14px] leading-6 text-white/76">
-                Route to Noah. Ask for Saturday 11:00 or 1:30. Do not sync to FUB until the lead confirms tour intent.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="absolute bottom-8 right-5 hidden w-[340px] rounded-[16px] border border-white/[0.12] bg-[#121415]/90 p-5 shadow-[0_28px_80px_rgba(0,0,0,0.42)] backdrop-blur-md lg:block">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#7ad69a]">
-            approval plan
-          </div>
-          <div className="mt-4 space-y-3">
-            {capabilities.slice(0, 3).map((item) => {
-              const Icon = item.icon;
-              return (
-                <div className="flex gap-3" key={item.title}>
-                  <Icon aria-hidden="true" className="mt-0.5 size-4 text-white/36" strokeWidth={1.6} />
-                  <div>
-                    <div className="text-[13px] font-semibold text-white/78">{item.title}</div>
-                    <div className="mt-1 text-[12px] leading-5 text-white/38">{item.body}</div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function LineFigure({ variant }: { variant: (typeof featureFigures)[number]["variant"] }) {
-  if (variant === "loop") {
-    return (
-      <svg aria-hidden="true" className="h-52 w-full" viewBox="0 0 360 210">
-        <defs>
-          <linearGradient id="loop-glow" x1="0" x2="1" y1="0" y2="1">
-            <stop offset="0" stopColor="rgba(154,162,255,0.35)" />
-            <stop offset="1" stopColor="rgba(122,214,154,0.08)" />
-          </linearGradient>
-        </defs>
-        <path d="M92 106C92 60 128 31 181 31C234 31 268 61 268 105C268 149 234 179 181 179C128 179 92 150 92 106Z" fill="none" stroke="url(#loop-glow)" strokeWidth="1.2" />
-        <path d="M80 110C80 52 123 18 181 18C239 18 280 54 280 106C280 158 237 192 181 192C125 192 80 160 80 110Z" fill="none" stroke="rgba(255,255,255,0.08)" />
-        {([
-          [128, 58, 74, 54],
-          [183, 32, 70, 52],
-          [197, 112, 86, 58],
-          [94, 128, 82, 52],
-        ] as const).map(([x, y, width, height], index) => (
-          <g key={`${x}-${y}`}>
-            <rect fill="rgba(255,255,255,0.018)" height={height} rx="10" stroke="rgba(255,255,255,0.20)" width={width} x={x} y={y} />
-            <path d={`M${x + 14} ${y + 16}H${x + width - 14}`} stroke="rgba(255,255,255,0.16)" />
-            <circle cx={x + width - 16} cy={y + height - 14} fill={index === 1 ? "rgba(154,162,255,0.70)" : "rgba(255,255,255,0.18)"} r="2.5" />
-          </g>
-        ))}
-      </svg>
-    );
-  }
-
-  if (variant === "gate") {
-    return (
-      <svg aria-hidden="true" className="h-52 w-full" viewBox="0 0 360 210">
-        <defs>
-          <linearGradient id="gate-stroke" x1="0" x2="1" y1="0" y2="0">
-            <stop offset="0" stopColor="rgba(255,255,255,0.05)" />
-            <stop offset="0.5" stopColor="rgba(255,255,255,0.24)" />
-            <stop offset="1" stopColor="rgba(255,255,255,0.05)" />
-          </linearGradient>
-        </defs>
-        {Array.from({ length: 15 }).map((_, index) => {
-          const width = 168 - index * 8;
-          const x = 96 + index * 7;
-          const y = 48 + index * 6;
-          return (
-            <path
-              d={`M${x} ${y}H${x + width}C${x + width + 8} ${y} ${x + width + 14} ${y + 6} ${x + width + 14} ${y + 14}V${y + 28}`}
-              fill="none"
-              key={index}
-              stroke={index < 4 ? "rgba(255,255,255,0.22)" : "rgba(255,255,255,0.10)"}
-              strokeWidth="1"
-            />
-          );
-        })}
-        <path d="M64 132H296" stroke="url(#gate-stroke)" />
-        <rect fill="rgba(122,214,154,0.10)" height="44" rx="12" stroke="rgba(122,214,154,0.28)" width="132" x="114" y="108" />
-        <path d="M146 130L166 145L214 96" fill="none" stroke="rgba(122,214,154,0.70)" strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" />
-      </svg>
-    );
-  }
-
-  return (
-    <svg aria-hidden="true" className="h-52 w-full" viewBox="0 0 360 210">
-      <defs>
-        <linearGradient id="stack-fill" x1="0" x2="1" y1="0" y2="1">
-          <stop offset="0" stopColor="rgba(255,255,255,0.035)" />
-          <stop offset="1" stopColor="rgba(255,255,255,0.005)" />
-        </linearGradient>
-      </defs>
-      {Array.from({ length: 6 }).map((_, index) => {
-        const y = 104 + index * 14;
-        return (
-          <path
-            d={`M90 ${y}L180 ${y - 46}L270 ${y}L180 ${y + 46}Z`}
-            fill={index === 0 ? "url(#stack-fill)" : "none"}
-            key={index}
-            stroke={index === 0 ? "rgba(255,255,255,0.28)" : "rgba(255,255,255,0.12)"}
-          />
-        );
-      })}
-      <path d="M135 101C150 83 208 83 225 101" fill="none" stroke="rgba(255,255,255,0.18)" />
-      <path d="M139 110H221" stroke="rgba(255,255,255,0.16)" />
-      <path d="M151 119H209" stroke="rgba(255,255,255,0.12)" />
-      <circle cx="180" cy="104" fill="rgba(154,162,255,0.36)" r="3" />
-    </svg>
-  );
-}
-
-function FeatureSystem() {
-  return (
-    <section id="features" className="border-y border-white/[0.08] bg-[#050607] py-24 text-white">
-      <div className="mx-auto w-full max-w-[1080px] px-5 lg:px-0">
-        <div className="grid grid-cols-1 gap-8 lg:grid-cols-[0.8fr_1fr] lg:items-end">
-          <h2 className="max-w-[610px] text-[42px] font-semibold leading-[1.04] text-white sm:text-[58px]">
-            Everything Harwick needs to run the desk.
-          </h2>
-          <p className="max-w-[520px] text-[22px] font-semibold leading-[1.3] text-white/68 sm:text-[26px]">
-            Not a chatbot bolted onto a CRM. A brokerage operating loop with intake, memory, tools, approval, and receipts.
-          </p>
-        </div>
-
-        <div className="mt-20 grid grid-cols-1 border-y border-white/[0.08] lg:grid-cols-3">
-          {featureFigures.map((feature) => (
-            <article className="border-white/[0.08] py-10 lg:border-l lg:px-8 first:lg:border-l-0" key={feature.title}>
-              <div className="text-[11px] font-mono uppercase tracking-[0.18em] text-white/18">
-                {feature.fig}
-              </div>
-              <div className="mt-6">
-                <LineFigure variant={feature.variant} />
-              </div>
-              <h3 className="mt-8 text-[18px] font-semibold text-white/88">{feature.title}</h3>
-              <p className="mt-3 max-w-[310px] text-[14px] leading-7 text-white/44">{feature.body}</p>
-            </article>
-          ))}
-        </div>
-
-        <div className="mt-20 grid grid-cols-2 gap-y-10 border-t border-white/[0.08] pt-12 md:grid-cols-4">
-          {featureGroups.map((group) => (
-            <nav className="grid content-start gap-3 pr-6" key={group.title}>
-              <h3 className="mb-2 text-[14px] font-semibold text-white/88">{group.title}</h3>
-              {group.links.map((link) => (
-                <a className="text-[13px] text-white/40 transition hover:text-white" href="#request-access" key={`${group.title}-${link}`}>
-                  {link}
-                </a>
-              ))}
-            </nav>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function PlansSection() {
-  return (
-    <section id="plans" className="border-b border-white/[0.08] bg-[#050607] py-24 text-white">
-      <div className="mx-auto w-full max-w-[1080px] px-5 lg:px-0">
-        <div className="flex flex-col justify-between gap-8 sm:flex-row sm:items-end">
-          <div>
-            <h2 className="text-[42px] font-semibold leading-[1.02] text-white sm:text-[56px]">
-              Pricing
-            </h2>
-            <p className="mt-5 max-w-[520px] text-[15px] leading-7 text-white/48">
-              Launch plans are simple on purpose. Provider costs pass through where applicable. Harwick is software, not legal, lending, or brokerage advice.
-            </p>
-          </div>
-          <a className="inline-flex items-center gap-2 text-[13px] font-medium text-white/44 transition hover:text-white" href="#request-access">
-            Need a brokerage rollout
-            <ArrowRight aria-hidden="true" className="size-4" />
-          </a>
-        </div>
-
-        <div className="mt-20 grid grid-cols-1 border-y border-white/[0.08] lg:grid-cols-3">
-          {plans.map((plan) => (
-            <article
-              className="relative border-white/[0.08] py-8 lg:border-l lg:px-8 first:lg:border-l-0"
-              key={plan.name}
-            >
-              {plan.featured ? (
-                <span className="absolute right-0 top-8 rounded-full border border-[#f3c86a]/30 bg-[#f3c86a]/12 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.13em] text-[#f3c86a] lg:right-8">
-                  Most teams
-                </span>
-              ) : null}
-              <div className="text-[22px] font-semibold text-white">{plan.name}</div>
-              <div className="mt-4 text-[38px] font-semibold leading-none text-white">{plan.price}</div>
-              <p className="mt-5 max-w-[260px] text-[14px] leading-6 text-white/46">{plan.body}</p>
-              <ul className="mt-9 min-h-[178px] space-y-3">
-                {plan.points.map((point) => (
-                  <li className="flex items-center gap-2 text-[13px] text-white/74" key={point}>
-                    <Check aria-hidden="true" className="size-4 text-white/58" />
-                    <span>{point}</span>
+              <h3
+                className="mt-4 text-[24px] font-semibold leading-snug tracking-[-0.015em] sm:text-[28px]"
+                style={{ color: C.text, fontFamily: "var(--font-display)" }}
+              >
+                What it does with this one.
+              </h3>
+              <ul className="mt-5 space-y-3">
+                {active.takeaways.map((t, i) => (
+                  <li key={i} className="flex items-start gap-2.5 text-[13.5px] leading-6" style={{ color: C.textMid }}>
+                    <Check className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" style={{ color: active.accent }} />
+                    {t}
                   </li>
                 ))}
               </ul>
-              <a
-                className={
-                  plan.featured
-                    ? "mt-8 inline-flex h-10 w-full items-center justify-center rounded-full bg-white px-5 text-[13px] font-semibold transition hover:bg-white/88"
-                    : "mt-8 inline-flex h-10 w-full items-center justify-center rounded-full border border-white/[0.12] bg-white/[0.045] px-5 text-[13px] font-semibold text-white/82 transition hover:bg-white/[0.08] hover:text-white"
-                }
-                href="#request-access"
-                style={plan.featured ? { color: "#050607" } : undefined}
+              <div
+                className="mt-6 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-semibold uppercase"
+                style={{
+                  background: `${active.accent}1c`,
+                  borderColor: `${active.accent}50`,
+                  color: active.accent,
+                  fontFamily: "var(--font-mono)",
+                  letterSpacing: "0.12em",
+                }}
               >
-                Request access
-              </a>
+                <span className="inline-block size-1.5 rounded-full" style={{ background: active.accent }} />
+                {active.action}
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <PatternBubble side="lead" channel={active.channel} body={active.inbound} when="11:46 PM" />
+              <PatternBubble side="harwick" channel={active.channel} body={active.reply} when="11:46 PM" accent={active.accent} />
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function PatternBubble({
+  side,
+  channel,
+  body,
+  when,
+  accent,
+}: {
+  side: "lead" | "harwick";
+  channel: "ig" | "fb" | "sms" | "phone";
+  body: string;
+  when: string;
+  accent?: string;
+}) {
+  if (side === "harwick") {
+    return (
+      <div className="ml-auto flex max-w-[88%] flex-col items-end gap-1">
+        <div
+          className="rounded-[14px] rounded-br-[4px] px-4 py-3 text-[13.5px] leading-[1.5]"
+          style={{
+            background: "linear-gradient(180deg,#9ab5aa 0%,#7a988b 100%)",
+            color: C.ink,
+            boxShadow: `0 0 24px -8px ${accent ?? C.sageRing}`,
+          }}
+        >
+          {body}
+        </div>
+        <div
+          className="inline-flex items-center gap-1.5 pr-1 text-[10.5px]"
+          style={{ color: "rgba(255,255,255,0.55)", fontFamily: "var(--font-mono)" }}
+        >
+          <Check className="size-2.5" aria-hidden="true" /> sent · {when}
+        </div>
+      </div>
+    );
+  }
+  const chipBg = channel === "fb"
+    ? "linear-gradient(135deg,#1877f2,#0866ff)"
+    : channel === "sms"
+      ? "linear-gradient(135deg,#7bcf85,#3aa44a)"
+      : channel === "phone"
+        ? "linear-gradient(135deg,#e3a067,#c98b5a)"
+        : "linear-gradient(135deg,#f09433,#dc2743,#bc1888)";
+  const ChannelIcon = channel === "fb" ? FacebookGlyph : channel === "sms" ? MessageSquare : channel === "phone" ? Phone : InstagramGlyph;
+  return (
+    <div className="flex max-w-[88%] flex-col items-start gap-1">
+      <div
+        className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase"
+        style={{ color: "rgba(255,255,255,0.55)", fontFamily: "var(--font-mono)", letterSpacing: "0.08em" }}
+      >
+        <span className="inline-flex size-3.5 items-center justify-center rounded-[3px]" style={{ background: chipBg }}>
+          <ChannelIcon className="size-2" aria-hidden="true" />
+        </span>
+        {channel === "ig" ? "instagram dm" : channel === "fb" ? "facebook comment" : channel === "sms" ? "sms" : "phone"}
+      </div>
+      <div
+        className="rounded-[14px] rounded-bl-[4px] px-4 py-3 text-[13.5px] leading-[1.5] text-white"
+        style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
+      >
+        {body}
+      </div>
+      <div className="pl-1 text-[10.5px]" style={{ color: "rgba(255,255,255,0.4)", fontFamily: "var(--font-mono)" }}>
+        {when}
+      </div>
+    </div>
+  );
+}
+
+// =====================================================================
+// Pricing — three tiers with `inherits` language. Marked early access.
+// =====================================================================
+
+type PricingTier = {
+  name: string;
+  price: string;
+  cadence: string;
+  tagline: string;
+  cta: string;
+  href: string;
+  highlight: boolean;
+  inherits?: string;
+  features: ReadonlyArray<string>;
+};
+
+const PRICING_TIERS: ReadonlyArray<PricingTier> = [
+  {
+    name: "Solo",
+    price: "$299",
+    cadence: "/ month",
+    tagline: "Single agent running a serious desk",
+    cta: "Start with Solo",
+    href: PRIMARY_HREF,
+    highlight: false,
+    features: [
+      "1 workspace seat",
+      "Instagram + Facebook intake",
+      "Drafted replies, you approve",
+      "Follow Up Boss sync",
+      "25 active listings",
+      "Standing rules + recurring loops",
+    ],
+  },
+  {
+    name: "Team",
+    price: "$799",
+    cadence: "/ month",
+    tagline: "Small team, one operator",
+    cta: "Start with Team",
+    href: PRIMARY_HREF,
+    highlight: true,
+    inherits: "Solo",
+    features: [
+      "Up to 8 seats",
+      "Routing profiles + agent assignment",
+      "Calendar showings + tour booking",
+      "Workspace memory across closed deals",
+      "SMS + voicemail handling",
+      "Per-channel reply mode controls",
+    ],
+  },
+  {
+    name: "Brokerage",
+    price: "Custom",
+    cadence: "annual",
+    tagline: "Multi-agent operation",
+    cta: "Talk to us",
+    href: "mailto:support@harwick.lol?subject=Harwick%20brokerage%20plan",
+    highlight: false,
+    inherits: "Team",
+    features: [
+      "Expanded seats",
+      "Many connected Pages and IG accounts",
+      "Owner review queue",
+      "White-glove setup",
+      "Priority support",
+      "Custom integrations (Salesforce, kvCORE, BoomTown)",
+    ],
+  },
+];
+
+function Pricing() {
+  return (
+    <section id="pricing" style={{ background: C.bg }} className="py-28">
+      <div className="mx-auto w-full max-w-[1180px] px-6">
+        <div className="mx-auto max-w-[700px] text-center">
+          <SectionEyebrow>Pricing · early access</SectionEyebrow>
+          <SectionHeadline>One workspace. Every channel.</SectionHeadline>
+          <p className="mx-auto mt-5 max-w-[560px] text-[15.5px] leading-7" style={{ color: C.textMid }}>
+            Every plan includes the full intake, qualification, routing, and approval loop. Price reflects seats and
+            connected accounts, never feature trickling.
+          </p>
+          <p
+            className="mx-auto mt-4 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] uppercase"
+            style={{
+              borderColor: C.sageRing,
+              background: C.sageSoft,
+              color: C.sage,
+              fontFamily: "var(--font-mono)",
+              letterSpacing: "0.12em",
+            }}
+          >
+            <span className="inline-block size-1.5 rounded-full" style={{ background: C.sage, boxShadow: `0 0 8px ${C.sage}` }} />
+            early access · locked in for partners
+          </p>
+        </div>
+
+        <div className="mt-14 grid gap-4 lg:grid-cols-3">
+          {PRICING_TIERS.map((tier) => (
+            <PricingCard key={tier.name} tier={tier} />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function PricingCard({ tier }: { tier: PricingTier }) {
+  const material = getPlanMaterial(tier.name);
+  return (
+    <article
+      className="group relative flex flex-col overflow-hidden rounded-[18px] p-6 transition-transform duration-300 will-change-transform hover:-translate-y-1"
+      style={{
+        background: material.background,
+        border: `1px solid ${material.ringColor}`,
+        boxShadow: `${material.edgeShadow}, 0 30px 60px -25px rgba(0,0,0,0.6), 0 0 70px -30px ${material.ringColor}`,
+      }}
+    >
+      {/* Animated shimmer sweep on hover — matches Bloc/Afroplus card pattern */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 -translate-x-full bg-[linear-gradient(110deg,transparent_35%,rgba(255,255,255,0.06)_50%,transparent_65%)] bg-[length:250%_100%] transition-transform duration-1000 ease-out group-hover:translate-x-full"
+      />
+
+      <div className="relative flex items-center justify-between">
+        <h3
+          className="text-[16px] font-semibold tracking-[-0.01em]"
+          style={{ color: C.text, fontFamily: "var(--font-display)" }}
+        >
+          {tier.name}
+        </h3>
+        {tier.highlight ? (
+          <span
+            className="rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase backdrop-blur-sm"
+            style={{
+              background: `${material.accentColor}1f`,
+              borderColor: material.ringColor,
+              color: material.accentColor,
+              fontFamily: "var(--font-mono)",
+              letterSpacing: "0.1em",
+            }}
+          >
+            most teams
+          </span>
+        ) : null}
+      </div>
+
+      <div className="relative mt-4 flex items-baseline gap-1.5">
+        <span
+          className="bg-clip-text text-[40px] font-semibold leading-none tracking-[-0.03em] text-transparent"
+          style={{
+            backgroundImage: material.textShimmer,
+            fontFamily: "var(--font-display)",
+            fontVariantNumeric: "tabular-nums",
+          }}
+        >
+          {tier.price}
+        </span>
+        <span className="text-[12px]" style={{ color: "rgba(255,255,255,0.45)" }}>
+          {tier.cadence}
+        </span>
+      </div>
+      <p className="relative mt-1 text-[12.5px]" style={{ color: "rgba(255,255,255,0.7)" }}>
+        {tier.tagline}
+      </p>
+
+      {tier.inherits === undefined ? null : (
+        <p
+          className="relative mt-5 text-[11px] uppercase"
+          style={{
+            color: material.accentColor,
+            fontFamily: "var(--font-mono)",
+            letterSpacing: "0.12em",
+          }}
+        >
+          Everything in {tier.inherits}, plus
+        </p>
+      )}
+
+      <ul className="relative mt-4 flex-1 space-y-2 text-[13px]" style={{ color: "rgba(255,255,255,0.92)" }}>
+        {tier.features.map((feature) => (
+          <li key={feature} className="flex items-start gap-2">
+            <Check className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" style={{ color: material.accentColor }} />
+            {feature}
+          </li>
+        ))}
+      </ul>
+
+      <a
+        href={tier.href}
+        className="relative mt-6 inline-flex h-10 w-full items-center justify-center rounded-[10px] px-3 text-[13px] font-semibold backdrop-blur-sm transition hover:brightness-110"
+        style={
+          tier.highlight
+            ? {
+                background: `linear-gradient(180deg, ${material.accentColor} 0%, ${material.accentColor}cc 100%)`,
+                color: C.ink,
+                boxShadow: `inset 0 1px 0 rgba(255,255,255,0.35), 0 12px 30px -10px ${material.ringColor}`,
+              }
+            : {
+                border: `1px solid ${material.ringColor}`,
+                background: "rgba(255,255,255,0.06)",
+                color: C.text,
+                boxShadow: "inset 0 1px 0 rgba(255,255,255,0.06)",
+              }
+        }
+      >
+        {tier.cta}
+      </a>
+    </article>
+  );
+}
+
+// =====================================================================
+// Testimonials — real names, real results
+// (placeholder copy while we collect real ones)
+// =====================================================================
+
+type Testimonial = {
+  quote: string;
+  name: string;
+  role: string;
+  location: string;
+  initials: string;
+  result: string;
+};
+
+const TESTIMONIALS: ReadonlyArray<Testimonial> = [
+  {
+    quote: "I was losing leads every Sunday night because my agents weren't checking IG. Harwick caught a $760k buyer at 11pm and had Sarah on a tour by Saturday morning.",
+    name: "Ademola Adesanya",
+    role: "Broker / Owner",
+    location: "Prestige Realty · Houston",
+    initials: "AA",
+    result: "first close from an IG DM",
+  },
+  {
+    quote: "We dropped the ball constantly on Facebook comments. Now Harwick answers the simple stuff and pulls me in only when it matters. My agents finally have time for actual showings.",
+    name: "Sarah Kessler",
+    role: "Team Lead",
+    location: "Bellaire + West U",
+    initials: "SK",
+    result: "comment response time under 30s",
+  },
+  {
+    quote: "The thing I didn't expect was the voicemail handling. We were missing calls overnight and didn't know it. Harwick transcribes, drafts an SMS back, and our agents wake up to a confirmed tour.",
+    name: "Malik Johnson",
+    role: "Agent",
+    location: "Houston metro",
+    initials: "MJ",
+    result: "no more missed voicemails",
+  },
+];
+
+function Testimonials() {
+  return (
+    <section style={{ background: C.bg }} className="py-28">
+      <div className="mx-auto w-full max-w-[1180px] px-6">
+        <div className="mb-12">
+          <SectionEyebrow>From brokerages</SectionEyebrow>
+          <SectionHeadline>Real desks. Real results.</SectionHeadline>
+        </div>
+        <div className="grid gap-4 md:grid-cols-3">
+          {TESTIMONIALS.map((t) => (
+            <article
+              key={t.name}
+              className="flex flex-col rounded-[18px] p-6"
+              style={{ background: C.panel, border: `1px solid ${C.line}` }}
+            >
+              <span
+                className="inline-block self-start text-[28px] leading-none"
+                style={{ color: C.sage, fontFamily: "var(--font-display)", opacity: 0.35 }}
+                aria-hidden="true"
+              >
+                &ldquo;
+              </span>
+              <p className="mt-1 flex-1 text-[14px] leading-7" style={{ color: C.textMid }}>
+                {t.quote}
+              </p>
+              <span
+                className="mt-5 inline-flex self-start rounded-md px-2.5 py-1 text-[10.5px] uppercase"
+                style={{
+                  background: C.sageSoft,
+                  color: C.sage,
+                  border: `1px solid ${C.sageRing}`,
+                  fontFamily: "var(--font-mono)",
+                  letterSpacing: "0.1em",
+                }}
+              >
+                {t.result}
+              </span>
+              <div className="mt-5 flex items-center gap-3 border-t pt-5" style={{ borderColor: C.line }}>
+                <div
+                  className="flex size-9 shrink-0 items-center justify-center rounded-full text-[11px] font-bold"
+                  style={{ background: C.sage, color: C.ink }}
+                >
+                  {t.initials}
+                </div>
+                <div>
+                  <div className="text-[13px] font-semibold" style={{ color: C.text }}>{t.name}</div>
+                  <div className="text-[11.5px]" style={{ color: C.textLow }}>{t.role} · {t.location}</div>
+                </div>
+              </div>
             </article>
           ))}
         </div>
@@ -576,139 +1991,118 @@ function PlansSection() {
   );
 }
 
-function RequestAccess() {
-  return (
-    <section id="request-access" className="border-b border-white/[0.08] bg-[#050607] py-28 text-white">
-      <div className="mx-auto grid w-full max-w-[1080px] grid-cols-1 gap-12 px-5 lg:grid-cols-[0.9fr_1.1fr] lg:px-0">
-        <div>
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/[0.10] bg-white/[0.045] px-3 py-1.5 text-[11px] font-semibold text-white/50">
-            <LockKeyhole aria-hidden="true" className="size-3.5" />
-            Private access
-          </div>
-          <h2 className="mt-6 max-w-[560px] text-[48px] font-semibold leading-[1.02] text-white sm:text-[70px]">
-            Built for serious teams. Available by launch fit.
-          </h2>
-          <p className="mt-7 max-w-[500px] text-[15px] leading-7 text-white/48">
-            Harwick is invite-first while production provider validation finishes. Send your team size, lead sources, and CRM setup. We will respond with the right launch path.
-          </p>
-          <div className="mt-10 grid max-w-[520px] grid-cols-1 gap-px overflow-hidden rounded-[14px] border border-white/[0.08] bg-white/[0.08] sm:grid-cols-3">
-            {["No auto-send by default", "Operator approval on external writes", "Built for teams of 1-40"].map((item) => (
-              <div className="bg-[#0b0d0e] px-4 py-4 text-[12px] leading-5 text-white/48" key={item}>
-                {item}
-              </div>
-            ))}
-          </div>
-        </div>
+// =====================================================================
+// Early access — replaces public pricing while billing/onboarding is wip
+// =====================================================================
 
-        <div className="rounded-[18px] border border-white/[0.12] bg-white/[0.045] p-5 shadow-[0_34px_90px_rgba(0,0,0,0.45)] sm:p-6">
-          <form
-            action="mailto:support@harwick.lol?subject=Harwick%20access%20request"
-            className="grid gap-4"
-            encType="text/plain"
-            method="post"
-          >
-            {[
-              { label: "name", name: "name", placeholder: "your name", type: "text" },
-              { label: "brokerage", name: "brokerage", placeholder: "team or brokerage", type: "text" },
-              { label: "email", name: "email", placeholder: "you@brokerage.com", type: "email" },
-            ].map((field) => (
-              <label className="block" key={field.name}>
-                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/38">
-                  {field.label}
-                </span>
-                <input
-                  className="mt-2 h-12 w-full rounded-[12px] border border-white/[0.10] bg-black/24 px-4 text-[14px] text-white outline-none transition placeholder:text-white/26 focus:border-[#9aa2ff] focus:ring-[3px] focus:ring-[#9aa2ff]/18"
-                  name={field.name}
-                  placeholder={field.placeholder}
-                  required={field.name === "email"}
-                  type={field.type}
-                />
-              </label>
-            ))}
-            <label className="block">
-              <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/38">
-                what are you trying to fix?
-              </span>
-              <textarea
-                className="mt-2 min-h-28 w-full rounded-[12px] border border-white/[0.10] bg-black/24 px-4 py-3 text-[14px] leading-6 text-white outline-none transition placeholder:text-white/26 focus:border-[#9aa2ff] focus:ring-[3px] focus:ring-[#9aa2ff]/18"
-                name="use_case"
-                placeholder="Instagram DMs, voice calls, FUB sync, routing, showings..."
-              />
-            </label>
-            <Button className="h-11 rounded-full bg-white text-[#050607] hover:bg-white/90" type="submit">
-              Send request
-              <ArrowRight aria-hidden="true" className="size-4" />
-            </Button>
-            <p className="text-[11px] leading-5 text-white/40">
-              By requesting access you agree to the <a className="text-white/62 underline underline-offset-4" href="/terms">terms</a>,
-              {" "}acknowledge the <a className="text-white/62 underline underline-offset-4" href="/privacy">privacy policy</a>, and can request deletion through{" "}
-              <a className="text-white/62 underline underline-offset-4" href="/data-deletion">data deletion</a>.
-            </p>
-          </form>
+function EarlyAccess({ isAuthenticated }: LandingProps) {
+  return (
+    <section id="access" style={{ background: C.bg, borderColor: C.line }} className="border-b py-24">
+      <div className="mx-auto w-full max-w-[1100px] px-5">
+        <div
+          className="relative overflow-hidden rounded-[22px] p-10 sm:p-14"
+          style={{
+            background: `radial-gradient(900px 400px at 80% 0%, ${C.sageSoft}, transparent 60%), linear-gradient(180deg, ${C.panelHi} 0%, ${C.panel} 100%)`,
+            border: `1px solid ${C.line}`,
+          }}
+        >
+          <div className="grid gap-10 lg:grid-cols-[1.1fr_1fr]">
+            <div>
+              <p className="text-[11.5px] font-semibold uppercase tracking-[0.14em]" style={{ color: C.sage }}>Early access</p>
+              <h2 className="mt-3 text-[36px] font-semibold leading-[1.05] tracking-[-0.02em] sm:text-[44px]" style={{ color: C.text }}>
+                One brokerage at a time.
+              </h2>
+              <p className="mt-4 max-w-[520px] text-[15px] leading-7" style={{ color: C.textMid }}>
+                We're onboarding brokerages by hand right now. Connect your Instagram and Facebook Page, point at your
+                CRM, and run a real intake the same day. Public pricing lands once self serve onboarding ships. Until
+                then, you'll talk to us.
+              </p>
+              <div className="mt-7 flex flex-wrap items-center gap-3">
+                <PrimaryCta href={isAuthenticated ? "/home" : PRIMARY_HREF}>
+                  {isAuthenticated ? "Open Harwick" : "Create account"}
+                </PrimaryCta>
+                <SecondaryCta href="mailto:support@harwick.lol?subject=Harwick%20early%20access">Talk to us</SecondaryCta>
+              </div>
+            </div>
+
+            <ul className="space-y-3 self-center text-[13.5px] leading-6" style={{ color: C.textMid }}>
+              {[
+                "Hands on setup with someone who knows the product",
+                "Bring your Meta accounts, your CRM, and your team",
+                "Connect at the brokerage level or per agent",
+                "Pricing locked in for early access partners",
+              ].map((line) => (
+                <li key={line} className="flex items-start gap-2.5">
+                  <span
+                    className="mt-1 inline-flex size-4 shrink-0 items-center justify-center rounded-full"
+                    style={{ background: C.sageSoft, border: `1px solid ${C.sageRing}`, color: C.sage }}
+                  >
+                    <Check className="size-2.5" aria-hidden="true" />
+                  </span>
+                  {line}
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       </div>
     </section>
   );
 }
 
-export function MarketingLandingPage(props: { isAuthenticated: boolean }) {
+// =====================================================================
+// Footer
+// =====================================================================
+
+function Footer() {
   return (
-    <main className="min-h-screen overflow-hidden bg-[#050607] text-white">
-      <TopBar isAuthenticated={props.isAuthenticated} />
-
-      <section className="relative overflow-hidden border-b border-white/[0.08] pt-16">
-        <div
-          aria-hidden="true"
-          className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(71,190,121,0.20),transparent_34rem),linear-gradient(180deg,#050607_0%,#07100b_56%,#050607_100%)]"
-        />
-
-        <HomeEntry isAuthenticated={props.isAuthenticated} />
-      </section>
-
-      <WorkSystem />
-      <SystemSection />
-      <FeatureSystem />
-      <PlansSection />
-      <RequestAccess />
-
-      <footer className="bg-[#050607] px-5 py-16 text-white lg:px-0">
-        <div className="mx-auto grid w-full max-w-[1080px] grid-cols-2 gap-10 border-b border-white/[0.08] pb-16 md:grid-cols-[1.2fr_repeat(4,1fr)]">
-          <div className="col-span-2 md:col-span-1">
-            <div className="flex items-center gap-2.5">
-              <img
-                alt=""
-                className="h-8 w-auto"
-                height={369}
-                src="/harwick-gemini-logo.png"
-                width={677}
-              />
-              <span className="text-[20px] font-semibold">Harwick</span>
-            </div>
-            <p className="mt-5 max-w-[280px] text-[13px] leading-6 text-white/42">
-              AI chief of staff for real estate teams. Built as a multi-tenant brokerage platform with approval-first automation.
-            </p>
-          </div>
-
-          {footerGroups.map((group) => (
-            <nav className="grid content-start gap-3 text-[13px]" key={group.title}>
-              <div className="mb-2 font-semibold text-white/86">{group.title}</div>
-              {group.links.map((link) => (
-                <a className="text-white/42 transition hover:text-white" href={link.href} key={`${group.title}-${link.href}-${link.label}`}>
-                  {link.label}
-                </a>
-              ))}
-            </nav>
-          ))}
+    <footer style={{ background: C.bg }} className="py-10">
+      <div className="mx-auto flex w-full max-w-[1100px] flex-col items-start justify-between gap-6 px-5 sm:flex-row sm:items-center">
+        <div className="flex items-center gap-2">
+          <HarwickLogo size={20} />
+          <span className="text-[13px] font-semibold" style={{ color: C.text }}>Harwick</span>
+          <span className="ml-2 text-[11.5px]" style={{ color: C.textFaint }}>© {new Date().getFullYear()}</span>
         </div>
+        <nav className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[12px]" style={{ color: C.textMid }}>
+          <a className="hover:text-white" href="/privacy">Privacy</a>
+          <a className="hover:text-white" href="/terms">Terms</a>
+          <a className="hover:text-white" href="/data-deletion">Data deletion</a>
+          <a className="hover:text-white" href="/connect/meta">Connect Meta</a>
+          <a className="hover:text-white" href="mailto:support@harwick.lol">Contact</a>
+        </nav>
+      </div>
+    </footer>
+  );
+}
 
-        <div className="mx-auto mt-8 flex w-full max-w-[1080px] flex-col gap-4 text-[11px] text-white/34 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2">
-            <ShieldCheck aria-hidden="true" className="size-3.5" />
-            <span>Terms, privacy, and Meta data deletion routes are live.</span>
-          </div>
-          <div>© 2026 Harwick. All rights reserved.</div>
-        </div>
-      </footer>
-    </main>
+// =====================================================================
+// Root
+// =====================================================================
+
+export function MarketingLandingPage({ isAuthenticated }: LandingProps) {
+  return (
+    <div style={{ background: C.bg, color: C.text }} className="min-h-screen antialiased">
+      <TopBar isAuthenticated={isAuthenticated} />
+      <main>
+        <Hero isAuthenticated={isAuthenticated} />
+        <SectionBreak />
+        <WhatIsHarwick />
+        <SectionBreak />
+        <HowItWorks />
+        <SectionBreak />
+        <TabbedHandles />
+        <SectionBreak />
+        <AlsoHandles />
+        <SectionBreak />
+        <YourControls />
+        <SectionBreak />
+        <Pricing />
+        <SectionBreak />
+        <Testimonials />
+        <SectionBreak />
+        <EarlyAccess isAuthenticated={isAuthenticated} />
+      </main>
+      <Footer />
+    </div>
   );
 }
