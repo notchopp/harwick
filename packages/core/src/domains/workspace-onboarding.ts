@@ -26,9 +26,6 @@ export const WorkspaceTypeSchema = z.enum([
   "solo",
   "team",
   "brokerage",
-  "wholesaler",
-  "property_manager",
-  "developer",
   "other",
 ]);
 

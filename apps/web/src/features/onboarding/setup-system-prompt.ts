@@ -11,7 +11,7 @@ function describeRemainingBeats(state: WorkspaceOnboardingState): string {
   const remaining: string[] = [];
   if (!state.identityDone) {
     remaining.push(
-      "1. **Identity** — ask which kind of workspace this is (solo, team, brokerage, wholesaler, property manager, developer, other), what primary areas/neighborhoods/cities they cover, and a short description of their voice. When you have all three, call set_workspace_identity once.",
+      "1. **Identity** — ask which kind of workspace this is (solo agent, team, brokerage, or other real estate workspace), what primary areas/neighborhoods/cities they cover, and a short description of their voice. When you have all three, call set_workspace_identity once.",
     );
   }
   if (!state.replyExamplesDone) {

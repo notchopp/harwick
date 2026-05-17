@@ -8,7 +8,6 @@ import {
   Building2,
   Check,
   Globe,
-  Hammer,
   Loader2,
   MessageSquare,
   Plus,
@@ -114,12 +113,9 @@ type WorkspaceTypeOption = {
 
 const WORKSPACE_TYPE_OPTIONS: ReadonlyArray<WorkspaceTypeOption> = [
   { key: "solo", label: "Solo agent", description: "One agent running the desk", icon: Briefcase },
-  { key: "team", label: "Team", description: "2–10 agents, one operator", icon: Users },
-  { key: "brokerage", label: "Brokerage", description: "Multi-agent shop, multiple Pages", icon: Building2 },
-  { key: "wholesaler", label: "Wholesaler", description: "Distressed sellers, fast contracts", icon: Hammer },
-  { key: "property_manager", label: "Property manager", description: "Tenants + vacancies + renewals", icon: Building2 },
-  { key: "developer", label: "Developer / new build", description: "Reservations, phases, long timelines", icon: Hammer },
-  { key: "other", label: "Something else", description: "Tell Harwick in the next step", icon: Sparkles },
+  { key: "team", label: "Team", description: "Small team with agents and an operator", icon: Users },
+  { key: "brokerage", label: "Brokerage", description: "Multi-agent shop with shared channels", icon: Building2 },
+  { key: "other", label: "Other real estate workspace", description: "We will tailor within the current Harwick flow", icon: Sparkles },
 ];
 
 type ChannelIcon = LucideIcon | ComponentType<SVGProps<SVGSVGElement>>;
