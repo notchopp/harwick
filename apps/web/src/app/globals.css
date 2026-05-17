@@ -228,24 +228,55 @@ a {
 }
 
 .harwick-card {
-  border: 1px solid color-mix(in oklch, var(--color-border) 92%, white);
+  /* Visible hairline + real elevation so the card pops off the parchment
+   * page bg instead of merging into it. Pairs with the stronger
+   * .harwick-control fill below. */
+  border: 1px solid var(--harwick-border);
   border-radius: var(--radius-card);
-  background: color-mix(in oklch, var(--color-card) 94%, white);
-  box-shadow: var(--shadow-control);
+  background: var(--harwick-paper);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    0 1px 2px rgba(24, 33, 29, 0.04),
+    0 6px 16px -8px rgba(24, 33, 29, 0.08);
 }
 
 .harwick-control {
-  border: 1px solid transparent;
+  border: 1px solid var(--harwick-border);
   border-radius: var(--radius-control);
-  background: color-mix(in oklch, var(--color-secondary) 84%, white);
-  box-shadow: var(--shadow-control);
+  /* Use the strong linen so the control fill is clearly tinted against the
+   * paper section it sits on. Before this was 84% linen + 16% white which
+   * read as pure white-on-white on settings/forms. */
+  background: var(--harwick-linen-strong);
+  color: var(--harwick-ink);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), 0 1px 0 rgba(24, 33, 29, 0.04);
+  transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.harwick-control:hover {
+  border-color: var(--harwick-border-strong);
+  background: color-mix(in oklch, var(--harwick-linen-strong) 90%, var(--harwick-ink) 4%);
 }
 
 .harwick-control:focus,
 .harwick-control:focus-visible {
   border-color: var(--color-harwick-brass);
-  box-shadow: var(--shadow-control), 0 0 0 3px rgba(114, 106, 88, 0.12);
+  background: color-mix(in oklch, var(--harwick-linen-strong) 92%, white);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.65),
+    0 0 0 3px rgba(114, 106, 88, 0.18);
   outline: none;
+}
+
+.harwick-control:disabled,
+.harwick-control[aria-disabled="true"] {
+  background: color-mix(in oklch, var(--harwick-linen-strong) 60%, white);
+  color: var(--harwick-ink-soft);
+  cursor: not-allowed;
+}
+
+.harwick-control::placeholder {
+  color: var(--harwick-ink-soft);
+  opacity: 0.55;
 }
 
 .harwick-pill {

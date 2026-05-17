@@ -9,7 +9,10 @@ import { getWorkspaceOnboardingState } from "../../../lib/supabase/workspace-onb
 export const dynamic = "force-dynamic";
 
 export default async function Page() {
-  const { session, membership } = await requireActiveWorkspace({ nextPath: "/onboarding/setup" });
+  const { session, membership } = await requireActiveWorkspace({
+    nextPath: "/onboarding/setup",
+    skipOnboardingCheck: true,
+  });
 
   const supabase = createServerSupabaseClient();
   const [state, subscription] = await Promise.all([

@@ -2,8 +2,9 @@ import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import type { AuthSessionSummary, AuthWorkspaceMembership } from "@realty-ops/core";
 import { getAuthSessionSummary } from "../../lib/supabase/auth";
-import { createUserSupabaseClient } from "../../lib/supabase/server-client";
+import { createServerSupabaseClient, createUserSupabaseClient } from "../../lib/supabase/server-client";
 import { createCookieSupabaseServerClient } from "../../lib/supabase/ssr-server";
+import { getWorkspaceOnboardingState } from "../../lib/supabase/workspace-onboarding";
 import { normalizeAuthRedirect } from "./redirects";
 
 export const selectedWorkspaceCookieName = "realty_ops_workspace_id";
@@ -73,10 +74,22 @@ export function selectWorkspaceMembership(params: {
   return params.session.memberships[0] ?? null;
 }
 
+// Routes that should NEVER trigger the onboarding redirect — even when the
+// signed-in user's workspace has incomplete onboarding state. Onboarding
+// itself is one of them (would loop), and we let users finish billing /
+// invite acceptance / sign-out without bouncing into setup.
+const ONBOARDING_BYPASS_PREFIXES = ["/onboarding", "/invite", "/auth", "/api"];
+
+function shouldBypassOnboardingGate(nextPath: string): boolean {
+  return ONBOARDING_BYPASS_PREFIXES.some((prefix) => nextPath === prefix || nextPath.startsWith(`${prefix}/`));
+}
+
 export async function requireActiveWorkspace(params: {
   nextPath?: string;
   workspaceId?: string | null;
   workspaceSlug?: string | null;
+  /** Set to true to skip the onboarding-complete check (e.g. /onboarding/setup itself). */
+  skipOnboardingCheck?: boolean;
 } = {}) {
   const nextPath = params.nextPath ?? "/home";
   const session = await requireWorkspaceSession(nextPath);
@@ -90,6 +103,30 @@ export async function requireActiveWorkspace(params: {
 
   if (membership === null) {
     redirect("/login?error=no_workspace");
+  }
+
+  // Onboarding gate: if the workspace hasn't finished the conversational
+  // setup, send the user to /onboarding/setup before they land anywhere
+  // else. Onboarding/invite/auth/api routes self-handle and skip this.
+  const skipGate = params.skipOnboardingCheck === true || shouldBypassOnboardingGate(nextPath);
+  if (!skipGate) {
+    try {
+      const onboardingState = await getWorkspaceOnboardingState(
+        createServerSupabaseClient(),
+        membership.workspaceId,
+      );
+      if (onboardingState.completedAt === null) {
+        redirect("/onboarding/setup");
+      }
+    } catch (error) {
+      // Soft-fail: if the onboarding-state read throws an unexpected error,
+      // log it but don't block the page. The reader already returns a
+      // synthetic "complete" state for missing-relation cases.
+      if ((error as { digest?: string } | null)?.digest?.startsWith?.("NEXT_REDIRECT") === true) {
+        throw error;
+      }
+      console.warn("[requireActiveWorkspace] onboarding state check failed", error);
+    }
   }
 
   return {

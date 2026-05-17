@@ -646,7 +646,7 @@ function HarwickLoopsPanel(props: {
         ) : null}
       </div>
 
-      <div className="divide-y divide-border rounded-[12px] border border-border bg-surface">
+      <div className="divide-y divide-harwick-border rounded-[12px] border border-harwick-border bg-[color-mix(in_oklch,var(--harwick-paper)_88%,var(--harwick-linen-strong))]">
         {status === "loading" ? (
           <div className="px-4 py-4 text-[12px] text-muted-subtle">Loading loops...</div>
         ) : loops.length === 0 ? (
@@ -811,14 +811,14 @@ function HarwickMemoryReviewPanel(props: {
             Review the patterns Harwick has learned before they shape future routing and conversation context.
           </div>
         </div>
-        <div className="flex rounded-[10px] border border-border bg-surface p-1">
+        <div className="flex rounded-[10px] border border-harwick-border bg-[var(--harwick-linen-strong)] p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]">
           {(["pending", "approved", "dismissed"] as const).map((reviewStatus) => (
             <button
               className={cn(
-                "rounded-[8px] px-3 py-[6px] text-[11px] transition-colors",
+                "rounded-[8px] px-3 py-[6px] text-[11px] font-medium transition-colors",
                 filterStatus === reviewStatus
-                  ? "bg-harwick-ink text-white"
-                  : "text-muted-foreground hover:bg-surface-muted hover:text-foreground",
+                  ? "bg-[var(--harwick-ink)] text-white shadow-[0_1px_0_rgba(255,255,255,0.45)]"
+                  : "text-muted-foreground hover:bg-white/55 hover:text-foreground",
               )}
               key={reviewStatus}
               onClick={() => setFilterStatus(reviewStatus)}
@@ -836,7 +836,7 @@ function HarwickMemoryReviewPanel(props: {
         </div>
       )}
 
-      <div className="divide-y divide-border rounded-[12px] border border-border bg-surface">
+      <div className="divide-y divide-harwick-border rounded-[12px] border border-harwick-border bg-[color-mix(in_oklch,var(--harwick-paper)_88%,var(--harwick-linen-strong))]">
         {status === "loading" ? (
           <div className="px-4 py-4 text-[12px] text-muted-subtle">Loading workspace memory...</div>
         ) : memories.length === 0 ? (
