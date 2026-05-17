@@ -37,8 +37,15 @@ export function resolveStripePriceId(
   return priceId;
 }
 
-function buildBillingReturnUrls(appUrl: string): { successUrl: string; cancelUrl: string } {
+function buildBillingReturnUrls(appUrl: string, returnPath?: string): { successUrl: string; cancelUrl: string } {
   const baseUrl = appUrl.replace(/\/+$/, "");
+  if (returnPath !== undefined) {
+    return {
+      successUrl: `${baseUrl}${returnPath}?billing=success&session_id={CHECKOUT_SESSION_ID}`,
+      cancelUrl: `${baseUrl}/onboarding?billing=cancelled`,
+    };
+  }
+
   return {
     successUrl: `${baseUrl}/settings?billing=success&session_id={CHECKOUT_SESSION_ID}`,
     cancelUrl: `${baseUrl}/settings?billing=cancelled`,
@@ -49,7 +56,7 @@ export async function createWorkspaceBillingCheckoutSession(
   params: WorkspaceBillingCheckoutParams,
 ) {
   const priceId = resolveStripePriceId(params.environment, params.request);
-  const urls = buildBillingReturnUrls(params.environment.NEXT_PUBLIC_APP_URL);
+  const urls = buildBillingReturnUrls(params.environment.NEXT_PUBLIC_APP_URL, params.request.returnPath);
 
   return params.stripeClient.createCheckoutSession({
     workspaceId: params.workspaceId,

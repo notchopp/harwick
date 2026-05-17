@@ -423,6 +423,7 @@ export type PlanGateResult = z.infer<typeof PlanGateResultSchema>;
 export const BillingCheckoutRequestSchema = z.object({
   planTier: BillingPaidPlanTierSchema,
   billingInterval: BillingIntervalSchema,
+  returnPath: z.string().trim().regex(/^\/(?!\/)/).max(160).optional(),
 });
 
 export const BillingCheckoutResponseSchema = z.object({

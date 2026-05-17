@@ -560,9 +560,11 @@ describe("billing checkout contracts", () => {
     const request = BillingCheckoutRequestSchema.parse({
       planTier: "team",
       billingInterval: "month",
+      returnPath: "/onboarding/setup",
     });
 
     expect(request.planTier).toBe("team");
+    expect(request.returnPath).toBe("/onboarding/setup");
   });
 
   it("does not allow a free plan through Stripe checkout", () => {

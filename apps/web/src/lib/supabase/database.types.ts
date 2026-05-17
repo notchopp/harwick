@@ -3542,6 +3542,16 @@ export type Database = {
         }
         Returns: boolean
       }
+      create_workspace_for_current_user: {
+        Args: {
+          p_name: string
+          p_slug_base: string
+        }
+        Returns: {
+          workspace_id: string
+          workspace_slug: string
+        }[]
+      }
       can_manage_workspace_routing: {
         Args: { target_workspace_id: string }
         Returns: boolean

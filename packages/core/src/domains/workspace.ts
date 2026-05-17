@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { IsoDateTimeSchema, NonEmptyStringSchema, UuidSchema } from "./common.js";
+import { BillingPlanTierSchema } from "./billing.js";
 
 export const WorkspaceRoleSchema = z.enum([
   "owner",
@@ -140,10 +141,23 @@ export const WorkspaceMemberSchema = z.object({
   updatedAt: IsoDateTimeSchema,
 });
 
+export const WorkspaceCreateRequestSchema = z.object({
+  name: NonEmptyStringSchema.max(120),
+  planTier: BillingPlanTierSchema.default("free"),
+});
+
+export const WorkspaceCreateResponseSchema = z.object({
+  workspaceId: UuidSchema,
+  workspaceSlug: z.string().trim().min(2).max(80).regex(/^[a-z0-9-]+$/),
+  planTier: BillingPlanTierSchema,
+});
+
 export type WorkspaceRole = z.infer<typeof WorkspaceRoleSchema>;
 export type WorkspaceCapability = z.infer<typeof WorkspaceCapabilitySchema>;
 export type Workspace = z.infer<typeof WorkspaceSchema>;
 export type WorkspaceMember = z.infer<typeof WorkspaceMemberSchema>;
+export type WorkspaceCreateRequest = z.infer<typeof WorkspaceCreateRequestSchema>;
+export type WorkspaceCreateResponse = z.infer<typeof WorkspaceCreateResponseSchema>;
 
 export function getWorkspaceRoleCapabilities(role: WorkspaceRole): readonly WorkspaceCapability[] {
   return roleCapabilities[role];
