@@ -2,39 +2,23 @@
 
 import "mapbox-gl/dist/mapbox-gl.css";
 
-import { MapPin } from "lucide-react";
+import { MapPin, Search, X } from "lucide-react";
 import MapboxMap, {
   type MapRef,
   Marker,
   type ViewState,
 } from "react-map-gl/mapbox";
-import { useEffect, useMemo, useRef, useState } from "react";
-
-/**
- * Real Mapbox map for the onboarding primary-areas scene. Geocodes each area
- * the operator types, drops a pin, and re-fits the viewport to show all pins.
- *
- * Falls back to a sage-tinted neutral state when:
- *   - NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN is missing
- *   - The browser is offline / the map fails to load
- *   - The operator hasn't typed any areas yet (shows continental US)
- */
+import {
+  type KeyboardEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 const MAPBOX_TOKEN = process.env["NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN"];
-
-// Custom dark style with sage tint that matches the rest of the onboarding.
-// Falls back to mapbox/dark-v11 if the custom style isn't published yet.
 const MAP_STYLE = "mapbox://styles/mapbox/dark-v11";
-
-type GeocodedArea = {
-  query: string;
-  longitude: number;
-  latitude: number;
-};
-
-type MarketMapProps = {
-  areas: ReadonlyArray<string>;
-};
 
 const DEFAULT_VIEW: Pick<ViewState, "longitude" | "latitude" | "zoom"> = {
   longitude: -97.5,
@@ -42,50 +26,90 @@ const DEFAULT_VIEW: Pick<ViewState, "longitude" | "latitude" | "zoom"> = {
   zoom: 3.2,
 };
 
-async function geocode(query: string): Promise<GeocodedArea | null> {
-  if (MAPBOX_TOKEN === undefined || query.trim().length === 0) return null;
+const PLACE_TYPES = "place,locality,neighborhood,postcode,district";
+
+export type ResolvedArea = {
+  query: string;
+  placeName: string;
+  longitude: number;
+  latitude: number;
+};
+
+type MapboxFeature = {
+  id?: string;
+  place_name?: string;
+  text?: string;
+  center?: [number, number];
+};
+
+export async function searchAreas(query: string): Promise<ResolvedArea[]> {
+  if (MAPBOX_TOKEN === undefined || query.trim().length < 2) return [];
   try {
     const url = new URL(
       `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json`,
     );
     url.searchParams.set("access_token", MAPBOX_TOKEN);
-    url.searchParams.set("limit", "1");
-    url.searchParams.set("types", "place,locality,neighborhood,postcode,district");
+    url.searchParams.set("limit", "5");
+    url.searchParams.set("types", PLACE_TYPES);
+    url.searchParams.set("country", "us");
+    url.searchParams.set("autocomplete", "true");
     const response = await fetch(url.toString());
-    if (!response.ok) return null;
-    const data = (await response.json()) as {
-      features?: Array<{ center?: [number, number] }>;
-    };
-    const center = data.features?.[0]?.center;
-    if (center === undefined) return null;
-    return { query, longitude: center[0], latitude: center[1] };
+    if (!response.ok) return [];
+    const data = (await response.json()) as { features?: MapboxFeature[] };
+    const features = data.features ?? [];
+    return features
+      .filter((feature) => feature.center !== undefined && feature.place_name !== undefined)
+      .map((feature) => ({
+        query,
+        placeName: feature.place_name ?? "",
+        longitude: feature.center![0],
+        latitude: feature.center![1],
+      }));
   } catch {
-    return null;
+    return [];
   }
 }
 
-export function MarketMap({ areas }: MarketMapProps) {
-  const [geocoded, setGeocoded] = useState<GeocodedArea[]>([]);
-  const cacheRef = useRef(new Map<string, GeocodedArea | null>());
+async function geocodeArea(query: string): Promise<ResolvedArea | null> {
+  const results = await searchAreas(query);
+  return results[0] ?? null;
+}
+
+type MarketMapProps = {
+  areas: ReadonlyArray<string>;
+  resolvedAreas?: ReadonlyMap<string, ResolvedArea>;
+  onResolve?: (resolved: ResolvedArea) => void;
+};
+
+export function MarketMap({ areas, resolvedAreas, onResolve }: MarketMapProps) {
+  const [geocoded, setGeocoded] = useState<ResolvedArea[]>([]);
+  const cacheRef = useRef(new Map<string, ResolvedArea | null>());
   const mapRef = useRef<MapRef | null>(null);
 
-  // Geocode any newly-added area and drop the cached ones for areas the
-  // operator removed.
   useEffect(() => {
     let cancelled = false;
     const cache = cacheRef.current;
 
+    if (resolvedAreas !== undefined) {
+      for (const [key, value] of resolvedAreas.entries()) {
+        if (!cache.has(key)) cache.set(key, value);
+      }
+    }
+
     async function resolveAll() {
-      const resolved: GeocodedArea[] = [];
+      const resolved: ResolvedArea[] = [];
       for (const area of areas) {
         const cached = cache.get(area);
         if (cached !== undefined) {
           if (cached !== null) resolved.push(cached);
           continue;
         }
-        const result = await geocode(area);
+        const result = await geocodeArea(area);
         cache.set(area, result);
-        if (result !== null) resolved.push(result);
+        if (result !== null) {
+          resolved.push(result);
+          onResolve?.(result);
+        }
         if (cancelled) return;
       }
       if (!cancelled) setGeocoded(resolved);
@@ -95,9 +119,8 @@ export function MarketMap({ areas }: MarketMapProps) {
     return () => {
       cancelled = true;
     };
-  }, [areas]);
+  }, [areas, resolvedAreas, onResolve]);
 
-  // Fit the viewport to the resolved pins (or fall back to continental US).
   useEffect(() => {
     const map = mapRef.current;
     if (map === null || geocoded.length === 0) return;
@@ -120,8 +143,8 @@ export function MarketMap({ areas }: MarketMapProps) {
   const mapAvailable = MAPBOX_TOKEN !== undefined && MAPBOX_TOKEN.length > 0;
 
   const emptyHint = useMemo(() => {
-    if (mapAvailable === false) return "Map unavailable — add NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN to see your market.";
-    if (areas.length === 0) return "Type an area below — pins drop as you go.";
+    if (!mapAvailable) return null;
+    if (areas.length === 0) return "Add an area to drop the first pin.";
     if (geocoded.length === 0) return "Locating…";
     return null;
   }, [areas.length, geocoded.length, mapAvailable]);
@@ -152,8 +175,6 @@ export function MarketMap({ areas }: MarketMapProps) {
           <FallbackMap />
         )}
 
-        {/* Sage tint overlay — pulls the map closer to the onboarding palette
-            without losing the underlying geography. */}
         <div
           aria-hidden="true"
           className="pointer-events-none absolute inset-0"
@@ -190,9 +211,6 @@ function MapPinChip({ label }: { label: string }) {
 }
 
 function FallbackMap() {
-  // Sage-tinted topo-ish background used when no Mapbox token is configured.
-  // Keeps the onboarding renderable but is intentionally less impressive than
-  // the real map so the missing token is visible.
   return (
     <div className="relative size-full">
       <div
@@ -213,6 +231,155 @@ function FallbackMap() {
         <path d="M0 150 C60 175 130 130 200 150 C260 170 300 220 360 200" fill="none" stroke="currentColor" strokeWidth="1.1" />
         <path d="M0 80 C70 110 145 85 220 105 C275 120 310 80 360 95" fill="none" stroke="currentColor" strokeWidth="0.9" />
       </svg>
+    </div>
+  );
+}
+
+type AreaSearchInputProps = {
+  placeholder?: string;
+  excludeKeys?: ReadonlyArray<string>;
+  onSelect: (resolved: ResolvedArea) => void;
+};
+
+export function AreaSearchInput({ placeholder, excludeKeys, onSelect }: AreaSearchInputProps) {
+  const [query, setQuery] = useState("");
+  const [suggestions, setSuggestions] = useState<ResolvedArea[]>([]);
+  const [isOpen, setIsOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const excludeSet = useMemo(() => new Set(excludeKeys ?? []), [excludeKeys]);
+
+  useEffect(() => {
+    if (debounceRef.current !== null) clearTimeout(debounceRef.current);
+    if (query.trim().length < 2) {
+      setSuggestions([]);
+      return;
+    }
+    debounceRef.current = setTimeout(async () => {
+      const results = await searchAreas(query);
+      const filtered = results.filter((entry) => !excludeSet.has(entry.placeName));
+      setSuggestions(filtered);
+      setActiveIndex(0);
+    }, 180);
+    return () => {
+      if (debounceRef.current !== null) clearTimeout(debounceRef.current);
+    };
+  }, [query, excludeSet]);
+
+  useEffect(() => {
+    function handleClick(event: MouseEvent) {
+      if (containerRef.current === null) return;
+      if (!containerRef.current.contains(event.target as Node)) setIsOpen(false);
+    }
+    window.addEventListener("mousedown", handleClick);
+    return () => {
+      window.removeEventListener("mousedown", handleClick);
+    };
+  }, []);
+
+  const handleSelect = useCallback(
+    (resolved: ResolvedArea) => {
+      onSelect(resolved);
+      setQuery("");
+      setSuggestions([]);
+      setIsOpen(false);
+    },
+    [onSelect],
+  );
+
+  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (suggestions.length === 0) return;
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setActiveIndex((current) => (current + 1) % suggestions.length);
+      setIsOpen(true);
+      return;
+    }
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setActiveIndex((current) => (current - 1 + suggestions.length) % suggestions.length);
+      setIsOpen(true);
+      return;
+    }
+    if (event.key === "Enter") {
+      event.preventDefault();
+      const choice = suggestions[activeIndex];
+      if (choice !== undefined) handleSelect(choice);
+    }
+    if (event.key === "Escape") {
+      setIsOpen(false);
+    }
+  }
+
+  return (
+    <div ref={containerRef} className="relative">
+      <div className="relative">
+        <Search aria-hidden="true" className="pointer-events-none absolute left-3.5 top-1/2 size-3.5 -translate-y-1/2 text-white/35" />
+        <input
+          value={query}
+          onChange={(event) => {
+            setQuery(event.target.value);
+            setIsOpen(true);
+          }}
+          onFocus={() => setIsOpen(true)}
+          onKeyDown={handleKeyDown}
+          placeholder={placeholder ?? "Search for a city, neighborhood, or zip"}
+          className="h-11 w-full rounded-[12px] border border-white/12 bg-white/[0.05] pl-9 pr-3 text-[13.5px] text-white outline-none transition placeholder:text-white/35 focus:border-[#b8d3c5]/55 focus:bg-white/[0.07] focus:shadow-[0_0_0_3px_rgba(184,211,197,0.18)]"
+          autoComplete="off"
+          spellCheck={false}
+        />
+        {query.length > 0 ? (
+          <button
+            type="button"
+            aria-label="Clear search"
+            onClick={() => {
+              setQuery("");
+              setSuggestions([]);
+            }}
+            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-white/45 transition hover:bg-white/5 hover:text-white"
+          >
+            <X className="size-3.5" />
+          </button>
+        ) : null}
+      </div>
+
+      {isOpen && suggestions.length > 0 ? (
+        <ul className="absolute left-0 right-0 top-[calc(100%+6px)] z-30 max-h-[260px] overflow-y-auto rounded-[14px] border border-white/12 bg-[#0c1014] py-1 shadow-[0_30px_60px_-20px_rgba(0,0,0,0.7)]">
+          {suggestions.map((entry, index) => {
+            const isActive = index === activeIndex;
+            const primary = entry.placeName.split(",")[0] ?? entry.placeName;
+            const rest = entry.placeName.includes(",")
+              ? entry.placeName.slice(entry.placeName.indexOf(",") + 1).trim()
+              : "";
+            return (
+              <li key={`${entry.placeName}-${index}`}>
+                <button
+                  type="button"
+                  onMouseEnter={() => setActiveIndex(index)}
+                  onClick={() => handleSelect(entry)}
+                  className={`flex w-full items-start gap-2.5 px-3 py-2 text-left transition ${
+                    isActive ? "bg-white/[0.06]" : "bg-transparent"
+                  }`}
+                >
+                  <MapPin
+                    aria-hidden="true"
+                    className={`mt-0.5 size-3.5 shrink-0 ${
+                      isActive ? "text-[#b8d3c5]" : "text-white/45"
+                    }`}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[13px] font-medium text-white">{primary}</div>
+                    {rest.length > 0 ? (
+                      <div className="truncate text-[11.5px] text-white/45">{rest}</div>
+                    ) : null}
+                  </div>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
     </div>
   );
 }

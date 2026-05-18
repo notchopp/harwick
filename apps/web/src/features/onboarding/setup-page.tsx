@@ -64,7 +64,7 @@ import { Button } from "../../components/ui/button";
 import { Label } from "../../components/ui/label";
 import { cn } from "../../lib/utils";
 
-import { MarketMap } from "./market-map";
+import { AreaSearchInput, MarketMap, type ResolvedArea } from "./market-map";
 import {
   DarkInlineInput,
   DarkInlineTextarea,
@@ -595,8 +595,22 @@ function WelcomeVisual() {
 // Mapbox-backed <MarketMap /> component in ./market-map.tsx, which geocodes
 // each area the operator types and drops a real pin. Kept as a function
 // name so call-sites elsewhere don't need to change.
-function MarketMapVisual({ areas }: { areas: string[] }) {
-  return <MarketMap areas={areas} />;
+function MarketMapVisual({
+  areas,
+  resolvedAreas,
+  onResolve,
+}: {
+  areas: string[];
+  resolvedAreas?: ReadonlyMap<string, ResolvedArea>;
+  onResolve?: (resolved: ResolvedArea) => void;
+}) {
+  return (
+    <MarketMap
+      areas={areas}
+      {...(resolvedAreas === undefined ? {} : { resolvedAreas })}
+      {...(onResolve === undefined ? {} : { onResolve })}
+    />
+  );
 }
 
 function LeadTypeVisual({ selected }: { selected: string[] }) {
@@ -1113,57 +1127,78 @@ function WelcomeScene({ onNext }: { onNext: () => void }) {
 
 function PrimaryAreasScene({
   areas,
-  areaDraft,
-  onDraftChange,
-  onAddArea,
+  resolvedAreas,
+  onAreaSelect,
   onRemoveArea,
+  onMapResolve,
   onNext,
 }: {
   areas: string[];
-  areaDraft: string;
-  onDraftChange: (value: string) => void;
-  onAddArea: () => void;
+  resolvedAreas: Map<string, ResolvedArea>;
+  onAreaSelect: (resolved: ResolvedArea) => void;
   onRemoveArea: (value: string) => void;
+  onMapResolve: (resolved: ResolvedArea) => void;
   onNext: () => void;
 }) {
-  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
-    if (event.key === "Enter" || event.key === ",") {
-      event.preventDefault();
-      onAddArea();
-    }
-  }
+  const resolvedPlaceNames = Array.from(resolvedAreas.values()).map((entry) => entry.placeName);
 
   return (
     <SceneFrame
       eyebrow="market"
       title="Where should Harwick pay attention?"
-      description="Add the cities, neighborhoods, or communities where the best leads should route first."
-      visual={<MarketMapVisual areas={areas} />}
+      description="Search for the cities, neighborhoods, or zip codes where the best leads should route first."
+      visual={
+        <MarketMapVisual
+          areas={areas}
+          resolvedAreas={resolvedAreas}
+          onResolve={onMapResolve}
+        />
+      }
       footer={
         <>
-          <div className="rounded-[24px] border border-white/10 bg-white/[0.055] p-3">
-            <Label className="mb-2 block text-[10px] uppercase tracking-[0.16em] text-white/38" htmlFor="area-input">
-              Primary areas
-            </Label>
-            <div className="flex flex-wrap gap-1.5">
-              {areas.map((area) => (
-                <span key={area} className="inline-flex items-center gap-1 rounded-full bg-[#b8d3c5]/15 px-2.5 py-1 text-[12px] font-medium text-white">
-                  {area}
-                  <button type="button" onClick={() => onRemoveArea(area)} aria-label={`Remove ${area}`}>
-                    <X className="size-3 text-white/55" />
-                  </button>
-                </span>
-              ))}
-              <DarkInlineInput
-                id="area-input"
-                value={areaDraft}
-                onChange={(event) => onDraftChange(event.target.value)}
-                onKeyDown={handleKeyDown}
-                onBlur={onAddArea}
-                placeholder={areas.length === 0 ? "Katy, Sugar Land..." : "Add another"}
-              />
+          <AreaSearchInput
+            placeholder="Search for a city, neighborhood, or zip"
+            excludeKeys={resolvedPlaceNames}
+            onSelect={onAreaSelect}
+          />
+
+          {areas.length > 0 ? (
+            <div className="rounded-[20px] border border-white/10 bg-white/[0.04] p-2.5">
+              <Label className="mb-2 block px-1 text-[10px] uppercase tracking-[0.16em] text-white/38">
+                Primary areas
+              </Label>
+              <ul className="flex flex-col gap-1">
+                {areas.map((area) => {
+                  const resolved = resolvedAreas.get(area);
+                  const context = resolved?.placeName.includes(",")
+                    ? resolved.placeName.slice(resolved.placeName.indexOf(",") + 1).trim()
+                    : null;
+                  return (
+                    <li
+                      key={area}
+                      className="flex items-center justify-between gap-2 rounded-[14px] bg-white/[0.04] px-3 py-2"
+                    >
+                      <div className="min-w-0">
+                        <div className="truncate text-[13px] font-medium text-white">{area}</div>
+                        {context !== null ? (
+                          <div className="truncate text-[11px] text-white/45">{context}</div>
+                        ) : null}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => onRemoveArea(area)}
+                        aria-label={`Remove ${area}`}
+                        className="shrink-0 rounded-full p-1 text-white/45 transition hover:bg-white/5 hover:text-white"
+                      >
+                        <X className="size-3.5" />
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
             </div>
-          </div>
+          ) : null}
+
           <PrimaryCta disabled={areas.length === 0} onClick={onNext}>
             Lock market
             <ArrowRight className="size-4" aria-hidden="true" />
@@ -1759,6 +1794,7 @@ export function OnboardingSetupPage(props: SetupPageProps) {
   const [replyError, setReplyError] = useState<string | null>(null);
   const [channelSaving, setChannelSaving] = useState(false);
   const [channelError, setChannelError] = useState<string | null>(null);
+  const [resolvedAreas, setResolvedAreas] = useState<Map<string, ResolvedArea>>(() => new Map());
 
   function goBack() {
     setScene((current) => previousScene(current));
@@ -1768,6 +1804,37 @@ export function OnboardingSetupPage(props: SetupPageProps) {
     const trimmed = draft.areaDraft.trim();
     if (trimmed.length === 0 || draft.areas.includes(trimmed) || draft.areas.length >= 8) return;
     setDraft((current) => ({ ...current, areas: [...current.areas, trimmed], areaDraft: "" }));
+  }
+
+  function handleAreaSelect(resolved: ResolvedArea) {
+    if (draft.areas.length >= 8) return;
+    const label = resolved.placeName.split(",")[0]?.trim() ?? resolved.placeName;
+    if (draft.areas.includes(label)) return;
+    setResolvedAreas((current) => {
+      const next = new Map(current);
+      next.set(label, resolved);
+      return next;
+    });
+    setDraft((current) => ({ ...current, areas: [...current.areas, label] }));
+  }
+
+  function handleResolvedFromMap(resolved: ResolvedArea) {
+    setResolvedAreas((current) => {
+      if (current.has(resolved.query)) return current;
+      const next = new Map(current);
+      next.set(resolved.query, resolved);
+      return next;
+    });
+  }
+
+  function handleRemoveArea(area: string) {
+    setResolvedAreas((current) => {
+      if (!current.has(area)) return current;
+      const next = new Map(current);
+      next.delete(area);
+      return next;
+    });
+    setDraft((current) => ({ ...current, areas: current.areas.filter((entry) => entry !== area) }));
   }
 
   async function saveIdentity() {
@@ -1876,10 +1943,10 @@ export function OnboardingSetupPage(props: SetupPageProps) {
       {scene === "primary_areas" ? (
         <PrimaryAreasScene
           areas={draft.areas}
-          areaDraft={draft.areaDraft}
-          onDraftChange={(areaDraft) => setDraft((current) => ({ ...current, areaDraft }))}
-          onAddArea={addArea}
-          onRemoveArea={(area) => setDraft((current) => ({ ...current, areas: current.areas.filter((entry) => entry !== area) }))}
+          resolvedAreas={resolvedAreas}
+          onAreaSelect={handleAreaSelect}
+          onRemoveArea={handleRemoveArea}
+          onMapResolve={handleResolvedFromMap}
           onNext={() => setScene("lead_types")}
         />
       ) : null}
