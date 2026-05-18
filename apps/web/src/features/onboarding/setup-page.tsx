@@ -5,7 +5,6 @@ import {
   ArrowLeft,
   ArrowRight,
   Bell,
-  Briefcase,
   Building2,
   CalendarDays,
   Check,
@@ -25,6 +24,7 @@ import {
   ShieldCheck,
   Sparkles,
   Trash2,
+  UploadCloud,
   TrendingUp,
   Users,
   X,
@@ -82,7 +82,6 @@ type SetupPageProps = {
 
 type SceneKey =
   | "welcome"
-  | "workspace_type"
   | "primary_areas"
   | "lead_types"
   | "price_bands"
@@ -96,7 +95,6 @@ type SceneKey =
 
 const SCENE_ORDER: ReadonlyArray<SceneKey> = [
   "welcome",
-  "workspace_type",
   "primary_areas",
   "lead_types",
   "price_bands",
@@ -124,20 +122,6 @@ const HARWICK_GLOW = {
   ink: "#07100d",
   ring: "rgba(184,211,197,0.58)",
 };
-
-type WorkspaceTypeOption = {
-  key: WorkspaceType;
-  label: string;
-  description: string;
-  icon: LucideIcon;
-};
-
-const WORKSPACE_TYPE_OPTIONS: ReadonlyArray<WorkspaceTypeOption> = [
-  { key: "solo", label: "Solo agent", description: "One agent running their own lead desk", icon: Briefcase },
-  { key: "team", label: "Team", description: "A rainmaker or lead with agents underneath", icon: Users },
-  { key: "brokerage", label: "Brokerage", description: "Multi-agent operation with shared systems", icon: Building2 },
-  { key: "other", label: "Other", description: "A real estate workflow inside Harwick's current scope", icon: Sparkles },
-];
 
 type LeadTypeOption = {
   key: string;
@@ -292,7 +276,12 @@ type SetupDraft = {
 
 function createInitialDraft(planTier: SetupPageProps["planTier"]): SetupDraft {
   return {
-    workspaceType: null,
+    // Workspace shape is derived from the plan tier the operator already
+    // picked at /onboarding/plan-pick — Free + Solo plans are 1- or 2-seat
+    // operations, Team plan is up to 10 seats, Brokerage is unlimited.
+    // "team" and "seats" mean the same thing inside Harwick. Operators
+    // never re-pick this in onboarding.
+    workspaceType: workspaceTypeFromPlan(planTier),
     areas: [],
     areaDraft: "",
     leadTypes: [],
@@ -320,6 +309,15 @@ function planLabel(tier: SetupPageProps["planTier"]): string {
   if (tier === "solo") return "Solo";
   if (tier === "team") return "Team";
   return "Brokerage";
+}
+
+// Plan tier → workspace shape. Inside Harwick "team" and "seats" mean the
+// same thing — Team plan ships 10 seats, so Team plan = team-shaped
+// workspace. Free + Solo are single-operator shapes by definition.
+function workspaceTypeFromPlan(planTier: SetupPageProps["planTier"]): WorkspaceType {
+  if (planTier === "team") return "team";
+  if (planTier === "brokerage") return "brokerage";
+  return "solo";
 }
 
 function roleLabel(role: WorkspaceRole): string {
@@ -592,162 +590,6 @@ function WelcomeVisual() {
   );
 }
 
-function WorkspaceTypeVisual({ type }: { type: WorkspaceType | null }) {
-  // Constellation art that morphs with the operator's pick. Borrows the
-  // Bloc splash technique: stacked radial-gradient defs, glow + core pairs
-  // per node, big soft halo behind. Springy node positions so morphing
-  // between types looks like a constellation reforming.
-  const positions = workspaceConstellation(type ?? "other");
-
-  return (
-    <div className="relative mx-auto aspect-[1.04]">
-      {/* SVG sits directly on the page bg — no frame, no fill. */}
-      <svg
-        viewBox="0 0 320 320"
-        className="absolute inset-0 size-full"
-        aria-hidden="true"
-      >
-        <defs>
-          <radialGradient id="harwick-node-sage" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="#d6ebde" stopOpacity="0.95" />
-            <stop offset="55%" stopColor="#7ea696" stopOpacity="0.5" />
-            <stop offset="100%" stopColor="#3b5a4e" stopOpacity="0" />
-          </radialGradient>
-          <radialGradient id="harwick-node-gold" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="#f3e3b6" stopOpacity="0.95" />
-            <stop offset="55%" stopColor="#d8c487" stopOpacity="0.5" />
-            <stop offset="100%" stopColor="#7a6b3c" stopOpacity="0" />
-          </radialGradient>
-          <radialGradient id="harwick-node-plum" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="#e5d7f5" stopOpacity="0.95" />
-            <stop offset="55%" stopColor="#a48fc8" stopOpacity="0.45" />
-            <stop offset="100%" stopColor="#4d3e6a" stopOpacity="0" />
-          </radialGradient>
-          <radialGradient id="harwick-halo" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="rgba(184,211,197,0.45)" />
-            <stop offset="100%" stopColor="rgba(184,211,197,0)" />
-          </radialGradient>
-        </defs>
-
-        {/* Central halo */}
-        <circle cx="160" cy="160" r="140" fill="url(#harwick-halo)" opacity="0.55" />
-
-        {/* Connecting lines between nodes — drawn first so nodes sit on top */}
-        {positions.length > 1
-          ? positions.map((pos, index) => {
-              if (index === 0) return null;
-              const head = positions[0]!;
-              return (
-                <motion.line
-                  key={`line-${index}`}
-                  initial={{ pathLength: 0, opacity: 0 }}
-                  animate={{ pathLength: 1, opacity: 0.35 }}
-                  transition={{ duration: 0.65, ease: "easeOut", delay: 0.05 * index }}
-                  x1={head.x}
-                  y1={head.y}
-                  x2={pos.x}
-                  y2={pos.y}
-                  stroke="rgba(184,211,197,0.45)"
-                  strokeWidth={1.1}
-                  strokeDasharray="3 5"
-                />
-              );
-            })
-          : null}
-
-        {/* The nodes themselves — glow + core stack per node */}
-        {positions.map((pos, index) => (
-          <motion.g
-            key={`node-${index}`}
-            initial={{ opacity: 0, scale: 0.4 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ type: "spring", stiffness: 160, damping: 22, delay: index * 0.04 }}
-          >
-            {/* Glow */}
-            <circle
-              cx={pos.x}
-              cy={pos.y}
-              r={pos.glow}
-              fill={`url(#harwick-node-${pos.kind})`}
-            />
-            {/* Core */}
-            <circle
-              cx={pos.x}
-              cy={pos.y}
-              r={pos.core}
-              fill={pos.kind === "sage" ? "#dceee4" : pos.kind === "gold" ? "#f3e3b6" : "#e5d7f5"}
-              opacity={0.9}
-            />
-            {/* Hairline ring */}
-            <circle
-              cx={pos.x}
-              cy={pos.y}
-              r={pos.core + 4}
-              fill="none"
-              stroke={pos.kind === "sage" ? "rgba(220,238,228,0.4)" : pos.kind === "gold" ? "rgba(243,227,182,0.4)" : "rgba(229,215,245,0.4)"}
-              strokeWidth={0.8}
-            />
-          </motion.g>
-        ))}
-      </svg>
-
-      {/* Scale label floating below the constellation */}
-      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-[10px] uppercase tracking-[0.18em] text-white/45">
-        {workspaceLabel(type ?? "other")}
-      </div>
-    </div>
-  );
-}
-
-type ConstellationNode = {
-  x: number;
-  y: number;
-  core: number;
-  glow: number;
-  kind: "sage" | "gold" | "plum";
-};
-
-function workspaceConstellation(type: WorkspaceType): ConstellationNode[] {
-  if (type === "solo") {
-    return [{ x: 160, y: 160, core: 14, glow: 92, kind: "gold" }];
-  }
-  if (type === "team") {
-    return [
-      { x: 160, y: 142, core: 12, glow: 78, kind: "gold" },
-      { x: 92, y: 196, core: 8, glow: 52, kind: "sage" },
-      { x: 230, y: 192, core: 8, glow: 52, kind: "sage" },
-      { x: 200, y: 92, core: 7, glow: 48, kind: "sage" },
-      { x: 116, y: 88, core: 7, glow: 48, kind: "sage" },
-    ];
-  }
-  if (type === "brokerage") {
-    return [
-      { x: 160, y: 160, core: 14, glow: 88, kind: "gold" },
-      { x: 76, y: 96, core: 9, glow: 56, kind: "sage" },
-      { x: 240, y: 96, core: 9, glow: 56, kind: "plum" },
-      { x: 220, y: 226, core: 9, glow: 56, kind: "sage" },
-      { x: 100, y: 226, core: 9, glow: 56, kind: "plum" },
-      { x: 60, y: 168, core: 5, glow: 36, kind: "sage" },
-      { x: 260, y: 168, core: 5, glow: 36, kind: "plum" },
-      { x: 162, y: 56, core: 5, glow: 36, kind: "sage" },
-      { x: 162, y: 264, core: 5, glow: 36, kind: "plum" },
-    ];
-  }
-  // other
-  return [
-    { x: 130, y: 130, core: 10, glow: 64, kind: "sage" },
-    { x: 200, y: 138, core: 8, glow: 52, kind: "gold" },
-    { x: 168, y: 200, core: 8, glow: 52, kind: "plum" },
-    { x: 96, y: 198, core: 6, glow: 42, kind: "sage" },
-  ];
-}
-
-function workspaceLabel(type: WorkspaceType): string {
-  if (type === "solo") return "1 operator";
-  if (type === "team") return "4–10 seats · 1 lead";
-  if (type === "brokerage") return "multi-office · routed";
-  return "custom shape";
-}
 
 // MarketMapVisual was a hand-drawn SVG placeholder. Replaced by the real
 // Mapbox-backed <MarketMap /> component in ./market-map.tsx, which geocodes
@@ -1269,51 +1111,6 @@ function WelcomeScene({ onNext }: { onNext: () => void }) {
   );
 }
 
-function WorkspaceTypeScene({
-  value,
-  onChange,
-  onNext,
-}: {
-  value: WorkspaceType | null;
-  onChange: (value: WorkspaceType) => void;
-  onNext: () => void;
-}) {
-  return (
-    <SceneFrame
-      eyebrow="workspace"
-      title="What kind of operation is this?"
-      description="Harwick changes its posture based on whether it is serving one agent, a team, or a brokerage."
-      visual={<WorkspaceTypeVisual type={value} />}
-      footer={
-        <>
-          <div className="grid grid-cols-2 gap-2">
-            {WORKSPACE_TYPE_OPTIONS.map((option) => {
-              const Icon = option.icon;
-              const selected = value === option.key;
-              return (
-                <GlassPanel key={option.key} selected={selected} onClick={() => onChange(option.key)} className="min-h-[132px]">
-                  <div className="flex items-start justify-between gap-2">
-                    <span className="flex size-10 items-center justify-center rounded-2xl bg-white/[0.06]">
-                      <Icon className="size-5 text-[#b8d3c5]" />
-                    </span>
-                    <SmallCheck selected={selected} />
-                  </div>
-                  <p className="mt-4 text-[13px] font-semibold text-white">{option.label}</p>
-                  <p className="mt-1 text-[11px] leading-4 text-white/45">{option.description}</p>
-                </GlassPanel>
-              );
-            })}
-          </div>
-          <PrimaryCta disabled={value === null} onClick={onNext}>
-            Continue
-            <ArrowRight className="size-4" aria-hidden="true" />
-          </PrimaryCta>
-        </>
-      }
-    />
-  );
-}
-
 function PrimaryAreasScene({
   areas,
   areaDraft,
@@ -1542,19 +1339,23 @@ function VoiceToneScene({
 }
 
 function ReplyExamplesScene({
+  workspaceId,
   examples,
   submitting,
   error,
   onUpdate,
   onAdd,
+  onAddBulk,
   onRemove,
   onSave,
 }: {
+  workspaceId: string;
   examples: string[];
   submitting: boolean;
   error: string | null;
   onUpdate: (index: number, value: string) => void;
   onAdd: () => void;
+  onAddBulk: (messages: string[]) => void;
   onRemove: (index: number) => void;
   onSave: () => void;
 }) {
@@ -1562,11 +1363,12 @@ function ReplyExamplesScene({
   return (
     <SceneFrame
       eyebrow="samples"
-      title="Show Harwick a real reply."
-      description="Paste one message you would actually send. Add more if you want a tighter voice match."
+      title="Show Harwick how you sound."
+      description="Paste real replies, or drop a screenshot of a past Instagram / SMS thread and Harwick will pull the messages out."
       visual={<VoiceVisual />}
       footer={
         <>
+          <ReplyExamplesUploadZone workspaceId={workspaceId} onExtracted={onAddBulk} />
           <div className="space-y-2">
             {examples.map((example, index) => (
               <div key={index} className="relative rounded-[24px] border border-white/10 bg-white/[0.055]">
@@ -1607,6 +1409,140 @@ function ReplyExamplesScene({
       }
     />
   );
+}
+
+type UploadState =
+  | { status: "idle" }
+  | { status: "uploading"; filename: string }
+  | { status: "done"; filename: string; count: number }
+  | { status: "error"; message: string };
+
+function ReplyExamplesUploadZone({
+  workspaceId,
+  onExtracted,
+}: {
+  workspaceId: string;
+  onExtracted: (messages: string[]) => void;
+}) {
+  const [state, setState] = useState<UploadState>({ status: "idle" });
+  const [dragActive, setDragActive] = useState(false);
+
+  async function upload(file: File) {
+    setState({ status: "uploading", filename: file.name });
+    const formData = new FormData();
+    formData.set("file", file);
+    try {
+      const response = await fetch(
+        `/api/workspaces/${workspaceId}/onboarding-step/reply-examples/extract`,
+        { method: "POST", body: formData },
+      );
+      if (!response.ok) {
+        const detail = (await response.json().catch(() => ({}))) as {
+          error?: string;
+          message?: string;
+        };
+        if (detail.error === "pdf_not_yet_supported") {
+          setState({ status: "error", message: "PDFs coming soon — paste the text for now." });
+          return;
+        }
+        if (detail.error === "vision_unavailable") {
+          setState({ status: "error", message: "Vision is offline. Paste the messages for now." });
+          return;
+        }
+        if (detail.error === "file_too_large") {
+          setState({ status: "error", message: "File over 12 MB. Try a smaller screenshot." });
+          return;
+        }
+        setState({ status: "error", message: detail.message ?? "Could not read that file." });
+        return;
+      }
+      const payload = (await response.json()) as { messages?: string[] };
+      const messages = (payload.messages ?? []).filter((message) => message.trim().length >= 4);
+      if (messages.length === 0) {
+        setState({ status: "error", message: "No agent messages found in that image." });
+        return;
+      }
+      onExtracted(messages);
+      setState({ status: "done", filename: file.name, count: messages.length });
+    } catch {
+      setState({ status: "error", message: "Upload failed. Try again." });
+    }
+  }
+
+  function handleFiles(files: FileList | null) {
+    const file = files?.item(0);
+    if (file === null || file === undefined) return;
+    void upload(file);
+  }
+
+  const isUploading = state.status === "uploading";
+
+  return (
+    <label
+      onDragOver={(event) => {
+        event.preventDefault();
+        if (!dragActive) setDragActive(true);
+      }}
+      onDragLeave={() => setDragActive(false)}
+      onDrop={(event) => {
+        event.preventDefault();
+        setDragActive(false);
+        handleFiles(event.dataTransfer.files);
+      }}
+      className={cn(
+        "group relative flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-[20px] border border-dashed px-4 py-5 text-center transition",
+        dragActive
+          ? "border-[#b8d3c5]/60 bg-[#b8d3c5]/[0.06]"
+          : "border-white/12 bg-white/[0.025] hover:border-white/22 hover:bg-white/[0.04]",
+      )}
+    >
+      <input
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/gif,text/plain"
+        className="sr-only"
+        disabled={isUploading}
+        onChange={(event) => handleFiles(event.target.files)}
+      />
+
+      {isUploading ? (
+        <div className="flex items-center gap-2 text-[12.5px] text-white/72">
+          <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+          <span>Reading {truncateFilename(state.filename)}…</span>
+        </div>
+      ) : state.status === "done" ? (
+        <>
+          <div className="flex items-center gap-2 text-[12.5px] font-medium text-[#b8d3c5]">
+            <Check className="size-3.5" aria-hidden="true" />
+            <span>Pulled {state.count} message{state.count === 1 ? "" : "s"} from {truncateFilename(state.filename)}</span>
+          </div>
+          <span className="text-[11px] text-white/45">Drop another or paste below.</span>
+        </>
+      ) : state.status === "error" ? (
+        <>
+          <div className="flex items-center gap-2 text-[12.5px] font-medium text-red-200">
+            <X className="size-3.5" aria-hidden="true" />
+            <span>{state.message}</span>
+          </div>
+          <span className="text-[11px] text-white/45">Try another file or paste below.</span>
+        </>
+      ) : (
+        <>
+          <div className="flex items-center gap-2 text-[13px] font-medium text-white">
+            <UploadCloud className="size-4 text-[#b8d3c5]" aria-hidden="true" />
+            <span>Drop a screenshot of a closed Instagram / SMS thread</span>
+          </div>
+          <span className="text-[11px] text-white/45">
+            Harwick reads the conversation and pulls your messages out · PNG, JPG, WEBP, or .txt
+          </span>
+        </>
+      )}
+    </label>
+  );
+}
+
+function truncateFilename(name: string): string {
+  if (name.length <= 32) return name;
+  return `${name.slice(0, 18)}…${name.slice(-10)}`;
 }
 
 function ChannelsScene({
@@ -1934,15 +1870,7 @@ export function OnboardingSetupPage(props: SetupPageProps) {
   return (
     <Shell scene={scene} onBack={scene === "welcome" ? null : goBack}>
       {scene === "welcome" ? (
-        <WelcomeScene onNext={() => setScene("workspace_type")} />
-      ) : null}
-
-      {scene === "workspace_type" ? (
-        <WorkspaceTypeScene
-          value={draft.workspaceType}
-          onChange={(workspaceType) => setDraft((current) => ({ ...current, workspaceType }))}
-          onNext={() => setScene("primary_areas")}
-        />
+        <WelcomeScene onNext={() => setScene("primary_areas")} />
       ) : null}
 
       {scene === "primary_areas" ? (
@@ -1992,6 +1920,7 @@ export function OnboardingSetupPage(props: SetupPageProps) {
 
       {scene === "reply_examples" ? (
         <ReplyExamplesScene
+          workspaceId={props.workspaceId}
           examples={draft.replyExamples}
           submitting={replySaving}
           error={replyError}
@@ -2000,6 +1929,15 @@ export function OnboardingSetupPage(props: SetupPageProps) {
             replyExamples: current.replyExamples.map((entry, position) => (position === index ? value : entry)),
           }))}
           onAdd={() => setDraft((current) => ({ ...current, replyExamples: [...current.replyExamples, ""] }))}
+          onAddBulk={(extracted) => setDraft((current) => {
+            // If the first slot is empty (initial state), drop it so we
+            // don't show a blank textarea above the extracted set.
+            const seed = current.replyExamples.length === 1 && current.replyExamples[0]?.trim().length === 0
+              ? []
+              : current.replyExamples;
+            const merged = [...seed, ...extracted];
+            return { ...current, replyExamples: merged.slice(0, 8) };
+          })}
           onRemove={(index) => setDraft((current) => ({
             ...current,
             replyExamples: current.replyExamples.filter((_, position) => position !== index),
