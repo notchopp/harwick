@@ -600,20 +600,8 @@ function WorkspaceTypeVisual({ type }: { type: WorkspaceType | null }) {
   const positions = workspaceConstellation(type ?? "other");
 
   return (
-    <div className="relative mx-auto aspect-[1.04] overflow-hidden rounded-[32px] border border-white/12 bg-[#06100c]">
-      {/* Atmospheric backdrop */}
-      <div
-        aria-hidden="true"
-        className="absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(circle at 50% 42%, rgba(184,211,197,0.35), transparent 58%),"
-            + "radial-gradient(circle at 18% 88%, rgba(216,196,135,0.18), transparent 60%),"
-            + "radial-gradient(circle at 88% 16%, rgba(168,148,210,0.16), transparent 55%)",
-        }}
-      />
-
-      {/* Geometric grain — subtle film texture made of tiny dots */}
+    <div className="relative mx-auto aspect-[1.04]">
+      {/* SVG sits directly on the page bg — no frame, no fill. */}
       <svg
         viewBox="0 0 320 320"
         className="absolute inset-0 size-full"
@@ -703,8 +691,8 @@ function WorkspaceTypeVisual({ type }: { type: WorkspaceType | null }) {
         ))}
       </svg>
 
-      {/* Scale label sitting on the constellation */}
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full border border-white/12 bg-black/35 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-white/65 backdrop-blur-md">
+      {/* Scale label floating below the constellation */}
+      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-[10px] uppercase tracking-[0.18em] text-white/45">
         {workspaceLabel(type ?? "other")}
       </div>
     </div>
@@ -774,21 +762,12 @@ function LeadTypeVisual({ selected }: { selected: string[] }) {
   // Each pick lights up a hand-positioned phosphor glyph with a colored
   // halo. Empty state shows a faint outline of all glyphs so the operator
   // gets a preview of the canvas.
-  return (
-    <div className="relative mx-auto aspect-[1.04] overflow-hidden rounded-[32px] border border-white/12 bg-[#06100c]">
-      {/* Atmospheric backdrop — sage core + warm corner accents */}
-      <div
-        aria-hidden="true"
-        className="absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(circle at 30% 30%, rgba(184,211,197,0.32), transparent 60%),"
-            + "radial-gradient(circle at 78% 76%, rgba(216,196,135,0.22), transparent 58%),"
-            + "radial-gradient(circle at 14% 88%, rgba(168,148,210,0.18), transparent 60%)",
-        }}
-      />
+  const glyphSize = 56;
+  const radiusPercent = 36; // % of container — distance from center to glyph center
 
-      {/* Concentric arcs — passive composition element, doesn't move */}
+  return (
+    <div className="relative mx-auto aspect-[1.04]">
+      {/* Concentric arcs — passive composition. SVG sits directly on bg. */}
       <svg viewBox="0 0 320 320" className="absolute inset-0 size-full" aria-hidden="true">
         <defs>
           <radialGradient id="lead-canvas-halo" cx="50%" cy="50%" r="50%">
@@ -797,27 +776,37 @@ function LeadTypeVisual({ selected }: { selected: string[] }) {
           </radialGradient>
         </defs>
         <circle cx="160" cy="160" r="120" fill="url(#lead-canvas-halo)" />
-        <circle cx="160" cy="160" r="84" fill="none" stroke="rgba(184,211,197,0.12)" strokeWidth="0.6" />
-        <circle cx="160" cy="160" r="124" fill="none" stroke="rgba(184,211,197,0.08)" strokeWidth="0.6" strokeDasharray="2 6" />
+        <circle cx="160" cy="160" r="116" fill="none" stroke="rgba(184,211,197,0.18)" strokeWidth="0.6" strokeDasharray="2 6" />
+        <circle cx="160" cy="160" r="70" fill="none" stroke="rgba(184,211,197,0.1)" strokeWidth="0.6" />
       </svg>
 
-      {/* Glyphs positioned around the canvas */}
+      {/* Glyphs evenly distributed around the circle, clock-style starting
+       *  at the top. Order matches LEAD_TYPE_OPTIONS so the operator can
+       *  follow their toggles below to the position above. */}
       <div className="absolute inset-0">
-        {LEAD_GLYPH_POSITIONS.map((entry) => {
+        {LEAD_GLYPH_ENTRIES.map((entry, index) => {
           const isActive = selected.includes(entry.key);
           const Icon = entry.icon;
+          const angle = (index / LEAD_GLYPH_ENTRIES.length) * Math.PI * 2 - Math.PI / 2;
+          const xPercent = 50 + Math.cos(angle) * radiusPercent;
+          const yPercent = 50 + Math.sin(angle) * radiusPercent;
+
           return (
             <motion.div
               key={entry.key}
-              className="absolute flex items-center justify-center"
-              style={{ left: entry.x, top: entry.y, width: entry.size, height: entry.size }}
+              className="absolute flex -translate-x-1/2 -translate-y-1/2 items-center justify-center"
+              style={{
+                left: `${xPercent}%`,
+                top: `${yPercent}%`,
+                width: glyphSize,
+                height: glyphSize,
+              }}
               initial={{ scale: 0.6, opacity: 0 }}
               animate={{
-                scale: isActive ? 1 : 0.78,
-                opacity: isActive ? 1 : 0.18,
-                filter: isActive ? "blur(0px)" : "blur(0.4px)",
+                scale: isActive ? 1 : 0.82,
+                opacity: isActive ? 1 : 0.22,
               }}
-              transition={{ type: "spring", stiffness: 200, damping: 24 }}
+              transition={{ type: "spring", stiffness: 220, damping: 24 }}
             >
               {isActive ? (
                 <span
@@ -832,7 +821,7 @@ function LeadTypeVisual({ selected }: { selected: string[] }) {
                   borderColor: isActive ? `${entry.glow}aa` : "rgba(255,255,255,0.08)",
                   background: isActive
                     ? `linear-gradient(160deg, ${entry.glow}33, ${entry.glow}10)`
-                    : "rgba(255,255,255,0.02)",
+                    : "rgba(255,255,255,0.025)",
                   boxShadow: isActive
                     ? `inset 0 1px 0 rgba(255,255,255,0.15), 0 12px 24px -10px ${entry.glow}66`
                     : "inset 0 1px 0 rgba(255,255,255,0.04)",
@@ -849,8 +838,8 @@ function LeadTypeVisual({ selected }: { selected: string[] }) {
         })}
       </div>
 
-      {/* Tiny count label */}
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full border border-white/12 bg-black/35 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-white/65 backdrop-blur-md">
+      {/* Count label floating below the circle */}
+      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-[10px] uppercase tracking-[0.18em] text-white/45">
         {selected.length === 0 ? "pick what you handle" : `${selected.length} lead type${selected.length === 1 ? "" : "s"}`}
       </div>
     </div>
@@ -860,23 +849,20 @@ function LeadTypeVisual({ selected }: { selected: string[] }) {
 type LeadGlyphEntry = {
   key: string;
   icon: PhosphorIcon;
-  x: string;
-  y: string;
-  size: number;
   glow: string;
 };
 
-// Position glyphs around the canvas. Larger glyphs for high-frequency lead
-// types (buyer/seller), smaller for niche (open house). All in % so they
-// scale with the viewport.
-const LEAD_GLYPH_POSITIONS: ReadonlyArray<LeadGlyphEntry> = [
-  { key: "buyer", icon: PhosphorKey, x: "16%", y: "22%", size: 58, glow: "#b8d3c5" },
-  { key: "seller", icon: PhosphorHouseLine, x: "62%", y: "18%", size: 62, glow: "#d8c487" },
-  { key: "renter", icon: PhosphorDoor, x: "8%", y: "62%", size: 52, glow: "#a4c4d8" },
-  { key: "investor", icon: PhosphorChartLineUp, x: "70%", y: "60%", size: 60, glow: "#c9b9e0" },
-  { key: "new construction", icon: PhosphorHardHat, x: "42%", y: "72%", size: 50, glow: "#e0b8a4" },
-  { key: "open house", icon: PhosphorCalendarHeart, x: "44%", y: "8%", size: 48, glow: "#b8d3c5" },
-  { key: "showing request", icon: PhosphorMapPin, x: "30%", y: "44%", size: 46, glow: "#d8c487" },
+// Order matters — glyphs render around the clock starting at 12 and going
+// clockwise. Keep this aligned with LEAD_TYPE_OPTIONS so the toggle list
+// position maps to the canvas position.
+const LEAD_GLYPH_ENTRIES: ReadonlyArray<LeadGlyphEntry> = [
+  { key: "buyer", icon: PhosphorKey, glow: "#b8d3c5" },
+  { key: "seller", icon: PhosphorHouseLine, glow: "#d8c487" },
+  { key: "investor", icon: PhosphorChartLineUp, glow: "#c9b9e0" },
+  { key: "new construction", icon: PhosphorHardHat, glow: "#e0b8a4" },
+  { key: "showing request", icon: PhosphorMapPin, glow: "#d8c487" },
+  { key: "open house", icon: PhosphorCalendarHeart, glow: "#b8d3c5" },
+  { key: "renter", icon: PhosphorDoor, glow: "#a4c4d8" },
 ];
 
 function PriceBandVisual({ selected }: { selected: string[] }) {
@@ -1051,18 +1037,8 @@ function ChannelVisual({ channels }: { channels: Record<OnboardingChannel, Chann
   // ghost outline, draft → thin column, approve → fuller column, auto →
   // full + a halo arc spreading from the tower's top.
   return (
-    <div className="relative mx-auto aspect-[1.04] overflow-hidden rounded-[32px] border border-white/12 bg-[#06100c]">
-      {/* Atmospheric backdrop */}
-      <div
-        aria-hidden="true"
-        className="absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(circle at 50% 0%, rgba(184,211,197,0.3), transparent 55%),"
-            + "radial-gradient(circle at 50% 100%, rgba(7,17,13,0.85), transparent 60%)",
-        }}
-      />
-
+    <div className="relative mx-auto aspect-[1.04]">
+      {/* SVG sits directly on the page bg — no card frame. */}
       <svg viewBox="0 0 320 320" className="absolute inset-0 size-full" aria-hidden="true">
         <defs>
           <linearGradient id="harwick-tower-sage" x1="0%" y1="0%" x2="0%" y2="100%">
@@ -1150,7 +1126,7 @@ function ChannelVisual({ channels }: { channels: Record<OnboardingChannel, Chann
         })}
       </div>
 
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full border border-white/12 bg-black/35 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-white/65 backdrop-blur-md">
+      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-[10px] uppercase tracking-[0.18em] text-white/45">
         {channelLabel(channels)}
       </div>
     </div>
