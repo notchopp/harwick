@@ -107,6 +107,31 @@ const SCENE_ORDER: ReadonlyArray<SceneKey> = [
   "done",
 ];
 
+type PhaseKey = "welcome" | "market" | "voice" | "rules" | "connect" | "done";
+
+const SCENE_TO_PHASE: Record<SceneKey, PhaseKey> = {
+  welcome: "welcome",
+  primary_areas: "market",
+  lead_types: "market",
+  price_bands: "market",
+  listing_focus: "market",
+  voice_tone: "voice",
+  reply_examples: "voice",
+  channels: "rules",
+  autonomy: "rules",
+  activation: "connect",
+  done: "done",
+};
+
+const PHASE_LABELS: Record<PhaseKey, string> = {
+  welcome: "",
+  market: "Tell us about your market",
+  voice: "Teach Harwick your voice",
+  rules: "Set your rules",
+  connect: "Connect",
+  done: "",
+};
+
 const HARWICK_GLOW = {
   base:
     "radial-gradient(circle at 50% 18%, rgba(191,221,207,0.5), transparent 35%),"
@@ -418,7 +443,21 @@ function Shell({
         </div>
 
         {scene !== "welcome" && scene !== "done" ? (
-          <StepDots current={currentIndex} total={SCENE_ORDER.length} />
+          <div className="space-y-2">
+            <div className="text-center text-[10.5px] uppercase tracking-[0.18em] text-white/40">
+              {PHASE_LABELS[SCENE_TO_PHASE[scene]]}
+            </div>
+            <StepDots current={currentIndex} total={SCENE_ORDER.length} />
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={() => window.location.assign("/home")}
+                className="text-[10.5px] font-medium uppercase tracking-[0.12em] text-white/35 transition hover:text-white/65"
+              >
+                Finish later
+              </button>
+            </div>
+          </div>
         ) : null}
       </div>
     </main>
@@ -1845,19 +1884,19 @@ function ActivationScene({
 }) {
   return (
     <SceneFrame
-      eyebrow="activate"
-      title="This is the live launch path."
-      description="Harwick keeps these as operational cards after setup, not another onboarding form."
+      eyebrow="connect"
+      title="One last thing — turn Harwick on."
+      description="Connect the channels you picked. Harwick can't read a single lead until at least one is live."
       visual={<ActivationVisual planTier={planTier} operatorRole={operatorRole} />}
       footer={
         <>
           <div className="rounded-[22px] border border-white/10 bg-white/[0.045] p-3">
             <div className="flex items-center gap-2 text-[12px] font-medium text-white">
               <Bell className="size-4 text-[#b8d3c5]" />
-              Home and Settings should carry this checklist forward.
+              You can finish this from Settings later.
             </div>
             <p className="mt-1 text-[11.5px] leading-5 text-white/45">
-              Next pass should wire each card to its exact Settings or Integrations route.
+              Each connector lives in Settings → Integrations after setup. Connect what you have now; come back for the rest.
             </p>
           </div>
           <PrimaryCta onClick={onNext}>
