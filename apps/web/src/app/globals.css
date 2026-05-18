@@ -197,6 +197,29 @@ body {
   line-height: 1.45;
 }
 
+/* iOS bounces the body when content tries to scroll past its edges, and
+ * the rubber-band reveals whatever's underneath. Onboarding is a locked
+ * single-screen flow — nothing should scroll except an internal area.
+ * Apply to the onboarding shell + auth pages so the page never moves
+ * while the keyboard is open. */
+[data-fixed-viewport="true"] {
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: auto;
+}
+
+/* iOS Safari zooms when a focused <input> is smaller than 16px. That's
+ * the source of the keyboard-pop-distortion. Force 16px minimum on all
+ * inputs inside onboarding + auth without disturbing visual sizing on
+ * desktop — the visual size already chooses larger fonts where wanted. */
+[data-fixed-viewport="true"] input,
+[data-fixed-viewport="true"] textarea,
+[data-fixed-viewport="true"] select {
+  font-size: max(16px, 1em);
+}
+
 button,
 input,
 textarea,

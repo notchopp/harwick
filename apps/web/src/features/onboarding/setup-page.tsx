@@ -397,10 +397,18 @@ function Shell({
 }) {
   const currentIndex = SCENE_ORDER.indexOf(scene);
 
+  const isFlowScene = scene !== "welcome" && scene !== "done";
+
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#070d0b] text-white">
-      {/* Static atmospheric backdrop — single composed gradient, no animation.
-       *  Premium feel comes from stillness, not motion. */}
+    <main
+      data-fixed-viewport="true"
+      className="relative bg-[#070d0b] text-white"
+      style={{
+        paddingTop: "env(safe-area-inset-top)",
+        paddingBottom: "env(safe-area-inset-bottom)",
+      }}
+    >
+      {/* Static atmospheric backdrop */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0"
@@ -411,23 +419,32 @@ function Shell({
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,transparent_30%,rgba(0,0,0,0.58)_84%)]"
       />
 
-      <div className="relative mx-auto flex min-h-screen w-full max-w-[520px] flex-col px-5 py-6">
-        <header className="flex items-center">
+      <div className="relative mx-auto flex h-full w-full max-w-[520px] flex-col px-5">
+        <header className="flex items-center justify-between pt-3 pb-1">
           <button
             type="button"
             onClick={onBack ?? undefined}
             disabled={onBack === null}
             aria-label="Back"
             className={cn(
-              "flex size-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white/70 transition",
+              "flex size-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white/70 transition",
               onBack === null ? "opacity-0 pointer-events-none" : "hover:bg-white/[0.08] hover:text-white",
             )}
           >
             <ArrowLeft className="size-4" aria-hidden="true" />
           </button>
+          {isFlowScene ? (
+            <button
+              type="button"
+              onClick={() => window.location.assign("/home")}
+              className="text-[10.5px] font-medium uppercase tracking-[0.12em] text-white/40 transition hover:text-white/75"
+            >
+              Finish later
+            </button>
+          ) : null}
         </header>
 
-        <div className="flex flex-1 items-center py-6">
+        <div className="flex flex-1 items-center overflow-y-auto py-3">
           <AnimatePresence mode="wait">
             <motion.section
               key={scene}
@@ -442,21 +459,12 @@ function Shell({
           </AnimatePresence>
         </div>
 
-        {scene !== "welcome" && scene !== "done" ? (
-          <div className="space-y-2">
+        {isFlowScene ? (
+          <div className="space-y-1.5 pb-2">
             <div className="text-center text-[10.5px] uppercase tracking-[0.18em] text-white/40">
               {PHASE_LABELS[SCENE_TO_PHASE[scene]]}
             </div>
             <StepDots current={currentIndex} total={SCENE_ORDER.length} />
-            <div className="text-center">
-              <button
-                type="button"
-                onClick={() => window.location.assign("/home")}
-                className="text-[10.5px] font-medium uppercase tracking-[0.12em] text-white/35 transition hover:text-white/65"
-              >
-                Finish later
-              </button>
-            </div>
           </div>
         ) : null}
       </div>

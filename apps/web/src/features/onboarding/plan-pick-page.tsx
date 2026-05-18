@@ -120,7 +120,14 @@ export function PlanPickPage({ defaultWorkspaceName }: { defaultWorkspaceName: s
   }
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#0a0d0f] px-5 py-10 text-white">
+    <main
+      data-fixed-viewport="true"
+      className="relative bg-[#0a0d0f] px-5 text-white"
+      style={{
+        paddingTop: "max(env(safe-area-inset-top), 24px)",
+        paddingBottom: "max(env(safe-area-inset-bottom), 24px)",
+      }}
+    >
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 opacity-60"
@@ -131,7 +138,7 @@ export function PlanPickPage({ defaultWorkspaceName }: { defaultWorkspaceName: s
         }}
       />
 
-      <div className="relative mx-auto flex min-h-[calc(100vh-80px)] w-full max-w-[460px] flex-col justify-center">
+      <div className="relative mx-auto flex h-full w-full max-w-[460px] flex-col justify-center overflow-y-auto">
         <motion.div
           initial={{ opacity: 0, scale: 0.85, y: -8 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
