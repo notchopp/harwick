@@ -40,12 +40,14 @@ create table if not exists public.usage_events (
 alter table public.workspace_usage_wallet enable row level security;
 alter table public.usage_events enable row level security;
 
+drop policy if exists "workspace members can read usage wallet" on public.workspace_usage_wallet;
 create policy "workspace members can read usage wallet"
 on public.workspace_usage_wallet
 for select
 to authenticated
 using (public.is_workspace_member(workspace_id));
 
+drop policy if exists "workspace admins can read usage events" on public.usage_events;
 create policy "workspace admins can read usage events"
 on public.usage_events
 for select

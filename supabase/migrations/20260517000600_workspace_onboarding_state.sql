@@ -16,6 +16,7 @@ create table if not exists public.workspace_onboarding_state (
 
 alter table public.workspace_onboarding_state enable row level security;
 
+drop policy if exists "workspace_onboarding_state_member_select" on public.workspace_onboarding_state;
 create policy "workspace_onboarding_state_member_select"
   on public.workspace_onboarding_state
   for select
@@ -45,6 +46,7 @@ create index if not exists workspace_reply_examples_workspace_idx
 
 alter table public.workspace_reply_examples enable row level security;
 
+drop policy if exists "workspace_reply_examples_member_select" on public.workspace_reply_examples;
 create policy "workspace_reply_examples_member_select"
   on public.workspace_reply_examples
   for select
@@ -73,6 +75,7 @@ create index if not exists workspace_channel_intents_workspace_idx
 
 alter table public.workspace_channel_intents enable row level security;
 
+drop policy if exists "workspace_channel_intents_member_select" on public.workspace_channel_intents;
 create policy "workspace_channel_intents_member_select"
   on public.workspace_channel_intents
   for select

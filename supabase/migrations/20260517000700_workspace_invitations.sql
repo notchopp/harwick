@@ -27,6 +27,7 @@ alter table public.workspace_invitations enable row level security;
 -- Members of the workspace can read invitations for their workspace (so the
 -- /team page can list pending invites). Writes go through service role from
 -- the API routes, which check role permissions explicitly.
+drop policy if exists "workspace_invitations_member_select" on public.workspace_invitations;
 create policy "workspace_invitations_member_select"
   on public.workspace_invitations
   for select
