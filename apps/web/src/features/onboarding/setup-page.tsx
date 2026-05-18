@@ -755,31 +755,61 @@ function PriceBandVisual({ selected }: { selected: string[] }) {
 }
 
 function FocusVisual({ selected }: { selected: string[] }) {
-  const active = LISTING_FOCUS_OPTIONS.filter((option) => selected.includes(option.key)).slice(0, 3);
-  const display = active.length > 0 ? active : LISTING_FOCUS_OPTIONS.slice(0, 3);
+  // Concentric ring composition — selected focuses light up around a
+  // central H. No card mockups (those added hierarchy that didn't
+  // exist in the data). The ring fills clockwise as picks come in.
+  const total = LISTING_FOCUS_OPTIONS.length;
   return (
-    <div className="relative mx-auto aspect-[1.04] rounded-[38px] border border-white/10 bg-white/[0.055] p-5">
-      <div className="absolute inset-10 rounded-full bg-[#b8d3c5]/14 blur-3xl" />
-      <div className="relative flex h-full flex-col justify-center gap-3">
-        {display.map((option, index) => {
-          const Icon = option.icon;
+    <div className="relative mx-auto aspect-square w-full max-w-[320px]">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-1/4 rounded-full bg-[#b8d3c5]/16 blur-2xl"
+      />
+      <svg viewBox="0 0 320 320" className="absolute inset-0 size-full" aria-hidden="true">
+        {/* Outer track ring */}
+        <circle cx="160" cy="160" r="120" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
+        {/* Inner contour ring */}
+        <circle cx="160" cy="160" r="58" fill="none" stroke="rgba(184,211,197,0.18)" strokeWidth="1" />
+
+        {LISTING_FOCUS_OPTIONS.map((option, index) => {
+          const angle = (index / total) * 2 * Math.PI - Math.PI / 2;
+          const cx = 160 + Math.cos(angle) * 120;
+          const cy = 160 + Math.sin(angle) * 120;
+          const active = selected.includes(option.key);
           return (
-            <motion.div
+            <motion.circle
               key={option.key}
-              className="flex items-center gap-3 rounded-[22px] border border-white/10 bg-[#07100d]/42 p-3"
-              animate={{ x: index === 1 ? [0, 7, 0] : [0, -5, 0] }}
-              transition={{ duration: 6 + index, repeat: Infinity, ease: "easeInOut" }}
-            >
-              <span className="flex size-11 items-center justify-center rounded-2xl bg-[#b8d3c5]/14">
-                <Icon className="size-5 text-[#b8d3c5]" />
-              </span>
-              <span>
-                <span className="block text-[13px] font-semibold text-white">{option.label}</span>
-                <span className="block text-[11px] text-white/45">{option.description}</span>
-              </span>
-            </motion.div>
+              cx={cx}
+              cy={cy}
+              animate={{
+                r: active ? 8 : 3.5,
+                opacity: active ? 1 : 0.32,
+              }}
+              transition={{ type: "spring", stiffness: 220, damping: 22 }}
+              fill={active ? "#b8d3c5" : "rgba(255,255,255,0.35)"}
+              style={{
+                filter: active ? "drop-shadow(0 0 12px rgba(184,211,197,0.6))" : "none",
+              }}
+            />
           );
         })}
+
+        {/* Center H */}
+        <g>
+          <rect x="138" y="138" width="44" height="44" rx="12" fill="#0c1612" stroke="rgba(184,211,197,0.45)" strokeWidth="1" />
+          <path
+            d="M148 148 L148 172 M172 148 L172 172 M148 160 L172 160"
+            stroke="#b8d3c5"
+            strokeWidth="3.6"
+            strokeLinecap="round"
+          />
+        </g>
+      </svg>
+
+      <div className="absolute inset-x-0 bottom-3 text-center text-[10.5px] uppercase tracking-[0.18em] text-white/45">
+        {selected.length === 0
+          ? "pick what makes a listing special"
+          : `${selected.length} of ${total} active`}
       </div>
     </div>
   );
@@ -888,169 +918,139 @@ function renderToneSample(toneDescription: string): string {
 }
 
 function ChannelVisual({ channels }: { channels: Record<OnboardingChannel, ChannelMode> }) {
-  // Signal-tower composition. Each channel becomes a vertical "tower"
-  // standing on the floor of the canvas. Mode controls intensity: off →
-  // ghost outline, draft → thin column, approve → fuller column, auto →
-  // full + a halo arc spreading from the tower's top.
+  // "Harwick box" — a literal rendered box on the bg (no SceneFrame
+  // container, just the lid + body). Active channels drop into it as
+  // stacked cards, each card peeking out from behind the next using
+  // the afroplus card-stack DNA: i*11px translateY, scale 1 - i*0.04,
+  // hairline shadow falloff per layer.
+  const activeChannels = CHANNEL_OPTIONS.filter((option) => channels[option.key] !== "off");
+
   return (
-    <div className="relative mx-auto aspect-[1.04]">
-      {/* SVG sits directly on the page bg — no card frame. */}
-      <svg viewBox="0 0 320 320" className="absolute inset-0 size-full" aria-hidden="true">
-        <defs>
-          <linearGradient id="harwick-tower-sage" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#dceee4" stopOpacity="1" />
-            <stop offset="100%" stopColor="#3b5a4e" stopOpacity="0.05" />
-          </linearGradient>
-          <linearGradient id="harwick-tower-gold" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#f3e3b6" stopOpacity="1" />
-            <stop offset="100%" stopColor="#7a6b3c" stopOpacity="0.05" />
-          </linearGradient>
-          <radialGradient id="harwick-signal-halo" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="rgba(216,196,135,0.6)" />
-            <stop offset="60%" stopColor="rgba(216,196,135,0.1)" />
-            <stop offset="100%" stopColor="rgba(216,196,135,0)" />
-          </radialGradient>
-          <radialGradient id="harwick-floor-glow" cx="50%" cy="100%" r="60%">
-            <stop offset="0%" stopColor="rgba(184,211,197,0.5)" />
-            <stop offset="100%" stopColor="rgba(184,211,197,0)" />
-          </radialGradient>
-        </defs>
+    <div className="relative mx-auto aspect-square w-full max-w-[320px]">
+      {/* Ambient floor wash so the box doesn't float in dead space */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-2/3"
+        style={{
+          background: "radial-gradient(60% 60% at 50% 90%, rgba(184,211,197,0.16), transparent 70%)",
+        }}
+      />
 
-        {/* Floor glow */}
-        <rect x="0" y="240" width="320" height="80" fill="url(#harwick-floor-glow)" />
-
-        {/* Horizon line */}
-        <line x1="20" y1="248" x2="300" y2="248" stroke="rgba(184,211,197,0.18)" strokeWidth="0.6" strokeDasharray="2 5" />
-
-        {/* Render each channel as a tower along the floor */}
-        {CHANNEL_OPTIONS.map((option, index) => {
-          const mode = channels[option.key];
-          const x = 38 + index * 60; // 5 channels spread evenly across 320 viewBox
-          return <ChannelTower key={option.key} centerX={x} mode={mode} />;
-        })}
-      </svg>
-
-      {/* Icons sitting atop each tower */}
-      <div className="absolute inset-0">
-        {CHANNEL_OPTIONS.map((option, index) => {
-          const mode = channels[option.key];
-          const active = mode !== "off";
-          const Icon = option.icon;
-          const xPercent = ((38 + index * 60) / 320) * 100;
-          const yPercent = active ? (mode === "auto_send" ? 18 : mode === "approval_first" ? 28 : 38) : 60;
-          return (
-            <motion.div
-              key={option.key}
-              className="absolute flex size-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-[10px] border backdrop-blur-md"
-              style={{
-                left: `${xPercent}%`,
-                top: `${yPercent}%`,
-                background: active
-                  ? mode === "auto_send"
-                    ? "rgba(216,196,135,0.22)"
-                    : "rgba(184,211,197,0.18)"
-                  : "rgba(255,255,255,0.04)",
-                borderColor: active
-                  ? mode === "auto_send"
-                    ? "rgba(216,196,135,0.55)"
-                    : "rgba(184,211,197,0.4)"
-                  : "rgba(255,255,255,0.1)",
-                boxShadow: active
-                  ? `0 14px 30px -12px ${mode === "auto_send" ? "rgba(216,196,135,0.55)" : "rgba(184,211,197,0.5)"}`
-                  : "none",
-              }}
-              animate={{
-                left: `${xPercent}%`,
-                top: `${yPercent}%`,
-                scale: active ? 1 : 0.85,
-                opacity: active ? 1 : 0.35,
-              }}
-              transition={{ type: "spring", stiffness: 220, damping: 24 }}
-            >
-              <Icon
-                className="size-4"
-                style={{
-                  color: active
-                    ? mode === "auto_send"
-                      ? "#f3e3b6"
-                      : "#dceee4"
-                    : "rgba(255,255,255,0.4)",
-                }}
-              />
-            </motion.div>
-          );
-        })}
+      {/* Box body — drawn in CSS, no <svg>. Lid sits slightly proud,
+       *  back panel taller so cards can "peek" above the front edge. */}
+      <div className="absolute inset-x-6 bottom-6 top-[42%]">
+        {/* Back panel */}
+        <div
+          className="absolute inset-x-0 bottom-0 rounded-[20px] border border-white/12"
+          style={{
+            top: "8%",
+            background:
+              "linear-gradient(180deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.015) 100%)",
+            boxShadow:
+              "inset 0 1px 0 rgba(255,255,255,0.06), 0 30px 60px -28px rgba(0,0,0,0.7)",
+          }}
+        />
+        {/* Front panel (slightly forward, shorter — creates the "peek out
+         *  the back" pocket where stacked cards live) */}
+        <div
+          className="absolute inset-x-0 bottom-0 rounded-[20px] border border-white/14"
+          style={{
+            top: "32%",
+            background:
+              "linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(184,211,197,0.04) 100%)",
+            boxShadow:
+              "inset 0 1px 0 rgba(255,255,255,0.08), 0 20px 40px -20px rgba(0,0,0,0.55)",
+          }}
+        />
+        {/* Harwick mark on the front of the box */}
+        <div className="absolute left-1/2 bottom-3 -translate-x-1/2 text-[10px] font-semibold uppercase tracking-[0.32em] text-[#b8d3c5]/55">
+          harwick
+        </div>
       </div>
 
-      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-[10px] uppercase tracking-[0.18em] text-white/45">
-        {channelLabel(channels)}
+      {/* The stack itself. Cards live in a layer above the box back, below
+       *  the box front. Top card pops forward; rest peek out staggered. */}
+      <div className="absolute inset-x-10 top-[12%] h-[44%]">
+        <AnimatePresence initial={false}>
+          {activeChannels.map((option, index) => {
+            const mode = channels[option.key];
+            const Icon = option.icon;
+            const stackIndex = activeChannels.length - 1 - index;
+            const isTop = stackIndex === 0;
+            const isGold = mode === "auto_send";
+            const accent = isGold ? "#d8c487" : "#b8d3c5";
+
+            return (
+              <motion.div
+                key={option.key}
+                layout
+                initial={{ opacity: 0, y: -40, rotate: -6 }}
+                animate={{
+                  opacity: 1 - stackIndex * 0.12,
+                  y: stackIndex * 11,
+                  scale: 1 - stackIndex * 0.04,
+                  rotate: 0,
+                }}
+                exit={{ opacity: 0, y: -32, rotate: 5 }}
+                transition={{ type: "spring", stiffness: 200, damping: 24 }}
+                className="absolute inset-x-0 top-0 overflow-hidden rounded-[16px] border px-4 py-3 backdrop-blur-md"
+                style={{
+                  zIndex: 10 + activeChannels.length - stackIndex,
+                  background: isTop
+                    ? `linear-gradient(180deg, rgba(255,255,255,0.10) 0%, ${accent}11 100%)`
+                    : "rgba(255,255,255,0.06)",
+                  borderColor: isTop ? `${accent}55` : "rgba(255,255,255,0.12)",
+                  boxShadow: isTop
+                    ? `0 24px 50px -22px ${accent}55, 0 0 0 1px ${accent}33`
+                    : "0 18px 36px -22px rgba(0,0,0,0.55)",
+                }}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <span
+                      className="flex size-8 items-center justify-center rounded-[10px]"
+                      style={{ background: `${accent}22`, color: accent }}
+                    >
+                      <Icon className="size-4" />
+                    </span>
+                    <div className="flex flex-col leading-tight">
+                      <span className="text-[12.5px] font-semibold text-white">{option.label}</span>
+                      <span className="text-[10px] uppercase tracking-[0.14em] text-white/45">
+                        {modeShortLabel(mode)}
+                      </span>
+                    </div>
+                  </div>
+                  {isGold ? (
+                    <span
+                      className="rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em]"
+                      style={{ background: `${accent}22`, color: accent }}
+                    >
+                      auto
+                    </span>
+                  ) : null}
+                </div>
+              </motion.div>
+            );
+          })}
+        </AnimatePresence>
+
+        {activeChannels.length === 0 ? (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="text-[11px] uppercase tracking-[0.18em] text-white/35">
+              empty box · pick a channel
+            </span>
+          </div>
+        ) : null}
       </div>
     </div>
   );
 }
 
-function ChannelTower({ centerX, mode }: { centerX: number; mode: ChannelMode }) {
-  const active = mode !== "off";
-  const baseY = 248;
-  // Tower height by mode
-  const topY = mode === "auto_send" ? 60 : mode === "approval_first" ? 92 : mode === "suggest_only" ? 128 : 200;
-  const towerWidth = 8;
-  const isGold = mode === "auto_send";
-  const fillId = isGold ? "harwick-tower-gold" : "harwick-tower-sage";
-
-  return (
-    <motion.g
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.4 }}
-    >
-      {/* Auto-mode halo */}
-      {mode === "auto_send" ? (
-        <circle cx={centerX} cy={topY} r="44" fill="url(#harwick-signal-halo)" opacity="0.85" />
-      ) : null}
-
-      {/* Tower column */}
-      <motion.rect
-        x={centerX - towerWidth / 2}
-        width={towerWidth}
-        rx="3"
-        fill={active ? `url(#${fillId})` : "rgba(255,255,255,0.08)"}
-        stroke={active ? (isGold ? "rgba(243,227,182,0.5)" : "rgba(220,238,228,0.45)") : "rgba(255,255,255,0.08)"}
-        strokeWidth="0.6"
-        initial={{ y: baseY, height: 0 }}
-        animate={{ y: topY, height: baseY - topY }}
-        transition={{ type: "spring", stiffness: 140, damping: 22 }}
-      />
-
-      {/* Approve mode — single mid arc */}
-      {mode === "approval_first" ? (
-        <motion.circle
-          cx={centerX}
-          cy={topY}
-          r="18"
-          fill="none"
-          stroke="rgba(220,238,228,0.45)"
-          strokeWidth="0.8"
-          initial={{ pathLength: 0, opacity: 0 }}
-          animate={{ pathLength: 1, opacity: 0.8 }}
-          transition={{ duration: 0.6 }}
-        />
-      ) : null}
-
-      {/* Base disc */}
-      {active ? (
-        <ellipse
-          cx={centerX}
-          cy={baseY + 2}
-          rx={14}
-          ry={3}
-          fill={isGold ? "rgba(243,227,182,0.4)" : "rgba(220,238,228,0.35)"}
-        />
-      ) : (
-        <ellipse cx={centerX} cy={baseY + 2} rx={10} ry={2.2} fill="rgba(255,255,255,0.08)" />
-      )}
-    </motion.g>
-  );
+function modeShortLabel(mode: ChannelMode): string {
+  if (mode === "auto_send") return "auto-send";
+  if (mode === "approval_first") return "approve before send";
+  if (mode === "suggest_only") return "draft only";
+  return "off";
 }
 
 function channelLabel(channels: Record<OnboardingChannel, ChannelMode>): string {
@@ -1062,21 +1062,126 @@ function channelLabel(channels: Record<OnboardingChannel, ChannelMode>): string 
 }
 
 function AutonomyVisual({ autonomy }: { autonomy: SetupDraft["autonomy"] }) {
-  const rotation = autonomy === "draft" ? -48 : autonomy === "approval" ? 0 : 48;
+  // Talking-state SVG. Harwick (H glyph) on the left, chat bubble on the
+  // right. Dial position changes what Harwick is doing:
+  //   draft       → silent · bubble shows pulsing "..."
+  //   approval    → holding · bubble shows a paper plane held back
+  //   safe_auto   → sending · paper plane mid-flight with a motion trail
+  const state = autonomy === "draft" ? "silent" : autonomy === "approval" ? "holding" : "sending";
+  const accent = state === "sending" ? "#d8c487" : "#b8d3c5";
   return (
-    <div className="relative aspect-square rounded-[38px] border border-white/10 bg-white/[0.055] p-7">
-      <div className="absolute inset-12 rounded-full border border-white/10" />
-      <div className="absolute inset-20 rounded-full bg-[#b8d3c5]/12 blur-2xl" />
-      <motion.div
-        className="absolute left-1/2 top-1/2 h-32 w-2 origin-bottom rounded-full bg-[#d8c487]"
-        animate={{ rotate: rotation }}
-        transition={{ type: "spring", stiffness: 120, damping: 16 }}
-        style={{ translateX: "-50%", translateY: "-100%" }}
+    <div className="relative aspect-square w-full max-w-[320px] mx-auto">
+      {/* Ambient halo behind Harwick */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 top-1/4 h-1/2"
+        style={{
+          background: `radial-gradient(50% 50% at 28% 50%, ${accent}29, transparent 70%)`,
+        }}
       />
-      <div className="absolute inset-x-8 bottom-9 flex justify-between text-[11px] uppercase tracking-[0.14em] text-white/40">
-        <span>draft</span>
-        <span>approve</span>
-        <span>auto</span>
+
+      <svg viewBox="0 0 320 320" className="absolute inset-0 size-full" aria-hidden="true">
+        {/* Harwick glyph — a stylized H badge */}
+        <motion.g
+          animate={{ scale: state === "sending" ? [1, 1.02, 1] : 1 }}
+          transition={{ duration: 1.6, repeat: state === "sending" ? Infinity : 0, ease: "easeInOut" }}
+          style={{ transformOrigin: "90px 160px" }}
+        >
+          <rect
+            x="48"
+            y="118"
+            width="84"
+            height="84"
+            rx="22"
+            fill="#0c1612"
+            stroke={`${accent}66`}
+            strokeWidth="1.2"
+          />
+          <path
+            d="M68 138 L68 182 M112 138 L112 182 M68 160 L112 160"
+            stroke={accent}
+            strokeWidth="6"
+            strokeLinecap="round"
+          />
+        </motion.g>
+
+        {/* Chat bubble */}
+        <motion.g
+          animate={{
+            x: state === "sending" ? [0, 22, 0] : 0,
+            opacity: 1,
+          }}
+          transition={{ duration: 1.8, repeat: state === "sending" ? Infinity : 0, ease: "easeInOut" }}
+        >
+          <path
+            d="M168 122 Q156 122 156 134 L156 178 Q156 190 168 190 L188 190 L196 202 L204 190 L256 190 Q268 190 268 178 L268 134 Q268 122 256 122 Z"
+            fill={`${accent}1f`}
+            stroke={`${accent}80`}
+            strokeWidth="1.2"
+          />
+
+          {/* Bubble contents change by state */}
+          {state === "silent" ? (
+            // Three pulsing dots — Harwick is thinking, not speaking
+            <g>
+              {[0, 1, 2].map((i) => (
+                <motion.circle
+                  key={i}
+                  cx={184 + i * 14}
+                  cy={156}
+                  r={4}
+                  fill={accent}
+                  animate={{ opacity: [0.25, 1, 0.25] }}
+                  transition={{
+                    duration: 1.4,
+                    repeat: Infinity,
+                    delay: i * 0.18,
+                    ease: "easeInOut",
+                  }}
+                />
+              ))}
+            </g>
+          ) : null}
+
+          {state === "holding" ? (
+            // Paper plane outline + a hand-off chevron ⇨ waiting on approval
+            <g fill="none" stroke={accent} strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round">
+              <path d="M178 152 L240 134 L222 174 L210 162 L178 152 Z" opacity="0.85" />
+              <path d="M210 162 L222 174" opacity="0.85" />
+              {/* A small lock-style chevron over the plane */}
+              <path d="M196 168 L202 174 L210 162" opacity="0.55" />
+            </g>
+          ) : null}
+
+          {state === "sending" ? (
+            // Filled paper plane mid-flight + motion trail
+            <g>
+              <path
+                d="M178 152 L240 134 L222 174 L210 162 L178 152 Z"
+                fill={accent}
+                stroke={accent}
+                strokeWidth="1"
+                strokeLinejoin="round"
+              />
+              <motion.g
+                animate={{ opacity: [0.6, 0.1, 0.6] }}
+                transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
+                stroke={accent}
+                strokeWidth="1.2"
+                strokeLinecap="round"
+              >
+                <line x1="166" y1="156" x2="178" y2="156" />
+                <line x1="158" y1="162" x2="170" y2="162" />
+                <line x1="172" y1="150" x2="180" y2="150" />
+              </motion.g>
+            </g>
+          ) : null}
+        </motion.g>
+      </svg>
+
+      {/* State label underneath — small, lowercase, mono */}
+      <div className="absolute inset-x-0 bottom-3 text-center text-[10.5px] uppercase tracking-[0.18em] text-white/45">
+        {state === "silent" ? "thinking · operator sends" : state === "holding" ? "drafted · waiting on approval" : "auto-send · safe replies only"}
       </div>
     </div>
   );
