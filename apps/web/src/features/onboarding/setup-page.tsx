@@ -956,117 +956,228 @@ function renderToneSample(toneDescription: string): string {
   return draft.trim();
 }
 
+// Real-brand channel card faces. Each picked channel becomes a tall
+// brand tile inside the Harwick box — Instagram's purple-pink-orange
+// gradient with the camera glyph, Facebook's #1877F2 with the F, etc.
+// Cards stack with the back ones peeking UP and out of the top edge of
+// the pocket, like books standing in a wallet.
+type ChannelBrand = {
+  key: OnboardingChannel;
+  name: string;
+  background: string;
+  textColor: string;
+  glyph: (props: { className?: string }) => React.ReactElement;
+};
+
+function InstagramBrandGlyph({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 64 64" fill="none" className={className} aria-hidden="true">
+      <rect x="10" y="10" width="44" height="44" rx="12" stroke="currentColor" strokeWidth="4" />
+      <circle cx="32" cy="32" r="11" stroke="currentColor" strokeWidth="4" />
+      <circle cx="46" cy="18" r="2.6" fill="currentColor" />
+    </svg>
+  );
+}
+
+function FacebookBrandGlyph({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 64 64" fill="none" className={className} aria-hidden="true">
+      <path
+        d="M37 24 L37 20 Q37 16 41 16 L46 16 L46 8 L40 8 Q30 8 30 18 L30 24 L23 24 L23 32 L30 32 L30 56 L37 56 L37 32 L44 32 L46 24 Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+function WebBrandGlyph({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 64 64" fill="none" className={className} aria-hidden="true">
+      <circle cx="32" cy="32" r="22" stroke="currentColor" strokeWidth="3" />
+      <ellipse cx="32" cy="32" rx="10" ry="22" stroke="currentColor" strokeWidth="3" />
+      <line x1="10" y1="32" x2="54" y2="32" stroke="currentColor" strokeWidth="3" />
+    </svg>
+  );
+}
+
+function SmsBrandGlyph({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 64 64" fill="none" className={className} aria-hidden="true">
+      <path
+        d="M14 18 Q14 12 20 12 L44 12 Q50 12 50 18 L50 36 Q50 42 44 42 L28 42 L18 52 L18 42 L20 42 Q14 42 14 36 Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+function VoiceBrandGlyph({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 64 64" fill="none" className={className} aria-hidden="true">
+      <path
+        d="M22 12 Q14 12 14 20 L14 28 Q14 50 36 50 L44 50 Q52 50 52 42 L52 38 Q52 34 48 34 L42 34 Q40 34 39 36 L37 40 Q26 36 22 26 L26 23 Q28 22 28 19 L28 16 Q28 12 24 12 Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+const CHANNEL_BRANDS: Record<OnboardingChannel, ChannelBrand> = {
+  instagram: {
+    key: "instagram",
+    name: "Instagram",
+    background:
+      "radial-gradient(120% 100% at 12% 110%, #FEDA77 0%, #F58529 18%, #DD2A7B 42%, #8134AF 70%, #515BD4 100%)",
+    textColor: "#ffffff",
+    glyph: InstagramBrandGlyph,
+  },
+  facebook: {
+    key: "facebook",
+    name: "Facebook",
+    background: "linear-gradient(180deg, #1877F2 0%, #0e5fcc 100%)",
+    textColor: "#ffffff",
+    glyph: FacebookBrandGlyph,
+  },
+  website: {
+    key: "website",
+    name: "Listings site",
+    background: "linear-gradient(180deg, #1f2a26 0%, #0b1410 100%)",
+    textColor: "#b8d3c5",
+    glyph: WebBrandGlyph,
+  },
+  sms: {
+    key: "sms",
+    name: "SMS",
+    background: "linear-gradient(180deg, #34C759 0%, #1f9d40 100%)",
+    textColor: "#ffffff",
+    glyph: SmsBrandGlyph,
+  },
+  voice: {
+    key: "voice",
+    name: "Voice",
+    background: "linear-gradient(180deg, #1c1c1e 0%, #060608 100%)",
+    textColor: "#f4f4f5",
+    glyph: VoiceBrandGlyph,
+  },
+};
+
 function ChannelVisual({ channels }: { channels: Record<OnboardingChannel, ChannelMode> }) {
-  // "Harwick box" — a literal rendered box on the bg (no SceneFrame
-  // container, just the lid + body). Active channels drop into it as
-  // stacked cards, each card peeking out from behind the next using
-  // the afroplus card-stack DNA: i*11px translateY, scale 1 - i*0.04,
-  // hairline shadow falloff per layer.
+  // Harwick "pocket" — a single dark rounded box at the bottom of the
+  // visual area with a soft inner shadow at its top edge (the "cutoff"
+  // that makes it read as a pocket / wallet / shelf).
+  // Picked channels become full brand tiles standing inside the pocket.
+  // Each card behind the front is translated UP by ~24px and scaled
+  // 0.96 per layer, so their tops peek out above the front card and
+  // above the pocket's top edge — like books on a shelf.
   const activeChannels = CHANNEL_OPTIONS.filter((option) => channels[option.key] !== "off");
 
   return (
     <div className="relative mx-auto aspect-square w-full max-w-[320px]">
-      {/* Ambient floor wash so the box doesn't float in dead space */}
+      {/* Floor halo */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-x-0 bottom-0 h-2/3"
         style={{
-          background: "radial-gradient(60% 60% at 50% 90%, rgba(184,211,197,0.16), transparent 70%)",
+          background: "radial-gradient(60% 60% at 50% 92%, rgba(184,211,197,0.18), transparent 70%)",
         }}
       />
 
-      {/* Box body — drawn in CSS, no <svg>. Lid sits slightly proud,
-       *  back panel taller so cards can "peek" above the front edge. */}
-      <div className="absolute inset-x-6 bottom-6 top-[42%]">
-        {/* Back panel */}
-        <div
-          className="absolute inset-x-0 bottom-0 rounded-[20px] border border-white/12"
-          style={{
-            top: "8%",
-            background:
-              "linear-gradient(180deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.015) 100%)",
-            boxShadow:
-              "inset 0 1px 0 rgba(255,255,255,0.06), 0 30px 60px -28px rgba(0,0,0,0.7)",
-          }}
-        />
-        {/* Front panel (slightly forward, shorter — creates the "peek out
-         *  the back" pocket where stacked cards live) */}
-        <div
-          className="absolute inset-x-0 bottom-0 rounded-[20px] border border-white/14"
-          style={{
-            top: "32%",
-            background:
-              "linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(184,211,197,0.04) 100%)",
-            boxShadow:
-              "inset 0 1px 0 rgba(255,255,255,0.08), 0 20px 40px -20px rgba(0,0,0,0.55)",
-          }}
-        />
-        {/* Harwick mark on the front of the box */}
-        <div className="absolute left-1/2 bottom-3 -translate-x-1/2 text-[10px] font-semibold uppercase tracking-[0.32em] text-[#b8d3c5]/55">
-          harwick
-        </div>
+      {/* The pocket — single rounded container, dark fill, inner shadow
+       *  along the top edge so it reads as a 3D pocket the cards live in. */}
+      <div
+        className="absolute inset-x-4 rounded-[26px] border border-white/12"
+        style={{
+          top: "54%",
+          bottom: "6%",
+          background:
+            "linear-gradient(180deg, rgba(7,16,13,0.85) 0%, rgba(7,16,13,0.65) 100%)",
+          boxShadow:
+            "inset 0 10px 22px -10px rgba(0,0,0,0.85), inset 0 1px 0 rgba(255,255,255,0.05), 0 28px 60px -28px rgba(0,0,0,0.75)",
+        }}
+      />
+
+      {/* Harwick mark stamped on the pocket front */}
+      <div
+        className="absolute bottom-[10%] left-1/2 -translate-x-1/2 text-[10px] font-semibold uppercase tracking-[0.36em]"
+        style={{ color: "rgba(184,211,197,0.4)" }}
+      >
+        harwick
       </div>
 
-      {/* The stack itself. Cards live in a layer above the box back, below
-       *  the box front. Top card pops forward; rest peek out staggered. */}
-      <div className="absolute inset-x-10 top-[12%] h-[44%]">
+      {/* Card stack. Cards extend ABOVE the pocket top edge so their tops
+       *  peek out. Cards are anchored at bottom so they grow upward into
+       *  the visible area. */}
+      <div className="absolute inset-x-9" style={{ top: "8%", bottom: "12%" }}>
         <AnimatePresence initial={false}>
           {activeChannels.map((option, index) => {
             const mode = channels[option.key];
-            const Icon = option.icon;
             const stackIndex = activeChannels.length - 1 - index;
             const isTop = stackIndex === 0;
+            const brand = CHANNEL_BRANDS[option.key];
+            const Glyph = brand.glyph;
             const isGold = mode === "auto_send";
-            const accent = isGold ? "#d8c487" : "#b8d3c5";
 
             return (
               <motion.div
                 key={option.key}
                 layout
-                initial={{ opacity: 0, y: -40, rotate: -6 }}
+                initial={{ opacity: 0, y: 32, rotate: stackIndex % 2 === 0 ? -3 : 3 }}
                 animate={{
-                  opacity: 1 - stackIndex * 0.12,
-                  y: stackIndex * 11,
-                  scale: 1 - stackIndex * 0.04,
+                  opacity: 1,
+                  y: -stackIndex * 22,
+                  scale: 1 - stackIndex * 0.045,
                   rotate: 0,
                 }}
-                exit={{ opacity: 0, y: -32, rotate: 5 }}
-                transition={{ type: "spring", stiffness: 200, damping: 24 }}
-                className="absolute inset-x-0 top-0 overflow-hidden rounded-[16px] border px-4 py-3 backdrop-blur-md"
+                exit={{ opacity: 0, y: 48, rotate: 4 }}
+                transition={{ type: "spring", stiffness: 220, damping: 26 }}
+                className="absolute inset-x-0 bottom-0 overflow-hidden rounded-[18px]"
                 style={{
-                  zIndex: 10 + activeChannels.length - stackIndex,
-                  background: isTop
-                    ? `linear-gradient(180deg, rgba(255,255,255,0.10) 0%, ${accent}11 100%)`
-                    : "rgba(255,255,255,0.06)",
-                  borderColor: isTop ? `${accent}55` : "rgba(255,255,255,0.12)",
+                  zIndex: 100 + activeChannels.length - stackIndex,
+                  height: "92%",
+                  background: brand.background,
+                  border: `1px solid ${isTop ? "rgba(255,255,255,0.22)" : "rgba(255,255,255,0.10)"}`,
                   boxShadow: isTop
-                    ? `0 24px 50px -22px ${accent}55, 0 0 0 1px ${accent}33`
-                    : "0 18px 36px -22px rgba(0,0,0,0.55)",
+                    ? "0 28px 50px -18px rgba(0,0,0,0.72), inset 0 1px 0 rgba(255,255,255,0.18)"
+                    : "0 22px 36px -22px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.12)",
+                  transformOrigin: "bottom center",
                 }}
               >
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2.5">
-                    <span
-                      className="flex size-8 items-center justify-center rounded-[10px]"
-                      style={{ background: `${accent}22`, color: accent }}
-                    >
-                      <Icon className="size-4" />
-                    </span>
-                    <div className="flex flex-col leading-tight">
-                      <span className="text-[12.5px] font-semibold text-white">{option.label}</span>
-                      <span className="text-[10px] uppercase tracking-[0.14em] text-white/45">
-                        {modeShortLabel(mode)}
+                {/* Subtle inner shimmer for the front card */}
+                {isTop ? (
+                  <div
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-0"
+                    style={{
+                      background:
+                        "radial-gradient(80% 60% at 25% 0%, rgba(255,255,255,0.22), transparent 60%)",
+                    }}
+                  />
+                ) : null}
+
+                <div className="relative flex h-full flex-col justify-between p-4">
+                  <div className="flex items-start justify-between">
+                    <Glyph className="size-9" />
+                    {isGold ? (
+                      <span
+                        className="rounded-full bg-white/22 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em] backdrop-blur-md"
+                        style={{ color: brand.textColor }}
+                      >
+                        auto
                       </span>
-                    </div>
+                    ) : null}
                   </div>
-                  {isGold ? (
-                    <span
-                      className="rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em]"
-                      style={{ background: `${accent}22`, color: accent }}
-                    >
-                      auto
+
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-[15px] font-semibold" style={{ color: brand.textColor }}>
+                      {brand.name}
                     </span>
-                  ) : null}
+                    <span
+                      className="text-[10.5px] uppercase tracking-[0.14em]"
+                      style={{ color: brand.textColor, opacity: 0.75 }}
+                    >
+                      {modeShortLabel(mode)}
+                    </span>
+                  </div>
                 </div>
               </motion.div>
             );
@@ -1074,9 +1185,9 @@ function ChannelVisual({ channels }: { channels: Record<OnboardingChannel, Chann
         </AnimatePresence>
 
         {activeChannels.length === 0 ? (
-          <div className="absolute inset-0 flex items-center justify-center">
+          <div className="absolute inset-x-0 bottom-3 text-center">
             <span className="text-[11px] uppercase tracking-[0.18em] text-white/35">
-              empty box · pick a channel
+              empty pocket · pick a channel
             </span>
           </div>
         ) : null}
