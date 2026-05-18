@@ -47,6 +47,17 @@ import type {
   WorkspaceType,
 } from "@realty-ops/core";
 
+import {
+  CalendarHeart as PhosphorCalendarHeart,
+  ChartLineUp as PhosphorChartLineUp,
+  Door as PhosphorDoor,
+  HardHat as PhosphorHardHat,
+  HouseLine as PhosphorHouseLine,
+  type Icon as PhosphorIcon,
+  Key as PhosphorKey,
+  MapPin as PhosphorMapPin,
+} from "@phosphor-icons/react";
+
 import { FacebookGlyph, InstagramGlyph, PhoneGlyph } from "../../components/harwick-icons";
 import { HarwickMark } from "../../components/harwick-rail/harwick-mark";
 import { Button } from "../../components/ui/button";
@@ -366,22 +377,16 @@ function Shell({
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#070d0b] text-white">
-      <motion.div
+      {/* Static atmospheric backdrop — single composed gradient, no animation.
+       *  Premium feel comes from stillness, not motion. */}
+      <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0"
-        animate={{
-          backgroundPosition: ["50% 20%", "48% 12%", "52% 24%", "50% 20%"],
-        }}
-        transition={{ duration: 14, repeat: Infinity, ease: "easeInOut" }}
-        style={{ background: HARWICK_GLOW.base, backgroundSize: "120% 120%" }}
+        style={{ background: HARWICK_GLOW.base }}
       />
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,transparent_30%,rgba(0,0,0,0.58)_84%)]"
-      />
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 opacity-[0.14] [background-image:linear-gradient(rgba(255,255,255,0.09)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.06)_1px,transparent_1px)] [background-size:42px_42px]"
       />
 
       <div className="relative mx-auto flex min-h-screen w-full max-w-[520px] flex-col px-5 py-6">
@@ -579,7 +584,7 @@ function WelcomeVisual() {
       alt=""
       aria-hidden="true"
       src="/harwick-gemini-logo.png"
-      className="mx-auto size-[220px] object-contain"
+      className="mx-auto size-[140px] object-contain"
       initial={{ opacity: 0, scale: 0.92 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
@@ -588,31 +593,172 @@ function WelcomeVisual() {
 }
 
 function WorkspaceTypeVisual({ type }: { type: WorkspaceType | null }) {
-  const nodes = type === "brokerage" ? 10 : type === "team" ? 6 : type === "solo" ? 1 : 4;
+  // Constellation art that morphs with the operator's pick. Borrows the
+  // Bloc splash technique: stacked radial-gradient defs, glow + core pairs
+  // per node, big soft halo behind. Springy node positions so morphing
+  // between types looks like a constellation reforming.
+  const positions = workspaceConstellation(type ?? "other");
+
   return (
-    <div className="relative mx-auto aspect-[1.08] rounded-[38px] border border-white/10 bg-white/[0.055] p-8">
-      <div className="absolute inset-0 rounded-[38px] bg-[radial-gradient(circle_at_50%_42%,rgba(184,211,197,0.28),transparent_48%)]" />
-      <div className="relative flex h-full items-center justify-center">
-        {Array.from({ length: nodes }).map((_, index) => {
-          const angle = (index / Math.max(nodes, 1)) * Math.PI * 2;
-          const radius = nodes === 1 ? 0 : type === "brokerage" ? 116 : 92;
-          const x = Math.cos(angle) * radius;
-          const y = Math.sin(angle) * radius;
-          return (
-            <motion.span
-              key={index}
-              className="absolute flex size-11 items-center justify-center rounded-2xl border border-white/12 bg-white/[0.08]"
-              animate={{ x, y, scale: index === 0 ? 1.15 : 1 }}
-              transition={{ type: "spring", stiffness: 110, damping: 18 }}
-            >
-              {index === 0 ? <Crown className="size-4 text-[#d8c487]" /> : <Users className="size-4 text-[#b8d3c5]" />}
-            </motion.span>
-          );
-        })}
-        {nodes > 1 ? <div className="absolute size-28 rounded-full border border-[#b8d3c5]/20" /> : null}
+    <div className="relative mx-auto aspect-[1.04] overflow-hidden rounded-[32px] border border-white/12 bg-[#06100c]">
+      {/* Atmospheric backdrop */}
+      <div
+        aria-hidden="true"
+        className="absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(circle at 50% 42%, rgba(184,211,197,0.35), transparent 58%),"
+            + "radial-gradient(circle at 18% 88%, rgba(216,196,135,0.18), transparent 60%),"
+            + "radial-gradient(circle at 88% 16%, rgba(168,148,210,0.16), transparent 55%)",
+        }}
+      />
+
+      {/* Geometric grain — subtle film texture made of tiny dots */}
+      <svg
+        viewBox="0 0 320 320"
+        className="absolute inset-0 size-full"
+        aria-hidden="true"
+      >
+        <defs>
+          <radialGradient id="harwick-node-sage" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#d6ebde" stopOpacity="0.95" />
+            <stop offset="55%" stopColor="#7ea696" stopOpacity="0.5" />
+            <stop offset="100%" stopColor="#3b5a4e" stopOpacity="0" />
+          </radialGradient>
+          <radialGradient id="harwick-node-gold" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#f3e3b6" stopOpacity="0.95" />
+            <stop offset="55%" stopColor="#d8c487" stopOpacity="0.5" />
+            <stop offset="100%" stopColor="#7a6b3c" stopOpacity="0" />
+          </radialGradient>
+          <radialGradient id="harwick-node-plum" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#e5d7f5" stopOpacity="0.95" />
+            <stop offset="55%" stopColor="#a48fc8" stopOpacity="0.45" />
+            <stop offset="100%" stopColor="#4d3e6a" stopOpacity="0" />
+          </radialGradient>
+          <radialGradient id="harwick-halo" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="rgba(184,211,197,0.45)" />
+            <stop offset="100%" stopColor="rgba(184,211,197,0)" />
+          </radialGradient>
+        </defs>
+
+        {/* Central halo */}
+        <circle cx="160" cy="160" r="140" fill="url(#harwick-halo)" opacity="0.55" />
+
+        {/* Connecting lines between nodes — drawn first so nodes sit on top */}
+        {positions.length > 1
+          ? positions.map((pos, index) => {
+              if (index === 0) return null;
+              const head = positions[0]!;
+              return (
+                <motion.line
+                  key={`line-${index}`}
+                  initial={{ pathLength: 0, opacity: 0 }}
+                  animate={{ pathLength: 1, opacity: 0.35 }}
+                  transition={{ duration: 0.65, ease: "easeOut", delay: 0.05 * index }}
+                  x1={head.x}
+                  y1={head.y}
+                  x2={pos.x}
+                  y2={pos.y}
+                  stroke="rgba(184,211,197,0.45)"
+                  strokeWidth={1.1}
+                  strokeDasharray="3 5"
+                />
+              );
+            })
+          : null}
+
+        {/* The nodes themselves — glow + core stack per node */}
+        {positions.map((pos, index) => (
+          <motion.g
+            key={`node-${index}`}
+            initial={{ opacity: 0, scale: 0.4 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ type: "spring", stiffness: 160, damping: 22, delay: index * 0.04 }}
+          >
+            {/* Glow */}
+            <circle
+              cx={pos.x}
+              cy={pos.y}
+              r={pos.glow}
+              fill={`url(#harwick-node-${pos.kind})`}
+            />
+            {/* Core */}
+            <circle
+              cx={pos.x}
+              cy={pos.y}
+              r={pos.core}
+              fill={pos.kind === "sage" ? "#dceee4" : pos.kind === "gold" ? "#f3e3b6" : "#e5d7f5"}
+              opacity={0.9}
+            />
+            {/* Hairline ring */}
+            <circle
+              cx={pos.x}
+              cy={pos.y}
+              r={pos.core + 4}
+              fill="none"
+              stroke={pos.kind === "sage" ? "rgba(220,238,228,0.4)" : pos.kind === "gold" ? "rgba(243,227,182,0.4)" : "rgba(229,215,245,0.4)"}
+              strokeWidth={0.8}
+            />
+          </motion.g>
+        ))}
+      </svg>
+
+      {/* Scale label sitting on the constellation */}
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full border border-white/12 bg-black/35 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-white/65 backdrop-blur-md">
+        {workspaceLabel(type ?? "other")}
       </div>
     </div>
   );
+}
+
+type ConstellationNode = {
+  x: number;
+  y: number;
+  core: number;
+  glow: number;
+  kind: "sage" | "gold" | "plum";
+};
+
+function workspaceConstellation(type: WorkspaceType): ConstellationNode[] {
+  if (type === "solo") {
+    return [{ x: 160, y: 160, core: 14, glow: 92, kind: "gold" }];
+  }
+  if (type === "team") {
+    return [
+      { x: 160, y: 142, core: 12, glow: 78, kind: "gold" },
+      { x: 92, y: 196, core: 8, glow: 52, kind: "sage" },
+      { x: 230, y: 192, core: 8, glow: 52, kind: "sage" },
+      { x: 200, y: 92, core: 7, glow: 48, kind: "sage" },
+      { x: 116, y: 88, core: 7, glow: 48, kind: "sage" },
+    ];
+  }
+  if (type === "brokerage") {
+    return [
+      { x: 160, y: 160, core: 14, glow: 88, kind: "gold" },
+      { x: 76, y: 96, core: 9, glow: 56, kind: "sage" },
+      { x: 240, y: 96, core: 9, glow: 56, kind: "plum" },
+      { x: 220, y: 226, core: 9, glow: 56, kind: "sage" },
+      { x: 100, y: 226, core: 9, glow: 56, kind: "plum" },
+      { x: 60, y: 168, core: 5, glow: 36, kind: "sage" },
+      { x: 260, y: 168, core: 5, glow: 36, kind: "plum" },
+      { x: 162, y: 56, core: 5, glow: 36, kind: "sage" },
+      { x: 162, y: 264, core: 5, glow: 36, kind: "plum" },
+    ];
+  }
+  // other
+  return [
+    { x: 130, y: 130, core: 10, glow: 64, kind: "sage" },
+    { x: 200, y: 138, core: 8, glow: 52, kind: "gold" },
+    { x: 168, y: 200, core: 8, glow: 52, kind: "plum" },
+    { x: 96, y: 198, core: 6, glow: 42, kind: "sage" },
+  ];
+}
+
+function workspaceLabel(type: WorkspaceType): string {
+  if (type === "solo") return "1 operator";
+  if (type === "team") return "4–10 seats · 1 lead";
+  if (type === "brokerage") return "multi-office · routed";
+  return "custom shape";
 }
 
 // MarketMapVisual was a hand-drawn SVG placeholder. Replaced by the real
@@ -624,30 +770,114 @@ function MarketMapVisual({ areas }: { areas: string[] }) {
 }
 
 function LeadTypeVisual({ selected }: { selected: string[] }) {
-  const activeOptions = LEAD_TYPE_OPTIONS.filter((option) => selected.includes(option.key)).slice(0, 4);
-  const displayOptions = activeOptions.length > 0 ? activeOptions : LEAD_TYPE_OPTIONS.slice(0, 4);
+  // Artistic glyph composition that builds as the operator picks lead types.
+  // Each pick lights up a hand-positioned phosphor glyph with a colored
+  // halo. Empty state shows a faint outline of all glyphs so the operator
+  // gets a preview of the canvas.
   return (
-    <div className="grid grid-cols-2 gap-3">
-      {displayOptions.map((option, index) => {
-        const Icon = option.icon;
-        return (
-          <motion.div
-            key={option.key}
-            className="aspect-square rounded-[28px] border border-white/10 bg-white/[0.06] p-4"
-            animate={{ y: index % 2 === 0 ? [0, -5, 0] : [0, 5, 0] }}
-            transition={{ duration: 5 + index, repeat: Infinity, ease: "easeInOut" }}
-          >
-            <div className="flex size-12 items-center justify-center rounded-2xl bg-[#b8d3c5]/16">
-              <Icon className="size-5 text-[#b8d3c5]" />
-            </div>
-            <p className="mt-6 text-[13px] font-semibold text-white">{option.label}</p>
-            <p className="mt-1 text-[11px] leading-4 text-white/45">{option.description}</p>
-          </motion.div>
-        );
-      })}
+    <div className="relative mx-auto aspect-[1.04] overflow-hidden rounded-[32px] border border-white/12 bg-[#06100c]">
+      {/* Atmospheric backdrop — sage core + warm corner accents */}
+      <div
+        aria-hidden="true"
+        className="absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(circle at 30% 30%, rgba(184,211,197,0.32), transparent 60%),"
+            + "radial-gradient(circle at 78% 76%, rgba(216,196,135,0.22), transparent 58%),"
+            + "radial-gradient(circle at 14% 88%, rgba(168,148,210,0.18), transparent 60%)",
+        }}
+      />
+
+      {/* Concentric arcs — passive composition element, doesn't move */}
+      <svg viewBox="0 0 320 320" className="absolute inset-0 size-full" aria-hidden="true">
+        <defs>
+          <radialGradient id="lead-canvas-halo" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="rgba(184,211,197,0.16)" />
+            <stop offset="100%" stopColor="rgba(184,211,197,0)" />
+          </radialGradient>
+        </defs>
+        <circle cx="160" cy="160" r="120" fill="url(#lead-canvas-halo)" />
+        <circle cx="160" cy="160" r="84" fill="none" stroke="rgba(184,211,197,0.12)" strokeWidth="0.6" />
+        <circle cx="160" cy="160" r="124" fill="none" stroke="rgba(184,211,197,0.08)" strokeWidth="0.6" strokeDasharray="2 6" />
+      </svg>
+
+      {/* Glyphs positioned around the canvas */}
+      <div className="absolute inset-0">
+        {LEAD_GLYPH_POSITIONS.map((entry) => {
+          const isActive = selected.includes(entry.key);
+          const Icon = entry.icon;
+          return (
+            <motion.div
+              key={entry.key}
+              className="absolute flex items-center justify-center"
+              style={{ left: entry.x, top: entry.y, width: entry.size, height: entry.size }}
+              initial={{ scale: 0.6, opacity: 0 }}
+              animate={{
+                scale: isActive ? 1 : 0.78,
+                opacity: isActive ? 1 : 0.18,
+                filter: isActive ? "blur(0px)" : "blur(0.4px)",
+              }}
+              transition={{ type: "spring", stiffness: 200, damping: 24 }}
+            >
+              {isActive ? (
+                <span
+                  aria-hidden="true"
+                  className="absolute inset-0 rounded-full blur-2xl"
+                  style={{ background: `${entry.glow}66` }}
+                />
+              ) : null}
+              <span
+                className="relative flex size-full items-center justify-center rounded-2xl border"
+                style={{
+                  borderColor: isActive ? `${entry.glow}aa` : "rgba(255,255,255,0.08)",
+                  background: isActive
+                    ? `linear-gradient(160deg, ${entry.glow}33, ${entry.glow}10)`
+                    : "rgba(255,255,255,0.02)",
+                  boxShadow: isActive
+                    ? `inset 0 1px 0 rgba(255,255,255,0.15), 0 12px 24px -10px ${entry.glow}66`
+                    : "inset 0 1px 0 rgba(255,255,255,0.04)",
+                }}
+              >
+                <Icon
+                  className="size-[55%]"
+                  weight={isActive ? "duotone" : "regular"}
+                  color={isActive ? entry.glow : "rgba(255,255,255,0.45)"}
+                />
+              </span>
+            </motion.div>
+          );
+        })}
+      </div>
+
+      {/* Tiny count label */}
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full border border-white/12 bg-black/35 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-white/65 backdrop-blur-md">
+        {selected.length === 0 ? "pick what you handle" : `${selected.length} lead type${selected.length === 1 ? "" : "s"}`}
+      </div>
     </div>
   );
 }
+
+type LeadGlyphEntry = {
+  key: string;
+  icon: PhosphorIcon;
+  x: string;
+  y: string;
+  size: number;
+  glow: string;
+};
+
+// Position glyphs around the canvas. Larger glyphs for high-frequency lead
+// types (buyer/seller), smaller for niche (open house). All in % so they
+// scale with the viewport.
+const LEAD_GLYPH_POSITIONS: ReadonlyArray<LeadGlyphEntry> = [
+  { key: "buyer", icon: PhosphorKey, x: "16%", y: "22%", size: 58, glow: "#b8d3c5" },
+  { key: "seller", icon: PhosphorHouseLine, x: "62%", y: "18%", size: 62, glow: "#d8c487" },
+  { key: "renter", icon: PhosphorDoor, x: "8%", y: "62%", size: 52, glow: "#a4c4d8" },
+  { key: "investor", icon: PhosphorChartLineUp, x: "70%", y: "60%", size: 60, glow: "#c9b9e0" },
+  { key: "new construction", icon: PhosphorHardHat, x: "42%", y: "72%", size: 50, glow: "#e0b8a4" },
+  { key: "open house", icon: PhosphorCalendarHeart, x: "44%", y: "8%", size: 48, glow: "#b8d3c5" },
+  { key: "showing request", icon: PhosphorMapPin, x: "30%", y: "44%", size: 46, glow: "#d8c487" },
+];
 
 function PriceBandVisual({ selected }: { selected: string[] }) {
   return (
@@ -713,50 +943,290 @@ function FocusVisual({ selected }: { selected: string[] }) {
   );
 }
 
-function VoiceVisual() {
+function VoiceVisual({ tone }: { tone?: string }) {
+  // Live preview of what a Harwick draft will sound like, based on the
+  // operator's tone description. No LLM call — fast client-side
+  // transformation on a baseline sample so the operator sees their
+  // voice landing in real time as they type.
+  const draft = renderToneSample(tone ?? "");
+
   return (
-    <div className="relative rounded-[38px] border border-white/10 bg-white/[0.055] p-8">
-      <div className="mx-auto flex size-24 items-center justify-center rounded-[30px] border border-white/12 bg-white/[0.06]">
-        <MessageSquare className="size-9 text-[#b8d3c5]" />
+    <div className="overflow-hidden rounded-[28px] border border-white/12 bg-[#0a1310] shadow-[0_28px_64px_-28px_rgba(0,0,0,0.55)]">
+      {/* Conversation header strip — looks like a real DM */}
+      <div className="flex items-center justify-between border-b border-white/8 px-4 py-2.5">
+        <div className="flex items-center gap-2">
+          <span
+            className="flex size-7 items-center justify-center rounded-full text-[10px] font-semibold text-[#07100d]"
+            style={{ background: "#b8d3c5" }}
+          >
+            MW
+          </span>
+          <div className="flex flex-col leading-tight">
+            <span className="text-[11.5px] font-semibold text-white">Marcus Webb</span>
+            <span className="text-[9.5px] uppercase tracking-[0.14em] text-white/35">instagram · just now</span>
+          </div>
+        </div>
+        <span className="rounded-full bg-[#b8d3c5]/14 px-2 py-0.5 text-[10px] font-medium text-[#b8d3c5]">
+          harwick draft
+        </span>
       </div>
-      <div className="mt-8 flex items-end justify-center gap-1.5">
-        {Array.from({ length: 28 }).map((_, index) => (
-          <motion.span
-            key={index}
-            className="w-1.5 rounded-full bg-[#b8d3c5]/70"
-            animate={{ height: [12, 34 + ((index * 7) % 34), 12] }}
-            transition={{ duration: 1.8 + (index % 5) * 0.2, repeat: Infinity, ease: "easeInOut" }}
-          />
-        ))}
+
+      {/* Inbound from lead */}
+      <div className="px-4 pt-4">
+        <div className="ml-1 mr-12 rounded-[14px] rounded-tl-[4px] bg-white/[0.06] px-3 py-2 text-[12.5px] leading-5 text-white/82">
+          {LEAD_INBOUND_SAMPLE}
+        </div>
+        <div className="ml-2 mt-1 text-[10px] text-white/35">marcus · 1m ago</div>
+      </div>
+
+      {/* Harwick's drafted reply (this is the part that morphs with tone) */}
+      <div className="px-4 py-4">
+        <motion.div
+          key={draft}
+          initial={{ opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.22 }}
+          className="ml-12 mr-1 rounded-[14px] rounded-tr-[4px] border border-[#b8d3c5]/35 bg-[#b8d3c5]/12 px-3 py-2 text-[12.5px] leading-5 text-white"
+        >
+          {draft}
+        </motion.div>
+        <div className="mr-2 mt-1 text-right text-[10px] text-white/35">harwick · drafting in your voice</div>
       </div>
     </div>
   );
 }
 
+const LEAD_INBOUND_SAMPLE = "Hey 👋 saw the Bethesda listing — would FHA work here? still figuring out financing tbh";
+
+function renderToneSample(toneDescription: string): string {
+  // Cheap keyword-driven tonal rewrite — feels alive without an LLM call
+  // on every keystroke. We map a handful of common tone descriptors onto
+  // a small set of stylistic swaps applied to a baseline sample.
+  const baseline =
+    "Hey Marcus 👋 thanks for asking — FHA can go as low as 3.5% down, no problem. Quick q before I set up a tour: are you already talking with a lender?";
+  const desc = toneDescription.toLowerCase();
+
+  let draft = baseline;
+
+  // Lowercase / casual
+  if (
+    desc.includes("lowercase")
+    || desc.includes("casual")
+    || desc.includes("low-key")
+    || desc.includes("low key")
+    || desc.includes("warm")
+  ) {
+    draft = draft.toLowerCase();
+  }
+
+  // Drop emoji
+  if (desc.includes("no emoji") || desc.includes("without emoji") || desc.includes("no emojis")) {
+    draft = draft.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, "").replace(/\s{2,}/g, " ").trim();
+  }
+
+  // Direct / short — collapse the qualifying preamble
+  if (desc.includes("direct") || desc.includes("short") || desc.includes("tight")) {
+    draft = draft
+      .replace(/(Hey|hey) [a-zA-Z]+[\s,]+/, "")
+      .replace(/thanks for asking — /i, "")
+      .replace(/no problem\.\s*/i, "");
+  }
+
+  // Formal / professional
+  if (desc.includes("formal") || desc.includes("professional")) {
+    draft = "Hi Marcus, FHA loans typically require 3.5% down. Before scheduling a tour: have you spoken with a lender yet?";
+  }
+
+  // Never promise / cautious
+  if (desc.includes("never promise") || desc.includes("cautious") || desc.includes("no certainty")) {
+    draft = draft.replace(/can go as low as 3\.5%/, "is generally around 3.5%");
+  }
+
+  return draft.trim();
+}
+
 function ChannelVisual({ channels }: { channels: Record<OnboardingChannel, ChannelMode> }) {
-  const active = CHANNEL_OPTIONS.filter((option) => channels[option.key] !== "off");
-  const display = active.length > 0 ? active : CHANNEL_OPTIONS.slice(0, 4);
+  // Signal-tower composition. Each channel becomes a vertical "tower"
+  // standing on the floor of the canvas. Mode controls intensity: off →
+  // ghost outline, draft → thin column, approve → fuller column, auto →
+  // full + a halo arc spreading from the tower's top.
   return (
-    <div className="relative aspect-square rounded-[38px] border border-white/10 bg-white/[0.055]">
-      <div className="absolute left-1/2 top-1/2 size-24 -translate-x-1/2 -translate-y-1/2 rounded-[30px] border border-[#b8d3c5]/25 bg-[#b8d3c5]/12" />
-      <Sparkles className="absolute left-1/2 top-1/2 size-8 -translate-x-1/2 -translate-y-1/2 text-[#b8d3c5]" />
-      {display.map((option, index) => {
-        const Icon = option.icon;
-        const angle = (index / display.length) * Math.PI * 2 - Math.PI / 2;
-        const radius = 122;
-        return (
-          <motion.div
-            key={option.key}
-            className="absolute left-1/2 top-1/2 flex size-14 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.08]"
-            animate={{ x: Math.cos(angle) * radius - 28, y: Math.sin(angle) * radius - 28 }}
-            transition={{ type: "spring", stiffness: 110, damping: 20 }}
-          >
-            <Icon className="size-5 text-white/70" />
-          </motion.div>
-        );
-      })}
+    <div className="relative mx-auto aspect-[1.04] overflow-hidden rounded-[32px] border border-white/12 bg-[#06100c]">
+      {/* Atmospheric backdrop */}
+      <div
+        aria-hidden="true"
+        className="absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(circle at 50% 0%, rgba(184,211,197,0.3), transparent 55%),"
+            + "radial-gradient(circle at 50% 100%, rgba(7,17,13,0.85), transparent 60%)",
+        }}
+      />
+
+      <svg viewBox="0 0 320 320" className="absolute inset-0 size-full" aria-hidden="true">
+        <defs>
+          <linearGradient id="harwick-tower-sage" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#dceee4" stopOpacity="1" />
+            <stop offset="100%" stopColor="#3b5a4e" stopOpacity="0.05" />
+          </linearGradient>
+          <linearGradient id="harwick-tower-gold" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#f3e3b6" stopOpacity="1" />
+            <stop offset="100%" stopColor="#7a6b3c" stopOpacity="0.05" />
+          </linearGradient>
+          <radialGradient id="harwick-signal-halo" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="rgba(216,196,135,0.6)" />
+            <stop offset="60%" stopColor="rgba(216,196,135,0.1)" />
+            <stop offset="100%" stopColor="rgba(216,196,135,0)" />
+          </radialGradient>
+          <radialGradient id="harwick-floor-glow" cx="50%" cy="100%" r="60%">
+            <stop offset="0%" stopColor="rgba(184,211,197,0.5)" />
+            <stop offset="100%" stopColor="rgba(184,211,197,0)" />
+          </radialGradient>
+        </defs>
+
+        {/* Floor glow */}
+        <rect x="0" y="240" width="320" height="80" fill="url(#harwick-floor-glow)" />
+
+        {/* Horizon line */}
+        <line x1="20" y1="248" x2="300" y2="248" stroke="rgba(184,211,197,0.18)" strokeWidth="0.6" strokeDasharray="2 5" />
+
+        {/* Render each channel as a tower along the floor */}
+        {CHANNEL_OPTIONS.map((option, index) => {
+          const mode = channels[option.key];
+          const x = 38 + index * 60; // 5 channels spread evenly across 320 viewBox
+          return <ChannelTower key={option.key} centerX={x} mode={mode} />;
+        })}
+      </svg>
+
+      {/* Icons sitting atop each tower */}
+      <div className="absolute inset-0">
+        {CHANNEL_OPTIONS.map((option, index) => {
+          const mode = channels[option.key];
+          const active = mode !== "off";
+          const Icon = option.icon;
+          const xPercent = ((38 + index * 60) / 320) * 100;
+          const yPercent = active ? (mode === "auto_send" ? 18 : mode === "approval_first" ? 28 : 38) : 60;
+          return (
+            <motion.div
+              key={option.key}
+              className="absolute flex size-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-[10px] border backdrop-blur-md"
+              style={{
+                left: `${xPercent}%`,
+                top: `${yPercent}%`,
+                background: active
+                  ? mode === "auto_send"
+                    ? "rgba(216,196,135,0.22)"
+                    : "rgba(184,211,197,0.18)"
+                  : "rgba(255,255,255,0.04)",
+                borderColor: active
+                  ? mode === "auto_send"
+                    ? "rgba(216,196,135,0.55)"
+                    : "rgba(184,211,197,0.4)"
+                  : "rgba(255,255,255,0.1)",
+                boxShadow: active
+                  ? `0 14px 30px -12px ${mode === "auto_send" ? "rgba(216,196,135,0.55)" : "rgba(184,211,197,0.5)"}`
+                  : "none",
+              }}
+              animate={{
+                left: `${xPercent}%`,
+                top: `${yPercent}%`,
+                scale: active ? 1 : 0.85,
+                opacity: active ? 1 : 0.35,
+              }}
+              transition={{ type: "spring", stiffness: 220, damping: 24 }}
+            >
+              <Icon
+                className="size-4"
+                style={{
+                  color: active
+                    ? mode === "auto_send"
+                      ? "#f3e3b6"
+                      : "#dceee4"
+                    : "rgba(255,255,255,0.4)",
+                }}
+              />
+            </motion.div>
+          );
+        })}
+      </div>
+
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full border border-white/12 bg-black/35 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-white/65 backdrop-blur-md">
+        {channelLabel(channels)}
+      </div>
     </div>
   );
+}
+
+function ChannelTower({ centerX, mode }: { centerX: number; mode: ChannelMode }) {
+  const active = mode !== "off";
+  const baseY = 248;
+  // Tower height by mode
+  const topY = mode === "auto_send" ? 60 : mode === "approval_first" ? 92 : mode === "suggest_only" ? 128 : 200;
+  const towerWidth = 8;
+  const isGold = mode === "auto_send";
+  const fillId = isGold ? "harwick-tower-gold" : "harwick-tower-sage";
+
+  return (
+    <motion.g
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.4 }}
+    >
+      {/* Auto-mode halo */}
+      {mode === "auto_send" ? (
+        <circle cx={centerX} cy={topY} r="44" fill="url(#harwick-signal-halo)" opacity="0.85" />
+      ) : null}
+
+      {/* Tower column */}
+      <motion.rect
+        x={centerX - towerWidth / 2}
+        width={towerWidth}
+        rx="3"
+        fill={active ? `url(#${fillId})` : "rgba(255,255,255,0.08)"}
+        stroke={active ? (isGold ? "rgba(243,227,182,0.5)" : "rgba(220,238,228,0.45)") : "rgba(255,255,255,0.08)"}
+        strokeWidth="0.6"
+        initial={{ y: baseY, height: 0 }}
+        animate={{ y: topY, height: baseY - topY }}
+        transition={{ type: "spring", stiffness: 140, damping: 22 }}
+      />
+
+      {/* Approve mode — single mid arc */}
+      {mode === "approval_first" ? (
+        <motion.circle
+          cx={centerX}
+          cy={topY}
+          r="18"
+          fill="none"
+          stroke="rgba(220,238,228,0.45)"
+          strokeWidth="0.8"
+          initial={{ pathLength: 0, opacity: 0 }}
+          animate={{ pathLength: 1, opacity: 0.8 }}
+          transition={{ duration: 0.6 }}
+        />
+      ) : null}
+
+      {/* Base disc */}
+      {active ? (
+        <ellipse
+          cx={centerX}
+          cy={baseY + 2}
+          rx={14}
+          ry={3}
+          fill={isGold ? "rgba(243,227,182,0.4)" : "rgba(220,238,228,0.35)"}
+        />
+      ) : (
+        <ellipse cx={centerX} cy={baseY + 2} rx={10} ry={2.2} fill="rgba(255,255,255,0.08)" />
+      )}
+    </motion.g>
+  );
+}
+
+function channelLabel(channels: Record<OnboardingChannel, ChannelMode>): string {
+  const active = CHANNEL_OPTIONS.filter((option) => channels[option.key] !== "off").length;
+  const auto = (Object.values(channels) as ChannelMode[]).filter((mode) => mode === "auto_send").length;
+  if (active === 0) return "no channels on yet";
+  if (auto > 0) return `${active} on · ${auto} on auto`;
+  return `${active} of ${CHANNEL_OPTIONS.length} channels`;
 }
 
 function AutonomyVisual({ autonomy }: { autonomy: SetupDraft["autonomy"] }) {
