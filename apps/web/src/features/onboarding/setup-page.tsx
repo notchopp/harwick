@@ -48,11 +48,17 @@ import type {
 } from "@realty-ops/core";
 
 import { FacebookGlyph, InstagramGlyph, PhoneGlyph } from "../../components/harwick-icons";
+import { HarwickMark } from "../../components/harwick-rail/harwick-mark";
 import { Button } from "../../components/ui/button";
-import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
-import { Textarea } from "../../components/ui/textarea";
 import { cn } from "../../lib/utils";
+
+import { MarketMap } from "./market-map";
+import {
+  DarkInlineInput,
+  DarkInlineTextarea,
+  DarkTextarea,
+} from "./primitives";
 
 type SetupPageProps = {
   workspaceId: string;
@@ -591,26 +597,47 @@ function ErrorBox({ children }: { children: React.ReactNode }) {
 
 function WelcomeVisual() {
   return (
-    <div className="relative mx-auto flex aspect-[0.88] max-h-[390px] items-center justify-center rounded-[44px] border border-white/10 bg-white/[0.055] shadow-[0_35px_90px_-45px_rgba(184,211,197,0.95)]">
+    <div className="relative mx-auto flex aspect-[0.88] max-h-[390px] items-center justify-center rounded-[44px] border border-white/10 bg-white/[0.04] shadow-[0_35px_90px_-45px_rgba(184,211,197,0.95)]">
+      {/* Soft halo behind the mark — single pulse on mount, then settles. */}
       <motion.div
         aria-hidden="true"
-        className="absolute size-48 rounded-full blur-3xl"
-        animate={{ scale: [0.94, 1.08, 0.98], opacity: [0.45, 0.72, 0.45] }}
-        transition={{ duration: 5.5, repeat: Infinity, ease: "easeInOut" }}
-        style={{ background: "rgba(184,211,197,0.52)" }}
+        className="absolute size-60 rounded-full blur-3xl"
+        initial={{ opacity: 0, scale: 0.72 }}
+        animate={{ opacity: 0.55, scale: 1 }}
+        transition={{ duration: 1.4, ease: [0.22, 1, 0.36, 1] }}
+        style={{ background: "rgba(184,211,197,0.5)" }}
       />
+
+      {/* The actual brand mark, large and centered. Subtle slow-rotation
+       *  hint via the ring around it, not the mark itself. */}
       <motion.div
         aria-hidden="true"
-        className="absolute size-28 rounded-[32px] border border-white/20"
-        animate={{ rotate: [0, 8, -5, 0], y: [0, -8, 5, 0] }}
-        transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+        className="absolute size-44 rounded-full border border-white/15"
+        initial={{ rotate: 0, opacity: 0 }}
+        animate={{ rotate: 360, opacity: 1 }}
+        transition={{
+          rotate: { duration: 64, repeat: Infinity, ease: "linear" },
+          opacity: { duration: 1.1, ease: "easeOut" },
+        }}
         style={{
-          background:
-            "conic-gradient(from 150deg, rgba(184,211,197,0.98), rgba(216,196,135,0.72), rgba(95,127,111,0.82), rgba(184,211,197,0.98))",
-          boxShadow: "inset 0 1px 0 rgba(255,255,255,0.35), 0 25px 60px -18px rgba(184,211,197,0.9)",
+          backgroundImage:
+            "conic-gradient(from 0deg, rgba(184,211,197,0.0) 0deg, rgba(184,211,197,0.45) 90deg, rgba(184,211,197,0.0) 180deg, rgba(216,196,135,0.35) 270deg, rgba(184,211,197,0.0) 360deg)",
+          mask: "radial-gradient(circle at center, transparent 58%, black 60%)",
+          WebkitMask: "radial-gradient(circle at center, transparent 58%, black 60%)",
         }}
       />
-      <Sparkles className="relative size-9 text-[#07100d]" aria-hidden="true" />
+
+      <motion.div
+        initial={{ scale: 0.85, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+        className="relative"
+      >
+        <HarwickMark
+          size={120}
+          className="rounded-[28px] shadow-[0_30px_70px_-20px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.18)]"
+        />
+      </motion.div>
     </div>
   );
 }
@@ -643,46 +670,12 @@ function WorkspaceTypeVisual({ type }: { type: WorkspaceType | null }) {
   );
 }
 
+// MarketMapVisual was a hand-drawn SVG placeholder. Replaced by the real
+// Mapbox-backed <MarketMap /> component in ./market-map.tsx, which geocodes
+// each area the operator types and drops a real pin. Kept as a function
+// name so call-sites elsewhere don't need to change.
 function MarketMapVisual({ areas }: { areas: string[] }) {
-  const pins = areas.length > 0 ? areas : ["Katy", "Sugar Land", "Richmond"];
-  return (
-    <div className="relative aspect-[1.08] overflow-hidden rounded-[38px] border border-white/10 bg-white/[0.055]">
-      <div className="absolute inset-0 opacity-50 [background-image:linear-gradient(rgba(255,255,255,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.08)_1px,transparent_1px)] [background-size:30px_30px]" />
-      <svg viewBox="0 0 360 335" className="absolute inset-0 size-full text-[#b8d3c5]/35">
-        <path d="M20 235 C84 210 116 106 180 142 C236 174 251 68 334 74" fill="none" stroke="currentColor" strokeWidth="2" />
-        <path d="M38 102 C92 126 142 72 192 98 C246 126 270 202 332 194" fill="none" stroke="currentColor" strokeWidth="1.4" />
-        <path d="M88 318 C118 246 112 204 172 190 C232 176 242 144 304 120" fill="none" stroke="currentColor" strokeWidth="1.2" />
-      </svg>
-      {pins.slice(0, 5).map((area, index) => {
-        const positions = [
-          ["20%", "60%"],
-          ["54%", "42%"],
-          ["70%", "68%"],
-          ["36%", "27%"],
-          ["82%", "30%"],
-        ] as const;
-        const [left, top] = positions[index] ?? positions[0];
-        return (
-          <motion.div
-            key={`${area}-${index}`}
-            className="absolute"
-            style={{ left, top }}
-            initial={{ scale: 0.8, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ delay: index * 0.05 }}
-          >
-            <div className="relative">
-              <span className="absolute left-1/2 top-1/2 size-12 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#b8d3c5]/18 blur-md" />
-              <span className="relative flex items-center gap-1.5 rounded-full border border-[#b8d3c5]/30 bg-[#07100d]/72 px-2.5 py-1 text-[11px] font-medium text-white shadow-xl">
-                <MapPin className="size-3 text-[#b8d3c5]" />
-                {area}
-              </span>
-            </div>
-          </motion.div>
-        );
-      })}
-    </div>
-  );
+  return <MarketMap areas={areas} />;
 }
 
 function LeadTypeVisual({ selected }: { selected: string[] }) {
@@ -891,29 +884,16 @@ function WelcomeScene({
       visual={<WelcomeVisual />}
       footer={
         <>
-          <div className="grid grid-cols-2 gap-2">
-            <InfoPill label="plan" value={planLabel(planTier)} />
-            <InfoPill label="role" value={roleLabel(operatorRole)} />
-          </div>
-          <p className="rounded-[18px] border border-white/10 bg-white/[0.045] px-3 py-2 text-[12px] leading-5 text-white/56">
-            {roleLens(operatorRole)}
-          </p>
           <PrimaryCta onClick={onNext}>
             Let&apos;s get started
             <ArrowRight className="size-4" aria-hidden="true" />
           </PrimaryCta>
+          <p className="text-center text-[11px] text-white/40">
+            {planLabel(planTier)} plan &middot; {roleLabel(operatorRole)} &middot; {roleLens(operatorRole)}
+          </p>
         </>
       }
     />
-  );
-}
-
-function InfoPill({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-[18px] border border-white/10 bg-white/[0.045] p-3">
-      <p className="text-[10px] uppercase tracking-[0.16em] text-white/35">{label}</p>
-      <p className="mt-1 text-[13px] font-medium capitalize text-white">{value}</p>
-    </div>
   );
 }
 
@@ -1005,13 +985,12 @@ function PrimaryAreasScene({
                   </button>
                 </span>
               ))}
-              <Input
+              <DarkInlineInput
                 id="area-input"
                 value={areaDraft}
                 onChange={(event) => onDraftChange(event.target.value)}
                 onKeyDown={handleKeyDown}
                 onBlur={onAddArea}
-                className="h-8 min-w-[140px] flex-1 border-0 bg-transparent px-1 text-[13px] text-white shadow-none placeholder:text-white/34 focus-visible:ring-0"
                 placeholder={areas.length === 0 ? "Katy, Sugar Land..." : "Add another"}
               />
             </div>
@@ -1171,9 +1150,9 @@ function VoiceToneScene({
       visual={<VoiceVisual />}
       footer={
         <>
-          <Textarea
+          <DarkTextarea
             rows={4}
-            className="resize-none rounded-[24px] border border-white/10 bg-white/[0.055] px-4 py-3 text-[13px] text-white shadow-none placeholder:text-white/34 focus-visible:border-[#b8d3c5]/45"
+            className="rounded-[24px] px-4 py-3 text-[13.5px] leading-5"
             placeholder="Warm, low-key, direct. Always ask one qualifying question. Never promise loan or legal certainty."
             maxLength={500}
             value={value}
@@ -1219,10 +1198,10 @@ function ReplyExamplesScene({
           <div className="space-y-2">
             {examples.map((example, index) => (
               <div key={index} className="relative rounded-[24px] border border-white/10 bg-white/[0.055]">
-                <Textarea
+                <DarkInlineTextarea
                   rows={3}
                   maxLength={8000}
-                  className="resize-none border-0 bg-transparent px-4 py-3 pr-11 text-[13px] text-white shadow-none placeholder:text-white/34 focus-visible:ring-0"
+                  className="pr-11"
                   placeholder="hey marcus, good question. fha can go as low as 3.5%. are you already talking with a lender?"
                   value={example}
                   onChange={(event) => onUpdate(index, event.target.value)}
