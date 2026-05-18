@@ -345,7 +345,7 @@ export function AreaSearchInput({ placeholder, excludeKeys, onSelect }: AreaSear
       </div>
 
       {isOpen && suggestions.length > 0 ? (
-        <ul className="absolute left-0 right-0 top-[calc(100%+6px)] z-30 max-h-[260px] overflow-y-auto rounded-[14px] border border-white/12 bg-[#0c1014] py-1 shadow-[0_30px_60px_-20px_rgba(0,0,0,0.7)]">
+        <ul className="absolute left-0 right-0 bottom-[calc(100%+6px)] z-30 max-h-[260px] overflow-y-auto rounded-[14px] border border-white/12 bg-[#0c1014] py-1 shadow-[0_-30px_60px_-20px_rgba(0,0,0,0.7)]">
           {suggestions.map((entry, index) => {
             const isActive = index === activeIndex;
             const primary = entry.placeName.split(",")[0] ?? entry.placeName;
