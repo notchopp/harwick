@@ -137,7 +137,6 @@ const LEAD_TYPE_OPTIONS: ReadonlyArray<LeadTypeOption> = [
   { key: "investor", label: "Investor", description: "Returns, inventory, repeat deals", icon: TrendingUp },
   { key: "new construction", label: "New build", description: "Builder, incentives, community fit", icon: Building2 },
   { key: "open house", label: "Open house", description: "Register, remind, follow up", icon: CalendarDays },
-  { key: "showing request", label: "Showing", description: "Qualify, schedule, approve", icon: MapPin },
 ];
 
 const PRICE_BAND_OPTIONS = ["under $300k", "$300k-$500k", "$500k-$750k", "$750k-$1m", "$1m+"];
@@ -418,7 +417,9 @@ function Shell({
           </AnimatePresence>
         </div>
 
-        <StepDots current={currentIndex} total={SCENE_ORDER.length} />
+        {scene !== "welcome" && scene !== "done" ? (
+          <StepDots current={currentIndex} total={SCENE_ORDER.length} />
+        ) : null}
       </div>
     </main>
   );
@@ -716,7 +717,6 @@ const LEAD_GLYPH_ENTRIES: ReadonlyArray<LeadGlyphEntry> = [
   { key: "seller", icon: PhosphorHouseLine, glow: "#d8c487" },
   { key: "investor", icon: PhosphorChartLineUp, glow: "#c9b9e0" },
   { key: "new construction", icon: PhosphorHardHat, glow: "#e0b8a4" },
-  { key: "showing request", icon: PhosphorMapPin, glow: "#d8c487" },
   { key: "open house", icon: PhosphorCalendarHeart, glow: "#b8d3c5" },
   { key: "renter", icon: PhosphorDoor, glow: "#a4c4d8" },
 ];
@@ -1200,7 +1200,7 @@ function PrimaryAreasScene({
           ) : null}
 
           <PrimaryCta disabled={areas.length === 0} onClick={onNext}>
-            Lock market
+            Set my market
             <ArrowRight className="size-4" aria-hidden="true" />
           </PrimaryCta>
         </>
@@ -1434,10 +1434,14 @@ function ReplyExamplesScene({
               Add another sample
             </GhostCta>
           ) : null}
-          <p className="text-center text-[11px] text-white/38">{usableCount} usable sample{usableCount === 1 ? "" : "s"}</p>
+          <p className="text-center text-[11px] text-white/38">
+            {usableCount === 0
+              ? "Add at least 1 sample to continue"
+              : `${usableCount} sample${usableCount === 1 ? "" : "s"} ready — more is better`}
+          </p>
           {error !== null ? <ErrorBox>{error}</ErrorBox> : null}
           <PrimaryCta disabled={usableCount === 0} loading={submitting} onClick={onSave}>
-            Save voice samples
+            This sounds like me
             <ArrowRight className="size-4" aria-hidden="true" />
           </PrimaryCta>
         </>
@@ -1685,7 +1689,7 @@ function AutonomyScene({
             {[
               { key: "draft", label: "Draft", icon: MessageSquare },
               { key: "approval", label: "Approve", icon: ClipboardCheck },
-              { key: "safe_auto", label: "Safe auto", icon: Gauge },
+              { key: "safe_auto", label: "Auto", icon: Gauge },
             ].map((option) => {
               const Icon = option.icon;
               const selected = autonomy === option.key;
@@ -1762,18 +1766,11 @@ function ActivationScene({
 }
 
 function DoneScene({ workspaceName }: { workspaceName: string }) {
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      window.location.assign("/home");
-    }, 2200);
-    return () => window.clearTimeout(timer);
-  }, []);
-
   return (
     <SceneFrame
       eyebrow="ready"
-      title={`${workspaceName} has a Harwick setup.`}
-      description="Opening the workspace. The next work should be checklist wiring and provider connection polish."
+      title={`${workspaceName} is live.`}
+      description="Harwick starts learning from every lead you handle."
       visual={<WelcomeVisual />}
       footer={
         <PrimaryCta onClick={() => window.location.assign("/home")}>
@@ -1935,7 +1932,7 @@ export function OnboardingSetupPage(props: SetupPageProps) {
   }
 
   return (
-    <Shell scene={scene} onBack={scene === "welcome" ? null : goBack}>
+    <Shell scene={scene} onBack={scene === "welcome" || scene === "done" ? null : goBack}>
       {scene === "welcome" ? (
         <WelcomeScene onNext={() => setScene("primary_areas")} />
       ) : null}
