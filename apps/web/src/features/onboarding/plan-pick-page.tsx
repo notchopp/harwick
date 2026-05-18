@@ -1,6 +1,6 @@
 "use client";
 
-import { Check } from "lucide-react";
+import { motion } from "motion/react";
 import { type FormEvent, useState } from "react";
 
 import { getPlanMaterial, type PlanMaterial } from "../marketing/plan-card-material";
@@ -12,9 +12,8 @@ type PlanCard = {
   name: string;
   price: string;
   cadence: string;
-  tagline: string;
+  capacity: string;
   highlight: boolean;
-  features: ReadonlyArray<string>;
 };
 
 const PLAN_CARDS: ReadonlyArray<PlanCard> = [
@@ -23,64 +22,41 @@ const PLAN_CARDS: ReadonlyArray<PlanCard> = [
     name: "Free",
     price: "$0",
     cadence: "forever",
-    tagline: "A live demo using your real leads.",
+    capacity: "1 seat",
     highlight: false,
-    features: [
-      "100 social turns / month",
-      "50 voice minutes / month",
-      "3 listings, 1 seat",
-      "Approval-first replies",
-      "Pay-as-you-go past the free quota",
-    ],
   },
   {
     key: "solo",
     name: "Solo",
     price: "$299",
     cadence: "/ month",
-    tagline: "Single agent running a serious desk.",
+    capacity: "2 seats",
     highlight: false,
-    features: [
-      "2,000 social turns + 500 voice minutes",
-      "10 listings, 2 seats",
-      "Auto-send when policy allows",
-      "Follow Up Boss sync",
-      "Workspace memory",
-    ],
   },
   {
     key: "team",
     name: "Team",
     price: "$799",
     cadence: "/ month",
-    tagline: "Small team, one operator.",
+    capacity: "10 seats",
     highlight: true,
-    features: [
-      "8,000 social turns + 2,000 voice minutes",
-      "50 listings, 10 seats",
-      "Routing profiles + agent assignment",
-      "Calendar showings + tour booking",
-      "Cross-deal workspace memory",
-    ],
   },
   {
     key: "brokerage",
     name: "Brokerage",
     price: "$1,500",
     cadence: "/ month",
-    tagline: "Multi-agent operation.",
+    capacity: "Unlimited seats",
     highlight: false,
-    features: [
-      "25,000 social turns + 6,000 voice minutes",
-      "Unlimited listings + seats",
-      "Owner review queue",
-      "Multi-Page / IG support",
-      "Priority support",
-    ],
   },
 ];
 
 const PAID_PLANS: ReadonlySet<PlanKey> = new Set<PlanKey>(["solo", "team", "brokerage"]);
+
+const fade = {
+  initial: { opacity: 0, y: 22 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.55, ease: [0.16, 1, 0.3, 1] as const } },
+};
 
 export function PlanPickPage({ defaultWorkspaceName }: { defaultWorkspaceName: string }) {
   const [workspaceName, setWorkspaceName] = useState(defaultWorkspaceName);
@@ -150,84 +126,114 @@ export function PlanPickPage({ defaultWorkspaceName }: { defaultWorkspaceName: s
         className="pointer-events-none absolute inset-0 opacity-60"
         style={{
           background:
-            "radial-gradient(ellipse at 20% 0%, rgba(123,166,255,0.08), transparent 55%)," +
-            "radial-gradient(ellipse at 80% 100%, rgba(154,181,170,0.08), transparent 55%)",
+            "radial-gradient(ellipse at 20% 0%, rgba(123,166,255,0.08), transparent 55%),"
+            + "radial-gradient(ellipse at 80% 100%, rgba(154,181,170,0.08), transparent 55%)",
         }}
       />
 
-      <div className="relative mx-auto w-full max-w-[1180px]">
-        <header className="mb-10 text-center">
-          <div className="font-display text-[14px] uppercase tracking-[0.18em] text-white/45">
-            step 1 of 2
-          </div>
-          <h1 className="mt-3 font-display text-[34px] font-medium leading-tight tracking-[-0.02em] sm:text-[40px]">
+      <div className="relative mx-auto flex min-h-[calc(100vh-80px)] w-full max-w-[460px] flex-col justify-center">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.85, y: -8 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] as const }}
+          className="mb-8 flex justify-center"
+        >
+          <img
+            src="/harwick-gemini-logo.png"
+            alt="Harwick"
+            className="h-14 w-auto select-none"
+            draggable={false}
+          />
+        </motion.div>
+
+        <motion.header
+          variants={fade}
+          initial="initial"
+          animate="animate"
+          transition={{ delay: 0.2 }}
+          className="mb-8 text-center"
+        >
+          <h1 className="font-display text-[28px] font-medium leading-tight tracking-[-0.02em] sm:text-[32px]">
             Pick your starting plan.
           </h1>
-          <p className="mx-auto mt-3 max-w-[560px] text-[14px] leading-6 text-white/65">
-            No card required for Free. Paid plans unlock workspace memory, FUB sync, auto-send, and more seats.
-            You can change tier anytime.
-          </p>
-        </header>
+        </motion.header>
 
         <form onSubmit={(event) => void handleSubmit(event)}>
-          <div className="mx-auto mb-8 max-w-[520px]">
+          <div className="space-y-2.5">
+            {PLAN_CARDS.map((card, index) => (
+              <motion.div
+                key={card.key}
+                initial={{ opacity: 0, y: 28 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{
+                  delay: 0.35 + index * 0.08,
+                  duration: 0.55,
+                  ease: [0.16, 1, 0.3, 1] as const,
+                }}
+              >
+                <PlanRow
+                  card={card}
+                  selected={selected === card.key}
+                  onSelect={() => setSelected(card.key)}
+                />
+              </motion.div>
+            ))}
+          </div>
+
+          <motion.div
+            variants={fade}
+            initial="initial"
+            animate="animate"
+            transition={{ delay: 0.75 }}
+            className="mt-7"
+          >
             <label className="block">
-              <span className="mb-2 block text-[11px] uppercase tracking-[0.12em] text-white/55">
+              <span className="mb-1.5 block text-[11px] uppercase tracking-[0.12em] text-white/55">
                 Workspace name
               </span>
               <input
                 autoComplete="organization"
-                className="h-12 w-full rounded-[14px] border border-white/15 bg-white/[0.04] px-4 text-[15px] text-white placeholder-white/35 outline-none transition focus:border-white/35 focus:bg-white/[0.06]"
+                className="h-11 w-full rounded-[12px] border border-white/12 bg-white/[0.05] px-3.5 text-[14px] text-white outline-none transition placeholder:text-white/35 focus:border-[#b8d3c5]/55 focus:bg-white/[0.07] focus:shadow-[0_0_0_3px_rgba(184,211,197,0.18)]"
                 onChange={(event) => setWorkspaceName(event.target.value)}
                 placeholder="e.g. Prestige Realty"
                 required
                 value={workspaceName}
               />
             </label>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {PLAN_CARDS.map((card) => (
-              <PlanRadio
-                key={card.key}
-                card={card}
-                selected={selected === card.key}
-                onSelect={() => setSelected(card.key)}
-              />
-            ))}
-          </div>
+          </motion.div>
 
           {error !== null ? (
-            <div className="mx-auto mt-6 max-w-[520px] rounded-[12px] border border-red-400/30 bg-red-500/10 px-4 py-3 text-[13px] text-red-200">
+            <div className="mt-4 rounded-[12px] border border-red-400/25 bg-red-500/10 px-3.5 py-2.5 text-[12.5px] leading-5 text-red-200">
               {error}
             </div>
           ) : null}
 
-          <div className="mx-auto mt-10 flex max-w-[520px] flex-col items-center gap-3">
+          <motion.div
+            variants={fade}
+            initial="initial"
+            animate="animate"
+            transition={{ delay: 0.85 }}
+            className="mt-7"
+          >
             <button
               type="submit"
               disabled={isSubmitting}
-              className="inline-flex h-12 w-full items-center justify-center rounded-full bg-white px-6 text-[14px] font-semibold text-[#0a0d0f] shadow-[0_18px_40px_-15px_rgba(255,255,255,0.4)] transition hover:brightness-105 disabled:opacity-60"
+              className="inline-flex h-12 w-full items-center justify-center rounded-full bg-white px-6 text-[13.5px] font-semibold text-[#0a0d0f] shadow-[0_18px_40px_-15px_rgba(255,255,255,0.4)] transition hover:brightness-105 disabled:opacity-60"
             >
               {isSubmitting
                 ? "Setting up..."
                 : PAID_PLANS.has(selected)
-                ? `Continue to checkout — ${PLAN_CARDS.find((card) => card.key === selected)?.price}/mo`
+                ? "Continue to checkout"
                 : "Start with Free"}
             </button>
-            <p className="text-[11px] text-white/40">
-              {PAID_PLANS.has(selected)
-                ? "Stripe handles billing. You'll come back here after payment."
-                : "You can add a payment method anytime in Settings."}
-            </p>
-          </div>
+          </motion.div>
         </form>
       </div>
     </main>
   );
 }
 
-function PlanRadio({
+function PlanRow({
   card,
   selected,
   onSelect,
@@ -242,13 +248,13 @@ function PlanRadio({
       type="button"
       onClick={onSelect}
       aria-pressed={selected}
-      className="group relative flex flex-col overflow-hidden rounded-[18px] p-5 text-left transition-transform duration-300 will-change-transform hover:-translate-y-0.5"
+      className="group relative flex w-full items-center justify-between overflow-hidden rounded-[16px] px-5 py-4 text-left transition-transform duration-300 will-change-transform hover:-translate-y-[1px]"
       style={{
         background: material.background,
         border: `1px solid ${selected ? material.accentColor : material.ringColor}`,
         boxShadow: selected
           ? `${material.edgeShadow}, 0 0 0 2px ${material.accentColor}55, 0 30px 60px -25px rgba(0,0,0,0.6), 0 0 70px -30px ${material.ringColor}`
-          : `${material.edgeShadow}, 0 30px 60px -25px rgba(0,0,0,0.6), 0 0 70px -30px ${material.ringColor}`,
+          : `${material.edgeShadow}, 0 24px 48px -28px rgba(0,0,0,0.55)`,
       }}
     >
       <div
@@ -256,28 +262,31 @@ function PlanRadio({
         className="pointer-events-none absolute inset-0 -translate-x-full bg-[linear-gradient(110deg,transparent_35%,rgba(255,255,255,0.06)_50%,transparent_65%)] bg-[length:250%_100%] transition-transform duration-1000 ease-out group-hover:translate-x-full"
       />
 
-      <div className="relative flex items-center justify-between">
-        <h3 className="font-display text-[15px] font-semibold tracking-[-0.01em] text-white">
-          {card.name}
-        </h3>
-        {card.highlight ? (
-          <span
-            className="rounded-full border px-2 py-0.5 text-[9.5px] font-semibold uppercase tracking-[0.1em]"
-            style={{
-              background: `${material.accentColor}1f`,
-              borderColor: material.ringColor,
-              color: material.accentColor,
-              fontFamily: "var(--font-mono)",
-            }}
-          >
-            most teams
+      <div className="relative flex flex-col gap-0.5">
+        <div className="flex items-center gap-2">
+          <span className="font-display text-[15px] font-semibold tracking-[-0.01em] text-white">
+            {card.name}
           </span>
-        ) : null}
+          {card.highlight ? (
+            <span
+              className="rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.1em]"
+              style={{
+                background: `${material.accentColor}1f`,
+                borderColor: material.ringColor,
+                color: material.accentColor,
+                fontFamily: "var(--font-mono)",
+              }}
+            >
+              most teams
+            </span>
+          ) : null}
+        </div>
+        <span className="text-[11.5px] text-white/55">{card.capacity}</span>
       </div>
 
-      <div className="relative mt-3 flex items-baseline gap-1.5">
+      <div className="relative flex items-baseline gap-1.5">
         <span
-          className="bg-clip-text text-[32px] font-semibold leading-none tracking-[-0.03em] text-transparent"
+          className="bg-clip-text text-[22px] font-semibold leading-none tracking-[-0.02em] text-transparent"
           style={{
             backgroundImage: material.textShimmer,
             fontFamily: "var(--font-display)",
@@ -286,32 +295,7 @@ function PlanRadio({
         >
           {card.price}
         </span>
-        <span className="text-[11px] text-white/45">{card.cadence}</span>
-      </div>
-      <p className="relative mt-1 text-[12px] text-white/65">{card.tagline}</p>
-
-      <ul className="relative mt-4 flex-1 space-y-1.5 text-[12px] text-white/85">
-        {card.features.map((feature) => (
-          <li key={feature} className="flex items-start gap-1.5">
-            <Check
-              className="mt-0.5 size-3 shrink-0"
-              aria-hidden="true"
-              style={{ color: material.accentColor }}
-            />
-            {feature}
-          </li>
-        ))}
-      </ul>
-
-      <div
-        className="relative mt-5 inline-flex h-8 items-center justify-center rounded-full px-3 text-[11px] font-medium transition"
-        style={{
-          background: selected ? `${material.accentColor}33` : "rgba(255,255,255,0.04)",
-          color: selected ? material.accentColor : "rgba(255,255,255,0.65)",
-          border: `1px solid ${selected ? material.accentColor : material.ringColor}`,
-        }}
-      >
-        {selected ? "Selected" : "Choose this plan"}
+        <span className="text-[10.5px] text-white/45">{card.cadence}</span>
       </div>
     </button>
   );
