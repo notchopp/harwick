@@ -597,48 +597,15 @@ function ErrorBox({ children }: { children: React.ReactNode }) {
 
 function WelcomeVisual() {
   return (
-    <div className="relative mx-auto flex aspect-[0.88] max-h-[390px] items-center justify-center rounded-[44px] border border-white/10 bg-white/[0.04] shadow-[0_35px_90px_-45px_rgba(184,211,197,0.95)]">
-      {/* Soft halo behind the mark — single pulse on mount, then settles. */}
-      <motion.div
-        aria-hidden="true"
-        className="absolute size-60 rounded-full blur-3xl"
-        initial={{ opacity: 0, scale: 0.72 }}
-        animate={{ opacity: 0.55, scale: 1 }}
-        transition={{ duration: 1.4, ease: [0.22, 1, 0.36, 1] }}
-        style={{ background: "rgba(184,211,197,0.5)" }}
-      />
-
-      {/* The actual brand mark, large and centered. Subtle slow-rotation
-       *  hint via the ring around it, not the mark itself. */}
-      <motion.div
-        aria-hidden="true"
-        className="absolute size-44 rounded-full border border-white/15"
-        initial={{ rotate: 0, opacity: 0 }}
-        animate={{ rotate: 360, opacity: 1 }}
-        transition={{
-          rotate: { duration: 64, repeat: Infinity, ease: "linear" },
-          opacity: { duration: 1.1, ease: "easeOut" },
-        }}
-        style={{
-          backgroundImage:
-            "conic-gradient(from 0deg, rgba(184,211,197,0.0) 0deg, rgba(184,211,197,0.45) 90deg, rgba(184,211,197,0.0) 180deg, rgba(216,196,135,0.35) 270deg, rgba(184,211,197,0.0) 360deg)",
-          mask: "radial-gradient(circle at center, transparent 58%, black 60%)",
-          WebkitMask: "radial-gradient(circle at center, transparent 58%, black 60%)",
-        }}
-      />
-
-      <motion.div
-        initial={{ scale: 0.85, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-        className="relative"
-      >
-        <HarwickMark
-          size={120}
-          className="rounded-[28px] shadow-[0_30px_70px_-20px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.18)]"
-        />
-      </motion.div>
-    </div>
+    <motion.img
+      alt=""
+      aria-hidden="true"
+      src="/harwick-gemini-logo.png"
+      className="mx-auto size-[220px] object-contain"
+      initial={{ opacity: 0, scale: 0.92 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+    />
   );
 }
 
@@ -861,39 +828,20 @@ function ActivationVisual({ planTier, operatorRole }: { planTier: SetupPageProps
   );
 }
 
-function WelcomeScene({
-  operatorName,
-  workspaceName,
-  planTier,
-  operatorRole,
-  onNext,
-}: {
-  operatorName: string;
-  workspaceName: string;
-  planTier: SetupPageProps["planTier"];
-  operatorRole: WorkspaceRole;
-  onNext: () => void;
-}) {
-  const firstName = operatorName.split(/\s+/)[0] ?? operatorName;
-
+function WelcomeScene({ onNext }: { onNext: () => void }) {
+  // Bypasses SceneFrame on purpose — the welcome moment is a single
+  // logo on the bg + one CTA. No card, no title, no description, no
+  // muted info line.
   return (
-    <SceneFrame
-      eyebrow={`welcome, ${firstName.toLowerCase()}`}
-      title={`Build Harwick for ${workspaceName}.`}
-      description="A focused setup room for the business, market, voice, channels, and launch path."
-      visual={<WelcomeVisual />}
-      footer={
-        <>
-          <PrimaryCta onClick={onNext}>
-            Let&apos;s get started
-            <ArrowRight className="size-4" aria-hidden="true" />
-          </PrimaryCta>
-          <p className="text-center text-[11px] text-white/40">
-            {planLabel(planTier)} plan &middot; {roleLabel(operatorRole)} &middot; {roleLens(operatorRole)}
-          </p>
-        </>
-      }
-    />
+    <div className="flex min-h-[640px] flex-col items-center justify-center gap-12">
+      <WelcomeVisual />
+      <div className="w-full max-w-[300px]">
+        <PrimaryCta onClick={onNext}>
+          Let&apos;s get started
+          <ArrowRight className="size-4" aria-hidden="true" />
+        </PrimaryCta>
+      </div>
+    </div>
   );
 }
 
@@ -1562,13 +1510,7 @@ export function OnboardingSetupPage(props: SetupPageProps) {
   return (
     <Shell scene={scene} onBack={scene === "welcome" ? null : goBack}>
       {scene === "welcome" ? (
-        <WelcomeScene
-          operatorName={props.operatorName}
-          operatorRole={props.operatorRole}
-          planTier={props.planTier}
-          workspaceName={props.workspaceName}
-          onNext={() => setScene("workspace_type")}
-        />
+        <WelcomeScene onNext={() => setScene("workspace_type")} />
       ) : null}
 
       {scene === "workspace_type" ? (
