@@ -1905,104 +1905,6 @@ function PricingCard({ tier }: { tier: PricingTier }) {
 }
 
 // =====================================================================
-// Testimonials — real names, real results
-// (placeholder copy while we collect real ones)
-// =====================================================================
-
-type Testimonial = {
-  quote: string;
-  name: string;
-  role: string;
-  location: string;
-  initials: string;
-  result: string;
-};
-
-const TESTIMONIALS: ReadonlyArray<Testimonial> = [
-  {
-    quote: "I was losing leads every Sunday night because my agents weren't checking IG. Harwick caught a $760k buyer at 11pm and had Sarah on a tour by Saturday morning.",
-    name: "Ademola Adesanya",
-    role: "Broker / Owner",
-    location: "Prestige Realty · Houston",
-    initials: "AA",
-    result: "first close from an IG DM",
-  },
-  {
-    quote: "We dropped the ball constantly on Facebook comments. Now Harwick answers the simple stuff and pulls me in only when it matters. My agents finally have time for actual showings.",
-    name: "Sarah Kessler",
-    role: "Team Lead",
-    location: "Bellaire + West U",
-    initials: "SK",
-    result: "comment response time under 30s",
-  },
-  {
-    quote: "The thing I didn't expect was the voicemail handling. We were missing calls overnight and didn't know it. Harwick transcribes, drafts an SMS back, and our agents wake up to a confirmed tour.",
-    name: "Malik Johnson",
-    role: "Agent",
-    location: "Houston metro",
-    initials: "MJ",
-    result: "no more missed voicemails",
-  },
-];
-
-function Testimonials() {
-  return (
-    <section style={{ background: C.bg }} className="py-28">
-      <div className="mx-auto w-full max-w-[1180px] px-6">
-        <div className="mb-12">
-          <SectionEyebrow>From brokerages</SectionEyebrow>
-          <SectionHeadline>Real desks. Real results.</SectionHeadline>
-        </div>
-        <div className="grid gap-4 md:grid-cols-3">
-          {TESTIMONIALS.map((t) => (
-            <article
-              key={t.name}
-              className="flex flex-col rounded-[18px] p-6"
-              style={{ background: C.panel, border: `1px solid ${C.line}` }}
-            >
-              <span
-                className="inline-block self-start text-[28px] leading-none"
-                style={{ color: C.sage, fontFamily: "var(--font-display)", opacity: 0.35 }}
-                aria-hidden="true"
-              >
-                &ldquo;
-              </span>
-              <p className="mt-1 flex-1 text-[14px] leading-7" style={{ color: C.textMid }}>
-                {t.quote}
-              </p>
-              <span
-                className="mt-5 inline-flex self-start rounded-md px-2.5 py-1 text-[10.5px] uppercase"
-                style={{
-                  background: C.sageSoft,
-                  color: C.sage,
-                  border: `1px solid ${C.sageRing}`,
-                  fontFamily: "var(--font-mono)",
-                  letterSpacing: "0.1em",
-                }}
-              >
-                {t.result}
-              </span>
-              <div className="mt-5 flex items-center gap-3 border-t pt-5" style={{ borderColor: C.line }}>
-                <div
-                  className="flex size-9 shrink-0 items-center justify-center rounded-full text-[11px] font-bold"
-                  style={{ background: C.sage, color: C.ink }}
-                >
-                  {t.initials}
-                </div>
-                <div>
-                  <div className="text-[13px] font-semibold" style={{ color: C.text }}>{t.name}</div>
-                  <div className="text-[11.5px]" style={{ color: C.textLow }}>{t.role} · {t.location}</div>
-                </div>
-              </div>
-            </article>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// =====================================================================
 // Early access — replaces public pricing while billing/onboarding is wip
 // =====================================================================
 
@@ -2072,6 +1974,7 @@ function Footer() {
         <div className="flex items-center gap-2">
           <HarwickLogo size={20} />
           <span className="text-[13px] font-semibold" style={{ color: C.text }}>Harwick</span>
+          <span className="text-[11.5px]" style={{ color: C.textFaint }}>by Coya Systems LLC</span>
           <span className="ml-2 text-[11.5px]" style={{ color: C.textFaint }}>© {new Date().getFullYear()}</span>
         </div>
         <nav className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[12px]" style={{ color: C.textMid }}>
@@ -2080,6 +1983,7 @@ function Footer() {
           <a className="hover:text-white" href="/data-deletion">Data deletion</a>
           <a className="hover:text-white" href="/connect/meta">Connect Meta</a>
           <a className="hover:text-white" href="mailto:support@harwick.lol">Contact</a>
+          <a className="hover:text-white" href="tel:+14848456393">+1 (484) 845-6393</a>
         </nav>
       </div>
     </footer>
@@ -2108,8 +2012,6 @@ export function MarketingLandingPage({ isAuthenticated }: LandingProps) {
         <YourControls />
         <SectionBreak />
         <Pricing />
-        <SectionBreak />
-        <Testimonials />
         <SectionBreak />
         <EarlyAccess isAuthenticated={isAuthenticated} />
       </main>

@@ -2,35 +2,5 @@
   "buildCommand": "npm run typecheck && npm run build",
   "installCommand": "npm install",
   "outputDirectory": "apps/web/.next",
-  "framework": "nextjs",
-  "crons": [
-    {
-      "path": "/api/agent-runtime/reconcile",
-      "schedule": "*/30 * * * *"
-    },
-    {
-      "path": "/api/agent-runtime/embed",
-      "schedule": "*/30 * * * *"
-    },
-    {
-      "path": "/api/agent-runtime/insights",
-      "schedule": "*/30 * * * *"
-    },
-    {
-      "path": "/api/agent-runtime/workspace-memory",
-      "schedule": "0 */6 * * *"
-    },
-    {
-      "path": "/api/agent-runtime/loops",
-      "schedule": "*/5 * * * *"
-    },
-    {
-      "path": "/api/agent-runtime/subagents",
-      "schedule": "*/5 * * * *"
-    },
-    {
-      "path": "/api/cron/wallet-recharge",
-      "schedule": "* * * * *"
-    }
-  ]
+  "framework": "nextjs"
 }
