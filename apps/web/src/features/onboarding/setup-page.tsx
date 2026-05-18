@@ -4,38 +4,50 @@ import { AnimatePresence, motion } from "motion/react";
 import {
   ArrowLeft,
   ArrowRight,
+  Bell,
   Briefcase,
   Building2,
+  CalendarDays,
   Check,
+  ClipboardCheck,
+  Crown,
+  Database,
+  DoorOpen,
+  Gauge,
   Globe,
+  Home,
+  KeyRound,
   Loader2,
+  MapPin,
   MessageSquare,
   Plus,
+  Route,
+  ShieldCheck,
   Sparkles,
   Trash2,
+  TrendingUp,
   Users,
   X,
   type LucideIcon,
 } from "lucide-react";
 import {
   type ComponentType,
+  type KeyboardEvent,
   type SVGProps,
   useEffect,
   useMemo,
   useState,
-  type KeyboardEvent,
 } from "react";
-
-import { FacebookGlyph, InstagramGlyph, PhoneGlyph } from "../../components/harwick-icons";
 
 import type {
   OnboardingChannel,
   OnboardingChannelMode,
   WorkspaceOnboardingState,
+  WorkspaceRole,
   WorkspaceType,
 } from "@realty-ops/core";
 
-import { Badge } from "../../components/ui/badge";
+import { FacebookGlyph, InstagramGlyph, PhoneGlyph } from "../../components/harwick-icons";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
@@ -46,62 +58,54 @@ type SetupPageProps = {
   workspaceId: string;
   workspaceName: string;
   operatorName: string;
+  operatorRole: WorkspaceRole;
   initialState: WorkspaceOnboardingState;
   planTier: "free" | "solo" | "team" | "brokerage";
 };
 
-type StepKey = "welcome" | "identity" | "reply_examples" | "channels" | "done";
+type SceneKey =
+  | "welcome"
+  | "workspace_type"
+  | "primary_areas"
+  | "lead_types"
+  | "price_bands"
+  | "listing_focus"
+  | "voice_tone"
+  | "reply_examples"
+  | "channels"
+  | "autonomy"
+  | "activation"
+  | "done";
 
-const STEP_ORDER: ReadonlyArray<StepKey> = [
+const SCENE_ORDER: ReadonlyArray<SceneKey> = [
   "welcome",
-  "identity",
+  "workspace_type",
+  "primary_areas",
+  "lead_types",
+  "price_bands",
+  "listing_focus",
+  "voice_tone",
   "reply_examples",
   "channels",
+  "autonomy",
+  "activation",
   "done",
 ];
 
-/**
- * Per-step holographic palette. Drives the bloom behind the card and the
- * accent color on selected states / progress dot. Picked to feel like steady
- * progression: cool intro → warm character → cool craft → confident violet →
- * sage finish.
- */
-const STEP_PALETTES: Record<StepKey, { bloom: string; accent: string; ring: string }> = {
-  welcome: {
-    bloom:
-      "radial-gradient(circle at 50% 18%, rgba(154,181,170,0.42), transparent 56%),"
-      + "radial-gradient(circle at 18% 80%, rgba(123,166,255,0.16), transparent 60%)",
-    accent: "#b6d1c5",
-    ring: "rgba(154,181,170,0.55)",
-  },
-  identity: {
-    bloom:
-      "radial-gradient(circle at 22% 12%, rgba(240,184,122,0.34), transparent 55%),"
-      + "radial-gradient(circle at 82% 78%, rgba(227,160,103,0.22), transparent 60%)",
-    accent: "#f0b87a",
-    ring: "rgba(227,160,103,0.5)",
-  },
-  reply_examples: {
-    bloom:
-      "radial-gradient(circle at 20% 14%, rgba(168,194,255,0.34), transparent 55%),"
-      + "radial-gradient(circle at 80% 80%, rgba(116,165,210,0.18), transparent 60%)",
-    accent: "#a8c2ff",
-    ring: "rgba(123,166,255,0.5)",
-  },
-  channels: {
-    bloom:
-      "radial-gradient(circle at 24% 14%, rgba(200,174,240,0.34), transparent 55%),"
-      + "radial-gradient(circle at 78% 82%, rgba(183,147,230,0.2), transparent 60%)",
-    accent: "#c8aef0",
-    ring: "rgba(183,147,230,0.5)",
-  },
-  done: {
-    bloom:
-      "radial-gradient(circle at 50% 30%, rgba(154,181,170,0.5), transparent 55%),"
-      + "radial-gradient(circle at 50% 80%, rgba(176,210,196,0.22), transparent 65%)",
-    accent: "#b6d1c5",
-    ring: "rgba(154,181,170,0.6)",
-  },
+const HARWICK_GLOW = {
+  base:
+    "radial-gradient(circle at 50% 18%, rgba(191,221,207,0.5), transparent 35%),"
+    + "radial-gradient(circle at 18% 84%, rgba(216,196,135,0.2), transparent 42%),"
+    + "radial-gradient(circle at 82% 76%, rgba(73,112,94,0.34), transparent 48%),"
+    + "linear-gradient(180deg, #07110d 0%, #050908 100%)",
+  card:
+    "radial-gradient(circle at 50% 0%, rgba(198,226,212,0.2), transparent 54%),"
+    + "linear-gradient(180deg, rgba(255,255,255,0.075), rgba(255,255,255,0.035))",
+  accent: "#b8d3c5",
+  accentStrong: "#d8c487",
+  muted: "#7fa18e",
+  ink: "#07100d",
+  ring: "rgba(184,211,197,0.58)",
 };
 
 type WorkspaceTypeOption = {
@@ -112,10 +116,46 @@ type WorkspaceTypeOption = {
 };
 
 const WORKSPACE_TYPE_OPTIONS: ReadonlyArray<WorkspaceTypeOption> = [
-  { key: "solo", label: "Solo agent", description: "One agent running the desk", icon: Briefcase },
-  { key: "team", label: "Team", description: "Small team with agents and an operator", icon: Users },
-  { key: "brokerage", label: "Brokerage", description: "Multi-agent shop with shared channels", icon: Building2 },
-  { key: "other", label: "Other real estate workspace", description: "We will tailor within the current Harwick flow", icon: Sparkles },
+  { key: "solo", label: "Solo agent", description: "One agent running their own lead desk", icon: Briefcase },
+  { key: "team", label: "Team", description: "A rainmaker or lead with agents underneath", icon: Users },
+  { key: "brokerage", label: "Brokerage", description: "Multi-agent operation with shared systems", icon: Building2 },
+  { key: "other", label: "Other", description: "A real estate workflow inside Harwick's current scope", icon: Sparkles },
+];
+
+type LeadTypeOption = {
+  key: string;
+  label: string;
+  description: string;
+  icon: LucideIcon;
+};
+
+const LEAD_TYPE_OPTIONS: ReadonlyArray<LeadTypeOption> = [
+  { key: "buyer", label: "Buyer", description: "Budget, area, financing, timeline", icon: KeyRound },
+  { key: "seller", label: "Seller", description: "Valuation, listing intent, timing", icon: Home },
+  { key: "renter", label: "Renter", description: "Lease criteria and urgency", icon: DoorOpen },
+  { key: "investor", label: "Investor", description: "Returns, inventory, repeat deals", icon: TrendingUp },
+  { key: "new construction", label: "New build", description: "Builder, incentives, community fit", icon: Building2 },
+  { key: "open house", label: "Open house", description: "Register, remind, follow up", icon: CalendarDays },
+  { key: "showing request", label: "Showing", description: "Qualify, schedule, approve", icon: MapPin },
+];
+
+const PRICE_BAND_OPTIONS = ["under $300k", "$300k-$500k", "$500k-$750k", "$750k-$1m", "$1m+"];
+
+type ListingFocusOption = {
+  key: string;
+  label: string;
+  description: string;
+  icon: LucideIcon;
+};
+
+const LISTING_FOCUS_OPTIONS: ReadonlyArray<ListingFocusOption> = [
+  { key: "new construction", label: "New construction", description: "Builders, incentives, communities", icon: Building2 },
+  { key: "first-time buyers", label: "First-time buyers", description: "Lender handoff and education", icon: KeyRound },
+  { key: "luxury", label: "Luxury", description: "High-touch and approval-first", icon: Crown },
+  { key: "relocation", label: "Relocation", description: "Area fit and remote coordination", icon: MapPin },
+  { key: "investors", label: "Investors", description: "Yield, rent, resale, repeat buyers", icon: TrendingUp },
+  { key: "rentals", label: "Rentals", description: "Availability and urgency", icon: DoorOpen },
+  { key: "open houses", label: "Open houses", description: "Event capture and reminders", icon: CalendarDays },
 ];
 
 type ChannelIcon = LucideIcon | ComponentType<SVGProps<SVGSVGElement>>;
@@ -125,251 +165,137 @@ type ChannelOption = {
   label: string;
   description: string;
   icon: ChannelIcon;
+  minimumPlan: SetupPageProps["planTier"];
 };
 
 const CHANNEL_OPTIONS: ReadonlyArray<ChannelOption> = [
-  { key: "instagram", label: "Instagram", description: "DMs and comments on posts/reels", icon: InstagramGlyph },
-  { key: "facebook", label: "Facebook", description: "Page messages and comments", icon: FacebookGlyph },
-  { key: "sms", label: "SMS", description: "Text-message inbound and follow-ups", icon: MessageSquare },
-  { key: "voice", label: "Voice (Retell)", description: "Inbound calls answered by Harwick", icon: PhoneGlyph },
-  { key: "website", label: "Website", description: "Web forms + chat widget", icon: Globe },
+  { key: "instagram", label: "Instagram", description: "DMs and comments on posts/reels", icon: InstagramGlyph, minimumPlan: "free" },
+  { key: "facebook", label: "Facebook", description: "Page messages and comments", icon: FacebookGlyph, minimumPlan: "free" },
+  { key: "website", label: "Listings site", description: "Public listings and inquiry capture", icon: Globe, minimumPlan: "free" },
+  { key: "sms", label: "SMS", description: "Text follow-up and nurture", icon: MessageSquare, minimumPlan: "solo" },
+  { key: "voice", label: "Voice", description: "Retell-powered inbound call handling", icon: PhoneGlyph, minimumPlan: "solo" },
 ];
 
 type ChannelMode = OnboardingChannelMode | "off";
 
 const CHANNEL_MODE_OPTIONS: ReadonlyArray<{ key: ChannelMode; short: string; full: string }> = [
-  { key: "off", short: "Off", full: "Not using this channel" },
-  { key: "suggest_only", short: "Draft", full: "Harwick drafts, you send" },
-  { key: "approval_first", short: "Approve", full: "Harwick drafts, you tap approve" },
-  { key: "auto_send", short: "Auto", full: "Harwick sends when safe" },
+  { key: "off", short: "Off", full: "Not using this channel yet" },
+  { key: "suggest_only", short: "Draft", full: "Harwick drafts, a human sends" },
+  { key: "approval_first", short: "Approve", full: "Harwick queues a send decision" },
+  { key: "auto_send", short: "Auto", full: "Harwick sends safe replies automatically" },
 ];
 
-// -----------------------------------------------------------------------------
-// Shared chrome
-// -----------------------------------------------------------------------------
+type ActivationItem = {
+  key: string;
+  label: string;
+  description: string;
+  icon: ChannelIcon;
+  minimumPlan: SetupPageProps["planTier"];
+  roles: WorkspaceRole[];
+};
 
-function OnboardingShell({
-  currentStep,
-  totalSteps,
-  children,
-  paletteKey,
-}: {
-  currentStep: number;
-  totalSteps: number;
-  paletteKey: StepKey;
-  children: React.ReactNode;
-}) {
-  const palette = STEP_PALETTES[paletteKey];
+const ACTIVATION_ITEMS: ReadonlyArray<ActivationItem> = [
+  {
+    key: "social",
+    label: "Connect social inboxes",
+    description: "Instagram and Facebook become Harwick intake channels.",
+    icon: InstagramGlyph,
+    minimumPlan: "free",
+    roles: ["owner", "admin", "team_lead"],
+  },
+  {
+    key: "fub",
+    label: "Test Follow Up Boss",
+    description: "Qualified leads sync through the worker with visible retries.",
+    icon: Database,
+    minimumPlan: "solo",
+    roles: ["owner", "admin", "team_lead", "lead_manager"],
+  },
+  {
+    key: "calendar",
+    label: "Connect calendars",
+    description: "Request-and-approve showing workflows before auto-booking.",
+    icon: CalendarDays,
+    minimumPlan: "solo",
+    roles: ["owner", "admin", "team_lead", "agent"],
+  },
+  {
+    key: "team",
+    label: "Invite the team",
+    description: "Agents get scoped access, routing profiles, and preferences.",
+    icon: Users,
+    minimumPlan: "team",
+    roles: ["owner", "admin"],
+  },
+  {
+    key: "routing",
+    label: "Verify routing policy",
+    description: "Area, price, property type, capacity, and source credit.",
+    icon: Route,
+    minimumPlan: "team",
+    roles: ["owner", "admin", "team_lead", "lead_manager"],
+  },
+  {
+    key: "permissions",
+    label: "Review permissions",
+    description: "Owner/admin capability stays separate from agent access.",
+    icon: ShieldCheck,
+    minimumPlan: "team",
+    roles: ["owner", "admin"],
+  },
+  {
+    key: "brokerage",
+    label: "Brokerage launch review",
+    description: "Multi-team readiness, health checks, usage, and support handoff.",
+    icon: Crown,
+    minimumPlan: "brokerage",
+    roles: ["owner", "admin"],
+  },
+];
 
-  return (
-    <main className="relative min-h-screen overflow-hidden bg-[#0a0d0f] text-white">
-      {/* Layer 1 — base noise + radial blooms per step (recolored per step). */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 transition-[background] duration-700"
-        style={{ background: palette.bloom }}
-      />
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,transparent_30%,rgba(0,0,0,0.55)_88%)]"
-      />
+const PLAN_RANK: Record<SetupPageProps["planTier"], number> = {
+  free: 0,
+  solo: 1,
+  team: 2,
+  brokerage: 3,
+};
 
-      <div className="relative mx-auto flex min-h-screen w-full max-w-[520px] flex-col items-center justify-between px-5 py-8 sm:py-12">
-        {/* Top spacer / brand mark */}
-        <div className="flex w-full items-center justify-between text-[11px] uppercase tracking-[0.18em] text-white/45">
-          <span className="font-display text-white/75">Harwick</span>
-        </div>
+type SetupDraft = {
+  workspaceType: WorkspaceType | null;
+  areas: string[];
+  areaDraft: string;
+  leadTypes: string[];
+  priceBands: string[];
+  listingFocus: string[];
+  toneDescription: string;
+  replyExamples: string[];
+  channels: Record<OnboardingChannel, ChannelMode>;
+  autonomy: "draft" | "approval" | "safe_auto";
+};
 
-        {/* Glass card — animated swap per step */}
-        <div className="my-6 flex w-full flex-1 items-center justify-center">{children}</div>
-
-        {/* Step dots */}
-        <StepDots accent={palette.accent} current={currentStep} total={totalSteps} />
-      </div>
-    </main>
-  );
+function createInitialDraft(planTier: SetupPageProps["planTier"]): SetupDraft {
+  return {
+    workspaceType: null,
+    areas: [],
+    areaDraft: "",
+    leadTypes: [],
+    priceBands: [],
+    listingFocus: [],
+    toneDescription: "",
+    replyExamples: [""],
+    channels: {
+      instagram: "approval_first",
+      facebook: "off",
+      website: "suggest_only",
+      sms: planMeets(planTier, "solo") ? "approval_first" : "off",
+      voice: "off",
+    },
+    autonomy: planTier === "free" ? "approval" : "safe_auto",
+  };
 }
 
-function StepDots({ accent, current, total }: { accent: string; current: number; total: number }) {
-  return (
-    <div className="flex items-center gap-2">
-      {Array.from({ length: total }).map((_, index) => {
-        const isCurrent = index === current;
-        const isDone = index < current;
-        return (
-          <span
-            key={index}
-            aria-hidden="true"
-            className={cn(
-              "h-1.5 rounded-full transition-all duration-300",
-              isCurrent ? "w-7" : "w-1.5",
-            )}
-            style={{
-              background: isCurrent ? accent : isDone ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.18)",
-            }}
-          />
-        );
-      })}
-    </div>
-  );
-}
-
-function GlassCard({
-  children,
-  paletteKey,
-  motionKey,
-}: {
-  children: React.ReactNode;
-  paletteKey: StepKey;
-  motionKey: string;
-}) {
-  const palette = STEP_PALETTES[paletteKey];
-  return (
-    <AnimatePresence mode="wait">
-      <motion.div
-        key={motionKey}
-        initial={{ opacity: 0, y: 12, scale: 0.98 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: -8, scale: 0.98 }}
-        transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
-        className="w-full"
-      >
-        <div
-          className={cn(
-            "relative overflow-hidden rounded-[28px] border border-white/12",
-            "bg-white/[0.045] backdrop-blur-2xl",
-          )}
-          style={{
-            boxShadow:
-              "0 30px 80px -20px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.06), 0 0 80px -40px "
-              + palette.ring,
-          }}
-        >
-          {/* Glossy top highlight */}
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.18),transparent)]"
-          />
-          {children}
-        </div>
-      </motion.div>
-    </AnimatePresence>
-  );
-}
-
-function CardEyebrow({ stepLabel, accent }: { stepLabel: string; accent: string }) {
-  return (
-    <div className="mb-1 inline-flex items-center gap-2 text-[10.5px] font-medium uppercase tracking-[0.18em]">
-      <span className="size-1.5 rounded-full" style={{ background: accent }} />
-      <span className="text-white/55">{stepLabel}</span>
-    </div>
-  );
-}
-
-function PrimaryCta({
-  accent,
-  loading,
-  disabled,
-  children,
-  onClick,
-  type = "button",
-}: {
-  accent: string;
-  loading?: boolean;
-  disabled?: boolean;
-  children: React.ReactNode;
-  onClick?: () => void;
-  type?: "button" | "submit";
-}) {
-  return (
-    <Button
-      type={type}
-      onClick={onClick}
-      disabled={disabled || loading}
-      className="inline-flex h-12 w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-full text-[13.5px] font-semibold text-[#0a0d0f] shadow-[0_18px_40px_-15px_rgba(255,255,255,0.35)] transition hover:brightness-105 disabled:opacity-60 [&_svg]:shrink-0"
-      style={{ background: accent }}
-    >
-      {loading ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null}
-      <span className="inline-flex min-w-0 items-center justify-center gap-1.5 whitespace-nowrap leading-none">
-        {children}
-      </span>
-    </Button>
-  );
-}
-
-function BackButton({ onClick }: { onClick: () => void }) {
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="sm"
-      onClick={onClick}
-      className="h-9 rounded-full bg-white/[0.04] px-3 text-[12px] font-medium text-white/70 transition hover:bg-white/[0.08] hover:text-white"
-    >
-      <ArrowLeft className="size-3.5" aria-hidden="true" />
-      <span>Back</span>
-    </Button>
-  );
-}
-
-// -----------------------------------------------------------------------------
-// Step components
-// -----------------------------------------------------------------------------
-
-function WelcomeStep({
-  operatorName,
-  workspaceName,
-  planTier,
-  onContinue,
-}: {
-  operatorName: string;
-  workspaceName: string;
-  planTier: SetupPageProps["planTier"];
-  onContinue: () => void;
-}) {
-  const palette = STEP_PALETTES.welcome;
-  const firstName = operatorName.split(/\s+/)[0] ?? operatorName;
-
-  return (
-    <GlassCard motionKey="welcome" paletteKey="welcome">
-      <div className="px-7 pb-7 pt-9 text-center">
-        {/* Holographic mark */}
-        <div
-          aria-hidden="true"
-          className="mx-auto mb-6 size-16 rounded-[18px] border border-white/15"
-          style={{
-            background:
-              "conic-gradient(from 140deg, rgba(154,181,170,0.85), rgba(123,166,255,0.6), rgba(200,174,240,0.55), rgba(154,181,170,0.85))",
-            boxShadow: "inset 0 1px 0 rgba(255,255,255,0.32), 0 12px 32px -10px " + palette.ring,
-          }}
-        />
-
-        <div className="mb-1 text-[10.5px] uppercase tracking-[0.18em] text-white/45">
-          welcome, {firstName.toLowerCase()}
-        </div>
-        <h1 className="font-display text-[28px] font-medium leading-tight tracking-[-0.015em] text-white">
-          Let&apos;s get Harwick set up
-          <br />
-          for {workspaceName}.
-        </h1>
-        <p className="mx-auto mt-3 max-w-[360px] text-[13px] leading-5 text-white/65">
-          Three quick steps. Harwick will learn how you talk, what you sell, and how you want it
-          handling leads — then you&apos;re live.
-        </p>
-
-        <div className="mt-7 flex flex-col gap-2">
-          <PrimaryCta accent={palette.accent} onClick={onContinue}>
-            Let&apos;s get started
-            <ArrowRight className="size-4" aria-hidden="true" />
-          </PrimaryCta>
-          <p className="text-[11px] text-white/40">
-            You picked the <span className="text-white/65">{planLabel(planTier)}</span> plan ·
-            takes about 90 seconds.
-          </p>
-        </div>
-      </div>
-    </GlassCard>
-  );
+function planMeets(current: SetupPageProps["planTier"], minimum: SetupPageProps["planTier"]) {
+  return PLAN_RANK[current] >= PLAN_RANK[minimum];
 }
 
 function planLabel(tier: SetupPageProps["planTier"]): string {
@@ -379,669 +305,1405 @@ function planLabel(tier: SetupPageProps["planTier"]): string {
   return "Brokerage";
 }
 
-// -----------------------------------------------------------------------------
+function roleLabel(role: WorkspaceRole): string {
+  return role.replace(/_/g, " ");
+}
 
-type IdentityFormState = {
-  workspaceType: WorkspaceType | null;
+function roleLens(role: WorkspaceRole): string {
+  if (role === "owner" || role === "admin") {
+    return "Full setup: integrations, autonomy, team access, routing policy, and launch checks.";
+  }
+  if (role === "team_lead" || role === "lead_manager") {
+    return "Operational setup: routing, load, SLA, approval rules, and team handoffs.";
+  }
+  if (role === "agent") {
+    return "Personal setup: areas, lead types, calendar, showing preferences, and assigned-lead workflow.";
+  }
+  if (role === "operator") {
+    return "Queue setup: approvals, escalation, triage, and clean handoff expectations.";
+  }
+  return "Read-only orientation: see what Harwick is doing without changing owner-level controls.";
+}
+
+function sceneLabel(scene: SceneKey): string {
+  if (scene === "welcome") return "welcome";
+  if (scene === "workspace_type") return "workspace";
+  if (scene === "primary_areas") return "market";
+  if (scene === "lead_types") return "leads";
+  if (scene === "price_bands") return "price";
+  if (scene === "listing_focus") return "focus";
+  if (scene === "voice_tone") return "voice";
+  if (scene === "reply_examples") return "samples";
+  if (scene === "channels") return "channels";
+  if (scene === "autonomy") return "autonomy";
+  if (scene === "activation") return "activate";
+  return "ready";
+}
+
+function previousScene(current: SceneKey): SceneKey {
+  const currentIndex = SCENE_ORDER.indexOf(current);
+  return SCENE_ORDER[Math.max(currentIndex - 1, 0)] ?? "welcome";
+}
+
+function deriveInitialScene(state: WorkspaceOnboardingState): SceneKey {
+  if (state.identityDone && state.replyExamplesDone && state.channelIntentDone) return "activation";
+  if (state.identityDone && state.replyExamplesDone) return "channels";
+  if (state.identityDone) return "reply_examples";
+  return "welcome";
+}
+
+function canManageAutomation(role: WorkspaceRole): boolean {
+  return role === "owner" || role === "admin" || role === "team_lead";
+}
+
+function updateSelection(current: string[], value: string, max = 8) {
+  if (current.includes(value)) return current.filter((entry) => entry !== value);
+  if (current.length >= max) return current;
+  return [...current, value];
+}
+
+function Shell({
+  scene,
+  children,
+  onBack,
+}: {
+  scene: SceneKey;
+  children: React.ReactNode;
+  onBack: (() => void) | null;
+}) {
+  const currentIndex = SCENE_ORDER.indexOf(scene);
+
+  return (
+    <main className="relative min-h-screen overflow-hidden bg-[#070d0b] text-white">
+      <motion.div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0"
+        animate={{
+          backgroundPosition: ["50% 20%", "48% 12%", "52% 24%", "50% 20%"],
+        }}
+        transition={{ duration: 14, repeat: Infinity, ease: "easeInOut" }}
+        style={{ background: HARWICK_GLOW.base, backgroundSize: "120% 120%" }}
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,transparent_30%,rgba(0,0,0,0.58)_84%)]"
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 opacity-[0.14] [background-image:linear-gradient(rgba(255,255,255,0.09)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.06)_1px,transparent_1px)] [background-size:42px_42px]"
+      />
+
+      <div className="relative mx-auto flex min-h-screen w-full max-w-[520px] flex-col px-5 py-6">
+        <header className="flex items-center justify-between">
+          <button
+            type="button"
+            onClick={onBack ?? undefined}
+            disabled={onBack === null}
+            aria-label="Back"
+            className={cn(
+              "flex size-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white/70 transition",
+              onBack === null ? "opacity-0" : "hover:bg-white/[0.08] hover:text-white",
+            )}
+          >
+            <ArrowLeft className="size-4" aria-hidden="true" />
+          </button>
+          <div className="text-center">
+            <div className="font-display text-[11px] uppercase tracking-[0.22em] text-white/72">Harwick</div>
+            <div className="mt-1 text-[10px] uppercase tracking-[0.16em] text-white/32">{sceneLabel(scene)}</div>
+          </div>
+          <div className="flex size-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-[11px] font-semibold text-white/52">
+            {currentIndex + 1}
+          </div>
+        </header>
+
+        <div className="flex flex-1 items-center py-6">
+          <AnimatePresence mode="wait">
+            <motion.section
+              key={scene}
+              initial={{ opacity: 0, x: 28, filter: "blur(6px)" }}
+              animate={{ opacity: 1, x: 0, filter: "blur(0px)" }}
+              exit={{ opacity: 0, x: -24, filter: "blur(6px)" }}
+              transition={{ duration: 0.34, ease: [0.22, 1, 0.36, 1] }}
+              className="w-full"
+            >
+              {children}
+            </motion.section>
+          </AnimatePresence>
+        </div>
+
+        <StepDots current={currentIndex} total={SCENE_ORDER.length} />
+      </div>
+    </main>
+  );
+}
+
+function StepDots({ current, total }: { current: number; total: number }) {
+  return (
+    <div className="flex items-center justify-center gap-2 pb-1">
+      {Array.from({ length: total }).map((_, index) => {
+        const active = index === current;
+        const done = index < current;
+        return (
+          <span
+            key={index}
+            aria-hidden="true"
+            className={cn("h-1.5 rounded-full transition-all duration-300", active ? "w-8" : "w-1.5")}
+            style={{
+              background: active
+                ? HARWICK_GLOW.accent
+                : done
+                  ? "rgba(216,196,135,0.72)"
+                  : "rgba(255,255,255,0.18)",
+            }}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+function SceneFrame({
+  eyebrow,
+  title,
+  description,
+  visual,
+  children,
+  footer,
+}: {
+  eyebrow: string;
+  title: string;
+  description?: string;
+  visual: React.ReactNode;
+  children?: React.ReactNode;
+  footer: React.ReactNode;
+}) {
+  return (
+    <div className="flex min-h-[760px] flex-col justify-between gap-6">
+      <div>
+        <div className="text-center">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#b8d3c5]/80">{eyebrow}</p>
+          <h1 className="mx-auto mt-3 max-w-[430px] font-display text-[32px] font-medium leading-[1.05] text-white">
+            {title}
+          </h1>
+          {description !== undefined ? (
+            <p className="mx-auto mt-3 max-w-[390px] text-[13px] leading-5 text-white/58">{description}</p>
+          ) : null}
+        </div>
+
+        <div className="mx-auto mt-7 w-full max-w-[420px]">{visual}</div>
+        {children !== undefined ? <div className="mt-6">{children}</div> : null}
+      </div>
+
+      <div className="space-y-3">{footer}</div>
+    </div>
+  );
+}
+
+function PrimaryCta({
+  loading,
+  disabled,
+  children,
+  onClick,
+}: {
+  loading?: boolean;
+  disabled?: boolean;
+  children: React.ReactNode;
+  onClick?: () => void;
+}) {
+  return (
+    <Button
+      type="button"
+      onClick={onClick}
+      disabled={disabled || loading}
+      className="inline-flex h-13 min-h-13 w-full items-center justify-center gap-2 rounded-full text-[13.5px] font-semibold text-[#07100d] shadow-[0_18px_44px_-16px_rgba(184,211,197,0.75)] transition hover:brightness-105 disabled:opacity-50 [&_svg]:shrink-0"
+      style={{
+        background: "linear-gradient(180deg, #e1f2ea 0%, #b8d3c5 58%, #93b1a2 100%)",
+      }}
+    >
+      {loading ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null}
+      <span className="inline-flex min-w-0 items-center justify-center gap-2 whitespace-nowrap">
+        {children}
+      </span>
+    </Button>
+  );
+}
+
+function GhostCta({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="mx-auto flex items-center justify-center gap-2 rounded-full px-4 py-2 text-[12px] font-medium text-white/48 transition hover:bg-white/[0.05] hover:text-white/72"
+    >
+      {children}
+    </button>
+  );
+}
+
+function GlassPanel({
+  selected,
+  children,
+  onClick,
+  className,
+}: {
+  selected?: boolean;
+  children: React.ReactNode;
+  onClick?: () => void;
+  className?: string;
+}) {
+  const Component = onClick === undefined ? "div" : "button";
+  return (
+    <Component
+      type={onClick === undefined ? undefined : "button"}
+      onClick={onClick}
+      className={cn(
+        "relative overflow-hidden rounded-[24px] border p-4 text-left backdrop-blur-2xl transition",
+        selected
+          ? "border-[#b8d3c5]/55 bg-white/[0.105] shadow-[0_22px_60px_-32px_rgba(184,211,197,0.9)]"
+          : "border-white/10 bg-white/[0.055] hover:border-white/18 hover:bg-white/[0.075]",
+        className,
+      )}
+      style={{ backgroundImage: HARWICK_GLOW.card }}
+    >
+      {children}
+    </Component>
+  );
+}
+
+function SmallCheck({ selected }: { selected: boolean }) {
+  return (
+    <span
+      className={cn("flex size-5 shrink-0 items-center justify-center rounded-full border", selected ? "border-transparent" : "border-white/15")}
+      style={selected ? { background: HARWICK_GLOW.accent } : undefined}
+    >
+      {selected ? <Check className="size-3 text-[#07100d]" strokeWidth={3} aria-hidden="true" /> : null}
+    </span>
+  );
+}
+
+function ErrorBox({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="rounded-[16px] border border-red-400/30 bg-red-500/10 px-3 py-2 text-[12px] text-red-100">
+      {children}
+    </div>
+  );
+}
+
+function WelcomeVisual() {
+  return (
+    <div className="relative mx-auto flex aspect-[0.88] max-h-[390px] items-center justify-center rounded-[44px] border border-white/10 bg-white/[0.055] shadow-[0_35px_90px_-45px_rgba(184,211,197,0.95)]">
+      <motion.div
+        aria-hidden="true"
+        className="absolute size-48 rounded-full blur-3xl"
+        animate={{ scale: [0.94, 1.08, 0.98], opacity: [0.45, 0.72, 0.45] }}
+        transition={{ duration: 5.5, repeat: Infinity, ease: "easeInOut" }}
+        style={{ background: "rgba(184,211,197,0.52)" }}
+      />
+      <motion.div
+        aria-hidden="true"
+        className="absolute size-28 rounded-[32px] border border-white/20"
+        animate={{ rotate: [0, 8, -5, 0], y: [0, -8, 5, 0] }}
+        transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+        style={{
+          background:
+            "conic-gradient(from 150deg, rgba(184,211,197,0.98), rgba(216,196,135,0.72), rgba(95,127,111,0.82), rgba(184,211,197,0.98))",
+          boxShadow: "inset 0 1px 0 rgba(255,255,255,0.35), 0 25px 60px -18px rgba(184,211,197,0.9)",
+        }}
+      />
+      <Sparkles className="relative size-9 text-[#07100d]" aria-hidden="true" />
+    </div>
+  );
+}
+
+function WorkspaceTypeVisual({ type }: { type: WorkspaceType | null }) {
+  const nodes = type === "brokerage" ? 10 : type === "team" ? 6 : type === "solo" ? 1 : 4;
+  return (
+    <div className="relative mx-auto aspect-[1.08] rounded-[38px] border border-white/10 bg-white/[0.055] p-8">
+      <div className="absolute inset-0 rounded-[38px] bg-[radial-gradient(circle_at_50%_42%,rgba(184,211,197,0.28),transparent_48%)]" />
+      <div className="relative flex h-full items-center justify-center">
+        {Array.from({ length: nodes }).map((_, index) => {
+          const angle = (index / Math.max(nodes, 1)) * Math.PI * 2;
+          const radius = nodes === 1 ? 0 : type === "brokerage" ? 116 : 92;
+          const x = Math.cos(angle) * radius;
+          const y = Math.sin(angle) * radius;
+          return (
+            <motion.span
+              key={index}
+              className="absolute flex size-11 items-center justify-center rounded-2xl border border-white/12 bg-white/[0.08]"
+              animate={{ x, y, scale: index === 0 ? 1.15 : 1 }}
+              transition={{ type: "spring", stiffness: 110, damping: 18 }}
+            >
+              {index === 0 ? <Crown className="size-4 text-[#d8c487]" /> : <Users className="size-4 text-[#b8d3c5]" />}
+            </motion.span>
+          );
+        })}
+        {nodes > 1 ? <div className="absolute size-28 rounded-full border border-[#b8d3c5]/20" /> : null}
+      </div>
+    </div>
+  );
+}
+
+function MarketMapVisual({ areas }: { areas: string[] }) {
+  const pins = areas.length > 0 ? areas : ["Katy", "Sugar Land", "Richmond"];
+  return (
+    <div className="relative aspect-[1.08] overflow-hidden rounded-[38px] border border-white/10 bg-white/[0.055]">
+      <div className="absolute inset-0 opacity-50 [background-image:linear-gradient(rgba(255,255,255,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.08)_1px,transparent_1px)] [background-size:30px_30px]" />
+      <svg viewBox="0 0 360 335" className="absolute inset-0 size-full text-[#b8d3c5]/35">
+        <path d="M20 235 C84 210 116 106 180 142 C236 174 251 68 334 74" fill="none" stroke="currentColor" strokeWidth="2" />
+        <path d="M38 102 C92 126 142 72 192 98 C246 126 270 202 332 194" fill="none" stroke="currentColor" strokeWidth="1.4" />
+        <path d="M88 318 C118 246 112 204 172 190 C232 176 242 144 304 120" fill="none" stroke="currentColor" strokeWidth="1.2" />
+      </svg>
+      {pins.slice(0, 5).map((area, index) => {
+        const positions = [
+          ["20%", "60%"],
+          ["54%", "42%"],
+          ["70%", "68%"],
+          ["36%", "27%"],
+          ["82%", "30%"],
+        ] as const;
+        const [left, top] = positions[index] ?? positions[0];
+        return (
+          <motion.div
+            key={`${area}-${index}`}
+            className="absolute"
+            style={{ left, top }}
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: index * 0.05 }}
+          >
+            <div className="relative">
+              <span className="absolute left-1/2 top-1/2 size-12 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#b8d3c5]/18 blur-md" />
+              <span className="relative flex items-center gap-1.5 rounded-full border border-[#b8d3c5]/30 bg-[#07100d]/72 px-2.5 py-1 text-[11px] font-medium text-white shadow-xl">
+                <MapPin className="size-3 text-[#b8d3c5]" />
+                {area}
+              </span>
+            </div>
+          </motion.div>
+        );
+      })}
+    </div>
+  );
+}
+
+function LeadTypeVisual({ selected }: { selected: string[] }) {
+  const activeOptions = LEAD_TYPE_OPTIONS.filter((option) => selected.includes(option.key)).slice(0, 4);
+  const displayOptions = activeOptions.length > 0 ? activeOptions : LEAD_TYPE_OPTIONS.slice(0, 4);
+  return (
+    <div className="grid grid-cols-2 gap-3">
+      {displayOptions.map((option, index) => {
+        const Icon = option.icon;
+        return (
+          <motion.div
+            key={option.key}
+            className="aspect-square rounded-[28px] border border-white/10 bg-white/[0.06] p-4"
+            animate={{ y: index % 2 === 0 ? [0, -5, 0] : [0, 5, 0] }}
+            transition={{ duration: 5 + index, repeat: Infinity, ease: "easeInOut" }}
+          >
+            <div className="flex size-12 items-center justify-center rounded-2xl bg-[#b8d3c5]/16">
+              <Icon className="size-5 text-[#b8d3c5]" />
+            </div>
+            <p className="mt-6 text-[13px] font-semibold text-white">{option.label}</p>
+            <p className="mt-1 text-[11px] leading-4 text-white/45">{option.description}</p>
+          </motion.div>
+        );
+      })}
+    </div>
+  );
+}
+
+function PriceBandVisual({ selected }: { selected: string[] }) {
+  return (
+    <div className="rounded-[38px] border border-white/10 bg-white/[0.055] p-5">
+      <div className="flex h-56 items-end gap-2">
+        {PRICE_BAND_OPTIONS.map((band, index) => {
+          const active = selected.includes(band);
+          return (
+            <button
+              key={band}
+              type="button"
+              className="flex flex-1 flex-col items-center gap-2"
+              aria-label={band}
+              tabIndex={-1}
+            >
+              <motion.span
+                className="w-full rounded-t-2xl border border-white/10"
+                animate={{ height: 52 + index * 23 }}
+                style={{
+                  background: active
+                    ? "linear-gradient(180deg, #d8c487, #b8d3c5)"
+                    : "linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0.04))",
+                }}
+              />
+              <span className={cn("size-2 rounded-full", active ? "bg-[#d8c487]" : "bg-white/18")} />
+            </button>
+          );
+        })}
+      </div>
+      <div className="mt-4 text-center text-[11px] uppercase tracking-[0.16em] text-white/35">market ladder</div>
+    </div>
+  );
+}
+
+function FocusVisual({ selected }: { selected: string[] }) {
+  const active = LISTING_FOCUS_OPTIONS.filter((option) => selected.includes(option.key)).slice(0, 3);
+  const display = active.length > 0 ? active : LISTING_FOCUS_OPTIONS.slice(0, 3);
+  return (
+    <div className="relative mx-auto aspect-[1.04] rounded-[38px] border border-white/10 bg-white/[0.055] p-5">
+      <div className="absolute inset-10 rounded-full bg-[#b8d3c5]/14 blur-3xl" />
+      <div className="relative flex h-full flex-col justify-center gap-3">
+        {display.map((option, index) => {
+          const Icon = option.icon;
+          return (
+            <motion.div
+              key={option.key}
+              className="flex items-center gap-3 rounded-[22px] border border-white/10 bg-[#07100d]/42 p-3"
+              animate={{ x: index === 1 ? [0, 7, 0] : [0, -5, 0] }}
+              transition={{ duration: 6 + index, repeat: Infinity, ease: "easeInOut" }}
+            >
+              <span className="flex size-11 items-center justify-center rounded-2xl bg-[#b8d3c5]/14">
+                <Icon className="size-5 text-[#b8d3c5]" />
+              </span>
+              <span>
+                <span className="block text-[13px] font-semibold text-white">{option.label}</span>
+                <span className="block text-[11px] text-white/45">{option.description}</span>
+              </span>
+            </motion.div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function VoiceVisual() {
+  return (
+    <div className="relative rounded-[38px] border border-white/10 bg-white/[0.055] p-8">
+      <div className="mx-auto flex size-24 items-center justify-center rounded-[30px] border border-white/12 bg-white/[0.06]">
+        <MessageSquare className="size-9 text-[#b8d3c5]" />
+      </div>
+      <div className="mt-8 flex items-end justify-center gap-1.5">
+        {Array.from({ length: 28 }).map((_, index) => (
+          <motion.span
+            key={index}
+            className="w-1.5 rounded-full bg-[#b8d3c5]/70"
+            animate={{ height: [12, 34 + ((index * 7) % 34), 12] }}
+            transition={{ duration: 1.8 + (index % 5) * 0.2, repeat: Infinity, ease: "easeInOut" }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ChannelVisual({ channels }: { channels: Record<OnboardingChannel, ChannelMode> }) {
+  const active = CHANNEL_OPTIONS.filter((option) => channels[option.key] !== "off");
+  const display = active.length > 0 ? active : CHANNEL_OPTIONS.slice(0, 4);
+  return (
+    <div className="relative aspect-square rounded-[38px] border border-white/10 bg-white/[0.055]">
+      <div className="absolute left-1/2 top-1/2 size-24 -translate-x-1/2 -translate-y-1/2 rounded-[30px] border border-[#b8d3c5]/25 bg-[#b8d3c5]/12" />
+      <Sparkles className="absolute left-1/2 top-1/2 size-8 -translate-x-1/2 -translate-y-1/2 text-[#b8d3c5]" />
+      {display.map((option, index) => {
+        const Icon = option.icon;
+        const angle = (index / display.length) * Math.PI * 2 - Math.PI / 2;
+        const radius = 122;
+        return (
+          <motion.div
+            key={option.key}
+            className="absolute left-1/2 top-1/2 flex size-14 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.08]"
+            animate={{ x: Math.cos(angle) * radius - 28, y: Math.sin(angle) * radius - 28 }}
+            transition={{ type: "spring", stiffness: 110, damping: 20 }}
+          >
+            <Icon className="size-5 text-white/70" />
+          </motion.div>
+        );
+      })}
+    </div>
+  );
+}
+
+function AutonomyVisual({ autonomy }: { autonomy: SetupDraft["autonomy"] }) {
+  const rotation = autonomy === "draft" ? -48 : autonomy === "approval" ? 0 : 48;
+  return (
+    <div className="relative aspect-square rounded-[38px] border border-white/10 bg-white/[0.055] p-7">
+      <div className="absolute inset-12 rounded-full border border-white/10" />
+      <div className="absolute inset-20 rounded-full bg-[#b8d3c5]/12 blur-2xl" />
+      <motion.div
+        className="absolute left-1/2 top-1/2 h-32 w-2 origin-bottom rounded-full bg-[#d8c487]"
+        animate={{ rotate: rotation }}
+        transition={{ type: "spring", stiffness: 120, damping: 16 }}
+        style={{ translateX: "-50%", translateY: "-100%" }}
+      />
+      <div className="absolute inset-x-8 bottom-9 flex justify-between text-[11px] uppercase tracking-[0.14em] text-white/40">
+        <span>draft</span>
+        <span>approve</span>
+        <span>auto</span>
+      </div>
+    </div>
+  );
+}
+
+function ActivationVisual({ planTier, operatorRole }: { planTier: SetupPageProps["planTier"]; operatorRole: WorkspaceRole }) {
+  const items = ACTIVATION_ITEMS.filter((item) => planMeets(planTier, item.minimumPlan) || item.minimumPlan === "solo").slice(0, 5);
+  return (
+    <div className="rounded-[38px] border border-white/10 bg-white/[0.055] p-4">
+      <div className="space-y-2">
+        {items.map((item) => {
+          const Icon = item.icon;
+          const ready = planMeets(planTier, item.minimumPlan) && item.roles.includes(operatorRole);
+          return (
+            <div key={item.key} className="flex items-center gap-3 rounded-[22px] border border-white/10 bg-white/[0.04] p-3">
+              <span className="flex size-10 items-center justify-center rounded-2xl bg-white/[0.06]">
+                <Icon className="size-4 text-[#b8d3c5]" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[12px] font-semibold text-white">{item.label}</span>
+                <span className="block truncate text-[10.5px] text-white/42">{item.description}</span>
+              </span>
+              <span className={cn("size-2 rounded-full", ready ? "bg-[#b8d3c5]" : "bg-[#d8c487]/55")} />
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function WelcomeScene({
+  operatorName,
+  workspaceName,
+  planTier,
+  operatorRole,
+  onNext,
+}: {
+  operatorName: string;
+  workspaceName: string;
+  planTier: SetupPageProps["planTier"];
+  operatorRole: WorkspaceRole;
+  onNext: () => void;
+}) {
+  const firstName = operatorName.split(/\s+/)[0] ?? operatorName;
+
+  return (
+    <SceneFrame
+      eyebrow={`welcome, ${firstName.toLowerCase()}`}
+      title={`Build Harwick for ${workspaceName}.`}
+      description="A focused setup room for the business, market, voice, channels, and launch path."
+      visual={<WelcomeVisual />}
+      footer={
+        <>
+          <div className="grid grid-cols-2 gap-2">
+            <InfoPill label="plan" value={planLabel(planTier)} />
+            <InfoPill label="role" value={roleLabel(operatorRole)} />
+          </div>
+          <p className="rounded-[18px] border border-white/10 bg-white/[0.045] px-3 py-2 text-[12px] leading-5 text-white/56">
+            {roleLens(operatorRole)}
+          </p>
+          <PrimaryCta onClick={onNext}>
+            Let&apos;s get started
+            <ArrowRight className="size-4" aria-hidden="true" />
+          </PrimaryCta>
+        </>
+      }
+    />
+  );
+}
+
+function InfoPill({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[18px] border border-white/10 bg-white/[0.045] p-3">
+      <p className="text-[10px] uppercase tracking-[0.16em] text-white/35">{label}</p>
+      <p className="mt-1 text-[13px] font-medium capitalize text-white">{value}</p>
+    </div>
+  );
+}
+
+function WorkspaceTypeScene({
+  value,
+  onChange,
+  onNext,
+}: {
+  value: WorkspaceType | null;
+  onChange: (value: WorkspaceType) => void;
+  onNext: () => void;
+}) {
+  return (
+    <SceneFrame
+      eyebrow="workspace"
+      title="What kind of operation is this?"
+      description="Harwick changes its posture based on whether it is serving one agent, a team, or a brokerage."
+      visual={<WorkspaceTypeVisual type={value} />}
+      footer={
+        <>
+          <div className="grid grid-cols-2 gap-2">
+            {WORKSPACE_TYPE_OPTIONS.map((option) => {
+              const Icon = option.icon;
+              const selected = value === option.key;
+              return (
+                <GlassPanel key={option.key} selected={selected} onClick={() => onChange(option.key)} className="min-h-[132px]">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="flex size-10 items-center justify-center rounded-2xl bg-white/[0.06]">
+                      <Icon className="size-5 text-[#b8d3c5]" />
+                    </span>
+                    <SmallCheck selected={selected} />
+                  </div>
+                  <p className="mt-4 text-[13px] font-semibold text-white">{option.label}</p>
+                  <p className="mt-1 text-[11px] leading-4 text-white/45">{option.description}</p>
+                </GlassPanel>
+              );
+            })}
+          </div>
+          <PrimaryCta disabled={value === null} onClick={onNext}>
+            Continue
+            <ArrowRight className="size-4" aria-hidden="true" />
+          </PrimaryCta>
+        </>
+      }
+    />
+  );
+}
+
+function PrimaryAreasScene({
+  areas,
+  areaDraft,
+  onDraftChange,
+  onAddArea,
+  onRemoveArea,
+  onNext,
+}: {
   areas: string[];
   areaDraft: string;
-  toneDescription: string;
-};
-
-function IdentityStep({
-  workspaceId,
-  onBack,
-  onComplete,
-}: {
-  workspaceId: string;
-  onBack: () => void;
-  onComplete: () => void;
+  onDraftChange: (value: string) => void;
+  onAddArea: () => void;
+  onRemoveArea: (value: string) => void;
+  onNext: () => void;
 }) {
-  const palette = STEP_PALETTES.identity;
-  const [form, setForm] = useState<IdentityFormState>({
-    workspaceType: null,
-    areas: [],
-    areaDraft: "",
-    toneDescription: "",
-  });
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  function addArea() {
-    const trimmed = form.areaDraft.trim();
-    if (trimmed.length === 0 || form.areas.includes(trimmed) || form.areas.length >= 8) return;
-    setForm((current) => ({ ...current, areas: [...current.areas, trimmed], areaDraft: "" }));
-  }
-
-  function handleAreaKey(event: KeyboardEvent<HTMLInputElement>) {
+  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key === "Enter" || event.key === ",") {
       event.preventDefault();
-      addArea();
-    } else if (event.key === "Backspace" && form.areaDraft.length === 0 && form.areas.length > 0) {
-      setForm((current) => ({ ...current, areas: current.areas.slice(0, -1) }));
-    }
-  }
-
-  const canSubmit =
-    form.workspaceType !== null
-    && form.areas.length > 0
-    && form.toneDescription.trim().length >= 8
-    && !submitting;
-
-  async function submit() {
-    if (!canSubmit || form.workspaceType === null) return;
-    setSubmitting(true);
-    setError(null);
-    try {
-      const response = await fetch(`/api/workspaces/${workspaceId}/onboarding-step/identity`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          workspaceType: form.workspaceType,
-          primaryAreas: form.areas,
-          toneDescription: form.toneDescription.trim(),
-        }),
-      });
-      if (!response.ok) {
-        setError("Could not save. Try again.");
-        setSubmitting(false);
-        return;
-      }
-      onComplete();
-    } catch {
-      setError("Network error. Try again.");
-      setSubmitting(false);
+      onAddArea();
     }
   }
 
   return (
-    <GlassCard motionKey="identity" paletteKey="identity">
-      <div className="px-7 pb-7 pt-7">
-        <div className="mb-5 flex items-start justify-between gap-3">
-          <div>
-            <CardEyebrow accent={palette.accent} stepLabel="step 1 of 3 · identity" />
-            <h2 className="font-display text-[22px] font-medium leading-tight tracking-[-0.01em] text-white">
-              Who are we running for?
-            </h2>
-            <p className="mt-1 text-[12.5px] leading-5 text-white/60">
-              Harwick adapts its qualification and tone per workspace type.
-            </p>
-          </div>
-          <BackButton onClick={onBack} />
-        </div>
-
-        <div className="space-y-5">
-          <div>
-            <Label className="mb-2 block text-[11px] font-medium uppercase tracking-[0.12em] text-white/55">
-              Workspace type
-            </Label>
-            <div className="grid gap-1.5">
-              {WORKSPACE_TYPE_OPTIONS.map((option) => {
-                const selected = form.workspaceType === option.key;
-                const Icon = option.icon;
-                return (
-                  <button
-                    key={option.key}
-                    type="button"
-                    onClick={() => setForm((current) => ({ ...current, workspaceType: option.key }))}
-                    className={cn(
-                      "group flex w-full items-center gap-3 rounded-[14px] border px-3 py-2.5 text-left transition",
-                      selected
-                        ? "border-transparent bg-white/[0.07]"
-                        : "border-white/10 bg-white/[0.025] hover:border-white/20 hover:bg-white/[0.04]",
-                    )}
-                    style={selected ? { borderColor: palette.accent + "66" } : undefined}
-                  >
-                    <span
-                      className={cn(
-                        "flex size-8 shrink-0 items-center justify-center rounded-[10px] border transition",
-                        selected ? "border-white/10" : "border-white/8 bg-white/[0.04]",
-                      )}
-                      style={
-                        selected
-                          ? { background: palette.accent + "22", borderColor: palette.accent + "55" }
-                          : undefined
-                      }
-                    >
-                      <Icon
-                        className="size-4"
-                        aria-hidden="true"
-                        style={selected ? { color: palette.accent } : { color: "rgba(255,255,255,0.55)" }}
-                      />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-[13px] font-medium text-white">{option.label}</span>
-                      <span className="block text-[11.5px] leading-4 text-white/50">{option.description}</span>
-                    </span>
-                    <span
-                      className={cn(
-                        "flex size-5 shrink-0 items-center justify-center rounded-full border transition",
-                        selected ? "" : "border-white/15",
-                      )}
-                      style={
-                        selected
-                          ? {
-                              background: palette.accent,
-                              borderColor: palette.accent,
-                            }
-                          : undefined
-                      }
-                    >
-                      {selected ? (
-                        <Check className="size-3 text-[#0a0d0f]" strokeWidth={3} aria-hidden="true" />
-                      ) : null}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div>
-            <Label
-              className="mb-2 block text-[11px] font-medium uppercase tracking-[0.12em] text-white/55"
-              htmlFor="onboarding-areas"
-            >
+    <SceneFrame
+      eyebrow="market"
+      title="Where should Harwick pay attention?"
+      description="Add the cities, neighborhoods, or communities where the best leads should route first."
+      visual={<MarketMapVisual areas={areas} />}
+      footer={
+        <>
+          <div className="rounded-[24px] border border-white/10 bg-white/[0.055] p-3">
+            <Label className="mb-2 block text-[10px] uppercase tracking-[0.16em] text-white/38" htmlFor="area-input">
               Primary areas
             </Label>
-            <div className="flex flex-wrap gap-1.5 rounded-[14px] border border-white/10 bg-white/[0.025] px-2.5 py-2">
-              {form.areas.map((area) => (
-                <Badge
-                  key={area}
-                  variant="secondary"
-                  className="gap-1 rounded-full bg-white/[0.08] px-2.5 py-1 text-[11.5px] font-medium text-white"
-                >
+            <div className="flex flex-wrap gap-1.5">
+              {areas.map((area) => (
+                <span key={area} className="inline-flex items-center gap-1 rounded-full bg-[#b8d3c5]/15 px-2.5 py-1 text-[12px] font-medium text-white">
                   {area}
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setForm((current) => ({
-                        ...current,
-                        areas: current.areas.filter((entry) => entry !== area),
-                      }))
-                    }
-                    aria-label={`Remove ${area}`}
-                    className="text-white/55 transition hover:text-white"
-                  >
-                    <X className="size-3" aria-hidden="true" />
+                  <button type="button" onClick={() => onRemoveArea(area)} aria-label={`Remove ${area}`}>
+                    <X className="size-3 text-white/55" />
                   </button>
-                </Badge>
+                </span>
               ))}
               <Input
-                id="onboarding-areas"
-                className="h-7 flex-1 min-w-[120px] border-0 bg-transparent px-1 text-[13px] text-white shadow-none placeholder:text-white/35 focus-visible:ring-0"
-                placeholder={form.areas.length === 0 ? "e.g. Bethesda, Northwest DC…" : "Add another"}
-                value={form.areaDraft}
-                onChange={(event) => setForm((current) => ({ ...current, areaDraft: event.target.value }))}
-                onKeyDown={handleAreaKey}
-                onBlur={addArea}
+                id="area-input"
+                value={areaDraft}
+                onChange={(event) => onDraftChange(event.target.value)}
+                onKeyDown={handleKeyDown}
+                onBlur={onAddArea}
+                className="h-8 min-w-[140px] flex-1 border-0 bg-transparent px-1 text-[13px] text-white shadow-none placeholder:text-white/34 focus-visible:ring-0"
+                placeholder={areas.length === 0 ? "Katy, Sugar Land..." : "Add another"}
               />
             </div>
-            <p className="mt-1.5 text-[10.5px] text-white/40">
-              Press Enter or comma to add. Up to 8.
-            </p>
           </div>
-
-          <div>
-            <Label
-              className="mb-2 block text-[11px] font-medium uppercase tracking-[0.12em] text-white/55"
-              htmlFor="onboarding-voice"
-            >
-              How do you sound?
-            </Label>
-            <Textarea
-              id="onboarding-voice"
-              rows={3}
-              className="resize-none rounded-[14px] border border-white/10 bg-white/[0.025] px-3 py-2.5 text-[13px] text-white shadow-none placeholder:text-white/35 focus-visible:border-white/30 focus-visible:bg-white/[0.04]"
-              placeholder="e.g. warm, low-key, direct. Lowercase. No emojis. Never promises certainty."
-              maxLength={500}
-              value={form.toneDescription}
-              onChange={(event) =>
-                setForm((current) => ({ ...current, toneDescription: event.target.value }))
-              }
-            />
-            <p className="mt-1.5 text-[10.5px] text-white/40">
-              One or two sentences. Harwick matches this on the first lead.
-            </p>
-          </div>
-        </div>
-
-        {error !== null ? (
-          <div className="mt-4 rounded-[10px] border border-red-400/30 bg-red-500/10 px-3 py-2 text-[12px] text-red-200">
-            {error}
-          </div>
-        ) : null}
-
-        <div className="mt-6">
-          <PrimaryCta accent={palette.accent} disabled={!canSubmit} loading={submitting} onClick={() => void submit()}>
-            Continue
+          <PrimaryCta disabled={areas.length === 0} onClick={onNext}>
+            Lock market
             <ArrowRight className="size-4" aria-hidden="true" />
           </PrimaryCta>
-        </div>
-      </div>
-    </GlassCard>
+        </>
+      }
+    />
   );
 }
 
-// -----------------------------------------------------------------------------
-
-function ReplyExamplesStep({
-  workspaceId,
-  onBack,
-  onComplete,
+function LeadTypesScene({
+  selected,
+  onToggle,
+  onNext,
 }: {
-  workspaceId: string;
-  onBack: () => void;
-  onComplete: () => void;
+  selected: string[];
+  onToggle: (value: string) => void;
+  onNext: () => void;
 }) {
-  const palette = STEP_PALETTES.reply_examples;
-  const [examples, setExamples] = useState<string[]>([""]);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  function updateAt(index: number, value: string) {
-    setExamples((current) => current.map((entry, position) => (position === index ? value : entry)));
-  }
-
-  function addExample() {
-    if (examples.length >= 8) return;
-    setExamples((current) => [...current, ""]);
-  }
-
-  function removeAt(index: number) {
-    setExamples((current) => current.filter((_, position) => position !== index));
-  }
-
-  const trimmedExamples = useMemo(
-    () => examples.map((entry) => entry.trim()).filter((entry) => entry.length >= 8),
-    [examples],
+  return (
+    <SceneFrame
+      eyebrow="lead types"
+      title="What leads should Harwick prioritize?"
+      description="These become the first qualification and routing lens."
+      visual={<LeadTypeVisual selected={selected} />}
+      footer={
+        <>
+          <div className="grid grid-cols-2 gap-2">
+            {LEAD_TYPE_OPTIONS.map((option) => {
+              const Icon = option.icon;
+              const active = selected.includes(option.key);
+              return (
+                <GlassPanel key={option.key} selected={active} onClick={() => onToggle(option.key)} className="p-3">
+                  <div className="flex items-center gap-2">
+                    <Icon className="size-4 text-[#b8d3c5]" />
+                    <span className="text-[12px] font-semibold text-white">{option.label}</span>
+                    <span className="ml-auto"><SmallCheck selected={active} /></span>
+                  </div>
+                </GlassPanel>
+              );
+            })}
+          </div>
+          <PrimaryCta disabled={selected.length === 0} onClick={onNext}>
+            Continue
+            <ArrowRight className="size-4" aria-hidden="true" />
+          </PrimaryCta>
+        </>
+      }
+    />
   );
-  const canSubmit = trimmedExamples.length >= 1 && !submitting;
+}
 
-  async function submit() {
-    if (!canSubmit) return;
-    setSubmitting(true);
-    setError(null);
+function PriceBandsScene({
+  selected,
+  onToggle,
+  onNext,
+}: {
+  selected: string[];
+  onToggle: (value: string) => void;
+  onNext: () => void;
+}) {
+  return (
+    <SceneFrame
+      eyebrow="price bands"
+      title="What price ranges matter?"
+      description="Harwick uses this to qualify, route, and avoid treating every inquiry the same."
+      visual={<PriceBandVisual selected={selected} />}
+      footer={
+        <>
+          <div className="grid grid-cols-2 gap-2">
+            {PRICE_BAND_OPTIONS.map((band) => {
+              const active = selected.includes(band);
+              return (
+                <GlassPanel key={band} selected={active} onClick={() => onToggle(band)} className="p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[12px] font-semibold text-white">{band}</span>
+                    <SmallCheck selected={active} />
+                  </div>
+                </GlassPanel>
+              );
+            })}
+          </div>
+          <PrimaryCta onClick={onNext}>
+            Continue
+            <ArrowRight className="size-4" aria-hidden="true" />
+          </PrimaryCta>
+        </>
+      }
+    />
+  );
+}
+
+function ListingFocusScene({
+  selected,
+  onToggle,
+  onNext,
+}: {
+  selected: string[];
+  onToggle: (value: string) => void;
+  onNext: () => void;
+}) {
+  return (
+    <SceneFrame
+      eyebrow="listing focus"
+      title="What should Harwick recognize as special?"
+      description="This helps Harwick speak with market-specific confidence without inventing details."
+      visual={<FocusVisual selected={selected} />}
+      footer={
+        <>
+          <div className="grid grid-cols-2 gap-2">
+            {LISTING_FOCUS_OPTIONS.map((option) => {
+              const Icon = option.icon;
+              const active = selected.includes(option.key);
+              return (
+                <GlassPanel key={option.key} selected={active} onClick={() => onToggle(option.key)} className="p-3">
+                  <div className="flex items-center gap-2">
+                    <Icon className="size-4 text-[#b8d3c5]" />
+                    <span className="text-[12px] font-semibold text-white">{option.label}</span>
+                    <span className="ml-auto"><SmallCheck selected={active} /></span>
+                  </div>
+                </GlassPanel>
+              );
+            })}
+          </div>
+          <PrimaryCta onClick={onNext}>
+            Continue
+            <ArrowRight className="size-4" aria-hidden="true" />
+          </PrimaryCta>
+        </>
+      }
+    />
+  );
+}
+
+function VoiceToneScene({
+  value,
+  submitting,
+  error,
+  onChange,
+  onSave,
+}: {
+  value: string;
+  submitting: boolean;
+  error: string | null;
+  onChange: (value: string) => void;
+  onSave: () => void;
+}) {
+  return (
+    <SceneFrame
+      eyebrow="voice"
+      title="How should Harwick sound?"
+      description="Short, warm, direct, never pushy. Tell Harwick how to behave before it touches a real lead."
+      visual={<VoiceVisual />}
+      footer={
+        <>
+          <Textarea
+            rows={4}
+            className="resize-none rounded-[24px] border border-white/10 bg-white/[0.055] px-4 py-3 text-[13px] text-white shadow-none placeholder:text-white/34 focus-visible:border-[#b8d3c5]/45"
+            placeholder="Warm, low-key, direct. Always ask one qualifying question. Never promise loan or legal certainty."
+            maxLength={500}
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+          />
+          {error !== null ? <ErrorBox>{error}</ErrorBox> : null}
+          <PrimaryCta disabled={value.trim().length < 8} loading={submitting} onClick={onSave}>
+            Save business memory
+            <ArrowRight className="size-4" aria-hidden="true" />
+          </PrimaryCta>
+        </>
+      }
+    />
+  );
+}
+
+function ReplyExamplesScene({
+  examples,
+  submitting,
+  error,
+  onUpdate,
+  onAdd,
+  onRemove,
+  onSave,
+}: {
+  examples: string[];
+  submitting: boolean;
+  error: string | null;
+  onUpdate: (index: number, value: string) => void;
+  onAdd: () => void;
+  onRemove: (index: number) => void;
+  onSave: () => void;
+}) {
+  const usableCount = examples.map((entry) => entry.trim()).filter((entry) => entry.length >= 8).length;
+  return (
+    <SceneFrame
+      eyebrow="samples"
+      title="Show Harwick a real reply."
+      description="Paste one message you would actually send. Add more if you want a tighter voice match."
+      visual={<VoiceVisual />}
+      footer={
+        <>
+          <div className="space-y-2">
+            {examples.map((example, index) => (
+              <div key={index} className="relative rounded-[24px] border border-white/10 bg-white/[0.055]">
+                <Textarea
+                  rows={3}
+                  maxLength={8000}
+                  className="resize-none border-0 bg-transparent px-4 py-3 pr-11 text-[13px] text-white shadow-none placeholder:text-white/34 focus-visible:ring-0"
+                  placeholder="hey marcus, good question. fha can go as low as 3.5%. are you already talking with a lender?"
+                  value={example}
+                  onChange={(event) => onUpdate(index, event.target.value)}
+                />
+                {examples.length > 1 ? (
+                  <button
+                    type="button"
+                    onClick={() => onRemove(index)}
+                    aria-label="Remove example"
+                    className="absolute right-3 top-3 rounded-full bg-white/[0.06] p-1.5 text-white/46 hover:text-white"
+                  >
+                    <Trash2 className="size-3" />
+                  </button>
+                ) : null}
+              </div>
+            ))}
+          </div>
+          {examples.length < 8 ? (
+            <GhostCta onClick={onAdd}>
+              <Plus className="size-3.5" />
+              Add another sample
+            </GhostCta>
+          ) : null}
+          <p className="text-center text-[11px] text-white/38">{usableCount} usable sample{usableCount === 1 ? "" : "s"}</p>
+          {error !== null ? <ErrorBox>{error}</ErrorBox> : null}
+          <PrimaryCta disabled={usableCount === 0} loading={submitting} onClick={onSave}>
+            Save voice samples
+            <ArrowRight className="size-4" aria-hidden="true" />
+          </PrimaryCta>
+        </>
+      }
+    />
+  );
+}
+
+function ChannelsScene({
+  channels,
+  planTier,
+  onSetMode,
+  onNext,
+}: {
+  channels: Record<OnboardingChannel, ChannelMode>;
+  planTier: SetupPageProps["planTier"];
+  onSetMode: (channel: OnboardingChannel, mode: ChannelMode) => void;
+  onNext: () => void;
+}) {
+  const activeCount = Object.entries(channels).filter(([channel, mode]) => {
+    const option = CHANNEL_OPTIONS.find((entry) => entry.key === channel);
+    return mode !== "off" && option !== undefined && planMeets(planTier, option.minimumPlan);
+  }).length;
+
+  return (
+    <SceneFrame
+      eyebrow="channels"
+      title="Where can Harwick listen?"
+      description="Pick modes now. The real connection steps stay in Settings and Integrations."
+      visual={<ChannelVisual channels={channels} />}
+      footer={
+        <>
+          <div className="space-y-2">
+            {CHANNEL_OPTIONS.map((option) => {
+              const Icon = option.icon;
+              const mode = channels[option.key];
+              const planAllowed = planMeets(planTier, option.minimumPlan);
+              return (
+                <GlassPanel key={option.key} className={cn("p-3", !planAllowed && "opacity-55")}>
+                  <div className="flex items-center gap-3">
+                    <span className="flex size-10 items-center justify-center rounded-2xl bg-white/[0.06]">
+                      <Icon className="size-4 text-[#b8d3c5]" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-center gap-2 text-[13px] font-semibold text-white">
+                        {option.label}
+                        {!planAllowed ? <span className="text-[10px] uppercase tracking-[0.12em] text-[#d8c487]">{planLabel(option.minimumPlan)}+</span> : null}
+                      </span>
+                      <span className="block text-[11px] text-white/42">{option.description}</span>
+                    </span>
+                  </div>
+                  <div className="mt-3 flex gap-1">
+                    {CHANNEL_MODE_OPTIONS.filter((entry) => entry.key !== "auto_send" || planTier !== "free").map((entry) => (
+                      <button
+                        key={entry.key}
+                        type="button"
+                        disabled={!planAllowed}
+                        onClick={() => onSetMode(option.key, entry.key)}
+                        className={cn(
+                          "flex-1 rounded-xl px-2 py-1.5 text-[11px] font-medium transition disabled:cursor-not-allowed",
+                          mode === entry.key ? "text-[#07100d]" : "bg-white/[0.04] text-white/52 hover:bg-white/[0.07] hover:text-white",
+                        )}
+                        style={mode === entry.key ? { background: HARWICK_GLOW.accent } : undefined}
+                        title={entry.full}
+                      >
+                        {entry.short}
+                      </button>
+                    ))}
+                  </div>
+                </GlassPanel>
+              );
+            })}
+          </div>
+          <PrimaryCta disabled={activeCount === 0} onClick={onNext}>
+            Continue
+            <ArrowRight className="size-4" aria-hidden="true" />
+          </PrimaryCta>
+        </>
+      }
+    />
+  );
+}
+
+function AutonomyScene({
+  autonomy,
+  planTier,
+  operatorRole,
+  submitting,
+  error,
+  onChange,
+  onSave,
+}: {
+  autonomy: SetupDraft["autonomy"];
+  planTier: SetupPageProps["planTier"];
+  operatorRole: WorkspaceRole;
+  submitting: boolean;
+  error: string | null;
+  onChange: (value: SetupDraft["autonomy"]) => void;
+  onSave: () => void;
+}) {
+  const autoLocked = planTier === "free" || !canManageAutomation(operatorRole);
+  return (
+    <SceneFrame
+      eyebrow="autonomy"
+      title="How much should Harwick do alone?"
+      description="Start conservative. You can increase autonomy once live replies feel right."
+      visual={<AutonomyVisual autonomy={autonomy} />}
+      footer={
+        <>
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { key: "draft", label: "Draft", icon: MessageSquare },
+              { key: "approval", label: "Approve", icon: ClipboardCheck },
+              { key: "safe_auto", label: "Safe auto", icon: Gauge },
+            ].map((option) => {
+              const Icon = option.icon;
+              const selected = autonomy === option.key;
+              const locked = option.key === "safe_auto" && autoLocked;
+              return (
+                locked ? (
+                  <GlassPanel
+                    key={option.key}
+                    selected={selected}
+                    className="flex min-h-[112px] flex-col items-center justify-center p-3 text-center opacity-45"
+                  >
+                    <Icon className="size-5 text-[#b8d3c5]" />
+                    <p className="mt-2 text-[12px] font-semibold text-white">{option.label}</p>
+                  </GlassPanel>
+                ) : (
+                  <GlassPanel
+                    key={option.key}
+                    selected={selected}
+                    onClick={() => onChange(option.key as SetupDraft["autonomy"])}
+                    className="flex min-h-[112px] flex-col items-center justify-center p-3 text-center"
+                  >
+                    <Icon className="size-5 text-[#b8d3c5]" />
+                    <p className="mt-2 text-[12px] font-semibold text-white">{option.label}</p>
+                  </GlassPanel>
+                )
+              );
+            })}
+          </div>
+          {error !== null ? <ErrorBox>{error}</ErrorBox> : null}
+          <PrimaryCta loading={submitting} onClick={onSave}>
+            Save channels and autonomy
+            <ArrowRight className="size-4" aria-hidden="true" />
+          </PrimaryCta>
+        </>
+      }
+    />
+  );
+}
+
+function ActivationScene({
+  planTier,
+  operatorRole,
+  onNext,
+}: {
+  planTier: SetupPageProps["planTier"];
+  operatorRole: WorkspaceRole;
+  onNext: () => void;
+}) {
+  return (
+    <SceneFrame
+      eyebrow="activate"
+      title="This is the live launch path."
+      description="Harwick keeps these as operational cards after setup, not another onboarding form."
+      visual={<ActivationVisual planTier={planTier} operatorRole={operatorRole} />}
+      footer={
+        <>
+          <div className="rounded-[22px] border border-white/10 bg-white/[0.045] p-3">
+            <div className="flex items-center gap-2 text-[12px] font-medium text-white">
+              <Bell className="size-4 text-[#b8d3c5]" />
+              Home and Settings should carry this checklist forward.
+            </div>
+            <p className="mt-1 text-[11.5px] leading-5 text-white/45">
+              Next pass should wire each card to its exact Settings or Integrations route.
+            </p>
+          </div>
+          <PrimaryCta onClick={onNext}>
+            Finish and open Harwick
+            <ArrowRight className="size-4" aria-hidden="true" />
+          </PrimaryCta>
+        </>
+      }
+    />
+  );
+}
+
+function DoneScene({ workspaceName }: { workspaceName: string }) {
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      window.location.assign("/home");
+    }, 2200);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  return (
+    <SceneFrame
+      eyebrow="ready"
+      title={`${workspaceName} has a Harwick setup.`}
+      description="Opening the workspace. The next work should be checklist wiring and provider connection polish."
+      visual={<WelcomeVisual />}
+      footer={
+        <PrimaryCta onClick={() => window.location.assign("/home")}>
+          Open workspace
+          <ArrowRight className="size-4" aria-hidden="true" />
+        </PrimaryCta>
+      }
+    />
+  );
+}
+
+export function OnboardingSetupPage(props: SetupPageProps) {
+  const [scene, setScene] = useState<SceneKey>(() => deriveInitialScene(props.initialState));
+  const [draft, setDraft] = useState<SetupDraft>(() => createInitialDraft(props.planTier));
+  const [identitySaving, setIdentitySaving] = useState(false);
+  const [identityError, setIdentityError] = useState<string | null>(null);
+  const [replySaving, setReplySaving] = useState(false);
+  const [replyError, setReplyError] = useState<string | null>(null);
+  const [channelSaving, setChannelSaving] = useState(false);
+  const [channelError, setChannelError] = useState<string | null>(null);
+
+  function goBack() {
+    setScene((current) => previousScene(current));
+  }
+
+  function addArea() {
+    const trimmed = draft.areaDraft.trim();
+    if (trimmed.length === 0 || draft.areas.includes(trimmed) || draft.areas.length >= 8) return;
+    setDraft((current) => ({ ...current, areas: [...current.areas, trimmed], areaDraft: "" }));
+  }
+
+  async function saveIdentity() {
+    if (draft.workspaceType === null || draft.areas.length === 0 || draft.leadTypes.length === 0 || draft.toneDescription.trim().length < 8) {
+      return;
+    }
+
+    setIdentitySaving(true);
+    setIdentityError(null);
     try {
-      const response = await fetch(`/api/workspaces/${workspaceId}/onboarding-step/reply-examples`, {
+      const response = await fetch(`/api/workspaces/${props.workspaceId}/onboarding-step/identity`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          examples: trimmedExamples.map((body) => ({ body, source: "onboarding_paste" as const })),
+          workspaceType: draft.workspaceType,
+          primaryAreas: draft.areas,
+          leadTypes: draft.leadTypes,
+          priceBands: draft.priceBands,
+          listingFocus: draft.listingFocus,
+          routingNotes: buildRoutingNotes(draft),
+          toneDescription: draft.toneDescription.trim(),
         }),
       });
       if (!response.ok) {
-        setError("Could not save. Try again.");
-        setSubmitting(false);
+        setIdentityError("Could not save the business memory. Try again.");
         return;
       }
-      onComplete();
+      setScene("reply_examples");
     } catch {
-      setError("Network error. Try again.");
-      setSubmitting(false);
+      setIdentityError("Network error. Try again.");
+    } finally {
+      setIdentitySaving(false);
     }
   }
 
-  return (
-    <GlassCard motionKey="reply_examples" paletteKey="reply_examples">
-      <div className="px-7 pb-7 pt-7">
-        <div className="mb-5 flex items-start justify-between gap-3">
-          <div>
-            <CardEyebrow accent={palette.accent} stepLabel="step 2 of 3 · reply examples" />
-            <h2 className="font-display text-[22px] font-medium leading-tight tracking-[-0.01em] text-white">
-              Show Harwick how you reply.
-            </h2>
-            <p className="mt-1 text-[12.5px] leading-5 text-white/60">
-              Paste 1 – 8 real messages you&apos;ve sent leads. The more honest, the better the match.
-            </p>
-          </div>
-          <BackButton onClick={onBack} />
-        </div>
+  async function saveReplies() {
+    const examples = draft.replyExamples.map((entry) => entry.trim()).filter((entry) => entry.length >= 8);
+    if (examples.length === 0) return;
 
-        <div className="space-y-2">
-          {examples.map((example, index) => (
-            <div
-              key={index}
-              className="group relative rounded-[14px] border border-white/10 bg-white/[0.025] transition focus-within:border-white/30 focus-within:bg-white/[0.04]"
-            >
-              <Textarea
-                rows={3}
-                placeholder={
-                  index === 0
-                    ? "e.g. hey marcus — thanks for reaching out. saw you asked about bethesda. quick q before i set up a tour: are you pre-approved yet?"
-                    : "Another reply…"
-                }
-                maxLength={8000}
-                className="resize-none border-0 bg-transparent px-3 py-2.5 text-[13px] text-white shadow-none placeholder:text-white/35 focus-visible:ring-0"
-                value={example}
-                onChange={(event) => updateAt(index, event.target.value)}
-              />
-              {examples.length > 1 ? (
-                <button
-                  type="button"
-                  onClick={() => removeAt(index)}
-                  aria-label="Remove example"
-                  className="absolute right-2 top-2 rounded-full bg-white/[0.04] p-1 text-white/45 opacity-0 transition hover:bg-white/[0.1] hover:text-white group-hover:opacity-100"
-                >
-                  <Trash2 className="size-3" aria-hidden="true" />
-                </button>
-              ) : null}
-            </div>
-          ))}
-        </div>
-
-        {examples.length < 8 ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={addExample}
-            className="mt-3 h-9 rounded-full bg-white/[0.03] text-[12px] font-medium text-white/70 hover:bg-white/[0.06] hover:text-white"
-          >
-            <Plus className="size-3.5" aria-hidden="true" />
-            <span>Add another</span>
-          </Button>
-        ) : null}
-
-        <p className="mt-2 text-[10.5px] text-white/40">
-          {trimmedExamples.length} of {examples.length} usable · need at least one (8+ characters).
-        </p>
-
-        {error !== null ? (
-          <div className="mt-4 rounded-[10px] border border-red-400/30 bg-red-500/10 px-3 py-2 text-[12px] text-red-200">
-            {error}
-          </div>
-        ) : null}
-
-        <div className="mt-6">
-          <PrimaryCta accent={palette.accent} disabled={!canSubmit} loading={submitting} onClick={() => void submit()}>
-            Continue
-            <ArrowRight className="size-4" aria-hidden="true" />
-          </PrimaryCta>
-        </div>
-      </div>
-    </GlassCard>
-  );
-}
-
-// -----------------------------------------------------------------------------
-
-type ChannelsFormState = Record<OnboardingChannel, ChannelMode>;
-
-function ChannelsStep({
-  workspaceId,
-  planTier,
-  onBack,
-  onComplete,
-}: {
-  workspaceId: string;
-  planTier: SetupPageProps["planTier"];
-  onBack: () => void;
-  onComplete: () => void;
-}) {
-  const palette = STEP_PALETTES.channels;
-  const [form, setForm] = useState<ChannelsFormState>({
-    instagram: "approval_first",
-    facebook: "off",
-    sms: "off",
-    voice: "off",
-    website: "off",
-  });
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const autoSendAllowed = planTier !== "free";
+    setReplySaving(true);
+    setReplyError(null);
+    try {
+      const response = await fetch(`/api/workspaces/${props.workspaceId}/onboarding-step/reply-examples`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          examples: examples.map((body) => ({ body, source: "onboarding_paste" as const })),
+        }),
+      });
+      if (!response.ok) {
+        setReplyError("Could not save reply examples. Try again.");
+        return;
+      }
+      setScene("channels");
+    } catch {
+      setReplyError("Network error. Try again.");
+    } finally {
+      setReplySaving(false);
+    }
+  }
 
   const activeIntents = useMemo(
     () =>
-      (Object.entries(form) as Array<[OnboardingChannel, ChannelMode]>)
-        .filter(([, mode]) => mode !== "off")
-        .map(([channel, mode]) => ({ channel, desiredMode: mode as OnboardingChannelMode })),
-    [form],
+      (Object.entries(draft.channels) as Array<[OnboardingChannel, ChannelMode]>)
+        .filter(([channel, mode]) => {
+          const option = CHANNEL_OPTIONS.find((entry) => entry.key === channel);
+          return mode !== "off" && option !== undefined && planMeets(props.planTier, option.minimumPlan);
+        })
+        .map(([channel, mode]) => ({
+          channel,
+          desiredMode: mode as OnboardingChannelMode,
+          notes: `onboarding autonomy: ${draft.autonomy}`,
+        })),
+    [draft.autonomy, draft.channels, props.planTier],
   );
-  const canSubmit = activeIntents.length >= 1 && !submitting;
 
-  async function submit() {
-    if (!canSubmit) return;
-    setSubmitting(true);
-    setError(null);
+  async function saveChannels() {
+    if (activeIntents.length === 0) return;
+
+    setChannelSaving(true);
+    setChannelError(null);
     try {
-      const response = await fetch(`/api/workspaces/${workspaceId}/onboarding-step/channels`, {
+      const response = await fetch(`/api/workspaces/${props.workspaceId}/onboarding-step/channels`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ intents: activeIntents }),
       });
       if (!response.ok) {
-        setError("Could not save. Try again.");
-        setSubmitting(false);
+        setChannelError("Could not save channels and autonomy. Try again.");
         return;
       }
-      onComplete();
+      setScene("activation");
     } catch {
-      setError("Network error. Try again.");
-      setSubmitting(false);
+      setChannelError("Network error. Try again.");
+    } finally {
+      setChannelSaving(false);
     }
   }
 
   return (
-    <GlassCard motionKey="channels" paletteKey="channels">
-      <div className="px-7 pb-7 pt-7">
-        <div className="mb-5 flex items-start justify-between gap-3">
-          <div>
-            <CardEyebrow accent={palette.accent} stepLabel="step 3 of 3 · channels" />
-            <h2 className="font-display text-[22px] font-medium leading-tight tracking-[-0.01em] text-white">
-              Where does Harwick run, and how hot?
-            </h2>
-            <p className="mt-1 text-[12.5px] leading-5 text-white/60">
-              Pick a mode per channel. Switch any of these later in Settings.
-            </p>
-          </div>
-          <BackButton onClick={onBack} />
-        </div>
-
-        <div className="space-y-2">
-          {CHANNEL_OPTIONS.map((option) => {
-            const mode = form[option.key];
-            const Icon = option.icon;
-            const enabled = mode !== "off";
-            return (
-              <div
-                key={option.key}
-                className={cn(
-                  "rounded-[14px] border bg-white/[0.025] transition",
-                  enabled ? "border-white/15" : "border-white/8",
-                )}
-                style={enabled ? { borderColor: palette.accent + "44" } : undefined}
-              >
-                <div className="flex items-center gap-3 px-3 py-2.5">
-                  <span
-                    className="flex size-8 shrink-0 items-center justify-center rounded-[10px] border border-white/10"
-                    style={
-                      enabled
-                        ? { background: palette.accent + "1f", borderColor: palette.accent + "55" }
-                        : { background: "rgba(255,255,255,0.04)" }
-                    }
-                  >
-                    <Icon
-                      className="size-4"
-                      aria-hidden="true"
-                      style={enabled ? { color: palette.accent } : { color: "rgba(255,255,255,0.55)" }}
-                    />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[13px] font-medium text-white">{option.label}</div>
-                    <div className="text-[11px] leading-4 text-white/50">{option.description}</div>
-                  </div>
-                </div>
-                <div className="flex gap-1 px-2 pb-2">
-                  {CHANNEL_MODE_OPTIONS.filter(
-                    (modeOption) => modeOption.key !== "auto_send" || autoSendAllowed,
-                  ).map((modeOption) => {
-                    const isActive = mode === modeOption.key;
-                    return (
-                      <button
-                        key={modeOption.key}
-                        type="button"
-                        onClick={() =>
-                          setForm((current) => ({ ...current, [option.key]: modeOption.key }))
-                        }
-                        title={modeOption.full}
-                        className={cn(
-                          "flex-1 rounded-[10px] px-2 py-1.5 text-[11.5px] font-medium transition",
-                          isActive
-                            ? "text-[#0a0d0f]"
-                            : "text-white/55 hover:bg-white/[0.05] hover:text-white/85",
-                        )}
-                        style={isActive ? { background: palette.accent } : undefined}
-                      >
-                        {modeOption.short}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {!autoSendAllowed ? (
-          <p className="mt-3 text-[10.5px] text-white/40">
-            Auto-send unlocks on Solo and up. Free plan stays approval-first.
-          </p>
-        ) : null}
-
-        {error !== null ? (
-          <div className="mt-4 rounded-[10px] border border-red-400/30 bg-red-500/10 px-3 py-2 text-[12px] text-red-200">
-            {error}
-          </div>
-        ) : null}
-
-        <div className="mt-6">
-          <PrimaryCta accent={palette.accent} disabled={!canSubmit} loading={submitting} onClick={() => void submit()}>
-            {activeIntents.length === 0
-              ? "Pick at least one channel"
-              : `Finish setup (${activeIntents.length} channel${activeIntents.length === 1 ? "" : "s"})`}
-            <ArrowRight className="size-4" aria-hidden="true" />
-          </PrimaryCta>
-        </div>
-      </div>
-    </GlassCard>
-  );
-}
-
-// -----------------------------------------------------------------------------
-
-function DoneStep({ workspaceName }: { workspaceName: string }) {
-  const palette = STEP_PALETTES.done;
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      window.location.assign("/home");
-    }, 3200);
-    return () => window.clearTimeout(timer);
-  }, []);
-
-  return (
-    <GlassCard motionKey="done" paletteKey="done">
-      <div className="px-7 pb-7 pt-9 text-center">
-        <div
-          aria-hidden="true"
-          className="mx-auto mb-6 flex size-16 items-center justify-center rounded-full border border-white/15"
-          style={{
-            background: palette.accent,
-            boxShadow: "inset 0 1px 0 rgba(255,255,255,0.32), 0 12px 32px -10px " + palette.ring,
-          }}
-        >
-          <Check className="size-7 text-[#0a0d0f]" strokeWidth={3} aria-hidden="true" />
-        </div>
-
-        <div className="mb-1 text-[10.5px] uppercase tracking-[0.18em] text-white/45">
-          all set
-        </div>
-        <h1 className="font-display text-[26px] font-medium leading-tight tracking-[-0.015em] text-white">
-          {workspaceName} is ready.
-        </h1>
-        <p className="mx-auto mt-3 max-w-[340px] text-[13px] leading-5 text-white/65">
-          Harwick will start handling inbound the moment your first channel connects. Opening your
-          workspace…
-        </p>
-
-        <div className="mt-7">
-          <PrimaryCta accent={palette.accent} onClick={() => window.location.assign("/home")}>
-            Open my workspace
-            <ArrowRight className="size-4" aria-hidden="true" />
-          </PrimaryCta>
-        </div>
-      </div>
-    </GlassCard>
-  );
-}
-
-// -----------------------------------------------------------------------------
-// Orchestrator
-// -----------------------------------------------------------------------------
-
-function deriveInitialStepIndex(state: WorkspaceOnboardingState): number {
-  // If the user has already done identity, start them on reply_examples, etc.
-  // Welcome is only shown as the first screen for fresh entries.
-  if (state.identityDone && state.replyExamplesDone && state.channelIntentDone) return 4;
-  if (state.identityDone && state.replyExamplesDone) return 3;
-  if (state.identityDone) return 2;
-  // Fresh — show welcome.
-  if (!state.identityDone && !state.replyExamplesDone && !state.channelIntentDone) return 0;
-  return 1;
-}
-
-export function OnboardingSetupPage(props: SetupPageProps) {
-  const [stepIndex, setStepIndex] = useState(() => deriveInitialStepIndex(props.initialState));
-  const stepKey = STEP_ORDER[stepIndex] ?? "welcome";
-
-  function goTo(next: StepKey) {
-    const nextIndex = STEP_ORDER.indexOf(next);
-    if (nextIndex !== -1) setStepIndex(nextIndex);
-  }
-
-  function goBack() {
-    setStepIndex((current) => Math.max(0, current - 1));
-  }
-
-  return (
-    <OnboardingShell currentStep={stepIndex} paletteKey={stepKey} totalSteps={STEP_ORDER.length}>
-      {stepKey === "welcome" ? (
-        <WelcomeStep
+    <Shell scene={scene} onBack={scene === "welcome" ? null : goBack}>
+      {scene === "welcome" ? (
+        <WelcomeScene
           operatorName={props.operatorName}
+          operatorRole={props.operatorRole}
           planTier={props.planTier}
           workspaceName={props.workspaceName}
-          onContinue={() => goTo("identity")}
+          onNext={() => setScene("workspace_type")}
         />
       ) : null}
 
-      {stepKey === "identity" ? (
-        <IdentityStep
-          workspaceId={props.workspaceId}
-          onBack={goBack}
-          onComplete={() => goTo("reply_examples")}
+      {scene === "workspace_type" ? (
+        <WorkspaceTypeScene
+          value={draft.workspaceType}
+          onChange={(workspaceType) => setDraft((current) => ({ ...current, workspaceType }))}
+          onNext={() => setScene("primary_areas")}
         />
       ) : null}
 
-      {stepKey === "reply_examples" ? (
-        <ReplyExamplesStep
-          workspaceId={props.workspaceId}
-          onBack={goBack}
-          onComplete={() => goTo("channels")}
+      {scene === "primary_areas" ? (
+        <PrimaryAreasScene
+          areas={draft.areas}
+          areaDraft={draft.areaDraft}
+          onDraftChange={(areaDraft) => setDraft((current) => ({ ...current, areaDraft }))}
+          onAddArea={addArea}
+          onRemoveArea={(area) => setDraft((current) => ({ ...current, areas: current.areas.filter((entry) => entry !== area) }))}
+          onNext={() => setScene("lead_types")}
         />
       ) : null}
 
-      {stepKey === "channels" ? (
-        <ChannelsStep
-          workspaceId={props.workspaceId}
+      {scene === "lead_types" ? (
+        <LeadTypesScene
+          selected={draft.leadTypes}
+          onToggle={(leadType) => setDraft((current) => ({ ...current, leadTypes: updateSelection(current.leadTypes, leadType) }))}
+          onNext={() => setScene("price_bands")}
+        />
+      ) : null}
+
+      {scene === "price_bands" ? (
+        <PriceBandsScene
+          selected={draft.priceBands}
+          onToggle={(priceBand) => setDraft((current) => ({ ...current, priceBands: updateSelection(current.priceBands, priceBand) }))}
+          onNext={() => setScene("listing_focus")}
+        />
+      ) : null}
+
+      {scene === "listing_focus" ? (
+        <ListingFocusScene
+          selected={draft.listingFocus}
+          onToggle={(focus) => setDraft((current) => ({ ...current, listingFocus: updateSelection(current.listingFocus, focus) }))}
+          onNext={() => setScene("voice_tone")}
+        />
+      ) : null}
+
+      {scene === "voice_tone" ? (
+        <VoiceToneScene
+          value={draft.toneDescription}
+          submitting={identitySaving}
+          error={identityError}
+          onChange={(toneDescription) => setDraft((current) => ({ ...current, toneDescription }))}
+          onSave={() => void saveIdentity()}
+        />
+      ) : null}
+
+      {scene === "reply_examples" ? (
+        <ReplyExamplesScene
+          examples={draft.replyExamples}
+          submitting={replySaving}
+          error={replyError}
+          onUpdate={(index, value) => setDraft((current) => ({
+            ...current,
+            replyExamples: current.replyExamples.map((entry, position) => (position === index ? value : entry)),
+          }))}
+          onAdd={() => setDraft((current) => ({ ...current, replyExamples: [...current.replyExamples, ""] }))}
+          onRemove={(index) => setDraft((current) => ({
+            ...current,
+            replyExamples: current.replyExamples.filter((_, position) => position !== index),
+          }))}
+          onSave={() => void saveReplies()}
+        />
+      ) : null}
+
+      {scene === "channels" ? (
+        <ChannelsScene
+          channels={draft.channels}
           planTier={props.planTier}
-          onBack={goBack}
-          onComplete={() => goTo("done")}
+          onSetMode={(channel, mode) => setDraft((current) => ({
+            ...current,
+            channels: { ...current.channels, [channel]: mode },
+          }))}
+          onNext={() => setScene("autonomy")}
         />
       ) : null}
 
-      {stepKey === "done" ? <DoneStep workspaceName={props.workspaceName} /> : null}
-    </OnboardingShell>
+      {scene === "autonomy" ? (
+        <AutonomyScene
+          autonomy={draft.autonomy}
+          planTier={props.planTier}
+          operatorRole={props.operatorRole}
+          submitting={channelSaving}
+          error={channelError}
+          onChange={(autonomy) => setDraft((current) => ({ ...current, autonomy }))}
+          onSave={() => void saveChannels()}
+        />
+      ) : null}
+
+      {scene === "activation" ? (
+        <ActivationScene
+          planTier={props.planTier}
+          operatorRole={props.operatorRole}
+          onNext={() => setScene("done")}
+        />
+      ) : null}
+
+      {scene === "done" ? <DoneScene workspaceName={props.workspaceName} /> : null}
+    </Shell>
   );
+}
+
+function buildRoutingNotes(draft: SetupDraft): string | undefined {
+  const lines = [
+    draft.priceBands.length > 0 ? `Price bands that matter: ${draft.priceBands.join(", ")}` : null,
+    draft.listingFocus.length > 0 ? `Listing focus: ${draft.listingFocus.join(", ")}` : null,
+  ].filter((line): line is string => line !== null);
+  return lines.length > 0 ? lines.join("\n") : undefined;
 }

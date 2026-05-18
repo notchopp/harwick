@@ -28,7 +28,7 @@ export async function POST(
   const membership = await authorizeWorkspaceRequest({
     request,
     workspaceId,
-    allowedRoles: new Set(["owner", "admin"] as const),
+    allowedRoles: new Set(["owner", "admin", "team_lead", "lead_manager"] as const),
   });
   if (membership === null) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });

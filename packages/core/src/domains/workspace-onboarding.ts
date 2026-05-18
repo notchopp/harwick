@@ -4,9 +4,9 @@ import { IsoDateTimeSchema, NonEmptyStringSchema, UuidSchema } from "./common.js
 /**
  * Workspace onboarding — the conversational setup at /onboarding/setup.
  *
- * Three beats in the MVP:
+ * Three persisted beats in the MVP:
  *   1. identity — workspace name (already captured at plan-pick), workspace
- *      type, primary areas, and short tone description
+ *      type, primary areas, business focus, and short tone description
  *   2. reply_examples — past message samples Harwick uses for voice matching
  *      on the first real lead
  *   3. channel_intent — which channels the operator plans to use and the
@@ -32,6 +32,10 @@ export const WorkspaceTypeSchema = z.enum([
 export const SetWorkspaceIdentityInputSchema = z.object({
   workspaceType: WorkspaceTypeSchema,
   primaryAreas: z.array(NonEmptyStringSchema.max(120)).min(1).max(8),
+  leadTypes: z.array(NonEmptyStringSchema.max(80)).max(8).default([]),
+  priceBands: z.array(NonEmptyStringSchema.max(80)).max(8).default([]),
+  listingFocus: z.array(NonEmptyStringSchema.max(120)).max(8).default([]),
+  routingNotes: z.string().trim().max(800).optional(),
   toneDescription: z.string().trim().min(8).max(500),
   workspaceDisplayName: z.string().trim().min(2).max(120).optional(),
 });

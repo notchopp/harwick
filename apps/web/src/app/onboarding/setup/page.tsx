@@ -52,6 +52,7 @@ export default async function Page({
       workspaceId={membership.workspaceId}
       workspaceName={membership.workspaceName}
       operatorName={membership.displayName ?? session.user.email ?? "Operator"}
+      operatorRole={membership.role}
       planTier={planTier}
       initialState={renderState}
     />

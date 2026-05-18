@@ -180,8 +180,14 @@ export async function persistWorkspaceIdentity(
   const memoryBody = [
     `Workspace type: ${input.workspaceType}`,
     `Primary areas: ${input.primaryAreas.join(", ")}`,
+    input.leadTypes.length > 0 ? `Lead types: ${input.leadTypes.join(", ")}` : null,
+    input.priceBands.length > 0 ? `Price bands: ${input.priceBands.join(", ")}` : null,
+    input.listingFocus.length > 0 ? `Listing focus: ${input.listingFocus.join(", ")}` : null,
+    input.routingNotes !== undefined && input.routingNotes.length > 0
+      ? `Routing notes: ${input.routingNotes}`
+      : null,
     `Tone: ${input.toneDescription}`,
-  ].join("\n");
+  ].filter((line): line is string => line !== null).join("\n");
 
   const { error: memoryError } = await supabase
     .from("workspace_memory_documents")
