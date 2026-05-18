@@ -331,21 +331,6 @@ function roleLens(role: WorkspaceRole): string {
   return "Read-only orientation: see what Harwick is doing without changing owner-level controls.";
 }
 
-function sceneLabel(scene: SceneKey): string {
-  if (scene === "welcome") return "welcome";
-  if (scene === "workspace_type") return "workspace";
-  if (scene === "primary_areas") return "market";
-  if (scene === "lead_types") return "leads";
-  if (scene === "price_bands") return "price";
-  if (scene === "listing_focus") return "focus";
-  if (scene === "voice_tone") return "voice";
-  if (scene === "reply_examples") return "samples";
-  if (scene === "channels") return "channels";
-  if (scene === "autonomy") return "autonomy";
-  if (scene === "activation") return "activate";
-  return "ready";
-}
-
 function previousScene(current: SceneKey): SceneKey {
   const currentIndex = SCENE_ORDER.indexOf(current);
   return SCENE_ORDER[Math.max(currentIndex - 1, 0)] ?? "welcome";
@@ -400,7 +385,7 @@ function Shell({
       />
 
       <div className="relative mx-auto flex min-h-screen w-full max-w-[520px] flex-col px-5 py-6">
-        <header className="flex items-center justify-between">
+        <header className="flex items-center">
           <button
             type="button"
             onClick={onBack ?? undefined}
@@ -408,18 +393,11 @@ function Shell({
             aria-label="Back"
             className={cn(
               "flex size-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white/70 transition",
-              onBack === null ? "opacity-0" : "hover:bg-white/[0.08] hover:text-white",
+              onBack === null ? "opacity-0 pointer-events-none" : "hover:bg-white/[0.08] hover:text-white",
             )}
           >
             <ArrowLeft className="size-4" aria-hidden="true" />
           </button>
-          <div className="text-center">
-            <div className="font-display text-[11px] uppercase tracking-[0.22em] text-white/72">Harwick</div>
-            <div className="mt-1 text-[10px] uppercase tracking-[0.16em] text-white/32">{sceneLabel(scene)}</div>
-          </div>
-          <div className="flex size-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-[11px] font-semibold text-white/52">
-            {currentIndex + 1}
-          </div>
         </header>
 
         <div className="flex flex-1 items-center py-6">
