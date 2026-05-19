@@ -203,8 +203,8 @@ body {
  * Apply to the onboarding shell + auth pages so the page never moves
  * while the keyboard is open. */
 [data-fixed-viewport="true"] {
-  height: 100dvh;
-  max-height: 100dvh;
+  height: var(--harwick-visual-height, 100svh);
+  max-height: var(--harwick-visual-height, 100svh);
   overflow: hidden;
   overscroll-behavior: none;
   -webkit-overflow-scrolling: auto;

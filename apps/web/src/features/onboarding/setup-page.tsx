@@ -32,7 +32,6 @@ import {
 } from "lucide-react";
 import {
   type ComponentType,
-  type KeyboardEvent,
   type SVGProps,
   useEffect,
   useMemo,
@@ -66,7 +65,6 @@ import { cn } from "../../lib/utils";
 
 import { AreaSearchInput, MarketMap, type ResolvedArea } from "./market-map";
 import {
-  DarkInlineInput,
   DarkInlineTextarea,
   DarkTextarea,
 } from "./primitives";
@@ -399,6 +397,26 @@ function Shell({
 
   const isFlowScene = scene !== "welcome" && scene !== "done";
 
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    if (viewport === undefined || viewport === null) return;
+
+    function syncVisualHeight() {
+      const currentViewport = window.visualViewport;
+      if (currentViewport === undefined || currentViewport === null) return;
+      document.documentElement.style.setProperty("--harwick-visual-height", `${currentViewport.height}px`);
+    }
+
+    syncVisualHeight();
+    viewport.addEventListener("resize", syncVisualHeight);
+    viewport.addEventListener("scroll", syncVisualHeight);
+    return () => {
+      viewport.removeEventListener("resize", syncVisualHeight);
+      viewport.removeEventListener("scroll", syncVisualHeight);
+      document.documentElement.style.removeProperty("--harwick-visual-height");
+    };
+  }, []);
+
   return (
     <main
       data-fixed-viewport="true"
@@ -420,31 +438,7 @@ function Shell({
       />
 
       <div className="relative mx-auto flex h-full w-full max-w-[520px] flex-col px-5">
-        <header className="flex items-center justify-between pt-3 pb-1">
-          <button
-            type="button"
-            onClick={onBack ?? undefined}
-            disabled={onBack === null}
-            aria-label="Back"
-            className={cn(
-              "flex size-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white/70 transition",
-              onBack === null ? "opacity-0 pointer-events-none" : "hover:bg-white/[0.08] hover:text-white",
-            )}
-          >
-            <ArrowLeft className="size-4" aria-hidden="true" />
-          </button>
-          {isFlowScene ? (
-            <button
-              type="button"
-              onClick={() => window.location.assign("/home")}
-              className="text-[10.5px] font-medium uppercase tracking-[0.12em] text-white/40 transition hover:text-white/75"
-            >
-              Finish later
-            </button>
-          ) : null}
-        </header>
-
-        <div className="flex flex-1 items-center overflow-y-auto py-3">
+        <div className="flex flex-1 items-center overflow-y-auto py-4">
           <AnimatePresence mode="wait">
             <motion.section
               key={scene}
@@ -454,6 +448,29 @@ function Shell({
               transition={{ duration: 0.34, ease: [0.22, 1, 0.36, 1] }}
               className="w-full"
             >
+              {isFlowScene ? (
+                <div className="mb-4 flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={onBack ?? undefined}
+                    disabled={onBack === null}
+                    aria-label="Back"
+                    className={cn(
+                      "flex size-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white/70 transition",
+                      onBack === null ? "opacity-0 pointer-events-none" : "hover:bg-white/[0.08] hover:text-white",
+                    )}
+                  >
+                    <ArrowLeft className="size-4" aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => window.location.assign("/home")}
+                    className="rounded-full border border-white/10 bg-white/[0.035] px-3 py-2 text-[10.5px] font-medium uppercase tracking-[0.12em] text-white/45 transition hover:bg-white/[0.06] hover:text-white/75"
+                  >
+                    Finish later
+                  </button>
+                </div>
+              ) : null}
               {children}
             </motion.section>
           </AnimatePresence>
@@ -513,7 +530,10 @@ function SceneFrame({
   footer: React.ReactNode;
 }) {
   return (
-    <div className="flex min-h-[760px] flex-col justify-between gap-6">
+    <div
+      className="flex flex-col justify-between gap-6"
+      style={{ minHeight: "min(760px, calc(var(--harwick-visual-height, 100svh) - 118px))" }}
+    >
       <div>
         <div className="text-center">
           <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#b8d3c5]/80">{eyebrow}</p>
@@ -862,12 +882,16 @@ function FocusVisual({ selected }: { selected: string[] }) {
   );
 }
 
-function VoiceVisual({ tone }: { tone?: string }) {
-  // Live preview of what a Harwick draft will sound like, based on the
-  // operator's tone description. No LLM call — fast client-side
-  // transformation on a baseline sample so the operator sees their
-  // voice landing in real time as they type.
-  const draft = renderToneSample(tone ?? "");
+function VoiceVisual({
+  tone,
+  previewReply,
+  isGeneratingDraft = false,
+}: {
+  tone?: string;
+  previewReply?: string | null;
+  isGeneratingDraft?: boolean;
+}) {
+  const draft = previewReply ?? renderToneSample(tone ?? "");
 
   return (
     <div className="overflow-hidden rounded-[28px] border border-white/12 bg-[#0a1310] shadow-[0_28px_64px_-28px_rgba(0,0,0,0.55)]">
@@ -886,7 +910,7 @@ function VoiceVisual({ tone }: { tone?: string }) {
           </div>
         </div>
         <span className="rounded-full bg-[#b8d3c5]/14 px-2 py-0.5 text-[10px] font-medium text-[#b8d3c5]">
-          harwick draft
+          {isGeneratingDraft ? "drafting" : "harwick draft"}
         </span>
       </div>
 
@@ -909,7 +933,11 @@ function VoiceVisual({ tone }: { tone?: string }) {
         >
           {draft}
         </motion.div>
-        <div className="mr-2 mt-1 text-right text-[10px] text-white/35">harwick · drafting in your voice</div>
+        <div className="mr-2 mt-1 text-right text-[10px] text-white/35">
+          {previewReply !== undefined && previewReply !== null
+            ? "harwick runtime · from your examples"
+            : "harwick · drafting in your voice"}
+        </div>
       </div>
     </div>
   );
@@ -1070,13 +1098,8 @@ const CHANNEL_BRANDS: Record<OnboardingChannel, ChannelBrand> = {
 };
 
 function ChannelVisual({ channels }: { channels: Record<OnboardingChannel, ChannelMode> }) {
-  // Harwick "pocket" — a single dark rounded box at the bottom of the
-  // visual area with a soft inner shadow at its top edge (the "cutoff"
-  // that makes it read as a pocket / wallet / shelf).
-  // Picked channels become full brand tiles standing inside the pocket.
-  // Each card behind the front is translated UP by ~24px and scaled
-  // 0.96 per layer, so their tops peek out above the front card and
-  // above the pocket's top edge — like books on a shelf.
+  // Harwick "pocket" — picked channels become brand tiles fanned behind
+  // the front lip, so the visual reads like a wallet full of live channels.
   const activeChannels = CHANNEL_OPTIONS.filter((option) => channels[option.key] !== "off");
 
   return (
@@ -1090,37 +1113,16 @@ function ChannelVisual({ channels }: { channels: Record<OnboardingChannel, Chann
         }}
       />
 
-      {/* The pocket — single rounded container, dark fill, inner shadow
-       *  along the top edge so it reads as a 3D pocket the cards live in. */}
-      <div
-        className="absolute inset-x-4 rounded-[26px] border border-white/12"
-        style={{
-          top: "54%",
-          bottom: "6%",
-          background:
-            "linear-gradient(180deg, rgba(7,16,13,0.85) 0%, rgba(7,16,13,0.65) 100%)",
-          boxShadow:
-            "inset 0 10px 22px -10px rgba(0,0,0,0.85), inset 0 1px 0 rgba(255,255,255,0.05), 0 28px 60px -28px rgba(0,0,0,0.75)",
-        }}
-      />
-
-      {/* Harwick mark stamped on the pocket front */}
-      <div
-        className="absolute bottom-[10%] left-1/2 -translate-x-1/2 text-[10px] font-semibold uppercase tracking-[0.36em]"
-        style={{ color: "rgba(184,211,197,0.4)" }}
-      >
-        harwick
-      </div>
-
-      {/* Card stack. Cards extend ABOVE the pocket top edge so their tops
-       *  peek out. Cards are anchored at bottom so they grow upward into
-       *  the visible area. */}
-      <div className="absolute inset-x-9" style={{ top: "8%", bottom: "12%" }}>
+      {/* Cards fan horizontally first, then the pocket lip renders over the
+       * lower half so they feel physically tucked behind it. */}
+      <div className="absolute inset-x-8" style={{ top: "8%", bottom: "16%" }}>
         <AnimatePresence initial={false}>
           {activeChannels.map((option, index) => {
             const mode = channels[option.key];
-            const stackIndex = activeChannels.length - 1 - index;
-            const isTop = stackIndex === 0;
+            const center = (activeChannels.length - 1) / 2;
+            const offset = index - center;
+            const depth = Math.abs(offset);
+            const isTop = index === activeChannels.length - 1;
             const brand = CHANNEL_BRANDS[option.key];
             const Glyph = brand.glyph;
             const isGold = mode === "auto_send";
@@ -1129,18 +1131,19 @@ function ChannelVisual({ channels }: { channels: Record<OnboardingChannel, Chann
               <motion.div
                 key={option.key}
                 layout
-                initial={{ opacity: 0, y: 32, rotate: stackIndex % 2 === 0 ? -3 : 3 }}
+                initial={{ opacity: 0, y: 34, x: 0, rotate: offset * 5 }}
                 animate={{
                   opacity: 1,
-                  y: -stackIndex * 22,
-                  scale: 1 - stackIndex * 0.045,
-                  rotate: 0,
+                  x: offset * 42,
+                  y: depth * 8,
+                  scale: 1 - depth * 0.06,
+                  rotate: offset * 7,
                 }}
-                exit={{ opacity: 0, y: 48, rotate: 4 }}
+                exit={{ opacity: 0, y: 46, rotate: offset * 8 }}
                 transition={{ type: "spring", stiffness: 220, damping: 26 }}
-                className="absolute inset-x-0 bottom-0 overflow-hidden rounded-[18px]"
+                className="absolute bottom-0 left-1/2 w-[62%] -translate-x-1/2 overflow-hidden rounded-[18px]"
                 style={{
-                  zIndex: 100 + activeChannels.length - stackIndex,
+                  zIndex: 20 + index,
                   height: "92%",
                   background: brand.background,
                   border: `1px solid ${isTop ? "rgba(255,255,255,0.22)" : "rgba(255,255,255,0.10)"}`,
@@ -1199,6 +1202,39 @@ function ChannelVisual({ channels }: { channels: Record<OnboardingChannel, Chann
             </span>
           </div>
         ) : null}
+      </div>
+
+      {/* The pocket front intentionally covers the lower half of the fan. */}
+      <div
+        className="absolute inset-x-4 rounded-[26px] border border-white/12"
+        style={{
+          zIndex: 60,
+          top: "56%",
+          bottom: "6%",
+          background:
+            "linear-gradient(180deg, rgba(7,16,13,0.93) 0%, rgba(7,16,13,0.72) 100%)",
+          boxShadow:
+            "inset 0 12px 24px -10px rgba(0,0,0,0.9), inset 0 1px 0 rgba(255,255,255,0.07), 0 28px 60px -28px rgba(0,0,0,0.75)",
+        }}
+      />
+
+      <div
+        aria-hidden="true"
+        className="absolute inset-x-7 h-px"
+        style={{
+          zIndex: 65,
+          top: "56%",
+          background: "linear-gradient(90deg, transparent, rgba(184,211,197,0.48), transparent)",
+          boxShadow: "0 10px 22px rgba(0,0,0,0.55)",
+        }}
+      />
+
+      {/* Harwick mark stamped on the pocket front */}
+      <div
+        className="absolute bottom-[10%] left-1/2 -translate-x-1/2 text-[10px] font-semibold uppercase tracking-[0.36em]"
+        style={{ zIndex: 70, color: "rgba(184,211,197,0.4)" }}
+      >
+        harwick
       </div>
     </div>
   );
@@ -1376,7 +1412,10 @@ function WelcomeScene({ onNext }: { onNext: () => void }) {
   // logo on the bg + one CTA. No card, no title, no description, no
   // muted info line.
   return (
-    <div className="flex min-h-[640px] flex-col items-center justify-center gap-12">
+    <div
+      className="flex flex-col items-center justify-center gap-12"
+      style={{ minHeight: "min(640px, calc(var(--harwick-visual-height, 100svh) - 48px))" }}
+    >
       <WelcomeVisual />
       <div className="w-full max-w-[300px]">
         <PrimaryCta onClick={onNext}>
@@ -1614,7 +1653,7 @@ function VoiceToneScene({
       eyebrow="voice"
       title="How should Harwick sound?"
       description="Short, warm, direct, never pushy. Tell Harwick how to behave before it touches a real lead."
-      visual={<VoiceVisual />}
+      visual={<VoiceVisual tone={value} />}
       footer={
         <>
           <DarkTextarea
@@ -1638,6 +1677,8 @@ function VoiceToneScene({
 
 function ReplyExamplesScene({
   workspaceId,
+  workspaceName,
+  toneDescription,
   examples,
   submitting,
   error,
@@ -1648,6 +1689,8 @@ function ReplyExamplesScene({
   onSave,
 }: {
   workspaceId: string;
+  workspaceName: string;
+  toneDescription: string;
   examples: string[];
   submitting: boolean;
   error: string | null;
@@ -1658,12 +1701,68 @@ function ReplyExamplesScene({
   onSave: () => void;
 }) {
   const usableCount = examples.map((entry) => entry.trim()).filter((entry) => entry.length >= 8).length;
+  const usableExamples = useMemo(
+    () => examples.map((entry) => entry.trim()).filter((entry) => entry.length >= 8).slice(0, 8),
+    [examples],
+  );
+  const [preview, setPreview] = useState<{
+    status: "idle" | "loading" | "ready" | "error";
+    reply: string | null;
+  }>({ status: "idle", reply: null });
+
+  useEffect(() => {
+    if (usableExamples.length === 0) {
+      setPreview({ status: "idle", reply: null });
+      return;
+    }
+
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => {
+      setPreview((current) => ({ status: "loading", reply: current.reply }));
+      void fetch(`/api/workspaces/${workspaceId}/onboarding-step/reply-examples/draft`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        signal: controller.signal,
+        body: JSON.stringify({
+          examples: usableExamples,
+          toneDescription,
+          leadText: LEAD_INBOUND_SAMPLE,
+        }),
+      })
+        .then(async (response) => {
+          if (!response.ok) throw new Error("draft_failed");
+          return (await response.json()) as { reply?: unknown };
+        })
+        .then((payload) => {
+          const reply = typeof payload.reply === "string" && payload.reply.trim().length > 0
+            ? payload.reply.trim()
+            : null;
+          setPreview(reply === null ? { status: "error", reply: null } : { status: "ready", reply });
+        })
+        .catch((error: unknown) => {
+          if (error instanceof DOMException && error.name === "AbortError") return;
+          setPreview((current) => ({ status: "error", reply: current.reply }));
+        });
+    }, 550);
+
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [toneDescription, usableExamples, workspaceId]);
+
   return (
     <SceneFrame
       eyebrow="samples"
       title="Show Harwick how you sound."
       description="Paste real replies, or drop a screenshot of a past Instagram / SMS thread and Harwick will pull the messages out."
-      visual={<VoiceVisual />}
+      visual={
+        <VoiceVisual
+          tone={toneDescription}
+          previewReply={preview.reply}
+          isGeneratingDraft={preview.status === "loading"}
+        />
+      }
       footer={
         <>
           <ReplyExamplesUploadZone workspaceId={workspaceId} onExtracted={onAddBulk} />
@@ -1700,7 +1799,9 @@ function ReplyExamplesScene({
           <p className="text-center text-[11px] text-white/38">
             {usableCount === 0
               ? "Add at least 1 sample to continue"
-              : `${usableCount} sample${usableCount === 1 ? "" : "s"} ready — more is better`}
+              : preview.status === "ready"
+                ? `${workspaceName} voice preview is live`
+                : `${usableCount} sample${usableCount === 1 ? "" : "s"} ready — more is better`}
           </p>
           {error !== null ? <ErrorBox>{error}</ErrorBox> : null}
           <PrimaryCta disabled={usableCount === 0} loading={submitting} onClick={onSave}>
@@ -2248,6 +2349,8 @@ export function OnboardingSetupPage(props: SetupPageProps) {
       {scene === "reply_examples" ? (
         <ReplyExamplesScene
           workspaceId={props.workspaceId}
+          workspaceName={props.workspaceName}
+          toneDescription={draft.toneDescription}
           examples={draft.replyExamples}
           submitting={replySaving}
           error={replyError}
