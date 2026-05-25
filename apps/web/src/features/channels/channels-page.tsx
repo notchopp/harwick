@@ -1,7 +1,7 @@
 "use client";
 
 import type { HarwickChannel, HarwickChannelMessage, WorkspaceRole } from "@realty-ops/core";
-import { Hash, Lock, MessageSquarePlus, Send, Users, X } from "lucide-react";
+import { ArrowLeft, Hash, Lock, MessageSquarePlus, Send, Users, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { HarwickMark } from "../../components/harwick-rail/harwick-mark";
@@ -384,9 +384,12 @@ export function ChannelsPage(props: Props) {
   }, [messages.messages.length, showThinking]);
 
   return (
-    <div className="flex h-[calc(100vh-72px)] min-h-0 overflow-hidden rounded-[var(--panel-radius-lg)] border border-[color:var(--panel-line)] bg-[color:var(--panel-1)]">
-      {/* Channel list */}
-      <aside className="flex w-60 shrink-0 flex-col border-r border-white/[0.06] bg-[color:var(--panel-0)]/40">
+    <div className="flex h-[calc(100vh-72px)] min-h-0 overflow-hidden rounded-none border-0 bg-[color:var(--panel-1)] md:rounded-[var(--panel-radius-lg)] md:border md:border-[color:var(--panel-line)]">
+      {/* Channel list — full width on mobile when no channel selected; sidebar on desktop */}
+      <aside className={cn(
+        "w-full shrink-0 flex-col border-r border-white/[0.06] bg-[color:var(--panel-0)]/40 md:flex md:w-60",
+        activeChannelId === null ? "flex" : "hidden md:flex",
+      )}>
         <div className="flex items-center justify-between border-b border-white/[0.06] px-3 py-2.5">
           <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/56">Channels</div>
           <button
@@ -435,8 +438,11 @@ export function ChannelsPage(props: Props) {
         </div>
       </aside>
 
-      {/* Active channel pane */}
-      <section className="flex min-w-0 flex-1 flex-col">
+      {/* Active channel pane — hidden on mobile when no channel selected; full-width when selected */}
+      <section className={cn(
+        "min-w-0 flex-1 flex-col md:flex",
+        activeChannel === null ? "hidden md:flex" : "flex",
+      )}>
         {activeChannel === null ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center">
             <MessageSquarePlus className="size-6 text-white/24" aria-hidden="true" />
@@ -444,7 +450,15 @@ export function ChannelsPage(props: Props) {
           </div>
         ) : (
           <>
-            <header className="flex shrink-0 items-center gap-2 border-b border-white/[0.06] bg-white/[0.015] px-4 py-2.5">
+            <header className="flex shrink-0 items-center gap-2 border-b border-white/[0.06] bg-white/[0.015] px-3 py-2.5 md:px-4">
+              <button
+                type="button"
+                onClick={() => setActiveChannelId(null)}
+                className="-ml-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/64 transition hover:bg-white/[0.04] hover:text-white md:hidden"
+                aria-label="Back to channels"
+              >
+                <ArrowLeft className="size-4" aria-hidden="true" />
+              </button>
               <Hash className="size-3.5 text-white/48" aria-hidden="true" />
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[13px] font-semibold text-white">{activeChannel.name}</div>
