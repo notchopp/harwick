@@ -442,40 +442,52 @@ export function LeadDetailDrawer(props: QueueActionDrawerProps) {
   return (
     <Drawer.Root open={props.open} onOpenChange={props.onOpenChange}>
       <Drawer.Portal>
-        <Drawer.Overlay className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm" />
-        <Drawer.Content className="harwick-shell-dark fixed inset-x-0 bottom-0 z-50 flex h-[92vh] flex-col overflow-hidden rounded-t-[var(--panel-radius-lg)] border-t border-[color:var(--panel-line-strong)] bg-[color:var(--panel-1)] text-white outline-none md:hidden">
+        <Drawer.Overlay className="fixed inset-0 z-40 bg-[rgba(8,12,8,0.62)] backdrop-blur-[18px] backdrop-saturate-125" />
+        <Drawer.Content className="harwick-shell-dark fixed inset-x-0 bottom-0 z-50 mx-auto flex h-[94vh] max-w-[760px] flex-col overflow-hidden rounded-t-[32px] border border-b-0 border-white/8 bg-[color:var(--panel-1)] text-white shadow-[0_-32px_80px_-12px_rgba(6,12,8,0.55)] outline-none">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 rounded-t-[32px]"
+            style={{
+              backgroundImage:
+                "radial-gradient(circle at 86% 4%, rgba(136,162,118,0.22), transparent 40%), linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0) 22%)",
+            }}
+          />
           <Drawer.Title className="sr-only">{descriptor.title}</Drawer.Title>
           <Drawer.Description className="sr-only">Queue action review</Drawer.Description>
 
-          <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-white/14" aria-hidden="true" />
+          <div className="relative mt-2.5 flex justify-center">
+            <div className="h-[5px] w-[44px] rounded-full bg-white/22" aria-hidden="true" />
+          </div>
 
-          <div className="flex items-start gap-3 px-4 pb-3 pt-3">
-            <div className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-[10px] border border-[color:var(--panel-line)] bg-[color:var(--panel-2)]">
+          <div className="relative flex items-start gap-3 px-5 pb-4 pt-3.5">
+            <div className="mt-1 flex size-10 shrink-0 items-center justify-center rounded-[12px] border border-[color:var(--panel-line)] bg-[color:var(--panel-2)]">
               <SourceIconCmp className={cn("size-4", sourceColor(source))} aria-hidden="true" strokeWidth={2} />
             </div>
             <div className="min-w-0 flex-1">
-              <div className="mb-1 flex items-center gap-2">
-                <MonoTag>{source}</MonoTag>
-                <span className={cn("text-[10.5px] font-semibold uppercase tracking-[0.08em]", descriptor.priorityClassName)}>
+              <div className="mb-1.5 flex items-center gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-[color:var(--graphite-text-faint)]">
+                  {source}
+                </span>
+                <span className={cn("text-[10px] font-bold uppercase tracking-[0.16em]", descriptor.priorityClassName)}>
                   {descriptor.priorityLabel}
                 </span>
               </div>
-              <h2 className="font-display text-[21px] font-semibold leading-[1.1] tracking-[-0.02em] text-[color:var(--graphite-text)]">
+              <h2 className="font-display text-[24px] font-medium leading-[1.05] tracking-[-0.02em] text-white">
                 {descriptor.title}
               </h2>
-              <p className="mt-1 text-[11.5px] text-[color:var(--graphite-text-muted)]">{descriptor.subtitle}</p>
+              <p className="mt-1.5 text-[12px] leading-5 text-[color:var(--graphite-text-muted)]">{descriptor.subtitle}</p>
             </div>
             <button
               type="button"
               onClick={() => props.onOpenChange(false)}
-              className="flex size-9 items-center justify-center rounded-[10px] border border-[color:var(--panel-line)] bg-[color:var(--panel-2)] text-[color:var(--graphite-text-muted)] transition active:bg-[color:var(--panel-3)]"
+              className="-mr-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/12 bg-white/[0.04] text-white/72 transition hover:border-white/22 hover:bg-white/[0.06]"
               aria-label="Close"
             >
-              <X className="size-4" aria-hidden="true" />
+              <X className="h-4 w-4" aria-hidden="true" />
             </button>
           </div>
 
-          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 pb-4">
+          <div className="relative min-h-0 flex-1 space-y-3 overflow-y-auto px-4 pb-4">
             <Card className="p-4">
               <div className="flex items-center gap-2">
                 <QueueIcon className="size-3.5 text-[var(--sage)]" aria-hidden="true" />
@@ -688,7 +700,7 @@ export function LeadDetailDrawer(props: QueueActionDrawerProps) {
           </div>
 
           <div
-            className="shrink-0 border-t border-[color:var(--panel-line-soft)] bg-[color:var(--panel-2)] px-4 py-3"
+            className="relative shrink-0 border-t border-white/8 bg-[color:var(--panel-1)]/95 px-4 py-3 backdrop-blur-sm"
             style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
           >
             {workspaceId !== null && leadId !== null && automationMode !== null ? (

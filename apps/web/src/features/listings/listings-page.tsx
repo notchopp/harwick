@@ -294,7 +294,7 @@ const filterOptions: Array<{ value: ListingsStatusFilter; label: string }> = [
   { value: "recheck", label: "needs recheck" },
 ];
 
-const listingsPageSize = 6;
+const listingsPageSize = 12;
 
 function clampPage(page: number, pageCount: number) {
   return Math.min(Math.max(page, 1), Math.max(pageCount, 1));
@@ -824,22 +824,34 @@ export function ListingsPageContent({ workspaceId, workspaceName, workspaceSlug 
                 add listing
               </button>
             </div>
-            <div className="-mx-5 flex gap-1.5 overflow-x-auto px-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:mx-0 md:flex-wrap md:overflow-visible md:px-0">
-              <span className="shrink-0 rounded-full border border-white/[0.08] bg-white/[0.025] px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-white/68">
-                {visibleCards.length} shown
-              </span>
-              <span className="shrink-0 rounded-full border border-[var(--sage)]/25 bg-[var(--sage-soft)] px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-[var(--sage)]">
-                {summary.active} active
-              </span>
+            <div className="flex items-center gap-2 text-[13px] text-white/56 [font-variant-numeric:tabular-nums]">
+              <span className="text-white/82"><span className="font-semibold text-white">{visibleCards.length}</span> {visibleCards.length === 1 ? "listing" : "listings"}</span>
+              {summary.active > 0 ? (
+                <>
+                  <span aria-hidden className="text-white/22">·</span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-[var(--sage)]" />
+                    <span className="text-white/72"><span className="font-semibold text-white/92">{summary.active}</span> active</span>
+                  </span>
+                </>
+              ) : null}
               {summary.pending > 0 ? (
-                <span className="shrink-0 rounded-full border border-[var(--clay)]/30 bg-[var(--clay-soft)] px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-[var(--clay)]">
-                  {summary.pending} pending
-                </span>
+                <>
+                  <span aria-hidden className="text-white/22">·</span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-[var(--clay)]" />
+                    <span className="text-white/72"><span className="font-semibold text-white/92">{summary.pending}</span> pending</span>
+                  </span>
+                </>
               ) : null}
               {summary.recheck > 0 ? (
-                <span className="shrink-0 rounded-full border border-[var(--oxblood)]/35 bg-[var(--oxblood-soft)] px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-[var(--oxblood)]">
-                  {summary.recheck} recheck
-                </span>
+                <>
+                  <span aria-hidden className="text-white/22">·</span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-[var(--oxblood)]" />
+                    <span className="text-white/72"><span className="font-semibold text-white/92">{summary.recheck}</span> need recheck</span>
+                  </span>
+                </>
               ) : null}
             </div>
           </header>
