@@ -191,6 +191,54 @@ export const PublicListingChatResponseSchema = z.object({
   }).nullable().default(null),
 });
 
+export const ListingMemoryKindSchema = z.enum([
+  "common_question",
+  "common_objection",
+  "context_note",
+  "incentive",
+  "sales_angle",
+]);
+
+export const ListingMemoryVisibilitySchema = z.enum(["public", "internal"]);
+
+export const ListingMemorySourceSchema = z.enum(["operator", "harwick_inferred", "system_seed"]);
+
+export const ListingMemorySchema = z.object({
+  id: UuidSchema,
+  workspaceId: UuidSchema,
+  listingId: UuidSchema,
+  kind: ListingMemoryKindSchema,
+  visibility: ListingMemoryVisibilitySchema,
+  // The visitor-facing chip text. Only required when visibility === "public";
+  // internal notes leave this null and put the full payload in content.
+  prompt: z.string().trim().min(1).max(120).nullable(),
+  content: z.string().trim().min(1).max(2000),
+  source: ListingMemorySourceSchema,
+  displayOrder: z.number().int().min(0).max(10_000),
+  createdByMemberId: UuidSchema.nullable(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+
+export const ListingMemoryUpsertRequestSchema = z
+  .object({
+    listingId: UuidSchema,
+    kind: ListingMemoryKindSchema,
+    visibility: ListingMemoryVisibilitySchema.default("internal"),
+    prompt: z.string().trim().min(1).max(120).nullable().default(null),
+    content: z.string().trim().min(1).max(2000),
+    displayOrder: z.number().int().min(0).max(10_000).default(0),
+  })
+  .superRefine((value, ctx) => {
+    if (value.visibility === "public" && value.prompt === null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["prompt"],
+        message: "prompt is required when visibility is public",
+      });
+    }
+  });
+
 export const ListingUrlImportRequestSchema = z.object({
   url: z.string().trim().url().max(2048),
 });
@@ -244,6 +292,11 @@ export type PublicListingChatMessage = z.infer<typeof PublicListingChatMessageSc
 export type PublicListingChatQualification = z.infer<typeof PublicListingChatQualificationSchema>;
 export type PublicListingChatRequest = z.infer<typeof PublicListingChatRequestSchema>;
 export type PublicListingChatResponse = z.infer<typeof PublicListingChatResponseSchema>;
+export type ListingMemoryKind = z.infer<typeof ListingMemoryKindSchema>;
+export type ListingMemoryVisibility = z.infer<typeof ListingMemoryVisibilitySchema>;
+export type ListingMemorySource = z.infer<typeof ListingMemorySourceSchema>;
+export type ListingMemory = z.infer<typeof ListingMemorySchema>;
+export type ListingMemoryUpsertRequest = z.infer<typeof ListingMemoryUpsertRequestSchema>;
 export type ListingUrlImportRequest = z.infer<typeof ListingUrlImportRequestSchema>;
 export type ListingUrlImportDraft = z.infer<typeof ListingUrlImportDraftSchema>;
 export type OpenHouseAttendee = z.infer<typeof OpenHouseAttendeeSchema>;
