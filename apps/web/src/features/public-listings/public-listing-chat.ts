@@ -1,12 +1,29 @@
+import { randomBytes } from "node:crypto";
+
 import {
   HarwickAiRuntimeInputSchema,
   PublicListingChatRequestSchema,
   PublicListingChatResponseSchema,
   type HarwickAiListingMemory,
+  type ListingMemory,
+  type PublicListingChatMessage,
+  type PublicListingChatQualification,
   type PublicListingChatRequest,
   type PublicListingChatResponse,
 } from "@realty-ops/core";
 import type { HarwickAiRuntimeClient } from "@realty-ops/integrations";
+
+export type PublicListingChatSession = {
+  id: string;
+  sessionToken: string;
+  qualification: PublicListingChatQualification;
+  promotedLeadId: string | null;
+};
+
+export type PublicListingChatSessionTurn = {
+  actor: "visitor" | "harwick_ai";
+  body: string;
+};
 
 export type PublicListingChatWorkspace = {
   id: string;
@@ -54,6 +71,45 @@ export type PublicListingChatRepository = {
     workspaceId: string;
     listingId: string;
   }): Promise<PublicListingChatListing | null>;
+  findListingMemory(params: {
+    workspaceId: string;
+    listingId: string;
+  }): Promise<ListingMemory[]>;
+  findSessionByToken(params: {
+    sessionToken: string;
+    workspaceId: string;
+    listingId: string;
+  }): Promise<PublicListingChatSession | null>;
+  createSession(params: {
+    workspaceId: string;
+    listingId: string;
+    sessionToken: string;
+    ipHash: string | null;
+    userAgent: string | null;
+    createdAt: string;
+  }): Promise<PublicListingChatSession>;
+  findRecentTurns(params: {
+    sessionId: string;
+    limit: number;
+  }): Promise<PublicListingChatSessionTurn[]>;
+  appendTurn(params: {
+    sessionId: string;
+    actor: "visitor" | "harwick_ai";
+    body: string;
+    statePatch: Record<string, unknown> | null;
+    nextAction: string | null;
+    occurredAt: string;
+  }): Promise<void>;
+  updateSessionQualification(params: {
+    sessionId: string;
+    qualification: PublicListingChatQualification;
+    lastActiveAt: string;
+  }): Promise<void>;
+  linkSessionLead(params: {
+    sessionId: string;
+    leadId: string;
+    promotedAt: string;
+  }): Promise<void>;
   findExistingLead(params: {
     workspaceId: string;
     email: string | null;
@@ -117,7 +173,11 @@ function formatMoney(value: number | null): string | null {
   }).format(value);
 }
 
-function buildListingMemory(listing: PublicListingChatListing): HarwickAiListingMemory {
+function buildListingMemory(params: {
+  listing: PublicListingChatListing;
+  memory: readonly ListingMemory[];
+}): HarwickAiListingMemory {
+  const { listing } = params;
   const neighborhood = readRawString(listing.rawFacts, "neighborhood");
   const city = readRawString(listing.rawFacts, "city");
   const propertyType = readRawString(listing.rawFacts, "propertyType");
@@ -126,6 +186,13 @@ function buildListingMemory(listing: PublicListingChatListing): HarwickAiListing
     : null;
   const incentives = readRawStringArray(listing.rawFacts, "incentives");
   const amenities = readRawStringArray(listing.rawFacts, "amenities");
+  // Operator-authored memory rows feed in as facts so the model can answer
+  // the question behind every smart-prompt chip with real depth. We include
+  // BOTH visibility tiers because Harwick is the operator's proxy — she
+  // sees the internal notes too ("seller will hold on price until July 1").
+  const memoryFacts = params.memory
+    .filter((row) => row.content.length > 0)
+    .map((row) => row.visibility === "public" ? row.content : `internal: ${row.content}`);
   const facts = [
     listing.mlsNumber === null ? null : `MLS ${listing.mlsNumber}`,
     propertyType,
@@ -136,6 +203,7 @@ function buildListingMemory(listing: PublicListingChatListing): HarwickAiListing
     listing.baths === null ? null : `${listing.baths} baths`,
     ...incentives.map((value) => `incentive: ${value}`),
     ...amenities.slice(0, 6),
+    ...memoryFacts,
   ].filter((fact): fact is string => fact !== null && fact.trim().length > 0);
 
   return {
@@ -150,6 +218,47 @@ function buildListingMemory(listing: PublicListingChatListing): HarwickAiListing
     facts,
     lastVerifiedAt: listing.verifiedAt,
   };
+}
+
+function generateSessionToken(): string {
+  return randomBytes(24).toString("base64url");
+}
+
+function mergeQualification(
+  current: PublicListingChatQualification,
+  patch: Record<string, unknown>,
+): PublicListingChatQualification {
+  const next: PublicListingChatQualification = { ...current };
+  const set = <K extends keyof PublicListingChatQualification>(key: K, value: PublicListingChatQualification[K] | undefined) => {
+    if (value !== undefined) next[key] = value;
+  };
+
+  if (typeof patch["name"] === "string") set("name", patch["name"]);
+  if (typeof patch["phone"] === "string") set("phone", patch["phone"]);
+  if (typeof patch["email"] === "string") set("email", patch["email"]);
+  if (typeof patch["timeline"] === "string") set("timeline", patch["timeline"]);
+  if (typeof patch["budget"] === "string" || typeof patch["budget"] === "number") {
+    set("budget", String(patch["budget"]));
+  }
+  if (typeof patch["targetArea"] === "string") set("targetArea", patch["targetArea"]);
+  if (typeof patch["propertyType"] === "string") set("propertyType", patch["propertyType"]);
+  const leadType = patch["leadType"];
+  if (leadType === "buyer" || leadType === "seller" || leadType === "renter" || leadType === "investor" || leadType === "unknown") {
+    set("leadType", leadType);
+  }
+  const intent = patch["intent"];
+  if (intent === "high" || intent === "medium" || intent === "low" || intent === "spam" || intent === "unknown") {
+    set("intent", intent);
+  }
+  const financingStatus = patch["financingStatus"];
+  if (financingStatus === "preapproved" || financingStatus === "cash" || financingStatus === "needs_lender" || financingStatus === "unknown") {
+    set("financingStatus", financingStatus);
+  }
+  if (typeof patch["score"] === "number") {
+    const score = Math.max(0, Math.min(100, Math.round(patch["score"])));
+    set("score", score);
+  }
+  return next;
 }
 
 function buildLeadDocument(params: {
@@ -272,13 +381,27 @@ function buildLeadCapture(params: {
   };
 }
 
+export type HandlePublicListingChatResult = {
+  response: PublicListingChatResponse;
+  sessionToken: string;
+  sessionCreated: boolean;
+};
+
 export async function handlePublicListingChat(params: {
   workspaceSlug: string;
   request: unknown;
   repository: PublicListingChatRepository;
   runtimeClient: HarwickAiRuntimeClient;
+  // Cookie-derived session token, if the visitor already has one. If null
+  // the handler creates a fresh session and returns the new token so the
+  // route layer can set the cookie on the response.
+  sessionToken: string | null;
+  // PII-safe correlation (sha-256 truncated). Optional — used for abuse
+  // attribution but never required.
+  ipHash?: string | null;
+  userAgent?: string | null;
   now?: () => Date;
-}): Promise<PublicListingChatResponse> {
+}): Promise<HandlePublicListingChatResult> {
   const request = PublicListingChatRequestSchema.parse(params.request);
   const workspace = await params.repository.findWorkspaceBySlug(params.workspaceSlug);
   if (workspace === null) {
@@ -293,11 +416,74 @@ export async function handlePublicListingChat(params: {
     throw new PublicListingChatError("listing_not_found", 404);
   }
 
+  // Listing memory is the operator-authored knowledge layer powering god-flow
+  // smart prompts and giving Harwick context beyond raw_facts. Both public
+  // and internal rows feed in — internal ones get tagged in the prompt so
+  // the model knows they're operator-only context.
+  const memory = await params.repository.findListingMemory({
+    workspaceId: workspace.id,
+    listingId: listing.id,
+  });
+
+  const now = params.now?.() ?? new Date();
+  const occurredAt = now.toISOString();
+
+  // Load or create session FIRST so every subsequent persistence step has a
+  // session_id to anchor on. This is what makes pre-promotion transcripts
+  // recoverable by operators on the promoted lead.
+  let session = params.sessionToken === null
+    ? null
+    : await params.repository.findSessionByToken({
+        sessionToken: params.sessionToken,
+        workspaceId: workspace.id,
+        listingId: listing.id,
+      });
+  let sessionCreated = false;
+  if (session === null) {
+    const newToken = generateSessionToken();
+    session = await params.repository.createSession({
+      workspaceId: workspace.id,
+      listingId: listing.id,
+      sessionToken: newToken,
+      ipHash: params.ipHash ?? null,
+      userAgent: params.userAgent ?? null,
+      createdAt: occurredAt,
+    });
+    sessionCreated = true;
+  }
+
+  // Persist the visitor's message immediately. If anything below throws
+  // we still have the inbound recorded for support / debugging.
+  await params.repository.appendTurn({
+    sessionId: session.id,
+    actor: "visitor",
+    body: request.message,
+    statePatch: null,
+    nextAction: null,
+    occurredAt,
+  });
+
+  // Server-side conversation history is authoritative. The legacy
+  // `request.conversation` from clients is ignored on purpose — trusting
+  // the client to maintain history made the pre-promotion transcript
+  // unrecoverable for operators.
+  const priorTurns = await params.repository.findRecentTurns({
+    sessionId: session.id,
+    // 20-turn window matches the typed runtime input ceiling.
+    limit: 20,
+  });
+  const conversation: PublicListingChatMessage[] = priorTurns.map((turn, index) => ({
+    id: `turn-${index}`,
+    actor: turn.actor === "visitor" ? "lead" : "harwick_ai",
+    body: turn.body,
+    occurredAt: null,
+  }));
+
   const runtimeInput = HarwickAiRuntimeInputSchema.parse({
     workspaceName: workspace.name,
     channel: "manual",
     inboundText: request.message,
-    conversation: request.conversation.map((message) => ({
+    conversation: conversation.map((message) => ({
       id: message.id,
       actor: message.actor,
       body: message.body,
@@ -305,23 +491,23 @@ export async function handlePublicListingChat(params: {
     })),
     state: {
       workspaceId: workspace.id,
-      leadId: null,
+      leadId: session.promotedLeadId,
       providerThreadId: null,
       channel: "manual",
       automationMode: "ai_on",
       currentIntent: "qualification_in_progress",
       qualification: {
-        name: request.qualification.name ?? null,
-        phone: request.qualification.phone ?? null,
-        email: request.qualification.email ?? null,
-        leadType: request.qualification.leadType ?? "unknown",
-        intent: request.qualification.intent ?? "unknown",
-        timeline: request.qualification.timeline ?? null,
-        budget: request.qualification.budget ?? null,
-        targetArea: request.qualification.targetArea ?? null,
-        propertyType: request.qualification.propertyType ?? null,
-        financingStatus: request.qualification.financingStatus ?? "unknown",
-        score: request.qualification.score ?? 0,
+        name: session.qualification.name ?? null,
+        phone: session.qualification.phone ?? null,
+        email: session.qualification.email ?? null,
+        leadType: session.qualification.leadType ?? "unknown",
+        intent: session.qualification.intent ?? "unknown",
+        timeline: session.qualification.timeline ?? null,
+        budget: session.qualification.budget ?? null,
+        targetArea: session.qualification.targetArea ?? null,
+        propertyType: session.qualification.propertyType ?? null,
+        financingStatus: session.qualification.financingStatus ?? "unknown",
+        score: session.qualification.score ?? 0,
       },
       knownFacts: [],
       lastAiAction: null,
@@ -337,7 +523,7 @@ export async function handlePublicListingChat(params: {
       signature: null,
     },
     postContext: null,
-    listingContext: buildListingMemory(listing),
+    listingContext: buildListingMemory({ listing, memory }),
     calendarContext: [],
     buyerBlueprintUrl: null,
     policyNarrative: "Public listing conversations should answer from verified listing facts, qualify naturally one question at a time, and request agent approval before confirming private showings. Do not invent availability, school ratings, financing certainty, legal advice, or contract advice.",
@@ -358,17 +544,45 @@ export async function handlePublicListingChat(params: {
     leadCapture: null,
   });
 
-  const leadCapture = buildLeadCapture({ listing, request, response });
+  // Persist assistant turn with state patch + next action so operators can
+  // replay Harwick's reasoning trail without re-running the model.
+  await params.repository.appendTurn({
+    sessionId: session.id,
+    actor: "harwick_ai",
+    body: turn.reply,
+    statePatch: turn.statePatch as Record<string, unknown>,
+    nextAction: turn.nextAction,
+    occurredAt,
+  });
+
+  // Fold the runtime's qualification updates back into the session so the
+  // next turn picks up where this one left off.
+  const mergedQualification = mergeQualification(
+    session.qualification,
+    turn.statePatch as Record<string, unknown>,
+  );
+  await params.repository.updateSessionQualification({
+    sessionId: session.id,
+    qualification: mergedQualification,
+    lastActiveAt: occurredAt,
+  });
+
+  const leadCapture = buildLeadCapture({
+    listing,
+    request: { ...request, qualification: mergedQualification },
+    response,
+  });
   if (leadCapture === null || leadCapture.leadIntent === "spam") {
-    return response;
+    return { response, sessionToken: session.sessionToken, sessionCreated };
   }
 
-  const occurredAt = (params.now?.() ?? new Date()).toISOString();
-  const existingLead = await params.repository.findExistingLead({
-    workspaceId: workspace.id,
-    email: leadCapture.email,
-    phone: leadCapture.phone,
-  });
+  const existingLead = session.promotedLeadId === null
+    ? await params.repository.findExistingLead({
+        workspaceId: workspace.id,
+        email: leadCapture.email,
+        phone: leadCapture.phone,
+      })
+    : { id: session.promotedLeadId, assignedAgentId: null };
   const lead = existingLead === null
     ? await params.repository.insertLead({
         workspaceId: workspace.id,
@@ -409,7 +623,17 @@ export async function handlePublicListingChat(params: {
       })
     : null;
 
-  return PublicListingChatResponseSchema.parse({
+  // Pin the session to the promoted lead — only on first promotion. If the
+  // session already pointed at this lead, this is a no-op write.
+  if (session.promotedLeadId !== lead.id) {
+    await params.repository.linkSessionLead({
+      sessionId: session.id,
+      leadId: lead.id,
+      promotedAt: occurredAt,
+    });
+  }
+
+  const finalResponse = PublicListingChatResponseSchema.parse({
     ...response,
     leadCapture: {
       leadId: lead.id,
@@ -418,4 +642,6 @@ export async function handlePublicListingChat(params: {
       showingTaskId,
     },
   });
+
+  return { response: finalResponse, sessionToken: session.sessionToken, sessionCreated };
 }

@@ -1,10 +1,83 @@
 import type {
+  ListingMemory,
+  PublicListingChatQualification,
+} from "@realty-ops/core";
+
+import type {
   PublicListingChatLeadCapture,
   PublicListingChatRepository,
+  PublicListingChatSession,
+  PublicListingChatSessionTurn,
 } from "../../features/public-listings/public-listing-chat";
 import type { Json } from "./database.types";
 import type { TablesInsert } from "./database.types";
 import type { RealtyOpsSupabaseClient } from "./server-client";
+
+type ListingMemoryRow = {
+  id: string;
+  workspace_id: string;
+  listing_id: string;
+  kind: ListingMemory["kind"];
+  visibility: ListingMemory["visibility"];
+  prompt: string | null;
+  content: string;
+  source: ListingMemory["source"];
+  display_order: number;
+  created_by_member_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type SessionRow = {
+  id: string;
+  session_token: string;
+  qualification: Json;
+  promoted_lead_id: string | null;
+};
+
+type SessionTurnRow = {
+  actor: "visitor" | "harwick_ai";
+  body: string;
+};
+
+function qualificationFromJson(value: Json): PublicListingChatQualification {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return {};
+  return value as unknown as PublicListingChatQualification;
+}
+
+// Three tables this repo writes to (listing_memory,
+// public_listing_sessions, public_listing_session_turns) were added in
+// migrations 20260525000100 + 20260525000200 and are not yet in the
+// generated database.types.ts. Cast the supabase client at this boundary
+// only — every downstream value is re-typed through ListingMemoryRow /
+// SessionRow / SessionTurnRow so the loss of inference here doesn't
+// propagate. Regenerating the types via `npm run db:types` against the
+// deployed schema after these migrations land will remove the need for
+// this shim entirely.
+// Minimal builder shape covering only the methods we actually chain on
+// these three new tables. Each terminal method (`maybeSingle`,
+// `single`, `returns`) accepts a generic so downstream code keeps its
+// declared row types — the loss of inference is contained to the
+// "table is unknown" boundary, not the row payloads. Once
+// `npm run db:types` regenerates database.types.ts after these
+// migrations land in the deployed schema, this shim disappears and we
+// switch back to the typed supabase client.
+type UntypedBuilder = {
+  select: (cols: string) => UntypedBuilder;
+  insert: (row: unknown) => UntypedBuilder;
+  update: (row: unknown) => UntypedBuilder;
+  eq: (col: string, val: unknown) => UntypedBuilder;
+  order: (col: string, opts?: { ascending: boolean }) => UntypedBuilder;
+  limit: (count: number) => UntypedBuilder;
+  maybeSingle: <T>() => Promise<{ data: T | null; error: { message: string } | null }>;
+  single: <T>() => Promise<{ data: T; error: { message: string } | null }>;
+  returns: <T>() => Promise<{ data: T | null; error: { message: string } | null }>;
+  then: <T>(onFulfilled?: (value: { data: T | null; error: { message: string } | null }) => unknown) => Promise<unknown>;
+};
+
+function untyped(supabase: RealtyOpsSupabaseClient): { from: (table: string) => UntypedBuilder } {
+  return supabase as unknown as { from: (table: string) => UntypedBuilder };
+}
 
 type WorkspaceRow = {
   id: string;
@@ -115,6 +188,151 @@ export function createSupabasePublicListingChatRepository(
             rawFacts: rawRecord(data.raw_facts),
             verifiedAt: data.verified_at,
           };
+    },
+
+    async findListingMemory(params) {
+      const { data, error } = await untyped(supabase)
+        .from("listing_memory")
+        .select("id, workspace_id, listing_id, kind, visibility, prompt, content, source, display_order, created_by_member_id, created_at, updated_at")
+        .eq("workspace_id", params.workspaceId)
+        .eq("listing_id", params.listingId)
+        .order("display_order", { ascending: true })
+        .order("created_at", { ascending: true })
+        .returns<ListingMemoryRow[]>();
+
+      if (error !== null) {
+        throw error;
+      }
+
+      return (data ?? []).map<ListingMemory>((row) => ({
+        id: row.id,
+        workspaceId: row.workspace_id,
+        listingId: row.listing_id,
+        kind: row.kind,
+        visibility: row.visibility,
+        prompt: row.prompt,
+        content: row.content,
+        source: row.source,
+        displayOrder: row.display_order,
+        createdByMemberId: row.created_by_member_id,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      }));
+    },
+
+    async findSessionByToken(params) {
+      const { data, error } = await untyped(supabase)
+        .from("public_listing_sessions")
+        .select("id, session_token, qualification, promoted_lead_id")
+        .eq("session_token", params.sessionToken)
+        .eq("workspace_id", params.workspaceId)
+        .eq("listing_id", params.listingId)
+        .maybeSingle<SessionRow>();
+
+      if (error !== null) {
+        throw error;
+      }
+
+      return data === null
+        ? null
+        : {
+            id: data.id,
+            sessionToken: data.session_token,
+            qualification: qualificationFromJson(data.qualification),
+            promotedLeadId: data.promoted_lead_id,
+          } satisfies PublicListingChatSession;
+    },
+
+    async createSession(params) {
+      const { data, error } = await untyped(supabase)
+        .from("public_listing_sessions")
+        .insert({
+          workspace_id: params.workspaceId,
+          listing_id: params.listingId,
+          session_token: params.sessionToken,
+          qualification: {} as Json,
+          ip_hash: params.ipHash,
+          user_agent: params.userAgent,
+          last_active_at: params.createdAt,
+          created_at: params.createdAt,
+        })
+        .select("id, session_token, qualification, promoted_lead_id")
+        .single<SessionRow>();
+
+      if (error !== null) {
+        throw error;
+      }
+
+      return {
+        id: data.id,
+        sessionToken: data.session_token,
+        qualification: qualificationFromJson(data.qualification),
+        promotedLeadId: data.promoted_lead_id,
+      };
+    },
+
+    async findRecentTurns(params) {
+      const { data, error } = await untyped(supabase)
+        .from("public_listing_session_turns")
+        .select("actor, body")
+        .eq("session_id", params.sessionId)
+        .order("occurred_at", { ascending: true })
+        .limit(params.limit)
+        .returns<SessionTurnRow[]>();
+
+      if (error !== null) {
+        throw error;
+      }
+
+      return (data ?? []).map<PublicListingChatSessionTurn>((row) => ({
+        actor: row.actor,
+        body: row.body,
+      }));
+    },
+
+    async appendTurn(params) {
+      const { error } = await untyped(supabase)
+        .from("public_listing_session_turns")
+        .insert({
+          session_id: params.sessionId,
+          actor: params.actor,
+          body: params.body,
+          state_patch: params.statePatch === null ? null : (params.statePatch as Json),
+          next_action: params.nextAction,
+          occurred_at: params.occurredAt,
+        });
+
+      if (error !== null) {
+        throw error;
+      }
+    },
+
+    async updateSessionQualification(params) {
+      const { error } = await untyped(supabase)
+        .from("public_listing_sessions")
+        .update({
+          qualification: params.qualification as unknown as Json,
+          last_active_at: params.lastActiveAt,
+        })
+        .eq("id", params.sessionId);
+
+      if (error !== null) {
+        throw error;
+      }
+    },
+
+    async linkSessionLead(params) {
+      const { error } = await untyped(supabase)
+        .from("public_listing_sessions")
+        .update({
+          promoted_lead_id: params.leadId,
+          promoted_at: params.promotedAt,
+        })
+        .eq("id", params.sessionId);
+
+      if (error !== null) {
+        throw error;
+      }
     },
 
     async findExistingLead(params) {
