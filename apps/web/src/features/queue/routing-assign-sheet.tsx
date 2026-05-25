@@ -161,7 +161,7 @@ export function RoutingAssignSheet(props: {
 
   if (isMobile) {
     return (
-      <Drawer.Root open={props.open} onOpenChange={props.onOpenChange}>
+      <Drawer.Root noBodyStyles open={props.open} onOpenChange={props.onOpenChange}>
         <Drawer.Portal>
           <Drawer.Overlay className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm" />
           <Drawer.Content className="harwick-shell-dark fixed inset-x-0 bottom-0 z-50 flex h-[92vh] flex-col overflow-hidden rounded-t-[16px] border-t border-white/[0.08] bg-[color:var(--harwick-paper)] text-white outline-none">

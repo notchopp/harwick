@@ -526,6 +526,7 @@ export function HarwickRail(props: { workspaceId: string; operatorRole: Workspac
   if (isMobile) {
     return (
       <Drawer.Root
+        noBodyStyles
         open={position.open}
         onOpenChange={(open) => setPosition((current) => ({ ...current, open }))}
         shouldScaleBackground={false}

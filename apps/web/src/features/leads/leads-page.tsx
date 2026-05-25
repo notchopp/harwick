@@ -228,7 +228,7 @@ function LeadsPaginationFooter(props: {
   const end = Math.min(props.itemCount, props.currentPage * props.pageSize);
 
   return (
-    <div className="mt-4 flex flex-col gap-3 rounded-[14px] border border-border bg-surface px-4 py-3 text-[12px] text-muted shadow-[var(--shadow-tight)] sm:flex-row sm:items-center sm:justify-between">
+    <div className="mt-4 flex flex-col gap-3 rounded-[14px] border border-[color:var(--panel-line)] bg-[color:var(--panel-1)] px-4 py-3 text-[12px] text-[color:var(--graphite-text-muted)] shadow-[var(--shadow-tight)] sm:flex-row sm:items-center sm:justify-between">
       <div>
         showing {start}-{end} of {props.itemCount}
       </div>
@@ -237,19 +237,19 @@ function LeadsPaginationFooter(props: {
           type="button"
           disabled={props.currentPage <= 1}
           onClick={() => props.onPageChange(props.currentPage - 1)}
-          className="inline-flex h-8 items-center gap-1.5 rounded-full border border-border bg-surface px-3 text-[12px] font-medium text-muted transition hover:border-border-strong hover:text-foreground disabled:cursor-not-allowed disabled:opacity-45"
+          className="inline-flex h-8 items-center gap-1.5 rounded-full border border-[color:var(--panel-line)] bg-[color:var(--panel-1)] px-3 text-[12px] font-medium text-[color:var(--graphite-text-muted)] transition hover:border-[color:var(--panel-line-strong)] hover:text-[color:var(--graphite-text)] disabled:cursor-not-allowed disabled:opacity-45"
         >
           <ChevronLeft className="h-3.5 w-3.5" />
           prev
         </button>
-        <span className="min-w-20 text-center text-[11px] text-muted-subtle">
+        <span className="min-w-20 text-center text-[11px] text-[color:var(--graphite-text-faint)]">
           page {props.currentPage} / {props.pageCount}
         </span>
         <button
           type="button"
           disabled={props.currentPage >= props.pageCount}
           onClick={() => props.onPageChange(props.currentPage + 1)}
-          className="inline-flex h-8 items-center gap-1.5 rounded-full border border-border bg-surface px-3 text-[12px] font-medium text-muted transition hover:border-border-strong hover:text-foreground disabled:cursor-not-allowed disabled:opacity-45"
+          className="inline-flex h-8 items-center gap-1.5 rounded-full border border-[color:var(--panel-line)] bg-[color:var(--panel-1)] px-3 text-[12px] font-medium text-[color:var(--graphite-text-muted)] transition hover:border-[color:var(--panel-line-strong)] hover:text-[color:var(--graphite-text)] disabled:cursor-not-allowed disabled:opacity-45"
         >
           next
           <ChevronRight className="h-3.5 w-3.5" />
@@ -272,7 +272,7 @@ function leadTypeTone(leadType: LeadType): string {
     return "bg-clay-soft text-warm";
   }
 
-  return "bg-surface-muted text-muted";
+  return "bg-[color:var(--panel-2)] text-[color:var(--graphite-text-muted)]";
 }
 
 function automationLabel(mode: ConversationAutomationMode): { className: string; label: string } {
@@ -284,7 +284,7 @@ function automationLabel(mode: ConversationAutomationMode): { className: string;
     return { className: "text-warm", label: "Human" };
   }
 
-  return { className: "text-muted", label: "AI Paused" };
+  return { className: "text-[color:var(--graphite-text-muted)]", label: "AI Paused" };
 }
 
 function LeadListRow(props: {
@@ -297,27 +297,27 @@ function LeadListRow(props: {
   return (
     <button
       className={cn(
-        "flex w-full items-start gap-4 px-6 py-4 text-left transition-colors hover:bg-surface-muted/70",
-        props.isSelected && "bg-surface-muted",
+        "flex w-full items-start gap-4 px-6 py-4 text-left transition-colors hover:bg-white/[0.03]",
+        props.isSelected && "bg-[color:var(--panel-2)]",
       )}
       onClick={props.onSelect}
       type="button"
     >
-      <Avatar className="h-10 w-10 shrink-0 border border-border">
-        <AvatarFallback className="bg-surface-muted text-sm text-foreground">
+      <Avatar className="h-10 w-10 shrink-0 border border-[color:var(--panel-line)]">
+        <AvatarFallback className="bg-[color:var(--panel-2)] text-sm text-[color:var(--graphite-text)]">
           {props.lead.initials}
         </AvatarFallback>
       </Avatar>
 
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="truncate font-medium text-foreground">{props.lead.name}</span>
+          <span className="truncate font-medium text-[color:var(--graphite-text)]">{props.lead.name}</span>
           <span className={cn("h-5 rounded-full px-2 py-0.5 text-[11px] font-medium", leadTypeTone(props.lead.leadType))}>
             {props.lead.leadType === "unknown" ? "unqualified" : props.lead.leadType}
           </span>
         </div>
 
-        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
+        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[color:var(--graphite-text-muted)]">
           <span className="flex items-center gap-1">
             <SourceGlyph source={props.lead.source} />
             {sourceLabel(props.lead.source)}
@@ -331,7 +331,7 @@ function LeadListRow(props: {
             .filter((value) => value.toLowerCase() !== "unknown")
             .slice(0, 3)
             .map((value) => (
-              <Badge className="h-5 rounded-full border-border bg-transparent text-[11px] text-muted" key={value} tone="neutral">
+              <Badge className="h-5 rounded-full border-[color:var(--panel-line)] bg-transparent text-[11px] text-[color:var(--graphite-text-muted)]" key={value} tone="neutral">
                 {value}
               </Badge>
             ))}
@@ -349,7 +349,7 @@ function LeadListRow(props: {
           )}
           {automation.label}
         </span>
-        <span className="text-xs text-muted-subtle">{props.lead.lastTouch}</span>
+        <span className="text-xs text-[color:var(--graphite-text-faint)]">{props.lead.lastTouch}</span>
       </div>
     </button>
   );
@@ -363,57 +363,152 @@ function LeadInlineDetail(props: {
   onClose: () => void;
   onOpenConversation: (leadId: string) => void;
   onPrimaryAction: (lead: LeadRecord) => void | Promise<void>;
+  surface?: "panel" | "drawer";
 }) {
   const automationPaused = props.lead.automationMode !== "ai_on";
+  const drawerSurface = props.surface === "drawer";
+  const primaryText = drawerSurface ? "text-white" : "text-[color:var(--graphite-text)]";
+  const mutedText = drawerSurface ? "text-white/58" : "text-[color:var(--graphite-text-muted)]";
+  const faintText = drawerSurface ? "text-white/38" : "text-[color:var(--graphite-text-faint)]";
+  const bodyPadding = drawerSurface ? "space-y-5 px-6 pb-6" : "space-y-6 p-4";
+  const detailActionClass = drawerSurface
+    ? "h-10 justify-start gap-2 rounded-[10px] border border-white/[0.1] bg-white/[0.045] px-3 text-[12px] font-semibold text-white/75 shadow-none hover:border-white/[0.18] hover:bg-white/[0.075] hover:text-white"
+    : "h-9 justify-start gap-1.5 rounded-[8px]";
 
   return (
-    <div className="flex h-full min-h-0 flex-col border-l border-border/50 bg-surface">
-      <div className="flex h-[57px] items-center justify-between border-b border-border/50 px-4">
-        <h2 className="text-sm font-medium text-foreground">Lead Details</h2>
-        <Button className="h-8 w-8 rounded-[8px]" onClick={props.onClose} size="icon" type="button" variant="ghost">
+    <div
+      className={cn(
+        "relative z-10 flex h-full min-h-0 flex-col text-[color:var(--graphite-text)]",
+        drawerSurface ? "bg-transparent" : "border-l border-[color:var(--panel-line)]/50 bg-[color:var(--panel-1)]",
+      )}
+    >
+      <div
+        className={cn(
+          "shrink-0 border-b",
+          drawerSurface
+            ? "relative flex items-start justify-between gap-3 border-white/8 px-6 pb-4 pt-3.5"
+            : "flex h-[57px] items-center justify-between border-[color:var(--panel-line)]/50 px-4",
+        )}
+      >
+        <div className="min-w-0">
+          {drawerSurface ? (
+            <div className="text-[10px] font-bold uppercase leading-none tracking-[0.18em] text-white/46">
+              lead details
+            </div>
+          ) : null}
+          <h2
+            className={cn(
+              drawerSurface
+                ? "mt-2 truncate font-display text-[26px] font-medium leading-[1.05] tracking-[-0.02em] text-white"
+                : "text-sm font-semibold text-[color:var(--graphite-text)]",
+            )}
+          >
+            {drawerSurface ? props.lead.name : "Lead Details"}
+          </h2>
+        </div>
+        <Button
+          className={cn(
+            drawerSurface
+              ? "-mr-1 h-9 w-9 shrink-0 rounded-full border border-white/12 bg-white/[0.04] text-white/70 hover:border-white/22 hover:bg-white/[0.06] hover:text-white"
+              : "h-8 w-8 rounded-[8px]",
+          )}
+          onClick={props.onClose}
+          size="icon"
+          type="button"
+          variant="ghost"
+        >
           <X className="h-4 w-4" />
         </Button>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="space-y-6 p-4">
-          <div className="flex items-start gap-4">
-            <Avatar className="h-14 w-14 border border-border/60">
-              <AvatarFallback className="bg-surface-muted text-lg text-foreground">
-                {props.lead.initials}
-              </AvatarFallback>
-            </Avatar>
-            <div className="min-w-0 flex-1">
-              <h3 className="truncate text-lg font-semibold text-foreground">{props.lead.name}</h3>
-              <div className="mt-1 flex items-center gap-2">
-                <Badge className={cn("text-xs", leadTypeTone(props.lead.leadType))}>
-                  {props.lead.leadType}
-                </Badge>
-                <span className="text-sm text-muted">Score: {props.lead.score}</span>
+        <div className={bodyPadding}>
+          {drawerSurface ? (
+            <div className="rounded-[18px] border border-white/10 bg-white/[0.03] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/46">qualification</p>
+                <Badge className={cn("text-xs", leadTypeTone(props.lead.leadType))}>{props.lead.leadType}</Badge>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  ["score", String(props.lead.score)],
+                  ["intent", props.lead.intentLevel],
+                  ["budget", props.lead.budget],
+                  ["area", props.lead.area],
+                  ["timeline", props.lead.timeline],
+                  ["financing", props.lead.financingStatus],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-[12px] border border-white/[0.08] bg-white/[0.035] px-3 py-2">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/34">{label}</div>
+                    <div className="mt-1 truncate text-[12.5px] font-semibold text-white/82">{value}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 space-y-2 border-t border-white/8 pt-3">
+                <div className="flex items-center gap-3 text-sm">
+                  <Mail className="h-4 w-4 text-white/44" />
+                  <span className="text-white/56">No email captured</span>
+                </div>
+                {props.lead.phone !== null ? (
+                  <div className="flex items-center gap-3 text-sm">
+                    <Phone className="h-4 w-4 text-white/44" />
+                    <span className="text-white/82">{props.lead.phone}</span>
+                  </div>
+                ) : null}
+                <div className="flex items-center gap-3 text-sm">
+                  <SourceGlyph source={props.lead.source} />
+                  <span className="text-white/82">{props.lead.sourceDetail}</span>
+                </div>
               </div>
             </div>
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex items-center gap-3 text-sm">
-              <Mail className="h-4 w-4 text-muted" />
-              <span className="text-muted">No email captured</span>
-            </div>
-            {props.lead.phone !== null ? (
-              <div className="flex items-center gap-3 text-sm">
-                <Phone className="h-4 w-4 text-muted" />
-                <span className="text-foreground">{props.lead.phone}</span>
+          ) : (
+            <>
+              <div className="flex items-start gap-4">
+                <Avatar className="h-14 w-14 border border-[color:var(--panel-line)]/60">
+                  <AvatarFallback className="bg-[color:var(--panel-2)] text-lg text-[color:var(--graphite-text)]">
+                    {props.lead.initials}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0 flex-1">
+                  <h3 className={cn("truncate text-lg font-semibold", primaryText)}>{props.lead.name}</h3>
+                  <div className="mt-1 flex items-center gap-2">
+                    <Badge className={cn("text-xs", leadTypeTone(props.lead.leadType))}>
+                      {props.lead.leadType}
+                    </Badge>
+                    <span className={cn("text-sm", mutedText)}>Score: {props.lead.score}</span>
+                  </div>
+                </div>
               </div>
-            ) : null}
-            <div className="flex items-center gap-3 text-sm">
-              <SourceGlyph source={props.lead.source} />
-              <span className="text-foreground">{props.lead.sourceDetail}</span>
-            </div>
-          </div>
 
-          <div className="rounded-[10px] border border-border/50 bg-background p-4">
+              <div className="space-y-2">
+                <div className="flex items-center gap-3 text-sm">
+                  <Mail className={cn("h-4 w-4", mutedText)} />
+                  <span className={mutedText}>No email captured</span>
+                </div>
+                {props.lead.phone !== null ? (
+                  <div className="flex items-center gap-3 text-sm">
+                    <Phone className={cn("h-4 w-4", mutedText)} />
+                    <span className={primaryText}>{props.lead.phone}</span>
+                  </div>
+                ) : null}
+                <div className="flex items-center gap-3 text-sm">
+                  <SourceGlyph source={props.lead.source} />
+                  <span className={primaryText}>{props.lead.sourceDetail}</span>
+                </div>
+              </div>
+            </>
+          )}
+
+          <div
+            className={cn(
+              "rounded-[12px] border p-4",
+              drawerSurface
+                ? "border-white/[0.1] bg-white/[0.045] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+                : "border-[color:var(--panel-line)]/50 bg-[color:var(--panel-2)]",
+            )}
+          >
             <div className="mb-3 flex min-w-0 items-center gap-3">
-              <div className={cn("flex h-10 w-10 items-center justify-center rounded-[8px]", automationPaused ? "bg-clay-soft" : "bg-sage-soft")}>
+              <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px]", automationPaused ? "bg-clay-soft" : "bg-sage-soft")}>
                 {automationPaused ? (
                   <Pause className="h-5 w-5 text-warm" />
                 ) : (
@@ -421,8 +516,8 @@ function LeadInlineDetail(props: {
                 )}
               </div>
               <div className="min-w-0">
-                <p className="text-sm font-medium text-foreground">{automationModeLabel(props.lead.automationMode)}</p>
-                <p className="truncate text-xs text-muted">{props.lead.automationReason}</p>
+                <p className={cn("text-sm font-medium", primaryText)}>{automationModeLabel(props.lead.automationMode)}</p>
+                <p className={cn("truncate text-xs", mutedText)}>{props.lead.automationReason}</p>
               </div>
             </div>
             <LeadActionToolbar
@@ -431,6 +526,7 @@ function LeadInlineDetail(props: {
               automationMode={props.lead.automationMode}
               assignedMemberId={props.lead.assignedMemberId ?? null}
               currentMemberId={props.currentMemberId}
+              {...(drawerSurface ? { appearance: "dark" as const } : {})}
               showAgentSteps={false}
               showComposer={false}
               onChanged={props.onChanged}
@@ -438,13 +534,13 @@ function LeadInlineDetail(props: {
           </div>
 
           <div>
-            <p className="mb-2 text-xs font-medium uppercase tracking-[0.12em] text-muted-subtle">
+            <p className={cn("mb-2 text-xs font-medium uppercase tracking-[0.12em]", faintText)}>
               Assigned To
             </p>
             <div className="flex items-center justify-between">
               <div className="flex min-w-0 items-center gap-3">
                 <Avatar className="h-8 w-8">
-                  <AvatarFallback className="bg-surface-muted text-xs text-foreground">
+                  <AvatarFallback className={cn("text-xs", drawerSurface ? "bg-white/[0.04] text-white/74" : "bg-[color:var(--panel-2)] text-[color:var(--graphite-text)]")}>
                     {props.lead.assignedTo
                       .split(" ")
                       .filter(Boolean)
@@ -455,34 +551,34 @@ function LeadInlineDetail(props: {
                   </AvatarFallback>
                 </Avatar>
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-foreground">{props.lead.assignedTo}</p>
-                  <p className="text-xs text-muted">Current routing owner</p>
+                  <p className={cn("truncate text-sm font-medium", primaryText)}>{props.lead.assignedTo}</p>
+                  <p className={cn("text-xs", mutedText)}>Current routing owner</p>
                 </div>
               </div>
-              <Button className="h-8 text-xs" size="sm" type="button" variant="ghost">
+              <Button className={cn("h-8 text-xs", drawerSurface ? "text-white/62 hover:bg-white/[0.06] hover:text-white" : "")} size="sm" type="button" variant="ghost">
                 Reassign
               </Button>
             </div>
           </div>
 
           <div>
-            <p className="mb-2 text-xs font-medium uppercase tracking-[0.12em] text-muted-subtle">
+            <p className={cn("mb-2 text-xs font-medium uppercase tracking-[0.12em]", faintText)}>
               Actions
             </p>
             <div className="grid grid-cols-2 gap-2">
-              <Button className="h-9 justify-start gap-1.5 rounded-[8px]" onClick={() => props.onOpenConversation(props.lead.id)} size="sm" type="button" variant="outline">
+              <Button className={detailActionClass} onClick={() => props.onOpenConversation(props.lead.id)} size="sm" type="button" variant="outline">
                 <MessageSquare className="h-4 w-4" />
                 Message
               </Button>
-              <Button className="h-9 justify-start gap-1.5 rounded-[8px]" size="sm" type="button" variant="outline">
+              <Button className={detailActionClass} size="sm" type="button" variant="outline">
                 <CalendarClock className="h-4 w-4" />
                 Schedule
               </Button>
-              <Button className="h-9 justify-start gap-1.5 rounded-[8px]" size="sm" type="button" variant="outline">
+              <Button className={detailActionClass} size="sm" type="button" variant="outline">
                 <ExternalLink className="h-4 w-4" />
                 View in FUB
               </Button>
-              <Button className="h-9 justify-start gap-1.5 rounded-[8px]" onClick={() => void props.onPrimaryAction(props.lead)} size="sm" type="button" variant="outline">
+              <Button className={detailActionClass} onClick={() => void props.onPrimaryAction(props.lead)} size="sm" type="button" variant="outline">
                 <Bot className="h-4 w-4" />
                 AI Action
               </Button>
@@ -490,7 +586,7 @@ function LeadInlineDetail(props: {
           </div>
 
           <div>
-            <p className="mb-3 text-xs font-medium uppercase tracking-[0.12em] text-muted-subtle">
+            <p className={cn("mb-3 text-xs font-medium uppercase tracking-[0.12em]", faintText)}>
               Activity Timeline
             </p>
             <div className="space-y-3">
@@ -501,26 +597,26 @@ function LeadInlineDetail(props: {
               ].map((event, index) => (
                 <div className="flex gap-3" key={`${event.title}-${index}`}>
                   <div className="flex flex-col items-center">
-                    <div className={cn("flex h-8 w-8 items-center justify-center rounded-full", event.actor === "harwick" ? "bg-primary" : "bg-surface-muted")}>
+                    <div className={cn("flex h-8 w-8 items-center justify-center rounded-full", event.actor === "harwick" ? "bg-primary" : drawerSurface ? "bg-white/[0.04]" : "bg-[color:var(--panel-2)]")}>
                       {event.actor === "harwick" ? (
                         <Bot className="h-4 w-4 text-primary-foreground" />
                       ) : (
-                        <Clock className="h-4 w-4 text-muted" />
+                        <Clock className={cn("h-4 w-4", mutedText)} />
                       )}
                     </div>
-                    {index === 2 ? null : <div className="w-px flex-1 bg-border" />}
+                    {index === 2 ? null : <div className={cn("w-px flex-1", drawerSurface ? "bg-white/[0.08]" : "bg-[color:var(--panel-line)]")} />}
                   </div>
                   <div className="flex-1 pb-4">
-                    <p className="text-sm font-medium text-foreground">{event.title}</p>
-                    <p className="mt-0.5 text-xs text-muted">{event.description}</p>
-                    <p className="mt-1 text-xs text-muted-subtle">{event.time}</p>
+                    <p className={cn("text-sm font-medium", primaryText)}>{event.title}</p>
+                    <p className={cn("mt-0.5 text-xs", mutedText)}>{event.description}</p>
+                    <p className={cn("mt-1 text-xs", faintText)}>{event.time}</p>
                   </div>
                 </div>
               ))}
             </div>
           </div>
 
-          {props.actionStatus ? <div className="text-xs text-muted-subtle">{props.actionStatus}</div> : null}
+          {props.actionStatus ? <div className={cn("text-xs", faintText)}>{props.actionStatus}</div> : null}
         </div>
       </div>
     </div>
@@ -637,6 +733,18 @@ export function LeadsPageContent(props: { workspaceId: string; workspaceName: st
     setActionStatus(null);
   }, [selectedLead?.id]);
 
+  // Mirror selectedLead → URL in an effect, not inside onOpenChange.
+  // Calling router.replace synchronously alongside setSelectedLead in the
+  // close handler causes the URL update + re-render to land in the same React
+  // commit as vaul's data-state="closed" flip, which produces a one-frame
+  // flash before the close transition takes hold.
+  useEffect(() => {
+    const desired = selectedLead?.id ?? null;
+    if (desired === leadIdParam) return;
+    replaceLeadQuery(desired);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedLead?.id]);
+
   const filtered = useMemo(() => {
     let rows = [...leadRecords];
 
@@ -745,12 +853,20 @@ export function LeadsPageContent(props: { workspaceId: string; workspaceName: st
           </div>
         </div>
 
-        {/* Mobile compact header: stats line + single "+" CTA */}
-        <div className="flex items-center justify-between gap-3 border-b border-[color:var(--panel-line-soft)] px-5 py-3 md:hidden">
-          <p className="min-w-0 truncate text-[12.5px] leading-5 text-[color:var(--graphite-text-muted)]">
-            <span className="font-semibold text-[color:var(--graphite-text)]">{totalLeads}</span> active ·{" "}
-            <span className="font-semibold text-[var(--oxblood)]">{hotLeadsCount}</span> hot
-          </p>
+        {/* Mobile header — eyebrow + display title to match listings rhythm */}
+        <div className="flex items-end justify-between gap-3 border-b border-[color:var(--panel-line-soft)] px-5 pb-4 pt-5 md:hidden">
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[color:var(--graphite-text-faint)]">
+              Pipeline
+            </p>
+            <h1 className="mt-1 font-display text-[26px] font-medium leading-none tracking-[-0.02em] text-[color:var(--graphite-text)]">
+              Leads
+            </h1>
+            <p className="mt-1.5 text-[12px] leading-5 text-[color:var(--graphite-text-muted)] tabular-nums">
+              <span className="font-semibold text-[color:var(--graphite-text)]">{totalLeads}</span> active ·{" "}
+              <span className="font-semibold text-[var(--oxblood)]">{hotLeadsCount}</span> hot
+            </p>
+          </div>
           <Button className="h-8 shrink-0 gap-1 rounded-[8px] bg-white px-2.5 text-[12px] font-semibold text-[color:var(--panel-0)] shadow-[var(--panel-inset-top)]" size="sm" type="button">
             <Plus className="size-3.5" />
             New
@@ -949,13 +1065,13 @@ export function LeadsPageContent(props: { workspaceId: string; workspaceName: st
             onPrimaryAction={(lead) => void handlePrimaryAction(lead)}
           />
         ) : (
-          <div className="flex h-full flex-col border-l border-border/50 bg-surface p-6">
-            <div className="mt-10 rounded-[10px] border border-border bg-background p-5">
-              <div className="flex h-10 w-10 items-center justify-center rounded-[8px] bg-surface-muted text-muted">
+          <div className="flex h-full flex-col border-l border-[color:var(--panel-line)]/50 bg-[color:var(--panel-1)] p-6">
+            <div className="mt-10 rounded-[10px] border border-[color:var(--panel-line)] bg-background p-5">
+              <div className="flex h-10 w-10 items-center justify-center rounded-[8px] bg-[color:var(--panel-2)] text-[color:var(--graphite-text-muted)]">
                 <UserPlus className="h-5 w-5" />
               </div>
-              <h2 className="mt-4 text-sm font-semibold text-foreground">Select a lead</h2>
-              <p className="mt-1 text-sm leading-5 text-muted">
+              <h2 className="mt-4 text-sm font-semibold text-[color:var(--graphite-text)]">Select a lead</h2>
+              <p className="mt-1 text-sm leading-5 text-[color:var(--graphite-text-muted)]">
                 The v0 detail surface opens here with Harwick reasoning, the live draft, assignment, and timeline.
               </p>
             </div>
@@ -970,20 +1086,28 @@ export function LeadsPageContent(props: { workspaceId: string; workspaceName: st
        * drawer drops the leadId from the URL so refresh/back behaves.
        */}
       <Drawer.Root
+        noBodyStyles
         open={selectedLead !== null}
         onOpenChange={(open) => {
-          if (!open) {
-            setSelectedLead(null);
-            replaceLeadQuery(null);
-          }
+          if (!open) setSelectedLead(null);
         }}
       >
         <Drawer.Portal>
-          <Drawer.Overlay className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm lg:hidden" />
-          <Drawer.Content className="fixed inset-x-0 bottom-0 z-50 flex h-[92vh] flex-col overflow-hidden rounded-t-[var(--panel-radius-lg)] border-t border-[color:var(--panel-line-strong)] bg-surface outline-none lg:hidden">
+          <Drawer.Overlay className="fixed inset-0 z-40 bg-[rgba(8,12,8,0.62)] backdrop-blur-[18px] backdrop-saturate-125 lg:hidden" />
+          <Drawer.Content className="fixed inset-x-0 bottom-0 z-50 mx-auto flex h-[94vh] max-w-[760px] flex-col overflow-hidden rounded-t-[32px] border border-b-0 border-white/8 bg-[#0c130e] text-white shadow-[0_-32px_80px_-12px_rgba(6,12,8,0.55)] outline-none lg:hidden">
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-0 rounded-t-[32px]"
+              style={{
+                backgroundImage:
+                  "radial-gradient(circle at 86% 4%, rgba(136,162,118,0.22), transparent 40%), linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0) 22%)",
+              }}
+            />
             <Drawer.Title className="sr-only">{selectedLead?.name ?? "Lead detail"}</Drawer.Title>
             <Drawer.Description className="sr-only">Lead detail and routing controls</Drawer.Description>
-            <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-foreground/14" aria-hidden="true" />
+            <div className="relative mt-2.5 flex justify-center">
+              <div className="h-[5px] w-[44px] rounded-full bg-white/22" aria-hidden="true" />
+            </div>
             {selectedLead !== null ? (
               <LeadInlineDetail
                 actionStatus={actionStatus}
@@ -996,6 +1120,7 @@ export function LeadsPageContent(props: { workspaceId: string; workspaceName: st
                 }}
                 onOpenConversation={(leadId) => router.push(`/conversations?leadId=${leadId}`)}
                 onPrimaryAction={(lead) => void handlePrimaryAction(lead)}
+                surface="drawer"
               />
             ) : null}
           </Drawer.Content>

@@ -19,13 +19,12 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
-import { useMemo, useState, type ComponentType, type SVGProps } from "react";
+import { useMemo, useState, type ComponentType, type ReactNode, type SVGProps } from "react";
 import { Drawer } from "vaul";
 
 import { FacebookGlyph, InstagramGlyph } from "../../components/harwick-icons";
-import { Card, Inset } from "../../components/panels/panels";
 import { PanelButton } from "../../components/panels/panel-button";
-import { MicroLabel, MonoTag } from "../../components/panels/typography";
+import { MicroLabel } from "../../components/panels/typography";
 import { cn } from "../../lib/utils";
 import { LeadActionToolbar } from "../conversations/lead-action-toolbar";
 import { type WorkItem } from "./home-page";
@@ -64,6 +63,26 @@ type QueueDescriptor = {
 
 function isWorkItem(item: HomeDetailItem): item is WorkItem {
   return item.kind === "reply" || item.kind === "task";
+}
+
+// Local panel primitives that match the listings-drawer idiom:
+// hairline-on-white over the drawer's #0c130e background. This is
+// intentionally NOT the global Card/Inset (which use panel-token surfaces
+// optimised for the page shell, not for sitting inside a drawer).
+function DrawerPanel({ children, className }: { children: ReactNode; className?: string }) {
+  return (
+    <div className={cn("rounded-[18px] border border-white/10 bg-white/[0.03] p-4", className)}>
+      {children}
+    </div>
+  );
+}
+
+function DrawerInset({ children, className }: { children: ReactNode; className?: string }) {
+  return (
+    <div className={cn("rounded-[12px] border border-white/8 bg-black/20", className)}>
+      {children}
+    </div>
+  );
 }
 
 function itemTime(item: HomeDetailItem): string {
@@ -398,7 +417,7 @@ export function LeadDetailDrawer(props: QueueActionDrawerProps) {
 
   if (item === null) {
     return (
-      <Drawer.Root open={props.open} onOpenChange={props.onOpenChange}>
+      <Drawer.Root noBodyStyles open={props.open} onOpenChange={props.onOpenChange}>
         <Drawer.Portal>
           <Drawer.Overlay className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm" />
         </Drawer.Portal>
@@ -440,10 +459,13 @@ export function LeadDetailDrawer(props: QueueActionDrawerProps) {
   }
 
   return (
-    <Drawer.Root open={props.open} onOpenChange={props.onOpenChange}>
+    <Drawer.Root noBodyStyles open={props.open} onOpenChange={props.onOpenChange}>
       <Drawer.Portal>
         <Drawer.Overlay className="fixed inset-0 z-40 bg-[rgba(8,12,8,0.62)] backdrop-blur-[18px] backdrop-saturate-125" />
-        <Drawer.Content className="harwick-shell-dark fixed inset-x-0 bottom-0 z-50 mx-auto flex h-[94vh] max-w-[760px] flex-col overflow-hidden rounded-t-[32px] border border-b-0 border-white/8 bg-[color:var(--panel-1)] text-white shadow-[0_-32px_80px_-12px_rgba(6,12,8,0.55)] outline-none">
+        <Drawer.Content
+          aria-describedby={undefined}
+          className="fixed inset-x-0 bottom-0 z-50 mx-auto flex h-[94vh] max-w-[760px] flex-col overflow-hidden rounded-t-[32px] border border-b-0 border-white/8 bg-[#0c130e] text-white shadow-[0_-32px_80px_-12px_rgba(6,12,8,0.55)] outline-none"
+        >
           <div
             aria-hidden
             className="pointer-events-none absolute inset-0 rounded-t-[32px]"
@@ -452,55 +474,46 @@ export function LeadDetailDrawer(props: QueueActionDrawerProps) {
                 "radial-gradient(circle at 86% 4%, rgba(136,162,118,0.22), transparent 40%), linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0) 22%)",
             }}
           />
-          <Drawer.Title className="sr-only">{descriptor.title}</Drawer.Title>
-          <Drawer.Description className="sr-only">Queue action review</Drawer.Description>
 
           <div className="relative mt-2.5 flex justify-center">
             <div className="h-[5px] w-[44px] rounded-full bg-white/22" aria-hidden="true" />
           </div>
 
-          <div className="relative flex items-start gap-3 px-5 pb-4 pt-3.5">
-            <div className="mt-1 flex size-10 shrink-0 items-center justify-center rounded-[12px] border border-[color:var(--panel-line)] bg-[color:var(--panel-2)]">
-              <SourceIconCmp className={cn("size-4", sourceColor(source))} aria-hidden="true" strokeWidth={2} />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="mb-1.5 flex items-center gap-2">
-                <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-[color:var(--graphite-text-faint)]">
-                  {source}
-                </span>
-                <span className={cn("text-[10px] font-bold uppercase tracking-[0.16em]", descriptor.priorityClassName)}>
-                  {descriptor.priorityLabel}
-                </span>
+          <div className="relative flex items-start justify-between gap-3 px-6 pb-4 pt-3.5">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 text-[10px] font-bold uppercase leading-none tracking-[0.18em]">
+                <SourceIconCmp className={cn("size-3", sourceColor(source))} aria-hidden="true" strokeWidth={2} />
+                <span className="text-white/46">{source}</span>
+                <span className="text-white/22">·</span>
+                <span className={cn(descriptor.priorityClassName)}>{descriptor.priorityLabel}</span>
               </div>
-              <h2 className="font-display text-[24px] font-medium leading-[1.05] tracking-[-0.02em] text-white">
+              <Drawer.Title className="mt-2 font-display text-[26px] font-medium lowercase leading-[1.05] tracking-[-0.02em] text-white">
                 {descriptor.title}
-              </h2>
-              <p className="mt-1.5 text-[12px] leading-5 text-[color:var(--graphite-text-muted)]">{descriptor.subtitle}</p>
+              </Drawer.Title>
+              <p className="mt-1.5 text-[12.5px] leading-5 text-white/56">{descriptor.subtitle}</p>
             </div>
-            <button
-              type="button"
-              onClick={() => props.onOpenChange(false)}
-              className="-mr-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/12 bg-white/[0.04] text-white/72 transition hover:border-white/22 hover:bg-white/[0.06]"
-              aria-label="Close"
+            <Drawer.Close
+              className="-mr-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/12 bg-white/[0.04] text-white/70 transition hover:border-white/22 hover:text-white"
+              aria-label="close"
             >
               <X className="h-4 w-4" aria-hidden="true" />
-            </button>
+            </Drawer.Close>
           </div>
 
-          <div className="relative min-h-0 flex-1 space-y-3 overflow-y-auto px-4 pb-4">
-            <Card className="p-4">
+          <div className="relative min-h-0 flex-1 space-y-3 overflow-y-auto px-6 pb-6">
+            <DrawerPanel>
               <div className="flex items-center gap-2">
                 <QueueIcon className="size-3.5 text-[var(--sage)]" aria-hidden="true" />
                 <MicroLabel className="text-[var(--sage)]">{descriptor.decisionLabel}</MicroLabel>
               </div>
               <p className="mt-2 text-[14px] font-semibold leading-6 text-[color:var(--graphite-text)]">{descriptor.decisionText}</p>
-              <Inset className="mt-3 px-3 py-2.5">
+              <DrawerInset className="mt-3 px-3 py-2.5">
                 <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[color:var(--graphite-text-faint)]">after approval</div>
                 <p className="mt-1 text-[12.5px] leading-5 text-[color:var(--graphite-text-muted)]">{descriptor.afterApprovalText}</p>
-              </Inset>
-            </Card>
+              </DrawerInset>
+            </DrawerPanel>
 
-            <Card className="p-4">
+            <DrawerPanel>
               <div className="mb-2 flex items-center justify-between gap-3">
                 <MicroLabel>{descriptor.whyLabel}</MicroLabel>
                 <span className="font-mono text-[10.5px] text-[color:var(--graphite-text-faint)]">{itemTime(detailItem)}</span>
@@ -510,10 +523,10 @@ export function LeadDetailDrawer(props: QueueActionDrawerProps) {
                 <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[color:var(--graphite-text-faint)]">next</div>
                 <p className="mt-1 text-[12.5px] font-semibold leading-5 text-[color:var(--graphite-text)]">{descriptor.nextText}</p>
               </div>
-            </Card>
+            </DrawerPanel>
 
             {isWorkItem(detailItem) && detailItem.kind === "task" && detailItem.item.subagentFindings !== undefined && detailItem.item.subagentFindings.length > 0 ? (
-              <Card className="p-4">
+              <DrawerPanel>
                 <div className="mb-3 flex items-center gap-2">
                   <Bot className="size-3.5 text-[var(--sage)]" aria-hidden="true" />
                   <MicroLabel>findings</MicroLabel>
@@ -530,11 +543,11 @@ export function LeadDetailDrawer(props: QueueActionDrawerProps) {
                     </li>
                   ))}
                 </ul>
-              </Card>
+              </DrawerPanel>
             ) : null}
 
             {isWorkItem(detailItem) && detailItem.kind === "task" && detailItem.item.subagentNextSteps !== undefined && detailItem.item.subagentNextSteps.length > 0 ? (
-              <Card className="p-4">
+              <DrawerPanel>
                 <div className="mb-3 flex items-center gap-2">
                   <CheckCircle2 className="size-3.5 text-[var(--clay)]" aria-hidden="true" />
                   <MicroLabel>next steps</MicroLabel>
@@ -565,13 +578,13 @@ export function LeadDetailDrawer(props: QueueActionDrawerProps) {
                     );
                   })}
                 </ol>
-              </Card>
+              </DrawerPanel>
             ) : null}
 
             {isWorkItem(detailItem) && detailItem.kind === "task"
               && ((detailItem.item.subagentBlockers !== undefined && detailItem.item.subagentBlockers.length > 0)
                 || (detailItem.item.subagentDataGaps !== undefined && detailItem.item.subagentDataGaps.length > 0)) ? (
-              <Card className="p-4">
+              <DrawerPanel>
                 {detailItem.item.subagentBlockers !== undefined && detailItem.item.subagentBlockers.length > 0 ? (
                   <div className="mb-3">
                     <div className="mb-2 flex items-center gap-2">
@@ -602,10 +615,10 @@ export function LeadDetailDrawer(props: QueueActionDrawerProps) {
                     </ul>
                   </div>
                 ) : null}
-              </Card>
+              </DrawerPanel>
             ) : null}
 
-            <Card className="p-4">
+            <DrawerPanel>
               <div className="mb-3 flex items-center gap-2">
                 <UserRound className="size-3.5 text-[color:var(--graphite-text-muted)]" aria-hidden="true" />
                 <MicroLabel>context</MicroLabel>
@@ -624,23 +637,23 @@ export function LeadDetailDrawer(props: QueueActionDrawerProps) {
                   );
                 })}
               </dl>
-            </Card>
+            </DrawerPanel>
 
             {draft === null ? null : (
-              <Card className="p-4">
+              <DrawerPanel>
                 <MicroLabel className="text-[var(--sage)]">{detailItem.kind === "reply" ? "draft" : "Harwick output"}</MicroLabel>
-                <Inset className="mt-2 px-3 py-2.5">
+                <DrawerInset className="mt-2 px-3 py-2.5">
                   <p className="whitespace-pre-wrap text-[12.5px] leading-5 text-[color:var(--graphite-text)]">{draft}</p>
-                </Inset>
-              </Card>
+                </DrawerInset>
+              </DrawerPanel>
             )}
 
             {tools.length === 0 ? null : (
-              <Card className="p-4">
+              <DrawerPanel>
                 <MicroLabel>proposed tool calls</MicroLabel>
                 <div className="mt-3 space-y-2">
                   {tools.map((tool) => (
-                    <Inset key={`${tool.tool}:${tool.reason}`} className="px-3 py-2.5">
+                    <DrawerInset key={`${tool.tool}:${tool.reason}`} className="px-3 py-2.5">
                       <div className="flex items-center justify-between gap-2">
                         <span className="font-mono text-[10.5px] text-[color:var(--graphite-text)]">/{tool.tool}</span>
                         <span className="text-[10px] uppercase tracking-[0.1em] text-[color:var(--graphite-text-faint)]">
@@ -648,24 +661,24 @@ export function LeadDetailDrawer(props: QueueActionDrawerProps) {
                         </span>
                       </div>
                       <p className="mt-1 text-[12px] leading-5 text-[color:var(--graphite-text-muted)]">{tool.reason}</p>
-                    </Inset>
+                    </DrawerInset>
                   ))}
                 </div>
-              </Card>
+              </DrawerPanel>
             )}
 
             {synth === undefined || synth === null ? null : (
-              <Card className="p-4">
+              <DrawerPanel>
                 <MicroLabel>live synthesis</MicroLabel>
                 <div className="mt-3 grid grid-cols-2 gap-2">
-                  <Inset className="px-3 py-2">
+                  <DrawerInset className="px-3 py-2">
                     <div className="text-[10px] uppercase tracking-[0.1em] text-[color:var(--graphite-text-faint)]">intent</div>
                     <div className="mt-0.5 text-[12px] font-semibold text-[color:var(--graphite-text)]">{synth.intent.replace(/_/g, " ")}</div>
-                  </Inset>
-                  <Inset className="px-3 py-2">
+                  </DrawerInset>
+                  <DrawerInset className="px-3 py-2">
                     <div className="text-[10px] uppercase tracking-[0.1em] text-[color:var(--graphite-text-faint)]">confidence</div>
                     <div className="mt-0.5 font-mono text-[12px] font-semibold text-[color:var(--graphite-text)]">{Math.round(synth.confidence * 100)}%</div>
-                  </Inset>
+                  </DrawerInset>
                 </div>
                 {synth.missingFields.length === 0 ? null : (
                   <p className="mt-3 text-[11.5px] leading-5 text-[color:var(--graphite-text-muted)]">
@@ -673,11 +686,11 @@ export function LeadDetailDrawer(props: QueueActionDrawerProps) {
                     {synth.missingFields.map((field) => field.replace(/_/g, " ")).join(", ")}
                   </p>
                 )}
-              </Card>
+              </DrawerPanel>
             )}
 
             {messages.length === 0 ? null : (
-              <Card className="p-4">
+              <DrawerPanel>
                 <div className="mb-3 flex items-center gap-2">
                   <MessageSquare className="size-3.5 text-[color:var(--graphite-text-muted)]" aria-hidden="true" />
                   <MicroLabel>latest thread</MicroLabel>
@@ -695,7 +708,7 @@ export function LeadDetailDrawer(props: QueueActionDrawerProps) {
                     </div>
                   ))}
                 </div>
-              </Card>
+              </DrawerPanel>
             )}
           </div>
 

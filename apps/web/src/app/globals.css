@@ -185,6 +185,7 @@
 
 html {
   min-height: 100%;
+  scrollbar-gutter: stable;
 }
 
 body {
@@ -195,6 +196,90 @@ body {
   color: var(--color-foreground);
   font-size: 14px;
   line-height: 1.45;
+}
+
+/* Vaul stabilization — the goal is a clean slide-down on close with no
+ * "flash back to fully-open" frame. Vaul already sets `will-change: transform`,
+ * `touch-action: none`, and `transition: transform .5s cubic-bezier(...)` inline
+ * on `[data-vaul-drawer]`, so we don't duplicate those. We do two things:
+ *
+ *   1. `backface-visibility: hidden` keeps the layer composited on its own GPU
+ *      surface, which avoids subpixel jitter as the drawer slides.
+ *   2. On the closed state, pin the final transform target so Vaul's built-in
+ *      transition interpolates straight from the drag-release position to the
+ *      off-screen position. Without this pin, Vaul's `slideToBottom` keyframe
+ *      (which has no `from`) lets the browser paint one frame at
+ *      `translate3d(0,0,0)` after Vaul clears its inline drag transform — that
+ *      single frame is the visible "flash up" before the slide-down.
+ *
+ * The `dvh` unit on the closed-transform makes sure we slide past the visual
+ * viewport even when mobile browser chrome shows/hides during the gesture. */
+[data-vaul-drawer] {
+  backface-visibility: hidden;
+}
+
+[data-vaul-overlay] {
+  backface-visibility: hidden;
+}
+
+/* Three things must be forced together to kill the flash:
+ *
+ *   1. `animation: none !important` — disables vaul's `slideToBottom` keyframe.
+ *      The keyframe has no `from`, so the browser uses the computed style at
+ *      frame zero. If React clears the inline drag transform in the same paint
+ *      as the `data-state="closed"` flip, the drawer paints at translate3d(0,0,0)
+ *      for one frame before the keyframe latches — that's the flash up.
+ *
+ *   2. `transform: translate3d(0, 100%, 0) !important` — pins the final
+ *      off-screen target. `!important` is required because inline drag transforms
+ *      (specificity 1,0,0,0) outrank ordinary external CSS.
+ *
+ *   3. `transition: transform 0.5s cubic-bezier(0.32, 0.72, 0, 1) !important` —
+ *      THIS IS THE LOAD-BEARING PIECE. At drag-start vaul writes
+ *      `transition: none` inline to the drawer (vaul/dist/index.mjs:1060) and
+ *      never clears it. Without overriding that inline `transition: none`, the
+ *      transform change above would JUMP instantly — no slide, no animation,
+ *      and the user perceives the drawer as snapping rather than closing.
+ *      The cubic-bezier matches vaul's own TRANSITIONS.EASE so the close feels
+ *      identical regardless of which code path actually drove the close.
+ */
+[data-vaul-drawer][data-vaul-snap-points="false"][data-vaul-drawer-direction="bottom"][data-state="closed"] {
+  animation: none !important;
+  transform: translate3d(0, 100%, 0) !important;
+  transition: transform 0.5s cubic-bezier(0.32, 0.72, 0, 1) !important;
+}
+
+[data-vaul-drawer][data-vaul-snap-points="false"][data-vaul-drawer-direction="top"][data-state="closed"] {
+  animation: none !important;
+  transform: translate3d(0, -100%, 0) !important;
+  transition: transform 0.5s cubic-bezier(0.32, 0.72, 0, 1) !important;
+}
+
+[data-vaul-drawer][data-vaul-snap-points="false"][data-vaul-drawer-direction="right"][data-state="closed"] {
+  animation: none !important;
+  transform: translate3d(100%, 0, 0) !important;
+  transition: transform 0.5s cubic-bezier(0.32, 0.72, 0, 1) !important;
+}
+
+[data-vaul-drawer][data-vaul-snap-points="false"][data-vaul-drawer-direction="left"][data-state="closed"] {
+  animation: none !important;
+  transform: translate3d(-100%, 0, 0) !important;
+  transition: transform 0.5s cubic-bezier(0.32, 0.72, 0, 1) !important;
+}
+
+/* Same treatment for the overlay — vaul's `fadeOut` keyframe similarly has no
+ * `from`, and the overlay's inline opacity from drag-time fadeFrom progression
+ * can paint at 1 for one frame before fadeOut latches. Pin opacity 0 + restore
+ * an explicit opacity transition. */
+[data-vaul-overlay][data-state="closed"] {
+  animation: none !important;
+  opacity: 0 !important;
+  transition: opacity 0.5s cubic-bezier(0.32, 0.72, 0, 1) !important;
+}
+
+[data-vaul-drawer][data-state="closed"],
+[data-vaul-overlay][data-state="closed"] {
+  pointer-events: none;
 }
 
 /* iOS bounces the body when content tries to scroll past its edges, and

@@ -1409,7 +1409,7 @@ export function ListingsPageContent({ workspaceId, workspaceName, workspaceSlug 
         </div>
       )}
 
-      <Drawer.Root open={editorOpen} onOpenChange={setEditorOpen}>
+      <Drawer.Root noBodyStyles open={editorOpen} onOpenChange={setEditorOpen}>
         <Drawer.Portal>
           <Drawer.Overlay className="fixed inset-0 z-40 bg-[rgba(8,12,8,0.62)] backdrop-blur-[18px] backdrop-saturate-125" />
           <Drawer.Content
