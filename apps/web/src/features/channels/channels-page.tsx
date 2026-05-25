@@ -1,11 +1,18 @@
 "use client";
 
 import type { HarwickChannel, HarwickChannelMessage, WorkspaceRole } from "@realty-ops/core";
-import { ArrowLeft, Hash, Lock, MessageSquarePlus, Send, Users, X } from "lucide-react";
+import { ArrowLeft, ChevronDown, Hash, Lock, MessageSquarePlus, Send, Users, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { HarwickMark } from "../../components/harwick-rail/harwick-mark";
 import { ToolResultCard } from "../../components/harwick-rail/harwick-chat";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "../../components/ui/dropdown-menu";
 import { cn } from "../../lib/utils";
 import { useChannels } from "./use-channels";
 import { useChannelMessages } from "./use-channel-messages";
@@ -348,10 +355,15 @@ export function ChannelsPage(props: Props) {
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const [memberNames] = useState<Map<string, string>>(new Map());
 
+  // Auto-select first channel only on desktop. On mobile the channel list IS the
+  // landing view — auto-selecting would defeat the back button (effect would re-fire
+  // every time the user navigates back to the list).
   useEffect(() => {
-    if (activeChannelId === null && channels.channels.length > 0) {
-      setActiveChannelId(channels.channels[0]?.id ?? null);
-    }
+    if (activeChannelId !== null) return;
+    if (channels.channels.length === 0) return;
+    if (typeof window === "undefined") return;
+    if (!window.matchMedia("(min-width: 768px)").matches) return;
+    setActiveChannelId(channels.channels[0]?.id ?? null);
   }, [activeChannelId, channels.channels]);
 
   const activeChannel = useMemo(
@@ -450,15 +462,76 @@ export function ChannelsPage(props: Props) {
           </div>
         ) : (
           <>
-            <header className="flex shrink-0 items-center gap-2 border-b border-white/[0.06] bg-white/[0.015] px-3 py-2.5 md:px-4">
+            {/* Mobile channel switcher — back-arrow + dropdown of all channels + create */}
+            <div className="flex shrink-0 items-center gap-2 border-b border-white/[0.06] bg-white/[0.015] px-3 py-2 md:hidden">
               <button
                 type="button"
                 onClick={() => setActiveChannelId(null)}
-                className="-ml-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/64 transition hover:bg-white/[0.04] hover:text-white md:hidden"
-                aria-label="Back to channels"
+                className="-ml-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white/64 transition active:bg-white/[0.06] active:text-white"
+                aria-label="Back to all channels"
               >
                 <ArrowLeft className="size-4" aria-hidden="true" />
               </button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    aria-label="Switch channel"
+                    className="flex min-w-0 flex-1 items-center gap-2 rounded-[10px] border border-[color:var(--panel-line)] bg-[color:var(--panel-2)] px-2.5 py-2 text-left outline-none transition active:bg-white/[0.04] data-[state=open]:border-white/[0.14]"
+                    type="button"
+                  >
+                    <Hash className="size-3.5 shrink-0 text-white/56" aria-hidden="true" />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-[13px] font-semibold leading-tight text-white">{activeChannel.name}</div>
+                      <div className="truncate text-[10.5px] text-white/56">
+                        {activeChannel.kind}
+                        {activeChannel.description === null || activeChannel.description.length === 0 ? "" : ` · ${activeChannel.description}`}
+                      </div>
+                    </div>
+                    <ChevronDown className="size-3.5 shrink-0 text-white/52" aria-hidden="true" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="start"
+                  className="harwick-shell-dark z-[80] max-h-[60vh] w-[calc(100vw-1.5rem)] overflow-y-auto rounded-[12px] border-white/[0.1] bg-[#101112] p-1.5 text-white shadow-[0_18px_42px_-18px_rgba(0,0,0,0.85)]"
+                  sideOffset={6}
+                >
+                  <DropdownMenuItem
+                    className="cursor-pointer rounded-[9px] px-2.5 py-2.5 text-white/82 focus:bg-white/[0.06] focus:text-white"
+                    onSelect={() => setShowNewDialog(true)}
+                  >
+                    <div className="flex size-7 shrink-0 items-center justify-center rounded-full border border-[var(--sage)]/35 bg-[var(--sage-soft)] text-[var(--sage)]">
+                      <MessageSquarePlus className="size-3.5" aria-hidden="true" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[12.5px] font-semibold">new channel</div>
+                      <div className="text-[10.5px] text-white/52">start a fresh room with @harwick</div>
+                    </div>
+                  </DropdownMenuItem>
+                  {channels.channels.length === 0 ? null : <DropdownMenuSeparator className="my-1 bg-white/[0.06]" />}
+                  {channels.channels.map((channel) => (
+                    <DropdownMenuItem
+                      className={cn(
+                        "cursor-pointer rounded-[9px] px-2.5 py-2.5 text-white/72 focus:bg-white/[0.06] focus:text-white",
+                        channel.id === activeChannel.id && "bg-white/[0.05] text-white",
+                      )}
+                      key={channel.id}
+                      onSelect={() => setActiveChannelId(channel.id)}
+                    >
+                      <div className="flex size-7 shrink-0 items-center justify-center rounded-full border border-white/[0.08] bg-white/[0.04] text-white/64">
+                        <Hash className="size-3.5" aria-hidden="true" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-[12.5px] font-semibold">{channel.name}</div>
+                        <div className="truncate text-[10.5px] text-white/44">{channel.kind}</div>
+                      </div>
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+
+            {/* Desktop channel header */}
+            <header className="hidden shrink-0 items-center gap-2 border-b border-white/[0.06] bg-white/[0.015] px-4 py-2.5 md:flex">
               <Hash className="size-3.5 text-white/48" aria-hidden="true" />
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[13px] font-semibold text-white">{activeChannel.name}</div>
