@@ -154,9 +154,26 @@ export const HarwickAiRuntimeActionSchema = z.enum([
 ]);
 
 export const HarwickAiToolNameSchema = z.enum([
+  // Channel-neutral primary verbs — what the runtime should converge on now
+  // that focus is listings + phone (Meta deprecated until verification).
+  // `send_message_to_lead` lets the executor pick the right transport
+  // (Meta DM if the lead came through Instagram/Facebook, SMS if we have
+  // their phone, listing-chat reply if it's an anonymous public-listing
+  // session). `queue_callback_task` is the operator-facing fallback when
+  // synchronous reach isn't appropriate (after-hours, lender intro needed,
+  // etc.). `send_sms` is the direct Twilio path. `log_listing_memory` lets
+  // Harwick grow the brokerage's per-listing knowledge from real
+  // conversations — feeds back into smart prompts + future answers.
+  "send_message_to_lead",
+  "queue_callback_task",
+  "send_sms",
+  "log_listing_memory",
+  // Channel-specific Meta tool — still usable but no longer the centerpiece.
+  // Kept first-class so the existing executor path keeps working for IG/FB
+  // workspaces; new flows should prefer send_message_to_lead.
   "send_meta_message",
   // Legacy aliases stay parseable so existing persisted turns and approvals
-  // continue to render while live generation converges on one transport tool.
+  // continue to render while live generation converges on the new vocab.
   "send_meta_reply",
   "send_meta_dm",
   "check_calendar",
