@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { PublicListingInquiryRequestSchema } from "@realty-ops/core";
+import { PublicListingChatRequestSchema, PublicListingInquiryRequestSchema } from "@realty-ops/core";
 
 describe("PublicListingInquiryRequest schema", () => {
   it("should accept valid inquiry data", () => {
@@ -100,6 +100,43 @@ describe("PublicListingInquiryRequest schema", () => {
     };
 
     const result = PublicListingInquiryRequestSchema.safeParse(incompleteData);
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("PublicListingChatRequest schema", () => {
+  it("accepts a listing-aware Harwick message with conversational qualification state", () => {
+    const result = PublicListingChatRequestSchema.safeParse({
+      listingId: "00000000-0000-0000-0000-000000000003",
+      message: "How are the schools and can I see it Saturday?",
+      conversation: [
+        {
+          id: "m1",
+          actor: "lead",
+          body: "Is this still available?",
+          occurredAt: "2026-05-07T14:00:00.000Z",
+        },
+      ],
+      qualification: {
+        leadType: "buyer",
+        intent: "medium",
+        timeline: "July",
+        budget: "under 600k",
+        targetArea: "Katy",
+        financingStatus: "needs_lender",
+        score: 58,
+      },
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects public listing chat without a persisted listing id", () => {
+    const result = PublicListingChatRequestSchema.safeParse({
+      listingId: "not-a-listing-id",
+      message: "Is this available?",
+    });
+
     expect(result.success).toBe(false);
   });
 });

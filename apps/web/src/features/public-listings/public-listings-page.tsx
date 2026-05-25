@@ -492,12 +492,279 @@ function InquiryDialog(props: {
   );
 }
 
+type ChatMessage = {
+  id: string;
+  actor: "lead" | "harwick_ai";
+  body: string;
+  occurredAt: string;
+};
+
+type ChatQualification = {
+  name?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  leadType?: "buyer" | "seller" | "renter" | "investor" | "unknown";
+  intent?: "high" | "medium" | "low" | "spam" | "unknown";
+  timeline?: string | null;
+  budget?: string | null;
+  targetArea?: string | null;
+  propertyType?: string | null;
+  financingStatus?: "preapproved" | "cash" | "needs_lender" | "unknown";
+  score?: number;
+};
+
+function mergeQualification(current: ChatQualification, patch: Record<string, unknown>): ChatQualification {
+  const next: ChatQualification = { ...current };
+  const leadType = patch["leadType"];
+  if (leadType === "buyer" || leadType === "seller" || leadType === "renter" || leadType === "investor" || leadType === "unknown") {
+    next.leadType = leadType;
+  }
+  const intent = patch["intent"];
+  if (intent === "high" || intent === "medium" || intent === "low" || intent === "spam" || intent === "unknown") {
+    next.intent = intent;
+  }
+  if (typeof patch["timeline"] === "string") next.timeline = patch["timeline"];
+  const budget = patch["budget"];
+  if (typeof budget === "string" || typeof budget === "number") next.budget = String(budget);
+  if (typeof patch["targetArea"] === "string") next.targetArea = patch["targetArea"];
+  if (typeof patch["propertyType"] === "string") next.propertyType = patch["propertyType"];
+  const financingStatus = patch["financingStatus"];
+  if (financingStatus === "preapproved" || financingStatus === "cash" || financingStatus === "needs_lender" || financingStatus === "unknown") {
+    next.financingStatus = financingStatus;
+  }
+  if (intent === "high") next.score = Math.max(current.score ?? 0, 75);
+  return next;
+}
+
+function HarwickListingChatDialog(props: {
+  listing: PublicListingCardData;
+  onClose: () => void;
+  onRequestShowing: () => void;
+  workspaceSlug: string;
+  workspaceName: string;
+}) {
+  const { listing, onClose, onRequestShowing, workspaceName, workspaceSlug } = props;
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    {
+      id: "harwick-open",
+      actor: "harwick_ai",
+      body: `I'm Harwick for ${workspaceName}. Ask me about ${listing.shortAddress}, availability, financing, schools, commute, or showing times.`,
+      occurredAt: new Date().toISOString(),
+    },
+  ]);
+  const [draft, setDraft] = useState("");
+  const [qualification, setQualification] = useState<ChatQualification>({
+    leadType: "unknown",
+    intent: "unknown",
+    targetArea: listing.neighborhood,
+    propertyType: listing.type,
+    budget: listing.price,
+    financingStatus: "unknown",
+    score: 0,
+  });
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  async function sendMessage(message: string) {
+    const trimmed = message.trim();
+    if (trimmed.length === 0 || pending) return;
+
+    setError(null);
+    setPending(true);
+    setDraft("");
+
+    const leadMessage: ChatMessage = {
+      id: `lead-${Date.now()}`,
+      actor: "lead",
+      body: trimmed,
+      occurredAt: new Date().toISOString(),
+    };
+    const nextMessages = [...messages, leadMessage];
+    setMessages(nextMessages);
+
+    let response: Response;
+    try {
+      response = await fetch(`/${workspaceSlug}/api/listings/chat`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          listingId: listing.id,
+          message: trimmed,
+          conversation: nextMessages.slice(-12).map((entry) => ({
+            id: entry.id,
+            actor: entry.actor,
+            body: entry.body,
+            occurredAt: entry.occurredAt,
+          })),
+          qualification,
+        }),
+      });
+    } catch {
+      setPending(false);
+      setError("Harwick could not answer right now. You can still request a showing.");
+      return;
+    }
+
+    if (!response.ok) {
+      setPending(false);
+      setError("Harwick could not answer right now. You can still request a showing.");
+      return;
+    }
+
+    const data = await response.json() as {
+      reply?: unknown;
+      statePatch?: Record<string, unknown>;
+      nextAction?: unknown;
+    };
+    const reply = typeof data.reply === "string" && data.reply.trim().length > 0
+      ? data.reply.trim()
+      : "I can help with that. What timeline are you working with?";
+    setMessages((current) => [
+      ...current,
+      {
+        id: `harwick-${Date.now()}`,
+        actor: "harwick_ai",
+        body: reply,
+        occurredAt: new Date().toISOString(),
+      },
+    ]);
+    if (data.statePatch !== undefined) {
+      setQualification((current) => mergeQualification(current, data.statePatch ?? {}));
+    }
+    setPending(false);
+  }
+
+  const prompts = [
+    "Is this still available?",
+    "How are the schools?",
+    "What would payment look like?",
+    "Can I see it this weekend?",
+  ];
+
+  return (
+    <div
+      aria-labelledby="public-listing-chat-title"
+      aria-modal="true"
+      className="fixed inset-0 z-[70] flex items-end justify-center bg-harwick-ink/58 p-0 backdrop-blur-md sm:items-center sm:p-4"
+      role="dialog"
+    >
+      <div className="flex max-h-[92vh] w-full max-w-[560px] flex-col overflow-hidden rounded-t-[30px] border border-white/16 bg-[#111913] text-white shadow-[0_36px_140px_rgba(8,15,10,0.48)] sm:rounded-[30px]">
+        <div className="flex items-start justify-between gap-4 border-b border-white/10 bg-white/[0.035] px-5 py-4">
+          <div>
+            <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/42">ask harwick</div>
+            <h2 className="mt-1 text-[22px] font-semibold leading-none" id="public-listing-chat-title">
+              {listing.shortAddress}
+            </h2>
+            <p className="mt-2 text-[12px] leading-5 text-white/52">
+              Harwick answers from listing facts and qualifies the next step without making you start with paperwork.
+            </p>
+          </div>
+          <button
+            aria-label="close Harwick chat"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/12 bg-white/[0.04] text-white/64 transition hover:border-white/24 hover:text-white"
+            onClick={onClose}
+            type="button"
+          >
+            <X aria-hidden="true" className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="flex-1 space-y-3 overflow-y-auto px-5 py-5">
+          {messages.map((message) => (
+            <div
+              className={cn(
+                "max-w-[86%] rounded-[22px] px-4 py-3 text-[13px] leading-6",
+                message.actor === "lead"
+                  ? "ml-auto bg-white text-harwick-ink"
+                  : "border border-white/10 bg-white/[0.055] text-white/82",
+              )}
+              key={message.id}
+            >
+              {message.body}
+            </div>
+          ))}
+          {pending ? (
+            <div className="inline-flex rounded-[22px] border border-white/10 bg-white/[0.055] px-4 py-3 text-[13px] text-white/56">
+              Harwick is checking the listing context...
+            </div>
+          ) : null}
+          {error === null ? null : (
+            <div className="rounded-[18px] border border-oxblood/30 bg-oxblood/15 px-4 py-3 text-[12px] text-white/78">
+              {error}
+            </div>
+          )}
+        </div>
+
+        <div className="border-t border-white/10 bg-[#0c120e] px-5 py-4">
+          <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
+            {prompts.map((prompt) => (
+              <button
+                className="shrink-0 rounded-full border border-white/12 bg-white/[0.045] px-3 py-2 text-[12px] text-white/72 transition hover:border-white/24 hover:text-white"
+                disabled={pending}
+                key={prompt}
+                onClick={() => {
+                  void sendMessage(prompt);
+                }}
+                type="button"
+              >
+                {prompt}
+              </button>
+            ))}
+          </div>
+          <form
+            className="flex items-center gap-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void sendMessage(draft);
+            }}
+          >
+            <input
+              aria-label="Ask Harwick about this listing"
+              className="h-12 min-w-0 flex-1 rounded-2xl border border-white/12 bg-white/[0.055] px-4 text-[14px] outline-none placeholder:text-white/32 focus:border-harwick-brass/45"
+              onChange={(event) => setDraft(event.target.value)}
+              placeholder="Ask about schools, payment, availability..."
+              value={draft}
+            />
+            <button
+              aria-label="send message to Harwick"
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white text-harwick-ink transition hover:bg-harwick-brass-soft disabled:opacity-50"
+              disabled={pending || draft.trim().length === 0}
+              type="submit"
+            >
+              <Send aria-hidden="true" className="h-4 w-4" />
+            </button>
+          </form>
+          <button
+            className="mt-3 w-full rounded-2xl border border-sage/25 bg-sage/12 px-4 py-3 text-[13px] font-semibold text-white transition hover:border-sage/40 hover:bg-sage/18"
+            onClick={onRequestShowing}
+            type="button"
+          >
+            request a showing with this context
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ListingViewer(props: {
   listing: PublicListingCardData | null;
   onClose: () => void;
+  onChat: (listing: PublicListingCardData) => void;
   onInquire: (intent: InquiryIntent, listing: PublicListingCardData) => void;
 }) {
-  const { listing, onClose, onInquire } = props;
+  const { listing, onChat, onClose, onInquire } = props;
 
   useEffect(() => {
     if (listing === null) {
@@ -528,8 +795,8 @@ function ListingViewer(props: {
               all listings
             </button>
             <div className="flex items-center gap-2">
-              <button className="rounded-full bg-harwick-ink px-3.5 py-2 text-[12px] font-semibold text-white transition hover:bg-harwick-ink-soft" onClick={() => onInquire("question", listing)} type="button">
-                inquire
+              <button className="rounded-full bg-harwick-ink px-3.5 py-2 text-[12px] font-semibold text-white transition hover:bg-harwick-ink-soft" onClick={() => onChat(listing)} type="button">
+                ask harwick
               </button>
               <button aria-label="close listing viewer" className="flex h-9 w-9 items-center justify-center rounded-full border border-border transition hover:border-border-strong" onClick={onClose} type="button">
                 <X aria-hidden="true" className="h-4 w-4" />
@@ -633,7 +900,7 @@ function ListingViewer(props: {
                 <div className="text-[13px] font-semibold">inquire about this listing</div>
                 <div className="mt-1 text-[12px] text-muted">Harwick will send the listing, summarize your request, and route it to {listing.agent}.</div>
                 <div className="mt-5 space-y-2">
-                  <button className="w-full rounded-2xl bg-harwick-ink px-4 py-3 text-[13px] font-semibold text-white transition hover:bg-harwick-ink-soft" onClick={() => onInquire("question", listing)} type="button">
+                  <button className="w-full rounded-2xl bg-harwick-ink px-4 py-3 text-[13px] font-semibold text-white transition hover:bg-harwick-ink-soft" onClick={() => onChat(listing)} type="button">
                     ask a question
                   </button>
                   <button className="w-full rounded-2xl border border-border px-4 py-3 text-[13px] font-semibold transition hover:border-border-strong hover:bg-surface-muted" onClick={() => onInquire("showing", listing)} type="button">
@@ -668,6 +935,7 @@ export function PublicListingsPage(props: { listings?: PublicListingCardData[]; 
   const hasListings = listings.length > 0;
   const [selectedListingSlug, setSelectedListingSlug] = useState<string | null>(null);
   const [inquiryState, setInquiryState] = useState<{ intent: InquiryIntent; listing: PublicListingCardData | null } | null>(null);
+  const [chatListing, setChatListing] = useState<PublicListingCardData | null>(null);
   const [favoriteSlugs, setFavoriteSlugs] = useState<string[]>([]);
   const [activeFilter, setActiveFilter] = useState<ListingFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -734,7 +1002,13 @@ export function PublicListingsPage(props: { listings?: PublicListingCardData[]; 
           )}
           <button
             className="inline-flex min-w-[108px] items-center justify-center rounded-lg bg-harwick-ink px-4 py-2.5 text-center text-[13px] font-semibold text-white shadow-[0_14px_34px_rgba(26,42,32,0.18)] transition hover:bg-harwick-ink-soft"
-            onClick={() => openInquiry("general", null)}
+            onClick={() => {
+              if (featuredListing === null) {
+                openInquiry("general", null);
+                return;
+              }
+              setChatListing(featuredListing);
+            }}
             type="button"
           >
             <span className="relative z-10 text-white">ask harwick</span>
@@ -872,9 +1146,19 @@ export function PublicListingsPage(props: { listings?: PublicListingCardData[]; 
               call or text
             </a>
           )}
-          <button className="flex items-center justify-center gap-2 rounded-2xl bg-harwick-ink px-5 py-3 text-[13px] font-semibold text-white transition hover:bg-harwick-ink-soft" onClick={() => openInquiry("general", null)} type="button">
+          <button
+            className="flex items-center justify-center gap-2 rounded-2xl bg-harwick-ink px-5 py-3 text-[13px] font-semibold text-white transition hover:bg-harwick-ink-soft"
+            onClick={() => {
+              if (featuredListing === null) {
+                openInquiry("general", null);
+                return;
+              }
+              setChatListing(featuredListing);
+            }}
+            type="button"
+          >
             <ArrowUpRight aria-hidden="true" className="h-4 w-4" />
-            inquire now
+            ask harwick
           </button>
         </div>
       </section>
@@ -916,9 +1200,22 @@ export function PublicListingsPage(props: { listings?: PublicListingCardData[]; 
 
       <ListingViewer
         listing={selectedListing}
+        onChat={(listing) => setChatListing(listing)}
         onClose={() => setSelectedListingSlug(null)}
         onInquire={(intent, listing) => openInquiry(intent, listing)}
       />
+      {chatListing === null ? null : (
+        <HarwickListingChatDialog
+          listing={chatListing}
+          onClose={() => setChatListing(null)}
+          onRequestShowing={() => {
+            setInquiryState({ intent: "showing", listing: chatListing });
+            setChatListing(null);
+          }}
+          workspaceSlug={props.workspaceSlug}
+          workspaceName={workspaceName}
+        />
+      )}
       {inquiryState === null ? null : (
         <InquiryDialog
           canSubmitListingScopedInquiries={hasListings}

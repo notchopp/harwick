@@ -1,5 +1,17 @@
 import { z } from "zod";
 import { UuidSchema } from "./common.js";
+import {
+  HarwickAiMissingFieldRuntimeSchema,
+  HarwickAiRuntimeActionSchema,
+  HarwickAiRuntimeSafetyFlagSchema,
+  HarwickAiStatePatchSchema,
+  HarwickAiToolCallSchema,
+} from "./harwick-ai-runtime.js";
+import {
+  FinancingStatusSchema,
+  LeadIntentSchema,
+  LeadTypeSchema,
+} from "./lead.js";
 
 export const ListingFactSourceSchema = z.enum(["manual", "idx", "repliers", "mls_grid", "fub", "website"]);
 export const ListingVerificationStatusSchema = z.enum(["unverified", "verified", "needs_recheck"]);
@@ -133,6 +145,52 @@ export const PublicListingInquiryRequestSchema = z.object({
   }
 });
 
+export const PublicListingChatMessageSchema = z.object({
+  id: z.string().trim().min(1).max(160),
+  actor: z.enum(["lead", "harwick_ai"]),
+  body: z.string().trim().min(1).max(2000),
+  occurredAt: z.string().datetime().nullable().default(null),
+});
+
+export const PublicListingChatQualificationSchema = z.object({
+  name: z.string().trim().min(1).max(160).nullable().optional(),
+  phone: z.string().trim().min(1).max(80).nullable().optional(),
+  email: z.string().trim().email().nullable().optional(),
+  timeline: z.string().trim().min(1).max(120).nullable().optional(),
+  budget: z.union([z.string(), z.number()]).pipe(z.coerce.string().trim().min(1).max(120)).nullable().optional(),
+  targetArea: z.string().trim().min(1).max(180).nullable().optional(),
+  propertyType: z.string().trim().min(1).max(120).nullable().optional(),
+  financingStatus: FinancingStatusSchema.optional(),
+  leadType: LeadTypeSchema.optional(),
+  intent: LeadIntentSchema.optional(),
+  score: z.number().int().min(0).max(100).optional(),
+});
+
+export const PublicListingChatRequestSchema = z.object({
+  listingId: UuidSchema,
+  message: z.string().trim().min(1).max(2000),
+  conversation: z.array(PublicListingChatMessageSchema).max(20).default([]),
+  qualification: PublicListingChatQualificationSchema.default({}),
+});
+
+export const PublicListingChatResponseSchema = z.object({
+  reply: z.string().trim().min(1).max(800),
+  nextAction: HarwickAiRuntimeActionSchema,
+  missingFields: z.array(HarwickAiMissingFieldRuntimeSchema).max(10),
+  statePatch: HarwickAiStatePatchSchema,
+  handoffBrief: z.string().trim().max(1000).nullable(),
+  safetyFlags: z.array(HarwickAiRuntimeSafetyFlagSchema).max(10),
+  confidence: z.number().min(0).max(1),
+  toolCalls: z.array(HarwickAiToolCallSchema).max(8),
+  documentUpdate: z.string().trim().max(2000),
+  leadCapture: z.object({
+    leadId: UuidSchema,
+    status: z.enum(["created", "updated"]),
+    intent: z.enum(["question", "showing"]),
+    showingTaskId: UuidSchema.nullable(),
+  }).nullable().default(null),
+});
+
 export const ListingUrlImportRequestSchema = z.object({
   url: z.string().trim().url().max(2048),
 });
@@ -182,6 +240,10 @@ export type ManualListingQuickUpdateRequest = z.infer<typeof ManualListingQuickU
 export type ManualListingVerifyRequest = z.infer<typeof ManualListingVerifyRequestSchema>;
 export type ManualListingCsvImportRequest = z.infer<typeof ManualListingCsvImportRequestSchema>;
 export type PublicListingInquiryRequest = z.infer<typeof PublicListingInquiryRequestSchema>;
+export type PublicListingChatMessage = z.infer<typeof PublicListingChatMessageSchema>;
+export type PublicListingChatQualification = z.infer<typeof PublicListingChatQualificationSchema>;
+export type PublicListingChatRequest = z.infer<typeof PublicListingChatRequestSchema>;
+export type PublicListingChatResponse = z.infer<typeof PublicListingChatResponseSchema>;
 export type ListingUrlImportRequest = z.infer<typeof ListingUrlImportRequestSchema>;
 export type ListingUrlImportDraft = z.infer<typeof ListingUrlImportDraftSchema>;
 export type OpenHouseAttendee = z.infer<typeof OpenHouseAttendeeSchema>;
