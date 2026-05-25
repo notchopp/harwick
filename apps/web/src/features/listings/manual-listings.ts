@@ -19,59 +19,82 @@ export type ManualListingFactsRepository = ListingFactsRepository & {
   }): Promise<ListingFactRow[]>;
 };
 
-function buildManualRawFacts(params: {
+type RichRawFactInputs = {
   neighborhood?: string | null;
+  city?: string | null;
+  state?: string | null;
+  postalCode?: string | null;
   propertyType?: string | null;
   squareFeet?: number | null;
+  lotSizeSqft?: number | null;
+  yearBuilt?: number | null;
+  monthlyHoa?: number | null;
+  parkingSpaces?: number | null;
+  fullBathrooms?: number | null;
+  halfBathrooms?: number | null;
+  latitude?: number | null;
+  longitude?: number | null;
   photoUrl?: string | null;
   videoUrl?: string | null;
   mediaUrls?: string[];
   notes?: string | null;
   publicUrl?: string | null;
   incentives?: string[];
-}): Record<string, unknown> {
+  amenities?: string[];
+  listingAgentName?: string | null;
+  listingBrokerage?: string | null;
+  daysOnMarket?: number | null;
+};
+
+function omitMissing(params: RichRawFactInputs): Record<string, unknown> {
   return {
-    entryMode: "manual",
     ...(params.neighborhood === undefined || params.neighborhood === null ? {} : { neighborhood: params.neighborhood }),
+    ...(params.city === undefined || params.city === null ? {} : { city: params.city }),
+    ...(params.state === undefined || params.state === null ? {} : { state: params.state }),
+    ...(params.postalCode === undefined || params.postalCode === null ? {} : { postalCode: params.postalCode }),
     ...(params.propertyType === undefined || params.propertyType === null ? {} : { propertyType: params.propertyType }),
     ...(params.squareFeet === undefined || params.squareFeet === null ? {} : { squareFeet: params.squareFeet }),
+    ...(params.lotSizeSqft === undefined || params.lotSizeSqft === null ? {} : { lotSizeSqft: params.lotSizeSqft }),
+    ...(params.yearBuilt === undefined || params.yearBuilt === null ? {} : { yearBuilt: params.yearBuilt }),
+    ...(params.monthlyHoa === undefined || params.monthlyHoa === null ? {} : { monthlyHoa: params.monthlyHoa }),
+    ...(params.parkingSpaces === undefined || params.parkingSpaces === null ? {} : { parkingSpaces: params.parkingSpaces }),
+    ...(params.fullBathrooms === undefined || params.fullBathrooms === null ? {} : { fullBathrooms: params.fullBathrooms }),
+    ...(params.halfBathrooms === undefined || params.halfBathrooms === null ? {} : { halfBathrooms: params.halfBathrooms }),
+    ...(params.latitude === undefined || params.latitude === null ? {} : { latitude: params.latitude }),
+    ...(params.longitude === undefined || params.longitude === null ? {} : { longitude: params.longitude }),
     ...(params.photoUrl === undefined || params.photoUrl === null ? {} : { photoUrl: params.photoUrl }),
     ...(params.videoUrl === undefined || params.videoUrl === null ? {} : { videoUrl: params.videoUrl }),
     ...(params.mediaUrls === undefined ? {} : { mediaUrls: params.mediaUrls }),
     ...(params.notes === undefined || params.notes === null ? {} : { notes: params.notes }),
     ...(params.publicUrl === undefined || params.publicUrl === null ? {} : { publicUrl: params.publicUrl }),
     ...(params.incentives === undefined ? {} : { incentives: params.incentives }),
+    ...(params.amenities === undefined ? {} : { amenities: params.amenities }),
+    ...(params.listingAgentName === undefined || params.listingAgentName === null ? {} : { listingAgentName: params.listingAgentName }),
+    ...(params.listingBrokerage === undefined || params.listingBrokerage === null ? {} : { listingBrokerage: params.listingBrokerage }),
+    ...(params.daysOnMarket === undefined || params.daysOnMarket === null ? {} : { daysOnMarket: params.daysOnMarket }),
   };
 }
 
-function mergeManualRawFacts(params: {
+function buildManualRawFacts(params: RichRawFactInputs): Record<string, unknown> {
+  return {
+    entryMode: "manual",
+    ...omitMissing(params),
+  };
+}
+
+type RichMergeInputs = RichRawFactInputs & {
   existing: Record<string, unknown>;
-  neighborhood?: string | null;
-  propertyType?: string | null;
-  squareFeet?: number | null;
-  photoUrl?: string | null;
-  videoUrl?: string | null;
-  mediaUrls?: string[];
-  notes?: string | null;
-  publicUrl?: string | null;
-  incentives?: string[];
   refreshSource: string;
   refreshedAt: string;
-}): Record<string, unknown> {
+};
+
+function mergeManualRawFacts(params: RichMergeInputs): Record<string, unknown> {
   return {
     ...params.existing,
     entryMode: "manual",
     lastManualRefreshSource: params.refreshSource,
     lastManualRefreshAt: params.refreshedAt,
-    ...(params.neighborhood === undefined ? {} : { neighborhood: params.neighborhood }),
-    ...(params.propertyType === undefined ? {} : { propertyType: params.propertyType }),
-    ...(params.squareFeet === undefined ? {} : { squareFeet: params.squareFeet }),
-    ...(params.photoUrl === undefined ? {} : { photoUrl: params.photoUrl }),
-    ...(params.videoUrl === undefined ? {} : { videoUrl: params.videoUrl }),
-    ...(params.mediaUrls === undefined ? {} : { mediaUrls: params.mediaUrls }),
-    ...(params.notes === undefined ? {} : { notes: params.notes }),
-    ...(params.publicUrl === undefined ? {} : { publicUrl: params.publicUrl }),
-    ...(params.incentives === undefined ? {} : { incentives: params.incentives }),
+    ...omitMissing(params),
   };
 }
 
@@ -245,14 +268,29 @@ export async function upsertManualListingFact(params: {
     hasPool: parsed.hasPool ?? null,
     rawFacts: buildManualRawFacts({
       neighborhood: parsed.neighborhood ?? null,
+      city: parsed.city ?? null,
+      state: parsed.state ?? null,
+      postalCode: parsed.postalCode ?? null,
       propertyType: parsed.propertyType ?? null,
       squareFeet: parsed.squareFeet ?? null,
+      lotSizeSqft: parsed.lotSizeSqft ?? null,
+      yearBuilt: parsed.yearBuilt ?? null,
+      monthlyHoa: parsed.monthlyHoa ?? null,
+      parkingSpaces: parsed.parkingSpaces ?? null,
+      fullBathrooms: parsed.fullBathrooms ?? null,
+      halfBathrooms: parsed.halfBathrooms ?? null,
+      latitude: parsed.latitude ?? null,
+      longitude: parsed.longitude ?? null,
       photoUrl: parsed.photoUrl ?? null,
       videoUrl: parsed.videoUrl ?? null,
       mediaUrls: parsed.mediaUrls ?? [],
       notes: parsed.notes ?? null,
       publicUrl: parsed.publicUrl ?? null,
       incentives: parsed.incentives ?? [],
+      amenities: parsed.amenities ?? [],
+      listingAgentName: parsed.listingAgentName ?? null,
+      listingBrokerage: parsed.listingBrokerage ?? null,
+      daysOnMarket: parsed.daysOnMarket ?? null,
     }),
     verifiedAt: (params.now?.() ?? new Date()).toISOString(),
   }) satisfies ListingFact;

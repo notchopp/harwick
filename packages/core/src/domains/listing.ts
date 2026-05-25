@@ -43,19 +43,34 @@ export const ManualListingFactRequestSchema = z.object({
   mlsNumber: z.string().trim().min(1).max(120).nullable().optional(),
   address: z.string().trim().min(1).max(240),
   neighborhood: z.string().trim().min(1).max(160).nullable().optional(),
+  city: z.string().trim().min(1).max(120).nullable().optional(),
+  state: z.string().trim().min(1).max(80).nullable().optional(),
+  postalCode: z.string().trim().min(1).max(20).nullable().optional(),
   propertyType: z.string().trim().min(1).max(120).nullable().optional(),
   status: z.string().trim().min(1).max(120).nullable().optional(),
   price: z.number().int().nonnegative().nullable().optional(),
   beds: z.number().nonnegative().nullable().optional(),
   baths: z.number().nonnegative().nullable().optional(),
+  fullBathrooms: z.number().int().nonnegative().nullable().optional(),
+  halfBathrooms: z.number().int().nonnegative().nullable().optional(),
   squareFeet: z.number().nonnegative().nullable().optional(),
+  lotSizeSqft: z.number().int().nonnegative().nullable().optional(),
+  yearBuilt: z.number().int().min(1600).max(2100).nullable().optional(),
+  monthlyHoa: z.number().nonnegative().nullable().optional(),
+  parkingSpaces: z.number().int().nonnegative().nullable().optional(),
+  latitude: z.number().min(-90).max(90).nullable().optional(),
+  longitude: z.number().min(-180).max(180).nullable().optional(),
   hasPool: z.boolean().nullable().optional(),
   photoUrl: z.string().trim().url().nullable().optional(),
   videoUrl: z.string().trim().url().nullable().optional(),
-  mediaUrls: z.array(z.string().trim().url()).max(24).optional(),
-  notes: z.string().trim().max(2000).nullable().optional(),
+  mediaUrls: z.array(z.string().trim().url()).max(40).optional(),
+  notes: z.string().trim().max(4000).nullable().optional(),
   publicUrl: z.string().trim().url().nullable().optional(),
   incentives: z.array(z.string().trim().min(1).max(160)).max(12).optional(),
+  amenities: z.array(z.string().trim().min(1).max(120)).max(40).optional(),
+  listingAgentName: z.string().trim().min(1).max(160).nullable().optional(),
+  listingBrokerage: z.string().trim().min(1).max(160).nullable().optional(),
+  daysOnMarket: z.number().int().nonnegative().nullable().optional(),
 });
 
 export const ManualListingQuickUpdateRequestSchema = z.object({
@@ -118,6 +133,18 @@ export const PublicListingInquiryRequestSchema = z.object({
   }
 });
 
+export const ListingUrlImportRequestSchema = z.object({
+  url: z.string().trim().url().max(2048),
+});
+
+export const ListingUrlImportDraftSchema = z.object({
+  source: z.enum(["json_ld", "open_graph", "vision_fallback"]),
+  sourceUrl: z.string().trim().url().max(2048),
+  fetchedAt: z.string().datetime({ offset: true }),
+  draft: ManualListingFactRequestSchema,
+  warnings: z.array(z.string().trim().min(1).max(240)).max(20).default([]),
+});
+
 export const OpenHouseAttendeeSchema = z.object({
   taskId: UuidSchema,
   workspaceId: UuidSchema,
@@ -155,6 +182,8 @@ export type ManualListingQuickUpdateRequest = z.infer<typeof ManualListingQuickU
 export type ManualListingVerifyRequest = z.infer<typeof ManualListingVerifyRequestSchema>;
 export type ManualListingCsvImportRequest = z.infer<typeof ManualListingCsvImportRequestSchema>;
 export type PublicListingInquiryRequest = z.infer<typeof PublicListingInquiryRequestSchema>;
+export type ListingUrlImportRequest = z.infer<typeof ListingUrlImportRequestSchema>;
+export type ListingUrlImportDraft = z.infer<typeof ListingUrlImportDraftSchema>;
 export type OpenHouseAttendee = z.infer<typeof OpenHouseAttendeeSchema>;
 export type OpenHouseAttendeesResponse = z.infer<typeof OpenHouseAttendeesResponseSchema>;
 export type OpenHouseReminderProductionReport = z.infer<typeof OpenHouseReminderProductionReportSchema>;

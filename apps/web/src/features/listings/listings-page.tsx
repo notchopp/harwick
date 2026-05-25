@@ -2,23 +2,38 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  CheckCircle2,
   ChevronLeft,
   ChevronRight,
-  Clock3,
-  ExternalLink,
   Grid2X2,
-  Home,
   ImageIcon,
   List,
   Loader2,
-  MapPinned,
-  PencilLine,
-  Plus,
-  RefreshCw,
-  Upload,
+  X,
 } from "lucide-react";
-import { WorkspaceTopbar } from "../../components/workspace-topbar";
+import {
+  PiArrowSquareOutBold,
+  PiArrowsClockwiseBold,
+  PiCheckCircleFill,
+  PiClockFill,
+  PiDotsThreeBold,
+  PiGlobeBold,
+  PiHouseFill,
+  PiMapPinFill,
+  PiPencilSimpleBold,
+  PiPlusBold,
+  PiShareNetworkBold,
+  PiUploadSimpleBold,
+} from "react-icons/pi";
+import type { ListingUrlImportDraft, ManualListingFactRequest } from "@realty-ops/core";
+import { Drawer } from "vaul";
+
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "../../components/ui/dropdown-menu";
 import type { ListingFactRow } from "../../lib/supabase/listings";
 import { cn } from "../../lib/utils";
 import {
@@ -27,13 +42,18 @@ import {
   type ListingsStatusFilter,
 } from "./listings-data";
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-} from "../../components/ui/sheet";
+  ChipInputEditor,
+  FACT_ICONS,
+  FieldRow,
+  FieldRowDivider,
+  FieldRowGroup,
+  InlineTextEditor,
+  LiveListingPreview,
+  NumberStepper,
+  SectionEyebrow,
+  StatusDot,
+  VerificationDot,
+} from "./listing-bits";
 
 type ListingsPageContentProps = {
   workspaceId: string;
@@ -64,6 +84,16 @@ type ApiActionState = {
 };
 
 type ListingsViewMode = "cards" | "list";
+type EditorFactId =
+  | "address"
+  | "status"
+  | "price"
+  | "beds"
+  | "baths"
+  | "squareFeet"
+  | "neighborhood"
+  | "propertyType"
+  | "incentives";
 
 type UploadedListingMedia = {
   kind: "image" | "video";
@@ -159,6 +189,38 @@ function buildListingRequest(editor: EditorFormState) {
   };
 }
 
+function formatCompactPrice(value: number | null): string {
+  if (value === null || value <= 0) {
+    return "price not set";
+  }
+  if (value >= 1_000_000) {
+    const millions = value / 1_000_000;
+    return `$${millions.toFixed(value % 1_000_000 === 0 ? 0 : 2).replace(/\.?0+$/, "")}M`;
+  }
+  if (value >= 1_000) {
+    return `$${Math.round(value / 1_000)}k`;
+  }
+  return `$${value}`;
+}
+
+function formatNumberLabel(value: number): string {
+  if (Number.isInteger(value)) {
+    return value.toLocaleString();
+  }
+  return value.toLocaleString(undefined, { maximumFractionDigits: 1 });
+}
+
+function editorMarketStatus(status: string): "active" | "pending" | "sold" {
+  const normalized = status.trim().toLowerCase();
+  if (/(sold|closed|off market)/.test(normalized)) {
+    return "sold";
+  }
+  if (/(pending|under contract|contingent)/.test(normalized)) {
+    return "pending";
+  }
+  return "active";
+}
+
 function isListingFactRow(value: unknown): value is ListingFactRow {
   if (typeof value !== "object" || value === null) {
     return false;
@@ -231,18 +293,6 @@ const filterOptions: Array<{ value: ListingsStatusFilter; label: string }> = [
   { value: "sold", label: "sold" },
   { value: "recheck", label: "needs recheck" },
 ];
-
-const marketStatusTone = {
-  active: "border-sage/20 bg-sage-soft text-sage",
-  pending: "border-clay/20 bg-clay-soft text-clay",
-  sold: "border-stone/15 bg-stone-soft text-muted",
-} as const;
-
-const verificationTone = {
-  verified: "border-sage/20 bg-sage-soft text-sage",
-  needs_recheck: "border-oxblood/20 bg-oxblood-soft text-oxblood",
-  unverified: "border-border bg-surface-muted text-muted",
-} as const;
 
 const listingsPageSize = 6;
 
@@ -321,8 +371,8 @@ function PaginationFooter(props: {
   const end = Math.min(props.itemCount, props.currentPage * props.pageSize);
 
   return (
-    <div className="flex flex-col gap-3 rounded-[16px] border border-border bg-surface px-4 py-3 text-[12px] text-muted shadow-[var(--shadow-tight)] sm:flex-row sm:items-center sm:justify-between">
-      <div>
+    <div className="flex flex-col gap-3 rounded-[16px] border border-[color:var(--panel-line)] bg-[color:var(--panel-1)] px-4 py-3 text-[12px] text-[color:var(--graphite-text-muted)] shadow-[var(--panel-inset-top-soft)] sm:flex-row sm:items-center sm:justify-between">
+      <div className="lowercase">
         showing {start}-{end} of {props.itemCount}
       </div>
       <div className="flex items-center gap-2">
@@ -330,19 +380,19 @@ function PaginationFooter(props: {
           type="button"
           disabled={props.currentPage <= 1}
           onClick={() => props.onPageChange(props.currentPage - 1)}
-          className="inline-flex h-8 items-center gap-1.5 rounded-full border border-border bg-surface px-3 text-[12px] font-medium text-muted transition hover:border-border-strong hover:text-foreground disabled:cursor-not-allowed disabled:opacity-45"
+          className="inline-flex h-8 items-center gap-1.5 rounded-[9px] border border-[color:var(--panel-line)] bg-[color:var(--panel-2)] px-3 text-[12px] font-medium lowercase text-[color:var(--graphite-text-muted)] shadow-[var(--panel-inset-top-soft)] transition hover:border-[color:var(--panel-line-strong)] hover:text-[color:var(--graphite-text)] disabled:cursor-not-allowed disabled:opacity-45"
         >
           <ChevronLeft className="h-3.5 w-3.5" />
           prev
         </button>
-        <span className="min-w-20 text-center text-[11px] text-muted-subtle">
+        <span className="min-w-20 text-center text-[11px] lowercase text-[color:var(--graphite-text-faint)]">
           page {props.currentPage} / {props.pageCount}
         </span>
         <button
           type="button"
           disabled={props.currentPage >= props.pageCount}
           onClick={() => props.onPageChange(props.currentPage + 1)}
-          className="inline-flex h-8 items-center gap-1.5 rounded-full border border-border bg-surface px-3 text-[12px] font-medium text-muted transition hover:border-border-strong hover:text-foreground disabled:cursor-not-allowed disabled:opacity-45"
+          className="inline-flex h-8 items-center gap-1.5 rounded-[9px] border border-[color:var(--panel-line)] bg-[color:var(--panel-2)] px-3 text-[12px] font-medium lowercase text-[color:var(--graphite-text-muted)] shadow-[var(--panel-inset-top-soft)] transition hover:border-[color:var(--panel-line-strong)] hover:text-[color:var(--graphite-text)] disabled:cursor-not-allowed disabled:opacity-45"
         >
           next
           <ChevronRight className="h-3.5 w-3.5" />
@@ -366,9 +416,14 @@ export function ListingsPageContent({ workspaceId, workspaceName, workspaceSlug 
   const [editorMode, setEditorMode] = useState<"create" | "edit">("create");
   const [editorListingId, setEditorListingId] = useState<string | null>(null);
   const [editor, setEditor] = useState<EditorFormState>(emptyEditor);
+  const [expandedFact, setExpandedFact] = useState<EditorFactId | null>("address");
   const [isSaving, setIsSaving] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
+  const [importUrl, setImportUrl] = useState("");
+  const [acknowledgeRights, setAcknowledgeRights] = useState(false);
+  const [isImportingUrl, setIsImportingUrl] = useState(false);
+  const [importMessage, setImportMessage] = useState<{ tone: "default" | "error"; message: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const refreshListings = useCallback(async (refreshTone: "initial" | "refresh" = "refresh") => {
@@ -448,11 +503,29 @@ export function ListingsPageContent({ workspaceId, workspaceName, workspaceSlug 
   }, [currentPage, safeCurrentPage]);
 
   const publicListingsHref = `/${workspaceSlug}/listings`;
+  const editorPriceValue = parseNumberField(editor.price) ?? null;
+  const currentEditorMarketStatus = editorMarketStatus(editor.status);
+
+  const toggleFact = useCallback((fact: EditorFactId) => {
+    setExpandedFact((current) => current === fact ? null : fact);
+  }, []);
+
+  const updateEditorField = useCallback((field: keyof EditorFormState, value: string | boolean) => {
+    setEditor((current) => ({ ...current, [field]: value }));
+  }, []);
+
+  const updateEditorNumberField = useCallback((field: "price" | "beds" | "baths" | "squareFeet", value: number) => {
+    setEditor((current) => ({ ...current, [field]: String(Math.max(0, value)) }));
+  }, []);
 
   const openCreateSheet = useCallback(() => {
     setEditorMode("create");
     setEditorListingId(null);
     setEditor(emptyEditor());
+    setImportUrl("");
+    setAcknowledgeRights(false);
+    setImportMessage(null);
+    setExpandedFact("address");
     setEditorOpen(true);
   }, []);
 
@@ -460,8 +533,92 @@ export function ListingsPageContent({ workspaceId, workspaceName, workspaceSlug 
     setEditorMode("edit");
     setEditorListingId(row.id);
     setEditor(editorFromRow(row));
+    setImportUrl("");
+    setAcknowledgeRights(false);
+    setImportMessage(null);
+    setExpandedFact("address");
     setEditorOpen(true);
   }, []);
+
+  const applyImportDraftToEditor = useCallback((draft: ManualListingFactRequest) => {
+    setEditor((current) => ({
+      ...current,
+      address: draft.address ?? current.address,
+      status: current.status,
+      price: draft.price === null || draft.price === undefined ? current.price : String(draft.price),
+      beds: draft.beds === null || draft.beds === undefined ? current.beds : String(draft.beds),
+      baths: draft.baths === null || draft.baths === undefined ? current.baths : String(draft.baths),
+      squareFeet: draft.squareFeet === null || draft.squareFeet === undefined ? current.squareFeet : String(draft.squareFeet),
+      neighborhood: draft.neighborhood ?? current.neighborhood,
+      propertyType: draft.propertyType ?? current.propertyType,
+      photoUrl: draft.photoUrl ?? current.photoUrl,
+      videoUrl: draft.videoUrl ?? current.videoUrl,
+      mediaUrls: draft.mediaUrls !== undefined && draft.mediaUrls.length > 0
+        ? Array.from(new Set([
+          ...current.mediaUrls.split(/\n|,/).map((value) => value.trim()).filter((value) => value.length > 0),
+          ...draft.mediaUrls,
+        ])).join("\n")
+        : current.mediaUrls,
+      notes: draft.notes ?? current.notes,
+      incentives: draft.incentives !== undefined && draft.incentives.length > 0
+        ? draft.incentives.join(", ")
+        : current.incentives,
+      hasPool: draft.hasPool ?? current.hasPool,
+    }));
+  }, []);
+
+  async function handleImportFromUrl() {
+    const trimmedUrl = importUrl.trim();
+    if (trimmedUrl.length === 0) {
+      setImportMessage({ tone: "error", message: "Paste a listing URL to import." });
+      return;
+    }
+    if (!acknowledgeRights) {
+      setImportMessage({
+        tone: "error",
+        message: "Confirm you're the listing agent or have rights to republish this content before importing.",
+      });
+      return;
+    }
+
+    setIsImportingUrl(true);
+    setImportMessage(null);
+
+    try {
+      const response = await fetch(`/api/workspaces/${workspaceId}/listings/import-url`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ url: trimmedUrl, acknowledgeRights: true }),
+        credentials: "same-origin",
+      });
+      const payload = await readJsonPayload(response);
+      if (!response.ok) {
+        throw new Error(formatErrorMessage(payload, "Could not import that URL."));
+      }
+
+      const draftPayload = (payload as { draft?: ListingUrlImportDraft } | null)?.draft;
+      if (draftPayload === undefined || draftPayload === null) {
+        throw new Error("The import returned no draft.");
+      }
+      applyImportDraftToEditor(draftPayload.draft);
+      const sourceLabel = draftPayload.source === "json_ld"
+        ? "structured listing data"
+        : draftPayload.source === "open_graph"
+          ? "social preview metadata"
+          : "page text";
+      setImportMessage({
+        tone: "default",
+        message: `Pulled ${sourceLabel} from ${new URL(draftPayload.sourceUrl).hostname}. Review the fields below before saving.`,
+      });
+    } catch (error) {
+      setImportMessage({
+        tone: "error",
+        message: error instanceof Error ? error.message : "Could not import that URL.",
+      });
+    } finally {
+      setIsImportingUrl(false);
+    }
+  }
 
   const runListingAction = useCallback(async (listingId: string, request: RequestInfo, init: RequestInit, successMessage: string) => {
     setActiveListingId(listingId);
@@ -642,144 +799,139 @@ export function ListingsPageContent({ workspaceId, workspaceName, workspaceSlug 
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-background">
-      <WorkspaceTopbar context={`listings · inventory · ${visibleCards.length} shown`} workspaceName={workspaceName}>
-        <div className="ml-auto flex items-center gap-[10px]">
-          <div className="flex items-center gap-[5px] rounded-full border border-border bg-surface-muted px-[9px] py-1 text-[11px] text-muted">
-            <span className="h-1.5 w-1.5 rounded-full bg-qualified" />
-            Repliers Ready
-          </div>
-          <div className="flex items-center gap-[5px] rounded-full border border-border bg-surface-muted px-[9px] py-1 text-[11px] text-muted">
-            <span className="h-1.5 w-1.5 rounded-full bg-qualified" />
-            Public Page Live
-          </div>
-          <div className="flex items-center gap-[5px] rounded-full border border-border bg-surface-muted px-[9px] py-1 text-[11px] text-muted">
-            <span className="h-1.5 w-1.5 rounded-full bg-warm" />
-            {summary.recheck} Recheck
-          </div>
-        </div>
-      </WorkspaceTopbar>
+    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-[color:var(--panel-1)] text-white">
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="flex w-full flex-col gap-4 px-5 py-7 md:gap-5 md:px-8 md:py-9">
+          <header className="space-y-3 border-b border-white/[0.06] pb-4 md:pb-5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[color:var(--graphite-text-faint)]">
+                  {workspaceName}
+                </div>
+                <h1 className="mt-2 font-display text-[28px] font-medium leading-none tracking-[-0.015em] text-white">
+                  Listings
+                </h1>
+                <p className="mt-2 max-w-[34rem] text-[13px] leading-5 text-white/56">
+                  Inventory Harwick can answer from, share with leads, verify, and keep ready for routing.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={openCreateSheet}
+                className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-[9px] bg-white px-3 text-[12px] font-semibold lowercase text-[color:var(--panel-0)] shadow-[var(--panel-inset-top)] transition hover:bg-white/92"
+              >
+                <PiPlusBold className="h-3.5 w-3.5" />
+                add listing
+              </button>
+            </div>
+            <div className="-mx-5 flex gap-1.5 overflow-x-auto px-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:mx-0 md:flex-wrap md:overflow-visible md:px-0">
+              <span className="shrink-0 rounded-full border border-white/[0.08] bg-white/[0.025] px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-white/68">
+                {visibleCards.length} shown
+              </span>
+              <span className="shrink-0 rounded-full border border-[var(--sage)]/25 bg-[var(--sage-soft)] px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-[var(--sage)]">
+                {summary.active} active
+              </span>
+              {summary.pending > 0 ? (
+                <span className="shrink-0 rounded-full border border-[var(--clay)]/30 bg-[var(--clay-soft)] px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-[var(--clay)]">
+                  {summary.pending} pending
+                </span>
+              ) : null}
+              {summary.recheck > 0 ? (
+                <span className="shrink-0 rounded-full border border-[var(--oxblood)]/35 bg-[var(--oxblood-soft)] px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-[var(--oxblood)]">
+                  {summary.recheck} recheck
+                </span>
+              ) : null}
+            </div>
+          </header>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-7 py-6">
-        <div className="space-y-5 text-harwick-ink">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <h1 className="font-display text-[34px] font-medium leading-none">listings</h1>
-          <p className="mt-2 max-w-2xl text-[13px] leading-6 text-muted">
-            Inventory Harwick can answer from, send to leads, verify against source data, and keep ready for routing.
-          </p>
-        </div>
-        <div className="grid gap-2 sm:grid-cols-4">
-          <div className="rounded-[14px] border border-border bg-surface px-4 py-3 shadow-[var(--shadow-tight)]">
-            <div className="text-[10px] uppercase tracking-[0.14em] text-muted-subtle">active</div>
-            <div className="mt-2 font-display text-[24px] font-medium leading-none">{summary.active}</div>
-          </div>
-          <div className="rounded-[14px] border border-border bg-surface px-4 py-3 shadow-[var(--shadow-tight)]">
-            <div className="text-[10px] uppercase tracking-[0.14em] text-muted-subtle">pending</div>
-            <div className="mt-2 font-display text-[24px] font-medium leading-none">{summary.pending}</div>
-          </div>
-          <div className="rounded-[14px] border border-border bg-surface px-4 py-3 shadow-[var(--shadow-tight)]">
-            <div className="text-[10px] uppercase tracking-[0.14em] text-muted-subtle">sold</div>
-            <div className="mt-2 font-display text-[24px] font-medium leading-none">{summary.sold}</div>
-          </div>
-          <div className="rounded-[14px] border border-border bg-surface px-4 py-3 shadow-[var(--shadow-tight)]">
-            <div className="text-[10px] uppercase tracking-[0.14em] text-muted-subtle">recheck</div>
-            <div className="mt-2 font-display text-[24px] font-medium leading-none">{summary.recheck}</div>
-          </div>
-        </div>
-      </div>
+          <div className="space-y-2">
+            <div className="-mx-5 flex gap-1.5 overflow-x-auto px-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:mx-0 md:flex-wrap md:overflow-visible md:px-0">
+              {filterOptions.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setStatusFilter(option.value)}
+                  className={cn(
+                    "inline-flex h-8 shrink-0 items-center rounded-full border px-3 text-[12px] font-medium lowercase transition",
+                    statusFilter === option.value
+                      ? "border-white/18 bg-white text-[color:var(--panel-0)]"
+                      : "border-white/[0.08] bg-white/[0.025] text-white/64 hover:border-white/[0.16] hover:bg-white/[0.05] hover:text-white",
+                  )}
+                >
+                  {option.label}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => setVerifiedOnly((value) => !value)}
+                className={cn(
+                  "inline-flex h-8 shrink-0 items-center rounded-full border px-3 text-[12px] font-medium lowercase transition",
+                  verifiedOnly
+                    ? "border-[var(--sage)]/35 bg-[var(--sage-soft)] text-[var(--sage)]"
+                    : "border-white/[0.08] bg-white/[0.025] text-white/64 hover:border-white/[0.16] hover:bg-white/[0.05] hover:text-white",
+                )}
+              >
+                verified only
+              </button>
+            </div>
 
-      <div className="harwick-card flex flex-col gap-4 p-3 xl:flex-row xl:items-center xl:justify-between">
-        <div className="flex flex-wrap gap-2">
-          {filterOptions.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => setStatusFilter(option.value)}
-              className={cn(
-                "harwick-pill px-3.5 py-2 text-[12px] font-medium transition-all hover:-translate-y-px",
-                statusFilter === option.value
-                  ? "harwick-pill-active"
-                  : "text-muted hover:border-border-strong hover:text-foreground",
-              )}
-            >
-              {option.label}
-            </button>
-          ))}
-          <button
-            type="button"
-            onClick={() => setVerifiedOnly((value) => !value)}
-            className={cn(
-              "harwick-pill px-3.5 py-2 text-[12px] font-medium transition-all hover:-translate-y-px",
-              verifiedOnly
-                ? "harwick-pill-active"
-                : "text-muted hover:border-border-strong hover:text-foreground",
-            )}
-          >
-            verified only
-          </button>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="harwick-pill inline-flex p-1">
-            <button
-              type="button"
-              onClick={() => setViewMode("cards")}
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-medium transition",
-                viewMode === "cards" ? "harwick-pill-active" : "text-muted hover:text-foreground",
-              )}
-            >
-              <Grid2X2 className="h-3.5 w-3.5" />
-              cards
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode("list")}
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-medium transition",
-                viewMode === "list" ? "harwick-pill-active" : "text-muted hover:text-foreground",
-              )}
-            >
-              <List className="h-3.5 w-3.5" />
-              list
-            </button>
+            <div className="flex items-center justify-between gap-2">
+              <div className="inline-flex rounded-[9px] border border-white/[0.08] bg-white/[0.025] p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setViewMode("cards")}
+                  className={cn(
+                    "inline-flex h-7 items-center gap-1.5 rounded-[7px] px-2.5 text-[12px] font-medium lowercase transition",
+                    viewMode === "cards" ? "bg-white text-[color:var(--panel-0)]" : "text-white/58 hover:text-white",
+                  )}
+                >
+                  <Grid2X2 className="h-3.5 w-3.5" />
+                  cards
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode("list")}
+                  className={cn(
+                    "inline-flex h-7 items-center gap-1.5 rounded-[7px] px-2.5 text-[12px] font-medium lowercase transition",
+                    viewMode === "list" ? "bg-white text-[color:var(--panel-0)]" : "text-white/58 hover:text-white",
+                  )}
+                >
+                  <List className="h-3.5 w-3.5" />
+                  list
+                </button>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <a
+                  href={publicListingsHref}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label="open public listings page"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] border border-white/[0.08] bg-white/[0.025] text-white/64 transition hover:border-white/[0.16] hover:bg-white/[0.05] hover:text-white sm:w-auto sm:gap-1.5 sm:px-3 sm:text-[12px] sm:font-medium sm:lowercase"
+                >
+                  <PiArrowSquareOutBold className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">public page</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={() => void refreshListings()}
+                  aria-label="refresh listings"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] border border-white/[0.08] bg-white/[0.025] text-white/64 transition hover:border-white/[0.16] hover:bg-white/[0.05] hover:text-white sm:w-auto sm:gap-1.5 sm:px-3 sm:text-[12px] sm:font-medium sm:lowercase"
+                >
+                  {isRefreshing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <PiArrowsClockwiseBold className="h-3.5 w-3.5" />}
+                  <span className="hidden sm:inline">refresh</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  aria-label="import listings CSV"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] border border-white/[0.08] bg-white/[0.025] text-white/64 transition hover:border-white/[0.16] hover:bg-white/[0.05] hover:text-white sm:w-auto sm:gap-1.5 sm:px-3 sm:text-[12px] sm:font-medium sm:lowercase"
+                >
+                  {isImporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <PiUploadSimpleBold className="h-3.5 w-3.5" />}
+                  <span className="hidden sm:inline">import csv</span>
+                </button>
+              </div>
+            </div>
           </div>
-          <a
-            href={publicListingsHref}
-            target="_blank"
-            rel="noreferrer"
-            className="harwick-pill inline-flex items-center gap-2 px-3.5 py-2 text-[12px] font-medium text-muted transition-all hover:-translate-y-px hover:border-border-strong hover:text-foreground"
-          >
-            <ExternalLink className="h-4 w-4" />
-            open public page
-          </a>
-          <button
-            type="button"
-            onClick={() => void refreshListings()}
-            className="harwick-pill inline-flex items-center gap-2 px-3.5 py-2 text-[12px] font-medium text-muted transition-all hover:-translate-y-px hover:border-border-strong hover:text-foreground"
-          >
-            {isRefreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-            refresh
-          </button>
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="harwick-pill inline-flex items-center gap-2 px-3.5 py-2 text-[12px] font-medium text-muted transition-all hover:-translate-y-px hover:border-border-strong hover:text-foreground"
-          >
-            {isImporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-            import csv
-          </button>
-          <button
-            type="button"
-            onClick={openCreateSheet}
-            className="inline-flex items-center gap-2 rounded-full border border-harwick-ink bg-[linear-gradient(180deg,#233729_0%,#132218_100%)] px-3.5 py-2 text-[12px] font-semibold text-white shadow-[0_10px_22px_rgba(19,34,24,0.18)] transition-all hover:-translate-y-px"
-          >
-            <Plus className="h-4 w-4" />
-            add listing
-          </button>
-        </div>
-      </div>
 
       <input
         ref={fileInputRef}
@@ -808,8 +960,8 @@ export function ListingsPageContent({ workspaceId, workspaceName, workspaceSlug 
       ) : null}
 
       {isLoading ? (
-        <div className="flex min-h-[260px] items-center justify-center rounded-[18px] border border-border bg-surface">
-          <div className="inline-flex items-center gap-3 text-[13px] text-muted">
+        <div className="flex min-h-[260px] items-center justify-center rounded-[18px] border border-[color:var(--panel-line)] bg-[color:var(--panel-1)] shadow-[var(--panel-inset-top-soft)]">
+          <div className="inline-flex items-center gap-3 text-[13px] lowercase text-[color:var(--graphite-text-muted)]">
             <Loader2 className="h-5 w-5 animate-spin" />
             loading live inventory...
           </div>
@@ -828,10 +980,10 @@ export function ListingsPageContent({ workspaceId, workspaceName, workspaceSlug 
               />
             ))}
           </div>
-          <div className="flex flex-col gap-3 rounded-[18px] border border-border bg-surface px-5 py-4 shadow-[var(--shadow-tight)] sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 rounded-[18px] border border-[color:var(--panel-line)] bg-[color:var(--panel-1)] px-5 py-4 text-[color:var(--graphite-text)] shadow-[var(--panel-inset-top-soft)] sm:flex-row sm:items-center sm:justify-between">
             <div>
               <div className="font-display text-[22px] font-medium">no saved listings yet.</div>
-              <p className="mt-1 text-[13px] text-muted">
+              <p className="mt-1 text-[13px] text-[color:var(--graphite-text-muted)]">
                 Add a listing or import a CSV and the saved inventory will render with these glass cards.
               </p>
             </div>
@@ -839,17 +991,17 @@ export function ListingsPageContent({ workspaceId, workspaceName, workspaceSlug 
               <button
                 type="button"
                 onClick={openCreateSheet}
-                className="inline-flex items-center gap-2 rounded-full bg-harwick-ink px-4 py-2 text-[12px] font-semibold text-white"
+                className="inline-flex h-9 items-center gap-2 rounded-[10px] bg-white px-4 text-[12px] font-semibold lowercase text-[color:var(--panel-0)] shadow-[var(--panel-inset-top)]"
               >
-                <Plus className="h-4 w-4" />
+                <PiPlusBold className="h-4 w-4" />
                 add listing
               </button>
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-4 py-2 text-[12px] font-medium text-muted"
+                className="inline-flex h-9 items-center gap-2 rounded-[10px] border border-[color:var(--panel-line)] bg-[color:var(--panel-2)] px-4 text-[12px] font-medium lowercase text-[color:var(--graphite-text-muted)]"
               >
-                <Upload className="h-4 w-4" />
+                <PiUploadSimpleBold className="h-4 w-4" />
                 import csv
               </button>
             </div>
@@ -857,76 +1009,164 @@ export function ListingsPageContent({ workspaceId, workspaceName, workspaceSlug 
         </div>
       ) : viewMode === "list" ? (
         <div className="space-y-4">
-          <div className="overflow-hidden rounded-[18px] border border-border bg-surface shadow-[var(--shadow-tight)]">
-            <div className="grid grid-cols-[minmax(220px,1.6fr)_120px_110px_150px_120px_170px] gap-4 border-b border-border bg-surface-muted px-4 py-3 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-subtle">
-              <div>listing</div>
-              <div>status</div>
-              <div>price</div>
-              <div>facts</div>
-              <div>verification</div>
-              <div className="text-right">actions</div>
+          <div className="overflow-hidden rounded-[var(--panel-radius-md)] border border-[color:var(--panel-line)] bg-[color:var(--panel-1)] shadow-[var(--panel-inset-top-soft)]">
+            <div className="flex items-center justify-between gap-3 border-b border-[color:var(--panel-line-soft)] px-4 py-3">
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[color:var(--graphite-text-faint)]">listing</div>
+                <div className="mt-1 text-[12px] text-[color:var(--graphite-text-muted)]">share-ready inventory</div>
+              </div>
+              <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[color:var(--graphite-text-faint)]">status</div>
             </div>
             {pagedCards.map(({ row, card }) => {
               const isBusy = activeListingId === row.id;
               return (
-                <div
+                <article
                   key={row.id}
-                  className="grid grid-cols-[minmax(220px,1.6fr)_120px_110px_150px_120px_170px] items-center gap-4 border-b border-border px-4 py-3 last:border-b-0"
+                  className="border-b border-[color:var(--panel-line-soft)] px-4 py-3 last:border-b-0"
                 >
-                  <div className="flex min-w-0 items-center gap-3">
-                    <div className="h-14 w-16 shrink-0 overflow-hidden rounded-[12px] bg-harwick-ink">
-                      {card.photoUrl !== null ? (
-                        <img src={card.photoUrl} alt={card.address} className="h-full w-full object-cover" />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center text-white/50">
-                          <ImageIcon className="h-5 w-5" />
-                        </div>
-                      )}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="truncate text-[13px] font-semibold text-foreground">{card.address}</div>
-                      <div className="mt-1 truncate text-[12px] text-muted">{card.neighborhoodLabel} · {card.propertyTypeLabel}</div>
-                    </div>
-                  </div>
-                  <div>
-                    <span className={cn("rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em]", marketStatusTone[card.marketStatus])}>
-                      {card.marketStatusLabel}
-                    </span>
-                  </div>
-                  <div className="font-display text-[20px] font-medium">{card.priceLabel}</div>
-                  <div className="text-[12px] text-muted">
-                    {card.bedsLabel} · {card.bathsLabel}
-                    <div className="mt-0.5 text-[11px] text-muted-subtle">{card.squareFeetLabel}</div>
-                  </div>
-                  <div>
-                    <span className={cn("rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em]", verificationTone[card.verificationStatus])}>
-                      {card.verificationLabel}
-                    </span>
-                    <div className="mt-1 text-[10px] text-muted-subtle">{card.verificationDateLabel}</div>
-                  </div>
-                  <div className="flex justify-end gap-1.5">
+                  <div className="flex min-w-0 gap-3">
                     <button
                       type="button"
                       onClick={() => openEditSheet(row)}
-                      className="rounded-full border border-border bg-surface px-2.5 py-1.5 text-[11px] font-medium text-muted hover:text-foreground"
+                      className="relative h-20 w-20 shrink-0 overflow-hidden rounded-[16px] border border-[color:var(--panel-line)] bg-[color:var(--panel-2)] text-[color:var(--graphite-text-faint)] shadow-[var(--panel-inset-top-soft)]"
+                      aria-label={`edit ${card.address}`}
                     >
-                      edit
-                    </button>
-                    <button
-                      type="button"
-                      disabled={isBusy}
-                      onClick={() => void runListingAction(
-                        row.id,
-                        `/api/workspaces/${workspaceId}/listings/${row.id}/verify`,
-                        { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({}) },
-                        "Listing verified.",
+                      {card.photoUrl !== null ? (
+                        <img src={card.photoUrl} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center">
+                          <ImageIcon className="h-5 w-5" />
+                        </div>
                       )}
-                      className="rounded-full bg-harwick-ink px-2.5 py-1.5 text-[11px] font-semibold text-white disabled:opacity-50"
-                    >
-                      verify
+                      <div className="absolute left-2 top-2">
+                        <StatusDot
+                          status={card.marketStatus}
+                          label=""
+                          className="rounded-full border border-white/14 bg-black/45 px-1.5 py-1 backdrop-blur-md"
+                        />
+                      </div>
                     </button>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <button
+                            type="button"
+                            onClick={() => openEditSheet(row)}
+                            className="block max-w-full truncate text-left text-[14px] font-semibold leading-5 text-[color:var(--graphite-text)]"
+                          >
+                            {card.address}
+                          </button>
+                          <div className="mt-1 flex min-w-0 items-center gap-1.5 text-[12px] text-[color:var(--graphite-text-muted)]">
+                            <PiMapPinFill className="h-3.5 w-3.5 shrink-0 text-[color:var(--graphite-text-faint)]" />
+                            <span className="truncate">{card.neighborhoodLabel} · {card.propertyTypeLabel}</span>
+                          </div>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <div className="font-display text-[18px] font-medium leading-none text-[color:var(--graphite-text)]">{card.priceLabel}</div>
+                          <div className="mt-1 text-[10px] lowercase text-[color:var(--graphite-text-faint)]">{card.updatedLabel}</div>
+                        </div>
+                      </div>
+                      <div className="mt-3 grid grid-cols-3 gap-2 rounded-[12px] border border-[color:var(--panel-line-soft)] bg-[color:var(--panel-2)]/60 px-3 py-2 text-[11px] lowercase text-[color:var(--graphite-text-muted)] shadow-[var(--panel-inset-top-soft)]">
+                        <div className="flex items-center gap-1.5">
+                          <FACT_ICONS.beds className="h-3.5 w-3.5 text-[var(--sage)]" />
+                          <span className="truncate">{card.bedsLabel}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <FACT_ICONS.baths className="h-3.5 w-3.5 text-[var(--sage)]" />
+                          <span className="truncate">{card.bathsLabel}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <FACT_ICONS.sqft className="h-3.5 w-3.5 text-[var(--sage)]" />
+                          <span className="truncate">{card.squareFeetLabel}</span>
+                        </div>
+                      </div>
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <StatusDot status={card.marketStatus} label={card.marketStatusLabel.toLowerCase()} />
+                        <VerificationDot status={card.verificationStatus} label={card.verificationLabel.toLowerCase()} />
+                        <span className="text-[11px] lowercase text-[color:var(--graphite-text-faint)]">{card.verificationDateLabel}</span>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                  <div className="mt-3 flex items-center justify-between gap-2 pl-[92px]">
+                    <a
+                      href={`/api/workspaces/${workspaceId}/listings/${row.id}/share-card?format=story`}
+                      download={`${row.id}-story.png`}
+                      target="_blank"
+                      rel="noreferrer"
+                      title="download IG story image"
+                      className="inline-flex h-8 items-center gap-1.5 rounded-[9px] bg-[var(--sage,#88a276)] px-3 text-[12px] font-semibold lowercase text-[#07100a] shadow-[0_8px_18px_rgba(136,162,118,0.28)] transition hover:opacity-92"
+                    >
+                      <PiShareNetworkBold className="h-3.5 w-3.5" />
+                      story
+                    </a>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => openEditSheet(row)}
+                        className="inline-flex h-8 items-center gap-1.5 rounded-[9px] border border-[color:var(--panel-line)] bg-[color:var(--panel-2)] px-3 text-[12px] font-medium lowercase text-[color:var(--graphite-text-muted)] shadow-[var(--panel-inset-top-soft)] hover:text-[color:var(--graphite-text)]"
+                      >
+                        <PiPencilSimpleBold className="h-3.5 w-3.5" />
+                        edit
+                      </button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger
+                          aria-label="more listing actions"
+                          disabled={isBusy}
+                          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] border border-[color:var(--panel-line)] bg-[color:var(--panel-2)] text-[color:var(--graphite-text-muted)] shadow-[var(--panel-inset-top-soft)] transition hover:text-[color:var(--graphite-text)] disabled:opacity-50"
+                        >
+                          {isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <PiDotsThreeBold className="h-4 w-4" />}
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" sideOffset={6} className="w-56">
+                          <DropdownMenuItem
+                            onSelect={() => void runListingAction(
+                              row.id,
+                              `/api/workspaces/${workspaceId}/listings/${row.id}/verify`,
+                              { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({}) },
+                              "Listing verified.",
+                            )}
+                          >
+                            <PiCheckCircleFill className="h-4 w-4" />
+                            mark verified
+                          </DropdownMenuItem>
+                          <DropdownMenuItem asChild>
+                            <a
+                              href={card.publicUrl ?? publicListingsHref}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="flex items-center gap-2"
+                            >
+                              <PiArrowSquareOutBold className="h-4 w-4" />
+                              open public page
+                            </a>
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onSelect={() => void runListingAction(
+                              row.id,
+                              `/api/workspaces/${workspaceId}/listings/${row.id}`,
+                              { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ status: "Pending" }) },
+                              "Listing moved to pending.",
+                            )}
+                          >
+                            <PiClockFill className="h-4 w-4" />
+                            mark pending
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onSelect={() => void runListingAction(
+                              row.id,
+                              `/api/workspaces/${workspaceId}/listings/${row.id}`,
+                              { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ status: "Sold" }) },
+                              "Listing marked sold.",
+                            )}
+                          >
+                            <PiHouseFill className="h-4 w-4" />
+                            mark sold
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </div>
+                </article>
               );
             })}
           </div>
@@ -960,22 +1200,20 @@ export function ListingsPageContent({ workspaceId, workspaceName, workspaceSlug 
                 <div className="absolute inset-x-0 bottom-0 h-[60%] backdrop-blur-[1px] [mask-image:linear-gradient(180deg,transparent_0%,black_58%)]" />
 
                 <div className="absolute left-5 right-5 top-5 flex items-start justify-between gap-3">
-                  <div className="flex flex-wrap gap-2">
-                    <div className={cn("rounded-full border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] shadow-[0_14px_32px_rgba(14,18,15,0.14)] backdrop-blur-md", marketStatusTone[card.marketStatus])}>
-                      {card.marketStatusLabel}
-                    </div>
-                    <div className={cn("rounded-full border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] shadow-[0_14px_32px_rgba(14,18,15,0.14)] backdrop-blur-md", verificationTone[card.verificationStatus])}>
-                      {card.verificationLabel}
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => openEditSheet(row)}
-                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/16 bg-black/45 text-white/88 shadow-[0_14px_32px_rgba(14,18,15,0.16)] backdrop-blur-md transition hover:bg-black/55"
-                    aria-label={`edit ${card.address}`}
+                  <StatusDot
+                    status={card.marketStatus}
+                    label={card.marketStatusLabel.toLowerCase()}
+                    className="rounded-full border border-white/14 bg-black/40 px-3 py-1.5 text-white/88 backdrop-blur-md shadow-[0_14px_32px_rgba(14,18,15,0.14)]"
+                  />
+                  <a
+                    href={card.publicUrl ?? publicListingsHref}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label={`open public page for ${card.address}`}
+                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/14 bg-black/40 text-white/86 backdrop-blur-md shadow-[0_14px_32px_rgba(14,18,15,0.14)] transition hover:bg-black/55"
                   >
-                    <PencilLine className="h-4 w-4" />
-                  </button>
+                    <PiArrowSquareOutBold className="h-3.5 w-3.5" />
+                  </a>
                 </div>
 
                 {card.photoUrl === null ? (
@@ -996,7 +1234,7 @@ export function ListingsPageContent({ workspaceId, workspaceName, workspaceSlug 
                     </div>
                     <div className="max-w-[86%] truncate text-[16px] font-medium text-white/88">{card.address}</div>
                     <div className="mt-1 flex items-center gap-1.5 text-[13px] text-white/58">
-                      <MapPinned aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={1.7} />
+                      <PiMapPinFill aria-hidden="true" className="h-3.5 w-3.5" />
                       <span className="truncate">{card.neighborhoodLabel}</span>
                     </div>
                     <div className="my-4 h-px bg-white/16" />
@@ -1030,94 +1268,117 @@ export function ListingsPageContent({ workspaceId, workspaceName, workspaceSlug 
                       <span className="truncate">{card.sourceLabel} · {card.updatedLabel}</span>
                       <span className="shrink-0">{card.verificationDateLabel}</span>
                     </div>
-                    <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    <div className="mt-4 flex items-center gap-2">
+                      <VerificationDot
+                        status={card.verificationStatus}
+                        label={card.verificationLabel.toLowerCase()}
+                        className="flex-1"
+                      />
                       <button
                         type="button"
-                        disabled={isBusy}
-                        onClick={() => void runListingAction(
-                          row.id,
-                          `/api/workspaces/${workspaceId}/listings/${row.id}`,
-                          {
-                            method: "PATCH",
-                            headers: { "content-type": "application/json" },
-                            body: JSON.stringify({ status: "Pending" }),
-                          },
-                          "Listing moved to pending.",
-                        )}
-                        className="inline-flex items-center justify-center gap-1.5 rounded-full border border-white/10 bg-white/6 px-3 py-2 text-[12px] font-medium text-white/82 transition hover:border-white/22 hover:text-white disabled:opacity-50"
+                        onClick={() => openEditSheet(row)}
+                        className="inline-flex h-9 items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.04] px-3 text-[12px] font-medium lowercase text-white/82 transition hover:border-white/22 hover:bg-white/[0.06]"
                       >
-                        {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Clock3 className="h-4 w-4" />}
-                        pending
-                      </button>
-                      <button
-                        type="button"
-                        disabled={isBusy}
-                        onClick={() => void runListingAction(
-                          row.id,
-                          `/api/workspaces/${workspaceId}/listings/${row.id}`,
-                          {
-                            method: "PATCH",
-                            headers: { "content-type": "application/json" },
-                            body: JSON.stringify({ status: "Sold" }),
-                          },
-                          "Listing marked sold.",
-                        )}
-                        className="inline-flex items-center justify-center gap-1.5 rounded-full border border-white/10 bg-white/6 px-3 py-2 text-[12px] font-medium text-white/82 transition hover:border-white/22 hover:text-white disabled:opacity-50"
-                      >
-                        {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Home className="h-4 w-4" />}
-                        sold
-                      </button>
-                      <button
-                        type="button"
-                        disabled={isBusy}
-                        onClick={() => void runListingAction(
-                          row.id,
-                          `/api/workspaces/${workspaceId}/listings/${row.id}/verify`,
-                          {
-                            method: "POST",
-                            headers: { "content-type": "application/json" },
-                            body: JSON.stringify({}),
-                          },
-                          "Listing verified.",
-                        )}
-                        className="inline-flex items-center justify-center gap-1.5 rounded-full border border-emerald-300/25 bg-emerald-400/12 px-3 py-2 text-[12px] font-medium text-emerald-50 transition hover:border-emerald-200/45 disabled:opacity-50"
-                      >
-                        {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                        verify
-                      </button>
-                      <button
-                        type="button"
-                        disabled={isBusy}
-                        onClick={() => {
-                          const nextRecheckAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
-                          void runListingAction(
-                            row.id,
-                            `/api/workspaces/${workspaceId}/listings/${row.id}`,
-                            {
-                              method: "PATCH",
-                              headers: { "content-type": "application/json" },
-                              body: JSON.stringify({
-                                verificationStatus: "needs_recheck",
-                                needsRecheckAt: nextRecheckAt,
-                              }),
-                            },
-                            "Listing marked for recheck.",
-                          );
-                        }}
-                        className="inline-flex items-center justify-center gap-1.5 rounded-full border border-fuchsia-300/25 bg-fuchsia-400/12 px-3 py-2 text-[12px] font-medium text-fuchsia-50 transition hover:border-fuchsia-200/45 disabled:opacity-50"
-                      >
-                        {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                        recheck
+                        <PiPencilSimpleBold className="h-3.5 w-3.5" />
+                        edit
                       </button>
                       <a
-                        href={card.publicUrl ?? publicListingsHref}
+                        href={`/api/workspaces/${workspaceId}/listings/${row.id}/share-card?format=story`}
+                        download={`${row.id}-story.png`}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center justify-center gap-1.5 rounded-full border border-white/10 bg-white/6 px-3 py-2 text-[12px] font-medium text-white/82 transition hover:border-white/22 hover:text-white"
+                        className="inline-flex h-9 items-center gap-1.5 rounded-full bg-[var(--sage,#88a276)] px-3.5 text-[12px] font-semibold lowercase text-[#07100a] shadow-[0_10px_22px_rgba(136,162,118,0.32)] transition hover:opacity-92"
                       >
-                        <ExternalLink className="h-4 w-4" />
-                        public
+                        <PiShareNetworkBold className="h-3.5 w-3.5" />
+                        share story
                       </a>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger
+                          aria-label="more actions"
+                          disabled={isBusy}
+                          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/12 bg-white/[0.04] text-white/72 transition hover:border-white/22 hover:bg-white/[0.06] disabled:opacity-50"
+                        >
+                          {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <PiDotsThreeBold className="h-4 w-4" />}
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" sideOffset={6} className="w-56">
+                          <DropdownMenuItem asChild>
+                            <a
+                              href={card.publicUrl ?? publicListingsHref}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="flex items-center gap-2"
+                            >
+                              <PiArrowSquareOutBold className="h-4 w-4" />
+                              open public page
+                            </a>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem asChild>
+                            <a
+                              href={`/api/workspaces/${workspaceId}/listings/${row.id}/share-card?format=feed`}
+                              download={`${row.id}-feed.png`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="flex items-center gap-2"
+                            >
+                              <PiShareNetworkBold className="h-4 w-4" />
+                              download feed image
+                            </a>
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onSelect={() => void runListingAction(
+                              row.id,
+                              `/api/workspaces/${workspaceId}/listings/${row.id}/verify`,
+                              { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({}) },
+                              "Listing verified.",
+                            )}
+                          >
+                            <PiCheckCircleFill className="h-4 w-4" />
+                            mark verified
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onSelect={() => {
+                              const nextRecheckAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
+                              void runListingAction(
+                                row.id,
+                                `/api/workspaces/${workspaceId}/listings/${row.id}`,
+                                {
+                                  method: "PATCH",
+                                  headers: { "content-type": "application/json" },
+                                  body: JSON.stringify({ verificationStatus: "needs_recheck", needsRecheckAt: nextRecheckAt }),
+                                },
+                                "Listing marked for recheck.",
+                              );
+                            }}
+                          >
+                            <PiArrowsClockwiseBold className="h-4 w-4" />
+                            mark for recheck
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onSelect={() => void runListingAction(
+                              row.id,
+                              `/api/workspaces/${workspaceId}/listings/${row.id}`,
+                              { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ status: "Pending" }) },
+                              "Listing moved to pending.",
+                            )}
+                          >
+                            <PiClockFill className="h-4 w-4" />
+                            mark pending
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onSelect={() => void runListingAction(
+                              row.id,
+                              `/api/workspaces/${workspaceId}/listings/${row.id}`,
+                              { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ status: "Sold" }) },
+                              "Listing marked sold.",
+                            )}
+                          >
+                            <PiHouseFill className="h-4 w-4" />
+                            mark sold
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </div>
                 </div>
@@ -1136,121 +1397,348 @@ export function ListingsPageContent({ workspaceId, workspaceName, workspaceSlug 
         </div>
       )}
 
-      <Sheet open={editorOpen} onOpenChange={setEditorOpen}>
-        <SheetContent className="w-full max-w-[720px] gap-0 border-border bg-harwick-paper p-0 text-harwick-ink sm:max-w-[720px]">
-          <SheetHeader className="border-b border-border bg-surface px-6 py-5">
-            <SheetTitle className="font-display text-[28px] font-medium text-harwick-ink">
-              {editorMode === "create" ? "add listing" : "edit listing"}
-            </SheetTitle>
-            <SheetDescription className="text-[13px] leading-6 text-muted">
-              Update the listing facts Harwick uses for answers, routing, verification, and the public inventory card.
-            </SheetDescription>
-          </SheetHeader>
-
-          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
-          <div className="space-y-5 pb-6">
-            <div className="grid gap-5 sm:grid-cols-2">
-              <label className="space-y-2 sm:col-span-2">
-                <span className="text-[10px] uppercase tracking-[0.16em] text-muted-subtle">address</span>
-                <input
-                  value={editor.address}
-                  onChange={(event) => setEditor((current) => ({ ...current, address: event.target.value }))}
-                  className="w-full rounded-[14px] border border-border bg-surface px-4 py-3 text-[13px] text-foreground outline-none placeholder:text-muted-subtle focus:border-border-strong focus:ring-2 focus:ring-harwick-brass/20"
-                  placeholder="123 Main St, Houston, TX 77001"
-                />
-              </label>
-              <label className="space-y-2">
-                <span className="text-[10px] uppercase tracking-[0.16em] text-muted-subtle">status</span>
-                <input
-                  value={editor.status}
-                  onChange={(event) => setEditor((current) => ({ ...current, status: event.target.value }))}
-                  className="w-full rounded-[14px] border border-border bg-surface px-4 py-3 text-[13px] text-foreground outline-none placeholder:text-muted-subtle focus:border-border-strong focus:ring-2 focus:ring-harwick-brass/20"
-                  placeholder="Active"
-                />
-              </label>
-              <label className="space-y-2">
-                <span className="text-[10px] uppercase tracking-[0.16em] text-muted-subtle">price</span>
-                <input
-                  value={editor.price}
-                  onChange={(event) => setEditor((current) => ({ ...current, price: event.target.value }))}
-                  className="w-full rounded-[14px] border border-border bg-surface px-4 py-3 text-[13px] text-foreground outline-none placeholder:text-muted-subtle focus:border-border-strong focus:ring-2 focus:ring-harwick-brass/20"
-                  placeholder="450000"
-                />
-              </label>
-              <label className="space-y-2">
-                <span className="text-[10px] uppercase tracking-[0.16em] text-muted-subtle">beds</span>
-                <input
-                  value={editor.beds}
-                  onChange={(event) => setEditor((current) => ({ ...current, beds: event.target.value }))}
-                  className="w-full rounded-[14px] border border-border bg-surface px-4 py-3 text-[13px] text-foreground outline-none placeholder:text-muted-subtle focus:border-border-strong focus:ring-2 focus:ring-harwick-brass/20"
-                  placeholder="4"
-                />
-              </label>
-              <label className="space-y-2">
-                <span className="text-[10px] uppercase tracking-[0.16em] text-muted-subtle">baths</span>
-                <input
-                  value={editor.baths}
-                  onChange={(event) => setEditor((current) => ({ ...current, baths: event.target.value }))}
-                  className="w-full rounded-[14px] border border-border bg-surface px-4 py-3 text-[13px] text-foreground outline-none placeholder:text-muted-subtle focus:border-border-strong focus:ring-2 focus:ring-harwick-brass/20"
-                  placeholder="3"
-                />
-              </label>
-              <label className="space-y-2">
-                <span className="text-[10px] uppercase tracking-[0.16em] text-muted-subtle">square feet</span>
-                <input
-                  value={editor.squareFeet}
-                  onChange={(event) => setEditor((current) => ({ ...current, squareFeet: event.target.value }))}
-                  className="w-full rounded-[14px] border border-border bg-surface px-4 py-3 text-[13px] text-foreground outline-none placeholder:text-muted-subtle focus:border-border-strong focus:ring-2 focus:ring-harwick-brass/20"
-                  placeholder="2820"
-                />
-              </label>
-              <label className="space-y-2">
-                <span className="text-[10px] uppercase tracking-[0.16em] text-muted-subtle">neighborhood</span>
-                <input
-                  value={editor.neighborhood}
-                  onChange={(event) => setEditor((current) => ({ ...current, neighborhood: event.target.value }))}
-                  className="w-full rounded-[14px] border border-border bg-surface px-4 py-3 text-[13px] text-foreground outline-none placeholder:text-muted-subtle focus:border-border-strong focus:ring-2 focus:ring-harwick-brass/20"
-                  placeholder="River Oaks"
-                />
-              </label>
-              <label className="space-y-2">
-                <span className="text-[10px] uppercase tracking-[0.16em] text-muted-subtle">property type</span>
-                <input
-                  value={editor.propertyType}
-                  onChange={(event) => setEditor((current) => ({ ...current, propertyType: event.target.value }))}
-                  className="w-full rounded-[14px] border border-border bg-surface px-4 py-3 text-[13px] text-foreground outline-none placeholder:text-muted-subtle focus:border-border-strong focus:ring-2 focus:ring-harwick-brass/20"
-                  placeholder="Single family"
-                />
-              </label>
-              <label className="space-y-2 sm:col-span-2">
-                <span className="text-[10px] uppercase tracking-[0.16em] text-muted-subtle">notes</span>
-                <textarea
-                  value={editor.notes}
-                  onChange={(event) => setEditor((current) => ({ ...current, notes: event.target.value }))}
-                  className="min-h-28 w-full rounded-[14px] border border-border bg-surface px-4 py-3 text-[13px] leading-6 text-foreground outline-none placeholder:text-muted-subtle focus:border-border-strong focus:ring-2 focus:ring-harwick-brass/20"
-                  placeholder="Builder incentives, access instructions, visual notes..."
-                />
-              </label>
-              <label className="space-y-2 sm:col-span-2">
-                <span className="text-[10px] uppercase tracking-[0.16em] text-muted-subtle">incentives</span>
-                <input
-                  value={editor.incentives}
-                  onChange={(event) => setEditor((current) => ({ ...current, incentives: event.target.value }))}
-                  className="w-full rounded-[14px] border border-border bg-surface px-4 py-3 text-[13px] text-foreground outline-none placeholder:text-muted-subtle focus:border-border-strong focus:ring-2 focus:ring-harwick-brass/20"
-                  placeholder="4.99%, closing costs, appliance package"
-                />
-              </label>
+      <Drawer.Root open={editorOpen} onOpenChange={setEditorOpen}>
+        <Drawer.Portal>
+          <Drawer.Overlay className="fixed inset-0 z-40 bg-[rgba(8,12,8,0.62)] backdrop-blur-[18px] backdrop-saturate-125" />
+          <Drawer.Content
+            aria-describedby={undefined}
+            className="fixed inset-x-0 bottom-0 z-50 mx-auto flex h-[94vh] max-w-[760px] flex-col overflow-hidden rounded-t-[32px] border border-b-0 border-white/8 bg-[#0c130e] text-white shadow-[0_-32px_80px_-12px_rgba(6,12,8,0.55)] outline-none"
+          >
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-0 rounded-t-[32px]"
+              style={{
+                backgroundImage:
+                  "radial-gradient(circle at 86% 4%, rgba(136,162,118,0.22), transparent 40%), linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0) 22%)",
+              }}
+            />
+            <div className="relative mt-2.5 flex justify-center">
+              <div className="h-[5px] w-[44px] rounded-full bg-white/22" />
+            </div>
+            <div className="relative flex items-start justify-between gap-3 px-6 pb-4 pt-3.5">
+              <div className="min-w-0">
+                <div className="text-[10px] font-bold uppercase leading-none tracking-[0.18em] text-white/46">
+                  inventory
+                </div>
+                <Drawer.Title className="mt-2 font-display text-[26px] font-medium leading-[1.05] tracking-[-0.02em] text-white">
+                  {editorMode === "create" ? "add a listing" : "edit listing"}
+                </Drawer.Title>
+              </div>
+              <Drawer.Close className="-mr-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/12 bg-white/[0.04] text-white/70 transition hover:border-white/22 hover:text-white" aria-label="close">
+                <X className="h-4 w-4" />
+              </Drawer.Close>
             </div>
 
-            <div className="rounded-[16px] border border-border bg-surface-muted p-4">
+            <div className="relative min-h-0 flex-1 overflow-y-auto px-6 pb-6">
+          <div className="space-y-5 pb-6">
+            {editorMode === "create" ? (
+              <div className="space-y-2.5">
+                <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/46">
+                  import from a url
+                </div>
+                <div className="rounded-[18px] border border-white/10 bg-white/[0.03] p-4">
+                  <div className="flex items-center gap-2 text-white/82">
+                    <PiGlobeBold className="h-3.5 w-3.5" />
+                    <div className="text-[13px] font-semibold lowercase">paste a har, zillow, redfin, or mls url</div>
+                  </div>
+                  <p className="mt-1 text-[12px] leading-5 text-white/52">
+                    Harwick reads the page's structured data and pre-fills this form.
+                  </p>
+                  <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                    <input
+                      value={importUrl}
+                      onChange={(event) => setImportUrl(event.target.value)}
+                      placeholder="https://www.har.com/homedetail/..."
+                      className="flex-1 rounded-[12px] border border-white/12 bg-white/[0.04] px-3.5 py-2.5 text-[14px] text-white outline-none placeholder:text-white/30 focus:border-white/28 focus:bg-white/[0.06] focus:ring-2 focus:ring-[#88a276]/30"
+                      disabled={isImportingUrl}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void handleImportFromUrl()}
+                      disabled={isImportingUrl}
+                      className="inline-flex items-center justify-center gap-2 rounded-full bg-[#88a276] px-4 py-2.5 text-[12px] font-semibold lowercase text-[#07100a] shadow-[0_10px_22px_rgba(136,162,118,0.30)] transition disabled:opacity-50"
+                    >
+                      {isImportingUrl ? <Loader2 className="h-4 w-4 animate-spin" /> : <PiGlobeBold className="h-4 w-4" />}
+                      import
+                    </button>
+                  </div>
+                  <label className="mt-3 flex items-start gap-2 text-[12px] leading-5 text-white/56">
+                    <input
+                      type="checkbox"
+                      checked={acknowledgeRights}
+                      onChange={(event) => setAcknowledgeRights(event.target.checked)}
+                      className="mt-0.5 h-4 w-4 rounded border-white/22 bg-white/[0.04] accent-[#88a276]"
+                    />
+                    <span>
+                      I'm the listing agent or have rights to republish this content. Photos and MLS data carry copyright; Harwick won't import without this acknowledgment.
+                    </span>
+                  </label>
+                  {importMessage !== null ? (
+                    <div
+                      className={cn(
+                        "mt-3 rounded-[12px] border px-3 py-2 text-[12px]",
+                        importMessage.tone === "error"
+                          ? "border-[rgba(225,108,108,0.32)] bg-[rgba(225,108,108,0.10)] text-[rgba(244,180,180,0.92)]"
+                          : "border-[rgba(136,162,118,0.32)] bg-[rgba(136,162,118,0.10)] text-[rgba(176,204,158,0.95)]",
+                      )}
+                    >
+                      {importMessage.message}
+                    </div>
+                  ) : null}
+                </div>
+                <div className="h-px bg-white/8" />
+              </div>
+            ) : null}
+
+            <LiveListingPreview
+              workspaceName={workspaceName}
+              address={editor.address}
+              price={editorPriceValue === null ? "" : formatCompactPrice(editorPriceValue)}
+              priceValue={editorPriceValue}
+              neighborhood={editor.neighborhood}
+              beds={editor.beds}
+              baths={editor.baths}
+              squareFeet={editor.squareFeet}
+              propertyType={editor.propertyType}
+              hasPool={editor.hasPool}
+              notes={editor.notes}
+              photoUrl={editor.photoUrl}
+              marketStatus={currentEditorMarketStatus}
+            />
+
+            <div className="space-y-2.5">
+              <SectionEyebrow>listing facts</SectionEyebrow>
+              <FieldRowGroup>
+                <FieldRow
+                  icon={FACT_ICONS.location}
+                  label="address"
+                  value={editor.address}
+                  hint="123 Main St, Houston, TX 77001"
+                  onPress={() => toggleFact("address")}
+                  caretRotated={expandedFact === "address"}
+                >
+                  {expandedFact === "address" ? (
+                    <InlineTextEditor
+                      value={editor.address}
+                      onChange={(value) => updateEditorField("address", value)}
+                      placeholder="123 Main St, Houston, TX 77001"
+                      onCommit={() => setExpandedFact(null)}
+                    />
+                  ) : undefined}
+                </FieldRow>
+                <FieldRowDivider />
+                <FieldRow
+                  icon={FACT_ICONS.status}
+                  label="market status"
+                  value={editor.status}
+                  hint="active"
+                  onPress={() => toggleFact("status")}
+                  caretRotated={expandedFact === "status"}
+                >
+                  {expandedFact === "status" ? (
+                    <div className="grid grid-cols-3 gap-2">
+                      {(["Active", "Pending", "Sold"] as const).map((status) => {
+                        const active = editor.status.trim().toLowerCase() === status.toLowerCase();
+                        return (
+                          <button
+                            key={status}
+                            type="button"
+                            onClick={() => updateEditorField("status", status)}
+                            className={cn(
+                              "inline-flex h-10 items-center justify-center rounded-full border px-3 text-[12px] font-semibold lowercase transition",
+                              active
+                                ? "border-[#88a276]/40 bg-[#88a276] text-[#07100a]"
+                                : "border-white/12 bg-white/[0.04] text-white/74 hover:border-white/22 hover:bg-white/[0.07]",
+                            )}
+                          >
+                            {status}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : undefined}
+                </FieldRow>
+                <FieldRowDivider />
+                <FieldRow
+                  icon={FACT_ICONS.hoa}
+                  label="list price"
+                  value={editorPriceValue === null ? null : formatCompactPrice(editorPriceValue)}
+                  hint="set price"
+                  onPress={() => toggleFact("price")}
+                  caretRotated={expandedFact === "price"}
+                >
+                  {expandedFact === "price" ? (
+                    <NumberStepper
+                      value={editorPriceValue}
+                      defaultValue={450000}
+                      min={0}
+                      max={20_000_000}
+                      step={(current) => current < 500000 ? 10000 : 25000}
+                      formatValue={formatCompactPrice}
+                      onChange={(value) => updateEditorNumberField("price", value)}
+                    />
+                  ) : undefined}
+                </FieldRow>
+                <FieldRowDivider />
+                <FieldRow
+                  icon={FACT_ICONS.beds}
+                  label="beds"
+                  value={editor.beds.length > 0 ? `${editor.beds} beds` : null}
+                  hint="add bedrooms"
+                  onPress={() => toggleFact("beds")}
+                  caretRotated={expandedFact === "beds"}
+                >
+                  {expandedFact === "beds" ? (
+                    <NumberStepper
+                      value={parseNumberField(editor.beds) ?? null}
+                      min={0}
+                      max={20}
+                      formatValue={(value) => `${formatNumberLabel(value)} beds`}
+                      onChange={(value) => updateEditorNumberField("beds", value)}
+                    />
+                  ) : undefined}
+                </FieldRow>
+                <FieldRowDivider />
+                <FieldRow
+                  icon={FACT_ICONS.baths}
+                  label="baths"
+                  value={editor.baths.length > 0 ? `${editor.baths} baths` : null}
+                  hint="add baths"
+                  onPress={() => toggleFact("baths")}
+                  caretRotated={expandedFact === "baths"}
+                >
+                  {expandedFact === "baths" ? (
+                    <NumberStepper
+                      value={parseNumberField(editor.baths) ?? null}
+                      min={0}
+                      max={20}
+                      step={0.5}
+                      formatValue={(value) => `${formatNumberLabel(value)} baths`}
+                      onChange={(value) => updateEditorNumberField("baths", value)}
+                    />
+                  ) : undefined}
+                </FieldRow>
+                <FieldRowDivider />
+                <FieldRow
+                  icon={FACT_ICONS.sqft}
+                  label="square feet"
+                  value={editor.squareFeet.length > 0 ? `${formatNumberLabel(parseNumberField(editor.squareFeet) ?? 0)} sqft` : null}
+                  hint="add area"
+                  onPress={() => toggleFact("squareFeet")}
+                  caretRotated={expandedFact === "squareFeet"}
+                >
+                  {expandedFact === "squareFeet" ? (
+                    <NumberStepper
+                      value={parseNumberField(editor.squareFeet) ?? null}
+                      defaultValue={2000}
+                      min={0}
+                      max={25000}
+                      step={50}
+                      formatValue={(value) => `${formatNumberLabel(value)} sqft`}
+                      onChange={(value) => updateEditorNumberField("squareFeet", value)}
+                    />
+                  ) : undefined}
+                </FieldRow>
+              </FieldRowGroup>
+            </div>
+
+            <div className="space-y-2.5">
+              <SectionEyebrow>market context</SectionEyebrow>
+              <FieldRowGroup>
+                <FieldRow
+                  icon={FACT_ICONS.location}
+                  label="neighborhood"
+                  value={editor.neighborhood}
+                  hint="River Oaks"
+                  onPress={() => toggleFact("neighborhood")}
+                  caretRotated={expandedFact === "neighborhood"}
+                >
+                  {expandedFact === "neighborhood" ? (
+                    <InlineTextEditor
+                      value={editor.neighborhood}
+                      onChange={(value) => updateEditorField("neighborhood", value)}
+                      placeholder="River Oaks"
+                      onCommit={() => setExpandedFact(null)}
+                    />
+                  ) : undefined}
+                </FieldRow>
+                <FieldRowDivider />
+                <FieldRow
+                  icon={FACT_ICONS.propertyType}
+                  label="property type"
+                  value={editor.propertyType}
+                  hint="single family"
+                  onPress={() => toggleFact("propertyType")}
+                  caretRotated={expandedFact === "propertyType"}
+                >
+                  {expandedFact === "propertyType" ? (
+                    <InlineTextEditor
+                      value={editor.propertyType}
+                      onChange={(value) => updateEditorField("propertyType", value)}
+                      placeholder="Single family"
+                      onCommit={() => setExpandedFact(null)}
+                    />
+                  ) : undefined}
+                </FieldRow>
+                <FieldRowDivider />
+                <FieldRow
+                  icon={FACT_ICONS.pool}
+                  label="pool"
+                  value={editor.hasPool ? "pool on site" : "no pool marked"}
+                  hint="optional"
+                >
+                  <button
+                    type="button"
+                    onClick={() => updateEditorField("hasPool", !editor.hasPool)}
+                    className={cn(
+                      "inline-flex h-10 items-center justify-center rounded-full border px-4 text-[12px] font-semibold lowercase transition",
+                      editor.hasPool
+                        ? "border-[#88a276]/40 bg-[#88a276] text-[#07100a]"
+                        : "border-white/12 bg-white/[0.04] text-white/74 hover:border-white/22 hover:bg-white/[0.07]",
+                    )}
+                  >
+                    {editor.hasPool ? "pool included" : "mark pool"}
+                  </button>
+                </FieldRow>
+                <FieldRowDivider />
+                <FieldRow
+                  icon={FACT_ICONS.hoa}
+                  label="incentives"
+                  value={editor.incentives}
+                  hint="4.99%, closing costs"
+                  onPress={() => toggleFact("incentives")}
+                  caretRotated={expandedFact === "incentives"}
+                >
+                  {expandedFact === "incentives" ? (
+                    <ChipInputEditor
+                      values={editor.incentives.split(",").map((value) => value.trim()).filter((value) => value.length > 0)}
+                      onChange={(values) => updateEditorField("incentives", values.join(", "))}
+                      placeholder="closing costs"
+                    />
+                  ) : undefined}
+                </FieldRow>
+              </FieldRowGroup>
+            </div>
+
+            <div className="space-y-2.5">
+              <SectionEyebrow>operator notes</SectionEyebrow>
+              <textarea
+                value={editor.notes}
+                onChange={(event) => updateEditorField("notes", event.target.value)}
+                className="min-h-28 w-full rounded-[16px] border border-white/10 bg-white/[0.03] px-4 py-3 text-[14px] leading-6 text-white outline-none placeholder:text-white/30 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] focus:border-white/24 focus:bg-white/[0.05] focus:ring-2 focus:ring-[#88a276]/25"
+                placeholder="Builder incentives, access instructions, visual notes..."
+              />
+            </div>
+
+            <div className="rounded-[16px] border border-white/10 bg-white/[0.03] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <div className="text-[13px] font-semibold">media upload</div>
-                  <div className="mt-1 text-[12px] text-muted">upload photos and videos for the internal card and public listing page.</div>
+                  <div className="text-[13px] font-semibold lowercase text-white/90">media</div>
+                  <div className="mt-1 text-[12px] text-white/52">photos and videos for the internal card and public listing.</div>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-border bg-surface px-3.5 py-2 text-[12px] font-medium text-muted transition hover:border-border-strong hover:text-foreground">
-                    {isUploadingMedia ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                  <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-white/14 bg-white/[0.04] px-3.5 py-2 text-[12px] font-medium lowercase text-white/82 transition hover:border-white/24 hover:bg-white/[0.06]">
+                    {isUploadingMedia ? <Loader2 className="h-4 w-4 animate-spin" /> : <PiUploadSimpleBold className="h-4 w-4" />}
                     photos
                     <input
                       className="hidden"
@@ -1267,8 +1755,8 @@ export function ListingsPageContent({ workspaceId, workspaceName, workspaceSlug 
                       }}
                     />
                   </label>
-                  <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-border bg-surface px-3.5 py-2 text-[12px] font-medium text-muted transition hover:border-border-strong hover:text-foreground">
-                    {isUploadingMedia ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                  <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-white/14 bg-white/[0.04] px-3.5 py-2 text-[12px] font-medium lowercase text-white/82 transition hover:border-white/24 hover:bg-white/[0.06]">
+                    {isUploadingMedia ? <Loader2 className="h-4 w-4 animate-spin" /> : <PiUploadSimpleBold className="h-4 w-4" />}
                     videos
                     <input
                       className="hidden"
@@ -1290,7 +1778,7 @@ export function ListingsPageContent({ workspaceId, workspaceName, workspaceSlug 
               {editor.mediaUrls.trim().length > 0 ? (
                 <div className="mt-4 grid gap-2 sm:grid-cols-2">
                   {editor.mediaUrls.split(/\n|,/).filter((url) => url.trim().length > 0).slice(0, 4).map((url) => (
-                    <div className="truncate rounded-[12px] border border-border bg-surface px-3 py-2 text-[11px] text-muted" key={url}>
+                    <div className="truncate rounded-[12px] border border-white/10 bg-white/[0.04] px-3 py-2 text-[11px] text-white/56" key={url}>
                       {url}
                     </div>
                   ))}
@@ -1298,38 +1786,39 @@ export function ListingsPageContent({ workspaceId, workspaceName, workspaceSlug 
               ) : null}
             </div>
 
-            <label className="flex items-center gap-3 rounded-[14px] border border-border bg-surface px-4 py-3 text-[13px] text-muted">
-              <input
-                type="checkbox"
-                checked={editor.hasPool}
-                onChange={(event) => setEditor((current) => ({ ...current, hasPool: event.target.checked }))}
-                className="h-4 w-4 rounded border-border bg-surface"
-              />
-              pool on site
-            </label>
-
           </div>
           </div>
-          <SheetFooter className="mt-0 flex-row justify-end border-t border-border bg-surface px-6 py-4">
-            <button
-              type="button"
-              onClick={() => setEditorOpen(false)}
-              className="rounded-full border border-border bg-surface px-4 py-2 text-[12px] font-medium text-muted transition hover:border-border-strong hover:text-foreground"
-            >
-              cancel
-            </button>
-            <button
-              type="button"
-              disabled={isSaving}
-              onClick={() => void handleSaveEditor()}
-              className="inline-flex items-center gap-2 rounded-full bg-harwick-ink px-4 py-2 text-[12px] font-semibold text-white disabled:opacity-70"
-            >
-              {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-              {editorMode === "create" ? "create listing" : "save changes"}
-            </button>
-          </SheetFooter>
-        </SheetContent>
-      </Sheet>
+            <div className="relative border-t border-white/8 bg-[#0c130e]/95 px-6 pb-[calc(max(env(safe-area-inset-bottom),18px)+42px)] pt-4 sm:pb-[max(env(safe-area-inset-bottom),18px)]">
+              <div className="mb-3 flex items-center justify-between text-[11px] leading-none text-white/56">
+                <span>
+                  {editor.price.trim().length > 0 ? (
+                    <>
+                      <span className="font-display text-[17px] font-medium leading-none tracking-[-0.01em] text-white">
+                        ${Number(editor.price.replace(/[^0-9]/g, "")).toLocaleString()}
+                      </span>
+                      <span className="ml-1.5">list price</span>
+                    </>
+                  ) : (
+                    <span>price not set</span>
+                  )}
+                </span>
+                <Drawer.Close className="text-[11px] font-medium text-white/52 transition hover:text-white/80">
+                  cancel
+                </Drawer.Close>
+              </div>
+              <button
+                type="button"
+                disabled={isSaving}
+                onClick={() => void handleSaveEditor()}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-[14px] bg-[#88a276] px-5 py-3.5 text-[14px] font-semibold lowercase text-[#07100a] shadow-[0_14px_32px_rgba(136,162,118,0.36)] transition active:opacity-86 disabled:opacity-50"
+              >
+                {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                {editorMode === "create" ? "create listing" : "save changes"}
+              </button>
+            </div>
+          </Drawer.Content>
+        </Drawer.Portal>
+      </Drawer.Root>
         </div>
       </div>
     </div>
