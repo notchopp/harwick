@@ -43,6 +43,119 @@ import {
   workspaceMemoryStatusLabel,
 } from "./workspace-memory-settings";
 
+type LiveStatusSnapshot = {
+  followUpBoss: { connected: boolean; providerAccountName: string | null };
+  meta: { connected: boolean; providerAccountName: string | null };
+  googleCalendar: { connectedMemberCount: number; totalMemberCount: number };
+  retell: { provisioned: boolean; phoneNumber: string | null; status: string | null };
+  stripe: { active: boolean; status: string | null };
+  twilio: { connected: boolean };
+};
+
+type LiveStatusRow = {
+  label: string;
+  detail: string;
+  state: "live" | "partial" | "off";
+};
+
+function buildLiveStatusRows(snapshot: LiveStatusSnapshot | null): LiveStatusRow[] {
+  if (snapshot === null) return [];
+  return [
+    {
+      label: "voice",
+      detail: snapshot.retell.provisioned && snapshot.retell.phoneNumber !== null
+        ? snapshot.retell.phoneNumber
+        : "not provisioned",
+      state: snapshot.retell.provisioned ? "live" : "off",
+    },
+    {
+      label: "follow up boss",
+      detail: snapshot.followUpBoss.connected
+        ? snapshot.followUpBoss.providerAccountName ?? "connected"
+        : "not connected",
+      state: snapshot.followUpBoss.connected ? "live" : "off",
+    },
+    {
+      label: "google calendar",
+      detail: snapshot.googleCalendar.connectedMemberCount > 0
+        ? `${snapshot.googleCalendar.connectedMemberCount} of ${snapshot.googleCalendar.totalMemberCount} member${snapshot.googleCalendar.totalMemberCount === 1 ? "" : "s"}`
+        : "no members connected",
+      state: snapshot.googleCalendar.connectedMemberCount === 0
+        ? "off"
+        : snapshot.googleCalendar.connectedMemberCount < snapshot.googleCalendar.totalMemberCount
+          ? "partial"
+          : "live",
+    },
+    {
+      label: "stripe billing",
+      detail: snapshot.stripe.active ? (snapshot.stripe.status ?? "active") : (snapshot.stripe.status ?? "no subscription"),
+      state: snapshot.stripe.active ? "live" : "off",
+    },
+    {
+      label: "instagram + facebook",
+      detail: snapshot.meta.connected
+        ? snapshot.meta.providerAccountName ?? "connected"
+        : "in meta review · drops in 2–4 weeks",
+      state: snapshot.meta.connected ? "live" : "partial",
+    },
+    {
+      label: "sms",
+      detail: snapshot.twilio.connected ? "twilio connected" : "not connected",
+      state: snapshot.twilio.connected ? "live" : "off",
+    },
+  ];
+}
+
+const LIVE_STATUS_DOT: Record<LiveStatusRow["state"], string> = {
+  live: "bg-[var(--sage)]",
+  partial: "bg-[var(--clay)]",
+  off: "bg-white/22",
+};
+
+function LiveTodayPanel(props: { snapshot: LiveStatusSnapshot | null }) {
+  const rows = buildLiveStatusRows(props.snapshot);
+  return (
+    <section className="rounded-[var(--panel-radius-lg)] border border-[color:var(--panel-line)] bg-[color:var(--panel-1)] p-5 shadow-[var(--panel-inset-top),var(--panel-shadow-lift)]">
+      <div className="mb-4 flex items-baseline justify-between gap-3">
+        <div>
+          <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[color:var(--graphite-text-faint)]">
+            workspace
+          </div>
+          <div className="mt-1 font-display text-[16px] font-medium tracking-[-0.01em] text-[color:var(--graphite-text)]">
+            what's live today
+          </div>
+        </div>
+        {props.snapshot === null ? (
+          <span className="text-[10px] font-medium uppercase tracking-[0.16em] text-[color:var(--graphite-text-faint)]">checking…</span>
+        ) : null}
+      </div>
+      {rows.length === 0 ? (
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {[...Array(6).keys()].map((index) => (
+            <div key={index} className="h-[58px] animate-pulse rounded-[12px] border border-[color:var(--panel-line-soft)] bg-[color:var(--panel-2)]" />
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {rows.map((row) => (
+            <div key={row.label} className="rounded-[12px] border border-[color:var(--panel-line)] bg-[color:var(--panel-2)] px-3.5 py-3">
+              <div className="flex items-center gap-2">
+                <span aria-hidden className={cn("h-2 w-2 rounded-full", LIVE_STATUS_DOT[row.state])} />
+                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--graphite-text-muted)]">
+                  {row.label}
+                </span>
+              </div>
+              <div className={cn("mt-1.5 truncate text-[13px] lowercase", row.state === "live" ? "font-semibold text-[color:var(--graphite-text)]" : "text-[color:var(--graphite-text-muted)]")}>
+                {row.detail}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 function ToggleRow(props: {
   checked: boolean;
   description: string;
@@ -50,26 +163,36 @@ function ToggleRow(props: {
   onToggle: () => void;
 }) {
   return (
-    <div className="flex items-center gap-4 border-b border-border py-3 last:border-b-0 last:pb-0">
+    <div className="flex items-center gap-4 border-b border-[color:var(--panel-line-soft)] py-3 last:border-b-0 last:pb-0">
       <div className="flex-1">
-        <div className="text-[13px] font-medium text-foreground">{props.label}</div>
-        <div className="mt-1 text-[11.5px] text-muted-subtle">{props.description}</div>
+        <div className="text-[13px] font-semibold text-[color:var(--graphite-text)]">{props.label}</div>
+        <div className="mt-1 text-[11.5px] leading-5 text-[color:var(--graphite-text-muted)]">{props.description}</div>
       </div>
       <Switch checked={props.checked} onCheckedChange={() => props.onToggle()} />
     </div>
   );
 }
 
-function SettingsSection(props: { children: React.ReactNode; title: string; danger?: boolean }) {
+function SettingsSection(props: { children: React.ReactNode; title: string; eyebrow?: string; danger?: boolean }) {
   return (
     <section
       className={cn(
-        "rounded-[16px] border border-harwick-border bg-[linear-gradient(180deg,var(--harwick-paper),var(--harwick-linen))] px-[18px] py-[18px] shadow-[0_16px_38px_rgba(24,33,29,0.07)]",
-        props.danger && "border-oxblood-soft",
+        "rounded-[var(--panel-radius-lg)] border border-[color:var(--panel-line)] bg-[color:var(--panel-1)] p-5",
+        "shadow-[var(--panel-inset-top),var(--panel-shadow-lift)]",
+        props.danger && "border-[var(--oxblood)]/35",
       )}
     >
-      <div className={cn("mb-[14px] font-display text-[15px] font-medium", props.danger && "text-hot")}>
-        {props.title}
+      <div className="mb-4 flex items-baseline justify-between gap-3">
+        <div>
+          {props.eyebrow === undefined ? null : (
+            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[color:var(--graphite-text-faint)]">
+              {props.eyebrow}
+            </div>
+          )}
+          <div className={cn("mt-1 font-display text-[16px] font-medium tracking-[-0.01em] text-[color:var(--graphite-text)]", props.danger && "text-[var(--oxblood)]")}>
+            {props.title}
+          </div>
+        </div>
       </div>
       {props.children}
     </section>
@@ -78,9 +201,9 @@ function SettingsSection(props: { children: React.ReactNode; title: string; dang
 
 function InfoRow(props: { label: string; value: string }) {
   return (
-    <div className="mb-[7px] flex gap-2 text-[12.5px] last:mb-0">
-      <span className="w-[68px] shrink-0 text-muted-subtle">{props.label}</span>
-      <span className="font-medium text-foreground">{props.value}</span>
+    <div className="mb-1.5 flex items-center gap-3 text-[12.5px] last:mb-0">
+      <span className="w-[78px] shrink-0 text-[10px] font-bold uppercase tracking-[0.16em] text-[color:var(--graphite-text-faint)]">{props.label}</span>
+      <span className="font-medium text-[color:var(--graphite-text)]">{props.value}</span>
     </div>
   );
 }
@@ -261,12 +384,12 @@ function BillingPanel(props: {
 
   return (
     <div className="space-y-4">
-      <div className="overflow-hidden rounded-[14px] border border-harwick-border-strong bg-[linear-gradient(135deg,var(--harwick-paper)_0%,var(--harwick-linen)_100%)] p-4 shadow-[0_18px_42px_rgba(24,33,29,0.08)]">
+      <div className="overflow-hidden rounded-[14px] border border-[color:var(--panel-line-strong)] bg-[color:var(--panel-2)] p-4 shadow-[var(--panel-inset-top),var(--panel-shadow-card)]">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <div className="text-[11px] uppercase tracking-[0.12em] text-muted-subtle">Plan & usage</div>
-          <div className="mt-1 font-display text-[18px] font-medium text-foreground">{currentPlan}</div>
-          <div className="mt-1 text-[11.5px] text-muted-foreground">
+          <div className="text-[11px] uppercase tracking-[0.12em] text-[color:var(--graphite-text-faint)]">Plan & usage</div>
+          <div className="mt-1 font-display text-[18px] font-medium text-[color:var(--graphite-text)]">{currentPlan}</div>
+          <div className="mt-1 text-[11.5px] text-[color:var(--graphite-text-muted)]">
             {props.billing === null
               ? "Free workspace with wallet-backed overages when funded."
               : `${currentStatus}${props.billing.cancelAtPeriodEnd ? " / cancels at period end" : ""} / renews ${formatPeriodEnd(props.billing.currentPeriodEnd)}`}
@@ -296,10 +419,10 @@ function BillingPanel(props: {
       </div>
 
       <div className="mt-4 grid gap-3 md:grid-cols-3">
-        <div className="rounded-[12px] border border-harwick-border bg-harwick-paper/80 p-3">
-          <div className="text-[10px] uppercase tracking-[0.12em] text-muted-subtle">Wallet</div>
-          <div className="mt-1 font-display text-[22px] font-medium text-foreground">{money(walletBalance)}</div>
-          <div className="mt-1 text-[11px] text-muted-subtle">
+        <div className="rounded-[12px] border border-[color:var(--panel-line)] bg-[color:var(--panel-2)] p-3">
+          <div className="text-[10px] uppercase tracking-[0.12em] text-[color:var(--graphite-text-faint)]">Wallet</div>
+          <div className="mt-1 font-display text-[22px] font-medium text-[color:var(--graphite-text)]">{money(walletBalance)}</div>
+          <div className="mt-1 text-[11px] text-[color:var(--graphite-text-faint)]">
             {props.billingWallet?.autoRechargeEnabled ? `Auto adds ${money(props.billingWallet.autoRechargeAmountCents)} below ${money(props.billingWallet.autoRechargeThresholdCents)}` : "Auto-recharge off"}
           </div>
         </div>
@@ -316,7 +439,7 @@ function BillingPanel(props: {
       </div>
 
       {props.canManageBilling ? null : (
-        <div className="mt-3 text-[11.5px] text-muted-subtle">Only owners and admins can manage billing.</div>
+        <div className="mt-3 text-[11.5px] text-[color:var(--graphite-text-faint)]">Only owners and admins can manage billing.</div>
       )}
       {error === null ? null : (
         <div className="mt-3 rounded-[10px] border border-oxblood-soft bg-oxblood-soft/30 px-3 py-2 text-[11.5px] text-hot">
@@ -347,14 +470,14 @@ function BillingPanel(props: {
 function UsageMeter(props: { label: string; used: number; limit: number | null }) {
   const percent = usagePercent(props.used, props.limit);
   return (
-    <div className="rounded-[12px] border border-harwick-border bg-harwick-paper/80 p-3">
+    <div className="rounded-[12px] border border-[color:var(--panel-line)] bg-[color:var(--panel-2)] p-3">
       <div className="flex items-center justify-between gap-3">
-        <div className="text-[10px] uppercase tracking-[0.12em] text-muted-subtle">{props.label}</div>
-        <div className="text-[11px] font-medium text-foreground">
+        <div className="text-[10px] uppercase tracking-[0.12em] text-[color:var(--graphite-text-faint)]">{props.label}</div>
+        <div className="text-[11px] font-medium text-[color:var(--graphite-text)]">
           {compactNumber(props.used)} / {props.limit === null ? "unlimited" : compactNumber(props.limit)}
         </div>
       </div>
-      <div className="mt-3 h-2 overflow-hidden rounded-full bg-harwick-linen-strong">
+      <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/[0.06]">
         <div
           className="h-full rounded-full bg-[linear-gradient(90deg,var(--harwick-brass),var(--sage))]"
           style={{ width: props.limit === null ? "35%" : `${percent}%` }}
@@ -530,7 +653,7 @@ function HarwickLoopsPanel(props: {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-[12px] border border-border bg-surface-muted/55 p-4">
+      <div className="rounded-[12px] border border-[color:var(--panel-line)] bg-[color:var(--panel-2)] p-4">
         <div className="grid gap-3 md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
           <div className="space-y-3">
             <input
@@ -622,7 +745,7 @@ function HarwickLoopsPanel(props: {
           </div>
         </div>
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-          <div className="text-[11.5px] text-muted-subtle">
+          <div className="text-[11.5px] text-[color:var(--graphite-text-faint)]">
             {props.canManageLoops
               ? draft.triggerType === "event"
                 ? "Event-triggered loops wake on supported workspace events and still surface reviewable Harwick work before external writes."
@@ -649,30 +772,30 @@ function HarwickLoopsPanel(props: {
         ) : null}
       </div>
 
-      <div className="divide-y divide-harwick-border rounded-[12px] border border-harwick-border bg-[color-mix(in_oklch,var(--harwick-paper)_88%,var(--harwick-linen-strong))]">
+      <div className="divide-y divide-[color:var(--panel-line-soft)] rounded-[12px] border border-[color:var(--panel-line)] bg-[color:var(--panel-2)]">
         {status === "loading" ? (
-          <div className="px-4 py-4 text-[12px] text-muted-subtle">Loading loops...</div>
+          <div className="px-4 py-4 text-[12px] text-[color:var(--graphite-text-faint)]">Loading loops...</div>
         ) : loops.length === 0 ? (
-          <div className="px-4 py-4 text-[12px] text-muted-subtle">No Harwick loops are configured yet.</div>
+          <div className="px-4 py-4 text-[12px] text-[color:var(--graphite-text-faint)]">No Harwick loops are configured yet.</div>
         ) : loops.map((loop) => (
           <div className="flex flex-wrap items-start justify-between gap-3 px-4 py-3" key={loop.id}>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <div className="truncate text-[13px] font-medium text-foreground">{loop.name}</div>
+                <div className="truncate text-[13px] font-medium text-[color:var(--graphite-text)]">{loop.name}</div>
                 <span className={cn(
                   "rounded-full border px-2 py-[2px] text-[10px] uppercase",
                   loop.status === "active"
                     ? "border-qualified/25 bg-qualified-soft text-qualified"
-                    : "border-border bg-surface-muted text-muted-foreground",
+                    : "border-[color:var(--panel-line)] bg-[color:var(--panel-2)] text-[color:var(--graphite-text-muted)]",
                 )}>
                   {loop.status}
                 </span>
-                <span className="rounded-full border border-border bg-surface-muted px-2 py-[2px] text-[10px] text-muted-foreground">
+                <span className="rounded-full border border-[color:var(--panel-line)] bg-[color:var(--panel-2)] px-2 py-[2px] text-[10px] text-[color:var(--graphite-text-muted)]">
                   {loopOutputModeLabel(loop.outputMode)}
                 </span>
               </div>
-              <div className="mt-1 line-clamp-2 text-[12px] text-muted-foreground">{loop.instruction}</div>
-              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-subtle">
+              <div className="mt-1 line-clamp-2 text-[12px] text-[color:var(--graphite-text-muted)]">{loop.instruction}</div>
+              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-[color:var(--graphite-text-faint)]">
                 <span>{loop.scheduleSpec ?? loop.eventType ?? "manual"}</span>
                 <span>next {formatHarwickLoopDate(loop.nextRunAt)}</span>
                 <span>last {loop.lastRunStatus ?? "never run"}</span>
@@ -807,21 +930,21 @@ function HarwickMemoryReviewPanel(props: {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-[12px] border border-border bg-surface-muted/55 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-[12px] border border-[color:var(--panel-line)] bg-[color:var(--panel-2)] p-4">
         <div>
-          <div className="text-[11px] uppercase tracking-[0.12em] text-muted-subtle">Workspace memory</div>
-          <div className="mt-1 text-[12px] text-muted-foreground">
+          <div className="text-[11px] uppercase tracking-[0.12em] text-[color:var(--graphite-text-faint)]">Workspace memory</div>
+          <div className="mt-1 text-[12px] text-[color:var(--graphite-text-muted)]">
             Review the patterns Harwick has learned before they shape future routing and conversation context.
           </div>
         </div>
-        <div className="flex rounded-[10px] border border-harwick-border bg-[var(--harwick-linen-strong)] p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]">
+        <div className="flex rounded-[10px] border border-[color:var(--panel-line)] bg-[color:var(--panel-2)] p-1 shadow-[var(--panel-inset-top-soft)]">
           {(["pending", "approved", "dismissed"] as const).map((reviewStatus) => (
             <button
               className={cn(
                 "rounded-[8px] px-3 py-[6px] text-[11px] font-medium transition-colors",
                 filterStatus === reviewStatus
                   ? "bg-[var(--harwick-ink)] text-white shadow-[0_1px_0_rgba(255,255,255,0.45)]"
-                  : "text-muted-foreground hover:bg-white/55 hover:text-foreground",
+                  : "text-[color:var(--graphite-text-muted)] hover:bg-white/55 hover:text-[color:var(--graphite-text)]",
               )}
               key={reviewStatus}
               onClick={() => setFilterStatus(reviewStatus)}
@@ -839,11 +962,11 @@ function HarwickMemoryReviewPanel(props: {
         </div>
       )}
 
-      <div className="divide-y divide-harwick-border rounded-[12px] border border-harwick-border bg-[color-mix(in_oklch,var(--harwick-paper)_88%,var(--harwick-linen-strong))]">
+      <div className="divide-y divide-[color:var(--panel-line-soft)] rounded-[12px] border border-[color:var(--panel-line)] bg-[color:var(--panel-2)]">
         {status === "loading" ? (
-          <div className="px-4 py-4 text-[12px] text-muted-subtle">Loading workspace memory...</div>
+          <div className="px-4 py-4 text-[12px] text-[color:var(--graphite-text-faint)]">Loading workspace memory...</div>
         ) : memories.length === 0 ? (
-          <div className="px-4 py-4 text-[12px] text-muted-subtle">No {workspaceMemoryStatusLabel(filterStatus)} memory is waiting here.</div>
+          <div className="px-4 py-4 text-[12px] text-[color:var(--graphite-text-faint)]">No {workspaceMemoryStatusLabel(filterStatus)} memory is waiting here.</div>
         ) : memories.map((memory) => {
           const evidence = summarizeWorkspaceMemoryEvidence(memory);
           return (
@@ -851,8 +974,8 @@ function HarwickMemoryReviewPanel(props: {
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <div className="text-[13px] font-medium text-foreground">{memory.title}</div>
-                    <span className="rounded-full border border-border bg-surface-muted px-2 py-[2px] text-[10px] uppercase text-muted-foreground">
+                    <div className="text-[13px] font-medium text-[color:var(--graphite-text)]">{memory.title}</div>
+                    <span className="rounded-full border border-[color:var(--panel-line)] bg-[color:var(--panel-2)] px-2 py-[2px] text-[10px] uppercase text-[color:var(--graphite-text-muted)]">
                       {workspaceMemoryTypeLabel(memory.memoryType)}
                     </span>
                     <span className={cn(
@@ -861,13 +984,13 @@ function HarwickMemoryReviewPanel(props: {
                         ? "border-qualified/25 bg-qualified-soft text-qualified"
                         : memory.reviewStatus === "dismissed"
                           ? "border-oxblood-soft bg-oxblood-soft/25 text-hot"
-                          : "border-border bg-surface-muted text-muted-foreground",
+                          : "border-[color:var(--panel-line)] bg-[color:var(--panel-2)] text-[color:var(--graphite-text-muted)]",
                     )}>
                       {workspaceMemoryStatusLabel(memory.reviewStatus)}
                     </span>
                   </div>
-                  <div className="mt-2 text-[12px] leading-5 text-muted-foreground">{memory.body}</div>
-                  <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-subtle">
+                  <div className="mt-2 text-[12px] leading-5 text-[color:var(--graphite-text-muted)]">{memory.body}</div>
+                  <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-[color:var(--graphite-text-faint)]">
                     <span>{formatWorkspaceMemoryConfidence(memory.confidence)}</span>
                     <span>observed {formatWorkspaceMemoryDate(memory.lastObservedAt)}</span>
                     <span>source {memory.source.replace(/_/g, " ")}</span>
@@ -875,7 +998,7 @@ function HarwickMemoryReviewPanel(props: {
                   </div>
                 </div>
                 {memory.reviewedAt === null ? null : (
-                  <div className="text-right text-[11px] text-muted-subtle">
+                  <div className="text-right text-[11px] text-[color:var(--graphite-text-faint)]">
                     reviewed {formatWorkspaceMemoryDate(memory.reviewedAt)}
                   </div>
                 )}
@@ -918,7 +1041,7 @@ function HarwickMemoryReviewPanel(props: {
       </div>
 
       {props.canReviewMemory ? null : (
-        <div className="text-[11.5px] text-muted-subtle">Only owners, admins, and team leads can review workspace memory.</div>
+        <div className="text-[11.5px] text-[color:var(--graphite-text-faint)]">Only owners, admins, and team leads can review workspace memory.</div>
       )}
     </div>
   );
@@ -1041,12 +1164,12 @@ function VoiceAgentPanel(props: {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-[14px] border border-harwick-border-strong bg-surface-muted/55 p-4">
+      <div className="rounded-[14px] border border-[color:var(--panel-line-strong)] bg-[color:var(--panel-2)] p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <div className="text-[11px] uppercase tracking-[0.12em] text-muted-subtle">Workspace voice number</div>
-            <div className="mt-1 font-display text-[23px] font-medium text-foreground">{phoneNumber}</div>
-            <div className="mt-1 text-[11.5px] text-muted-subtle">
+            <div className="text-[11px] uppercase tracking-[0.12em] text-[color:var(--graphite-text-faint)]">Workspace voice number</div>
+            <div className="mt-1 font-display text-[23px] font-medium text-[color:var(--graphite-text)]">{phoneNumber}</div>
+            <div className="mt-1 text-[11.5px] text-[color:var(--graphite-text-faint)]">
               {voiceStatusLabel(voiceAgent?.status ?? null)} / {syncedAt}
             </div>
           </div>
@@ -1075,7 +1198,7 @@ function VoiceAgentPanel(props: {
 
       <div className="grid gap-3 md:grid-cols-2">
         <label className="block">
-          <span className="text-[11px] uppercase tracking-[0.12em] text-muted-subtle">Service areas</span>
+          <span className="text-[11px] uppercase tracking-[0.12em] text-[color:var(--graphite-text-faint)]">Service areas</span>
           <input
             className="harwick-control mt-2 w-full px-[11px] py-[8px] text-[12.5px]"
             disabled={!props.canManageVoice || status === "provisioning"}
@@ -1085,7 +1208,7 @@ function VoiceAgentPanel(props: {
           />
         </label>
         <label className="block">
-          <span className="text-[11px] uppercase tracking-[0.12em] text-muted-subtle">Transfer number</span>
+          <span className="text-[11px] uppercase tracking-[0.12em] text-[color:var(--graphite-text-faint)]">Transfer number</span>
           <input
             className="harwick-control mt-2 w-full px-[11px] py-[8px] text-[12.5px]"
             disabled={!props.canManageVoice || status === "provisioning"}
@@ -1096,11 +1219,11 @@ function VoiceAgentPanel(props: {
         </label>
       </div>
 
-      <div className="rounded-[12px] border border-border bg-surface-muted/45 px-3 py-2 text-[11.5px] leading-5 text-muted-subtle">
+      <div className="rounded-[12px] border border-[color:var(--panel-line)] bg-[color:var(--panel-2)]/60 px-3 py-2 text-[11.5px] leading-5 text-[color:var(--graphite-text-faint)]">
         Harwick uses this number for inbound buyer and seller calls, then writes call context back into the queue and lead record. Keep the transfer number as the human line Harwick can hand off to.
       </div>
       {props.canManageVoice ? null : (
-        <div className="text-[11.5px] text-muted-subtle">Only owners, admins, team leads, and lead managers can provision workspace voice.</div>
+        <div className="text-[11.5px] text-[color:var(--graphite-text-faint)]">Only owners, admins, team leads, and lead managers can provision workspace voice.</div>
       )}
     </div>
   );
@@ -1132,6 +1255,22 @@ export function SettingsPageContent(props: {
     fubSyncErrors: false,
     dailyDigest: false,
   });
+  const [liveStatus, setLiveStatus] = useState<LiveStatusSnapshot | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(`/api/workspaces/${props.workspaceId}/integration-status`);
+        if (!res.ok || cancelled) return;
+        const data = (await res.json()) as LiveStatusSnapshot;
+        setLiveStatus(data);
+      } catch {
+        /* silent — panel just shows loading then empty */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [props.workspaceId]);
 
   // Load automation settings on mount
   useEffect(() => {
@@ -1236,7 +1375,7 @@ export function SettingsPageContent(props: {
   const signaturePreview = `- ${props.memberDisplayName}, ${props.workspaceName}`;
 
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-[radial-gradient(900px_420px_at_75%_-140px,rgba(96,120,109,0.14),transparent_58%),linear-gradient(180deg,var(--harwick-parchment),var(--harwick-linen))]">
+    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-transparent text-[color:var(--graphite-text)]">
       <WorkspaceTopbar context="profile & settings" workspaceName={props.workspaceName}>
         <Button
           className="ml-auto px-4 text-[11px]"
@@ -1250,6 +1389,9 @@ export function SettingsPageContent(props: {
       </WorkspaceTopbar>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-7 py-6">
+        <div className="mb-5">
+          <LiveTodayPanel snapshot={liveStatus} />
+        </div>
         <div className="grid items-start gap-5 xl:grid-cols-[290px_minmax(0,1fr)]">
           <div>
             <div className="harwick-card mb-[14px] p-[22px] text-center">
@@ -1257,7 +1399,7 @@ export function SettingsPageContent(props: {
                 {initialsForName(props.memberDisplayName)}
               </div>
               <div className="font-display text-[21px] font-medium">{props.memberDisplayName}</div>
-              <div className="mb-[14px] text-[12px] text-muted-subtle">{memberRoleLabel} · {props.workspaceName}</div>
+              <div className="mb-[14px] text-[12px] text-[color:var(--graphite-text-faint)]">{memberRoleLabel} · {props.workspaceName}</div>
 
               <Button
                 className="w-full text-[12px]"
@@ -1302,19 +1444,19 @@ export function SettingsPageContent(props: {
 
             <SettingsSection title="Personal Info">
               <div className="space-y-0">
-                <div className="flex items-center gap-4 border-b border-border py-3">
+                <div className="flex items-center gap-4 border-b border-[color:var(--panel-line-soft)] py-3">
                   <div className="flex-1 text-[13px] font-medium">Full Name</div>
                   <input className="harwick-control w-[190px] px-[11px] py-[7px] text-[12.5px]" readOnly value={props.memberDisplayName} />
                 </div>
-                <div className="flex items-center gap-4 border-b border-border py-3">
+                <div className="flex items-center gap-4 border-b border-[color:var(--panel-line-soft)] py-3">
                   <div className="flex-1 text-[13px] font-medium">Email</div>
                   <input className="harwick-control w-[220px] px-[11px] py-[7px] text-[12.5px]" readOnly value={memberEmail} />
                 </div>
-                <div className="flex items-center gap-4 border-b border-border py-3">
+                <div className="flex items-center gap-4 border-b border-[color:var(--panel-line-soft)] py-3">
                   <div className="flex-1 text-[13px] font-medium">Phone</div>
                   <input className="harwick-control w-[155px] px-[11px] py-[7px] text-[12.5px]" placeholder="Not configured" readOnly value="" />
                 </div>
-                <div className="flex items-center gap-4 border-b border-border py-3">
+                <div className="flex items-center gap-4 border-b border-[color:var(--panel-line-soft)] py-3">
                   <div className="flex-1 text-[13px] font-medium">Role</div>
                   <select className="harwick-control px-[10px] py-[6px] text-[12px]" disabled value={props.memberRole}>
                     <option value={props.memberRole}>{memberRoleLabel}</option>
@@ -1369,7 +1511,7 @@ export function SettingsPageContent(props: {
                 label="Auto-send approved actions"
                 onToggle={() => setAutomation((current) => ({ ...current, autoSendEnabled: !current.autoSendEnabled }))}
               />
-              <div className="flex items-center gap-4 border-b border-border py-3">
+              <div className="flex items-center gap-4 border-b border-[color:var(--panel-line-soft)] py-3">
                 <div className="flex-1 text-[13px] font-medium">Confidence threshold</div>
                 <div className="flex items-center gap-2">
                   <input
@@ -1386,10 +1528,10 @@ export function SettingsPageContent(props: {
                     type="number"
                     value={Math.round(automation.confidenceThreshold * 100)}
                   />
-                  <span className="text-[12px] text-muted-subtle">%</span>
+                  <span className="text-[12px] text-[color:var(--graphite-text-faint)]">%</span>
                 </div>
               </div>
-              <div className="flex items-center gap-4 border-b border-border py-3">
+              <div className="flex items-center gap-4 border-b border-[color:var(--panel-line-soft)] py-3">
                 <div className="flex-1 text-[13px] font-medium">Reply tone</div>
                 <select className="harwick-control px-[10px] py-[6px] text-[12px]">
                   <option>Professional</option>
@@ -1416,7 +1558,7 @@ export function SettingsPageContent(props: {
                   value={policyNarrative}
                 />
                 <div className="flex items-center justify-between gap-3">
-                  <div className="text-[11.5px] text-muted-subtle">
+                  <div className="text-[11.5px] text-[color:var(--graphite-text-faint)]">
                     {policyNarrativeSource === "manual"
                       ? "Manual workspace policy"
                       : policyNarrativeSource === "generated"
@@ -1471,8 +1613,8 @@ export function SettingsPageContent(props: {
             <SettingsSection danger title="Danger Zone">
               <div className="flex items-center gap-4 py-3">
                 <div className="flex-1">
-                  <div className="text-[13px] font-medium text-foreground">Leave workspace</div>
-                  <div className="mt-1 text-[11.5px] text-muted-subtle">Remove yourself from {props.workspaceName}</div>
+                  <div className="text-[13px] font-medium text-[color:var(--graphite-text)]">Leave workspace</div>
+                  <div className="mt-1 text-[11.5px] text-[color:var(--graphite-text-faint)]">Remove yourself from {props.workspaceName}</div>
                 </div>
                 <Button
                   className="rounded-[8px] border-oxblood-soft bg-transparent px-3 text-[11px] text-hot hover:bg-oxblood-soft/50 hover:text-hot"
