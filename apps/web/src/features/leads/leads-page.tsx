@@ -820,7 +820,7 @@ export function LeadsPageContent(props: { workspaceId: string; workspaceName: st
           >
             <SortAsc className="size-3.5" />
           </Button>
-          <div className="inline-flex rounded-[8px] border border-[color:var(--panel-line)] bg-[color:var(--panel-2)] p-0.5">
+          <div className="hidden rounded-[8px] border border-[color:var(--panel-line)] bg-[color:var(--panel-2)] p-0.5 md:inline-flex">
             <button
               type="button"
               onClick={() => setViewMode("kanban")}
@@ -846,26 +846,41 @@ export function LeadsPageContent(props: { workspaceId: string; workspaceName: st
 
         <div className="min-h-0 flex-1 overflow-y-auto">
           {viewMode === "kanban" ? (
-            <div className="p-4">
-              <LeadsKanban
-                leads={filtered}
-                onLeadSelect={(leadId) => {
-                  const matched = leadRecords.find((entry) => entry.id === leadId) ?? null;
-                  if (matched !== null) {
-                    setSelectedLead(matched);
-                  }
-                  replaceLeadQuery(leadId);
-                }}
-              />
-            </div>
+            <>
+              <div className="hidden p-4 md:block">
+                <LeadsKanban
+                  leads={filtered}
+                  onLeadSelect={(leadId) => {
+                    const matched = leadRecords.find((entry) => entry.id === leadId) ?? null;
+                    if (matched !== null) {
+                      setSelectedLead(matched);
+                    }
+                    replaceLeadQuery(leadId);
+                  }}
+                />
+              </div>
+              <div className="divide-y divide-[color:var(--panel-line-soft)] md:hidden">
+                {pagedLeads.map((lead) => (
+                  <LeadListRow
+                    isSelected={selectedLead?.id === lead.id}
+                    key={lead.id}
+                    lead={lead}
+                    onSelect={() => {
+                      setSelectedLead(lead);
+                      replaceLeadQuery(lead.id);
+                    }}
+                  />
+                ))}
+              </div>
+            </>
           ) : filtered.length === 0 ? (
             <div className="flex min-h-[320px] flex-col items-center justify-center px-6 py-12 text-center">
-              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-surface-muted text-muted">
+              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[color:var(--panel-2)] text-[color:var(--graphite-text-muted)]">
                 <MessageSquare aria-hidden="true" className="h-5 w-5" strokeWidth={1.8} />
               </div>
-              <div className="mt-4 text-[15px] font-semibold text-foreground">{emptyTitle}</div>
-              <div className="mt-2 max-w-[420px] text-[12px] leading-5 text-muted">{emptyBody}</div>
-              {actionStatus ? <div className="mt-3 text-[11px] leading-5 text-muted-subtle">{actionStatus}</div> : null}
+              <div className="mt-4 text-[15px] font-semibold text-[color:var(--graphite-text)]">{emptyTitle}</div>
+              <div className="mt-2 max-w-[420px] text-[12px] leading-5 text-[color:var(--graphite-text-muted)]">{emptyBody}</div>
+              {actionStatus ? <div className="mt-3 text-[11px] leading-5 text-[color:var(--graphite-text-faint)]">{actionStatus}</div> : null}
               <div className="mt-5 flex flex-wrap justify-center gap-2">
                 {leadsLoadState === "error" ? (
                   <Button className="rounded-[8px] px-4 text-[11px]" onClick={() => void refreshLeads()} size="sm" type="button">
@@ -890,7 +905,7 @@ export function LeadsPageContent(props: { workspaceId: string; workspaceName: st
               </div>
             </div>
           ) : (
-            <div className="divide-y divide-border/50">
+            <div className="divide-y divide-[color:var(--panel-line-soft)]">
               {pagedLeads.map((lead) => (
                 <LeadListRow
                   isSelected={selectedLead?.id === lead.id}
@@ -907,7 +922,7 @@ export function LeadsPageContent(props: { workspaceId: string; workspaceName: st
         </div>
 
         {filtered.length > 0 ? (
-          <div className="border-t border-border/50 px-6 pb-4">
+          <div className="border-t border-[color:var(--panel-line-soft)] px-6 pb-4">
             <LeadsPaginationFooter
               currentPage={safeCurrentPage}
               itemCount={filtered.length}
