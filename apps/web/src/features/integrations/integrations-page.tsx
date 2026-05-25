@@ -53,7 +53,7 @@ function statusLabel(account: WorkspaceIntegrationAccount | null, fallback = "no
 }
 
 function statusTone(account: WorkspaceIntegrationAccount | null) {
-  if (account === null) return "border-border bg-surface-muted text-muted";
+  if (account === null) return "border-[color:var(--panel-line)] bg-[color:var(--panel-2)] text-[color:var(--graphite-text-muted)]";
   if (account.status === "connected") return "border-qualified/20 bg-qualified/10 text-qualified";
   if (account.status === "needs_reauth" || account.status === "error") {
     return "border-oxblood-soft bg-oxblood-soft/60 text-hot";
@@ -82,8 +82,8 @@ function ProviderStatus(props: { account: WorkspaceIntegrationAccount | null; fa
 function SummaryStat(props: { label: string; value: string; tone?: "good" | "warn" }) {
   return (
     <div className="harwick-stat-card px-4 py-3">
-      <div className="font-display text-[25px] leading-none text-foreground">{props.value}</div>
-      <div className={cn("mt-1 text-[11px] text-muted-subtle", props.tone === "good" && "text-qualified", props.tone === "warn" && "text-clay")}>
+      <div className="font-display text-[25px] leading-none text-[color:var(--graphite-text)]">{props.value}</div>
+      <div className={cn("mt-1 text-[11px] text-[color:var(--graphite-text-faint)]", props.tone === "good" && "text-qualified", props.tone === "warn" && "text-clay")}>
         {props.label}
       </div>
     </div>
@@ -100,35 +100,35 @@ function IntegrationCard(props: {
   title: string;
 }) {
   return (
-      <section className="harwick-card p-5">
-        <div className="flex items-start gap-4">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] border border-border bg-harwick-paper text-harwick-ink shadow-[0_1px_0_rgba(255,255,255,0.5)]">
+      <section className="rounded-[var(--panel-radius-lg)] border border-[color:var(--panel-line)] bg-[color:var(--panel-1)] p-4 shadow-[var(--panel-inset-top),var(--panel-shadow-lift)] sm:p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] border border-[color:var(--panel-line)] bg-[color:var(--panel-2)] text-[color:var(--graphite-text)] shadow-[var(--panel-inset-top-soft)]">
           {props.icon}
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-start gap-3">
             <div className="min-w-0 flex-1">
-              <h2 className="font-display text-[19px] font-medium leading-none text-foreground">{props.title}</h2>
-              <p className="mt-2 max-w-[620px] text-[12.5px] leading-5 text-muted">{props.description}</p>
+              <h2 className="font-display text-[19px] font-medium leading-none text-[color:var(--graphite-text)]">{props.title}</h2>
+              <p className="mt-2 max-w-[620px] text-[12.5px] leading-5 text-[color:var(--graphite-text-muted)]">{props.description}</p>
             </div>
             <ProviderStatus account={props.account} />
           </div>
-          <div className="mt-4 grid gap-2 border-t border-border pt-3 text-[11.5px] text-muted-subtle sm:grid-cols-3">
+          <div className="mt-4 grid gap-2 border-t border-[color:var(--panel-line-soft)] pt-3 text-[11.5px] text-[color:var(--graphite-text-faint)] sm:grid-cols-3">
             <div>
               <span className="block uppercase tracking-[0.12em]">account</span>
-              <strong className="mt-1 block truncate font-medium normal-case tracking-normal text-foreground">
+              <strong className="mt-1 block truncate font-medium normal-case tracking-normal text-[color:var(--graphite-text)]">
                 {props.account?.providerAccountName ?? props.meta ?? "none yet"}
               </strong>
             </div>
             <div>
               <span className="block uppercase tracking-[0.12em]">scope</span>
-              <strong className="mt-1 block font-medium normal-case tracking-normal text-foreground">
+              <strong className="mt-1 block font-medium normal-case tracking-normal text-[color:var(--graphite-text)]">
                 {props.account?.accountScope ?? "workspace"}
               </strong>
             </div>
             <div>
               <span className="block uppercase tracking-[0.12em]">last check</span>
-              <strong className="mt-1 block font-medium normal-case tracking-normal text-foreground">
+              <strong className="mt-1 block font-medium normal-case tracking-normal text-[color:var(--graphite-text)]">
                 {formatDate(props.account?.lastHealthCheckAt ?? null)}
               </strong>
             </div>
@@ -256,7 +256,7 @@ export function IntegrationsPageContent(props: IntegrationsPageContentProps) {
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-background">
       <WorkspaceTopbar context="integrations" workspaceName={props.workspaceName}>
-        <div className="ml-auto flex items-center gap-2 text-[11px] text-muted-subtle">
+        <div className="ml-auto flex items-center gap-2 text-[11px] text-[color:var(--graphite-text-faint)]">
           <span className="h-1.5 w-1.5 rounded-full bg-qualified" />
           {props.workspaceName}
         </div>
@@ -265,9 +265,9 @@ export function IntegrationsPageContent(props: IntegrationsPageContentProps) {
       <div className="min-h-0 flex-1 overflow-y-auto px-7 py-6">
         <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
           <div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-subtle">workspace connections</div>
-            <h1 className="mt-2 font-display text-[32px] font-medium leading-none text-foreground">integrations</h1>
-            <p className="mt-3 max-w-[690px] text-[13px] leading-5 text-muted">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[color:var(--graphite-text-faint)]">workspace connections</div>
+            <h1 className="mt-2 font-display text-[32px] font-medium leading-none text-[color:var(--graphite-text)]">integrations</h1>
+            <p className="mt-3 max-w-[690px] text-[13px] leading-5 text-[color:var(--graphite-text-muted)]">
               Connect the customer-owned systems Harwick uses to answer social demand, sync qualified leads, and keep listing context current.
             </p>
           </div>
@@ -316,7 +316,7 @@ export function IntegrationsPageContent(props: IntegrationsPageContentProps) {
             meta="Instagram / Facebook"
             title="Instagram + Facebook"
           >
-            <div className="flex flex-wrap gap-2 text-[11px] text-muted">
+            <div className="flex flex-wrap gap-2 text-[11px] text-[color:var(--graphite-text-muted)]">
               <span className="harwick-pill px-2.5 py-1">DM intake</span>
               <span className="harwick-pill px-2.5 py-1">comment intake</span>
               <span className="harwick-pill px-2.5 py-1">reply approval</span>
@@ -349,7 +349,7 @@ export function IntegrationsPageContent(props: IntegrationsPageContentProps) {
                   {busyAction === "fub_test" ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <DatabaseZap className="mr-2 h-3.5 w-3.5" />}
                   test saved key
                 </Button>
-                <div className="harwick-control px-3 py-2 text-[11px] text-muted-subtle">
+                <div className="harwick-control px-3 py-2 text-[11px] text-[color:var(--graphite-text-faint)]">
                   {props.data.health.fubActiveWebhooks} active back-sync subscriptions
                 </div>
               </div>
@@ -369,12 +369,12 @@ export function IntegrationsPageContent(props: IntegrationsPageContentProps) {
             meta="Google Calendar"
             title="Google Calendar"
           >
-            <div className="flex flex-wrap gap-2 text-[11px] text-muted">
+            <div className="flex flex-wrap gap-2 text-[11px] text-[color:var(--graphite-text-muted)]">
               <span className="harwick-pill px-2.5 py-1">member availability</span>
               <span className="harwick-pill px-2.5 py-1">request + approve</span>
               <span className="harwick-pill px-2.5 py-1">FreeBusy lookup</span>
             </div>
-            <p className="mt-3 text-[11px] leading-4 text-muted-subtle">
+            <p className="mt-3 text-[11px] leading-4 text-[color:var(--graphite-text-faint)]">
               tip: connect google calendar to enable showings and memory. members who sign in with google can grant access in one step; everyone else can connect here.
             </p>
           </IntegrationCard>
