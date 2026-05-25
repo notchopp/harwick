@@ -56,7 +56,7 @@ Status values:
 | Harwick proactive insight feed | partial | `harwick_work_items` exists; `/api/agent-runtime/insights` cron producer surfaces ambiguous inbound, unassigned priority leads, dormant active leads, workspace memory patterns, and optional small-model-refined narratives; `/api/agent-runtime/subagents` surfaces completed subagent results; `/api/agent-runtime/loops` surfaces due recurring Harwick loops, draft payloads, and execution plans; loop approval work items can queue safe internal `dispatch_subagent` follow-through; `/api/agent-runtime/policy-shadow` surfaces policy shadow validation metrics; `/home` shows member/role-filtered insights with seen/dismiss/approve actions, feedback labels, loop draft bodies, execution briefs, and proposed tool calls | Add deeper insight types from richer workspace memory review signals and keep loop result detail aligned as more external-write tools become validated. |
 | Harwick workspace memory | done | `workspace_memory_documents` table, typed contract, repository, `/api/agent-runtime/workspace-memory` distillation worker, optional small-model-authored memory prose, embedding persistence, semantic pgvector retrieval, Harwick runtime prompt injection, owner/admin/team lead review controls, settings UI review surface, and proactive review-quality monitoring exist for routing overrides, operator feedback, objection, market, conversion, and source/channel patterns | Keep quality thresholds tuned as real review volume grows. |
 | Conversation-scoped AI control | partial | `conversation_automation_states` migration and UI controls exist; AI runtime input and Meta tool context hydrate per-conversation automation mode before generation/execution; AI/provider auto-send paths enforce automation mode, while manual operator sends from the conversation composer and social queue bypass takeover safely and mirror outbound messages into the transcript; the shared `LeadActionToolbar` now has a compact control-only mode mounted in conversations, Leads detail sheets, and the mobile Home queue drawer against the same audited automation endpoint | Keep control parity aligned as new queue/detail surfaces ship. |
-| Conversations page | partial | conversation data contracts, initial transcript aggregation from canonical `conversation_messages` with lead-event fallback/deduping, live Harwick synthesis, in-flight agent/subagent work signals, tool-result activity trails, workspace-level realtime inserts for loaded threads, and no shipped sandbox/demo conversation fallback exist | Keep lead-context updates broader than selected-thread polling and maintain transcript parity as more channels write canonical rows. |
+| Conversations page | done | conversation data contracts, initial transcript aggregation from canonical `conversation_messages` with lead-event fallback/deduping, live Harwick synthesis, in-flight agent/subagent work signals, tool-result activity trails, workspace-level realtime message inserts and lead-context updates for loaded threads, scoped takeover/send coverage, and no shipped sandbox/demo conversation fallback exist | Keep transcript parity aligned as more channels write canonical rows. |
 | Work queue | done | social replies, voice handoffs, Harwick work items, showing approvals, nurture drafts, CRM retries, FUB conflicts, provider errors, and workflow-job actions all route through protected APIs with real mutations and audit-log entries | Keep new queue-style actions on the same mutation-plus-audit pattern. |
 | Leads page | done | list/card views, detail sheets, lead timeline API, actionability contracts, role-filtered API-backed loading, real empty/error states with no demo fallback rows, audited persisted qualification updates, and an audited Harwick routing action exist | Keep future lead actions on the same mutation-plus-audit pattern. |
 | Routing engine | done | assignment decisions, member routing profiles, route-with-Harwick lead action, Harwick `route_lead` tool parity, source-owner credit from member-owned integration accounts, capacity-aware active lead counts, connected member calendar/showing-mode readiness, round-robin fallback, persisted routing decisions, and assignment/reassignment audit exist | Keep routing explanations tuned as real lead volume and calendar adoption grow. |
@@ -144,7 +144,7 @@ Build items:
 
 ### 4. Conversations Workspace
 
-Status: `partial`
+Status: `done`
 
 Undeniables:
 
@@ -164,8 +164,8 @@ Build items:
 - ✅ tests for send validation, auth, automation checks, and Meta integration
 - ✅ conversation timeline aggregation from `conversation_messages` with legacy `lead_events` fallback
 - ✅ AI state strip attached to conversation
-- workspace-level realtime message inserts for loaded threads plus workspace polling strategy
-- tests for scoped takeover before send
+- ✅ workspace-level realtime message inserts and lead-context updates for loaded threads plus workspace polling strategy
+- ✅ tests for scoped takeover before send
 
 ### 5. Leads, Routing, And Team Views
 

@@ -6,7 +6,7 @@ import type { ConversationInboxThread } from "@realty-ops/core";
 import type { ConversationMessageRow } from "../../lib/supabase/conversation-messages";
 import type { LeadRow } from "../../lib/supabase/leads";
 
-function messageMetaForRealtimeRow(message: ConversationMessageRow): string {
+export function messageMetaForRealtimeRow(message: ConversationMessageRow): string {
   const statusSuffix = message.status === "failed"
     ? " · failed"
     : message.status === "in_progress"
@@ -18,16 +18,96 @@ function messageMetaForRealtimeRow(message: ConversationMessageRow): string {
   return `Operator replied${statusSuffix}`;
 }
 
+function formatRealtimeBudget(lead: Partial<LeadRow>, fallback: string): string {
+  const hasBudgetUpdate = Object.prototype.hasOwnProperty.call(lead, "budget_min")
+    || Object.prototype.hasOwnProperty.call(lead, "budget_max");
+  if (!hasBudgetUpdate) return fallback;
+
+  const min = lead.budget_min;
+  const max = lead.budget_max;
+  if (min === null && max === null) return "Unknown";
+  if (typeof min === "number" && typeof max === "number") {
+    return `$${Math.round(min / 1000)}k-$${Math.round(max / 1000)}k`;
+  }
+  if (typeof min === "number") return `$${Math.round(min / 1000)}k+`;
+  if (typeof max === "number") return `Up to $${Math.round(max / 1000)}k`;
+  return fallback;
+}
+
+function sourceContextForLeadUpdate(lead: Partial<LeadRow>, fallback: string): string {
+  const hasIntentUpdate = Object.prototype.hasOwnProperty.call(lead, "intent");
+  const hasScoreUpdate = Object.prototype.hasOwnProperty.call(lead, "score");
+  if (!hasIntentUpdate && !hasScoreUpdate) return fallback;
+
+  const intent = lead.intent ?? "unknown";
+  const score = typeof lead.score === "number" ? lead.score : 0;
+  return `${intent} | Score: ${score}`;
+}
+
+export function applyRealtimeMessageToThreads(params: {
+  current: ConversationInboxThread[];
+  message: ConversationMessageRow;
+  selectedThreadId: string | null;
+}): ConversationInboxThread[] {
+  return params.current.map((thread) => {
+    if (thread.leadId !== params.message.lead_id) return thread;
+
+    const newMessage = {
+      id: params.message.id,
+      kind: params.message.sender_type === "customer" ? "lead" as const : "sent" as const,
+      body: params.message.body,
+      meta: messageMetaForRealtimeRow(params.message),
+      occurredAt: params.message.created_at,
+      agentTrajectoryId: params.message.agent_trajectory_id,
+      agentStepId: params.message.agent_step_id,
+    };
+    const messages = thread.messages.some((existing) => existing.id === params.message.id)
+      ? thread.messages
+      : [...thread.messages, newMessage].sort((left, right) => (
+        Date.parse(left.occurredAt) - Date.parse(right.occurredAt)
+      ));
+
+    return {
+      ...thread,
+      messages,
+      preview: params.message.body,
+      lastTouchLabel: "now",
+      unread: thread.id !== params.selectedThreadId,
+    };
+  });
+}
+
+export function applyRealtimeLeadUpdateToThreads(params: {
+  current: ConversationInboxThread[];
+  lead: Partial<LeadRow>;
+}): ConversationInboxThread[] {
+  if (typeof params.lead.id !== "string") return params.current;
+
+  return params.current.map((thread) => {
+    if (thread.leadId !== params.lead.id) return thread;
+
+    const score = typeof params.lead.score === "number" ? params.lead.score : thread.score;
+    return {
+      ...thread,
+      name: params.lead.full_name ?? thread.name,
+      sourceContext: sourceContextForLeadUpdate(params.lead, thread.sourceContext),
+      budget: formatRealtimeBudget(params.lead, thread.budget),
+      timeline: params.lead.timeline ?? thread.timeline,
+      score,
+      scoreLabel: `${score} / 100`,
+    };
+  });
+}
+
 /**
  * Bridge layer to sync realtime conversation updates into the page's thread state.
  * Handles:
- * 1. New messages in selected thread (live message pane)
- * 2. Lead context updates (budget, timeline, etc.)
+ * 1. New workspace messages in loaded threads
+ * 2. Workspace lead context updates for loaded threads
  */
 export function useRealtimeThreadSync(
   workspaceId: string | null,
   selectedThreadId: string | null,
-  threads: ConversationInboxThread[],
   onThreadsUpdate: (updater: (current: ConversationInboxThread[]) => ConversationInboxThread[]) => void,
 ) {
   useEffect(() => {
@@ -53,88 +133,43 @@ export function useRealtimeThreadSync(
         (payload) => {
           const message = payload.new as ConversationMessageRow;
 
-          onThreadsUpdate((current) =>
-            current.map((thread) => {
-              if (thread.leadId !== message.lead_id) return thread;
-
-              const newMessage = {
-                id: message.id,
-                kind: message.sender_type === "customer" ? "lead" as const : "sent" as const,
-                body: message.body,
-                meta: messageMetaForRealtimeRow(message),
-                occurredAt: message.created_at,
-                agentTrajectoryId: message.agent_trajectory_id,
-                agentStepId: message.agent_step_id,
-              };
-              const messages = thread.messages.some((existing) => existing.id === message.id)
-                ? thread.messages
-                : [...thread.messages, newMessage].sort((left, right) => (
-                  Date.parse(left.occurredAt) - Date.parse(right.occurredAt)
-                ));
-
-              return {
-                ...thread,
-                messages,
-                preview: message.body,
-                lastTouchLabel: "now",
-                unread: thread.id !== selectedThreadId,
-              };
-            }),
-          );
+          onThreadsUpdate((current) => applyRealtimeMessageToThreads({
+            current,
+            message,
+            selectedThreadId,
+          }));
         },
       )
       .subscribe();
 
     channels.push(messagesChannel);
 
-    // Find selected thread to get lead ID for lead-context updates.
-    const selectedThread = selectedThreadId ? threads.find((t) => t.id === selectedThreadId) : null;
-    const selectedLeadId = selectedThread?.leadId ?? null;
+    const leadChannel = supabase
+      .channel(`workspace-leads:${workspaceId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "leads",
+          filter: `workspace_id=eq.${workspaceId}`,
+        },
+        (payload) => {
+          const updatedLead = payload.new as Partial<LeadRow>;
+          onThreadsUpdate((current) => applyRealtimeLeadUpdateToThreads({
+            current,
+            lead: updatedLead,
+          }));
+        },
+      )
+      .subscribe();
 
-    if (selectedLeadId) {
-      // Subscription: Lead context updates (budget, intent, timeline, etc.)
-      const leadChannel = supabase
-        .channel(`thread-lead:${selectedLeadId}`)
-        .on(
-          "postgres_changes",
-          {
-            event: "UPDATE",
-            schema: "public",
-            table: "leads",
-            filter: `id=eq.${selectedLeadId}`,
-          },
-          (payload) => {
-            const updatedLead = payload.new as Partial<LeadRow>;
-
-            // Update thread metadata from lead
-            onThreadsUpdate((current) =>
-              current.map((thread) => {
-                if (thread.id !== selectedThreadId) return thread;
-
-                // Update fields that may have changed
-                return {
-                  ...thread,
-                  name: updatedLead.full_name ?? thread.name,
-                  sourceContext:
-                    `${updatedLead.intent ?? "unknown"} | Score: ${updatedLead.score ?? 0}`,
-                  budget: updatedLead.budget_min || updatedLead.budget_max
-                    ? `$${updatedLead.budget_min?.toLocaleString() ?? "?"}$${updatedLead.budget_max?.toLocaleString() ?? "?"}`
-                    : thread.budget,
-                  timeline: updatedLead.timeline ?? thread.timeline,
-                };
-              }),
-            );
-          },
-        )
-        .subscribe();
-
-      channels.push(leadChannel);
-    }
+    channels.push(leadChannel);
 
     return () => {
       channels.forEach((channel) => {
         void channel.unsubscribe();
       });
     };
-  }, [workspaceId, selectedThreadId, threads, onThreadsUpdate]);
+  }, [workspaceId, selectedThreadId, onThreadsUpdate]);
 }

@@ -609,10 +609,14 @@ export function ConversationsPageContent(props: {
     return () => window.clearInterval(intervalId);
   }, [loadState, refreshThreads]);
 
-  // Wire realtime subscriptions for live updates
-  useRealtimeThreadSync(props.workspaceId, selectedId, threads, (updater) => {
+  const handleRealtimeThreadsUpdate = useCallback((
+    updater: (current: ConversationInboxThread[]) => ConversationInboxThread[],
+  ) => {
     setThreads((current) => updater(current));
-  });
+  }, []);
+
+  // Wire realtime subscriptions for live updates
+  useRealtimeThreadSync(props.workspaceId, selectedId, handleRealtimeThreadsUpdate);
 
   const filteredThreads = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();

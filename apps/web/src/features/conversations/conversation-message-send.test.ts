@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { ConversationMessageRepository, ConversationMessageSender } from "./conversation-message-send";
 import { sendConversationMessage } from "./conversation-message-send";
 import type { LeadRow } from "../../lib/supabase/leads";
@@ -215,6 +215,51 @@ describe("sendConversationMessage", () => {
     if (result.status === 200) {
       expect(result.body.status).toBe("sent");
     }
+  });
+
+  it("scopes operator social sends as human takeover for the requested lead", async () => {
+    const sendMetaReply = vi.fn<ConversationMessageSender>(() => Promise.resolve({
+      status: 200,
+      body: {
+        status: "sent",
+        providerEventId: "event_123",
+        occurredAt: new Date().toISOString(),
+        channel: "instagram_dm",
+      },
+    }));
+
+    const result = await sendConversationMessage({
+      request: {
+        conversationId,
+        workspaceId,
+        reply: "I can help with that listing.",
+      },
+      repository: buildMockRepository({
+        lead: buildMockLead({
+          id: leadId,
+          workspace_id: workspaceId,
+          source_channel: "instagram_dm",
+          source_provider_id: "provider_account_123",
+          instagram_user_id: "provider_user_123",
+        }),
+      }),
+      sendMetaReply,
+      senderId: "member_123",
+    });
+
+    expect(result.status).toBe(200);
+    expect(sendMetaReply).toHaveBeenCalledTimes(1);
+    expect(sendMetaReply).toHaveBeenCalledWith({
+      workspaceId,
+      leadId,
+      providerAccountId: "provider_account_123",
+      channel: "instagram_dm",
+      recipientUserId: "provider_user_123",
+      sourceCommentId: null,
+      sourcePostId: null,
+      reply: "I can help with that listing.",
+      automationMode: "human_takeover",
+    });
   });
 
   it("rejects unsupported channel", async () => {
