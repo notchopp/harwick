@@ -2,7 +2,7 @@
 
 import {
   Bell,
-  CheckSquare,
+  Hash,
   Home,
   MessageSquareText,
   MoreHorizontal,
@@ -23,8 +23,8 @@ type NavItem = {
 
 const BOTTOM_NAV: NavItem[] = [
   { label: "Home", href: "/home", icon: Home },
-  { label: "Queue", href: "/queue", icon: CheckSquare },
   { label: "Convos", href: "/conversations", icon: MessageSquareText },
+  { label: "Channels", href: "/channels", icon: Hash },
   { label: "Leads", href: "/leads", icon: Users },
   { label: "More", href: "/more", icon: MoreHorizontal },
 ];
@@ -46,6 +46,7 @@ export function MobileTopBar(props: {
     if (props.pathname.startsWith("/home")) return "Home";
     if (props.pathname.startsWith("/queue")) return "Queue";
     if (props.pathname.startsWith("/conversations")) return "Conversations";
+    if (props.pathname.startsWith("/channels")) return "Channels";
     if (props.pathname.startsWith("/leads")) return "Leads";
     if (props.pathname.startsWith("/listings")) return "Listings";
     if (props.pathname.startsWith("/team")) return "Team";
@@ -53,6 +54,9 @@ export function MobileTopBar(props: {
     if (props.pathname.startsWith("/activity")) return "Activity";
     if (props.pathname.startsWith("/memory")) return "Memory";
     if (props.pathname.startsWith("/artifacts")) return "Artifacts";
+    if (props.pathname.startsWith("/integrations")) return "Integrations";
+    if (props.pathname.startsWith("/threads")) return "Threads";
+    if (props.pathname.startsWith("/intake")) return "Intake";
     if (props.pathname.startsWith("/more")) return "More";
     return "Harwick";
   })();

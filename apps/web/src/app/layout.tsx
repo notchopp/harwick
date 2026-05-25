@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import type { Viewport } from "next";
-import { Nunito, Geist_Mono } from "next/font/google";
 import Script from "next/script";
 
 import { CommandPalette } from "../components/command-palette";
@@ -9,20 +8,6 @@ import { QueryProvider } from "../components/query-provider";
 import { Toaster } from "../components/toaster";
 import { TooltipProvider } from "../components/ui/tooltip";
 import "./globals.css";
-
-const fontDisplay = Nunito({
-  subsets: ["latin"],
-  variable: "--font-display-google",
-  display: "swap",
-  weight: ["400", "500", "600", "700", "800"],
-});
-
-const fontMono = Geist_Mono({
-  subsets: ["latin"],
-  variable: "--font-mono-google",
-  display: "swap",
-  weight: ["400", "500", "600"],
-});
 
 export const metadata = {
   title: "harwick",
@@ -81,7 +66,7 @@ const SW_DEV_KILL_SCRIPT = `
 
 export default function RootLayout(props: { children: ReactNode }) {
   return (
-    <html lang="en" className={`${fontDisplay.variable} ${fontMono.variable}`}>
+    <html lang="en">
       <body>
         <Script
           id="harwick-sw-dev-kill"

@@ -5,12 +5,9 @@ import {
   workspaceRoleHasCapability,
   type WorkspaceRole,
 } from "@realty-ops/core";
-import { createOpenAIEmbeddingClient } from "@realty-ops/integrations";
 import type { OpenAIProvider } from "@ai-sdk/openai";
 import { tool } from "ai";
 import { z } from "zod";
-
-import { getServerEnvironment } from "../../lib/server-env";
 
 import { loadRecentLeads } from "../home/recent-leads";
 import { loadRoutingDesk } from "../home/routing-desk";
@@ -878,7 +875,7 @@ export function buildHarwickChatTools(deps: ToolDeps) {
             })
             .select("id")
             .single();
-          kickoffMessageId = (kickoff as { id: string } | null)?.id ?? null;
+          kickoffMessageId = kickoff?.id ?? null;
         }
 
         return {

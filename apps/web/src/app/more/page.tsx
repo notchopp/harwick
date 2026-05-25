@@ -2,11 +2,15 @@ import {
   Bot,
   Brain,
   Building2,
+  CheckSquare,
   ChevronRight,
   FileText,
+  Hash,
   History,
+  Inbox,
   LogOut,
   Mic,
+  Plug,
   Settings,
   UsersRound,
 } from "lucide-react";
@@ -28,13 +32,17 @@ type Row = {
 };
 
 const WORKSPACE_ROWS: Row[] = [
+  { label: "Channels", href: "/channels", icon: Hash, description: "Realtime workspace rooms with @harwick" },
+  { label: "Queue", href: "/queue", icon: CheckSquare, description: "Today's drafts + handoffs in one place" },
   { label: "Listings", href: "/listings", icon: Building2, description: "Verified inventory the AI quotes from" },
   { label: "Team", href: "/team", icon: UsersRound, description: "Roster, capacity, routing" },
+  { label: "Intake", href: "/intake", icon: Inbox, description: "Live public conversations as they come in" },
   { label: "Memory", href: "/memory", icon: Brain, description: "What Harwick has learned" },
   { label: "Artifacts", href: "/artifacts", icon: FileText, description: "Saved drafts, briefs, docs" },
 ];
 
 const SYSTEM_ROWS: Row[] = [
+  { label: "Integrations", href: "/integrations", icon: Plug, description: "Meta, Follow Up Boss, Google Calendar, Retell" },
   { label: "Activity", href: "/activity", icon: History, description: "Audit log of every AI action" },
   { label: "Settings", href: "/settings", icon: Settings, description: "Workspace, billing, policy" },
 ];

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import type { HarwickToolDefinition, HarwickToolDeps } from "../registry";
+import { defineHarwickTool, type HarwickToolDefinition, type HarwickToolDeps } from "../registry";
 
 /**
  * Pipeline mutation tools — Harwick can actually move leads through the funnel
@@ -63,7 +63,7 @@ async function logAudit(deps: HarwickToolDeps, params: {
   });
 }
 
-export const updateLeadStageTool: HarwickToolDefinition = {
+export const updateLeadStageTool = defineHarwickTool({
   name: "update_lead_stage",
   description: "Move a lead between qualification stages (new → engaged → qualified → hot → assigned → appointment_booked → active_client → closed_won/lost). Use when the operator says 'mark her qualified' or when you've confirmed enough qualification to advance the lead yourself. Records an audit log so the change is traceable.",
   scopes: ["operator_chat", "lead_conversation", "channel_mention"],
@@ -107,9 +107,9 @@ export const updateLeadStageTool: HarwickToolDefinition = {
       reason: input.reason,
     };
   },
-};
+});
 
-export const setFollowupDateTool: HarwickToolDefinition = {
+export const setFollowupDateTool = defineHarwickTool({
   name: "set_followup_date",
   description: "Schedule a nurture follow-up on a lead. Use when the operator says 'remind me to ping her in 2 weeks' or when a lead's response timeline suggests a check-in date. Creates a lead_tasks row that the queue page surfaces.",
   scopes: ["operator_chat", "lead_conversation"],
@@ -153,9 +153,9 @@ export const setFollowupDateTool: HarwickToolDefinition = {
 
     return { kind: "lead_followup", created: true, taskId: data.id, dueAt: data.due_at, note: data.title };
   },
-};
+});
 
-export const markLeadLostTool: HarwickToolDefinition = {
+export const markLeadLostTool = defineHarwickTool({
   name: "mark_lead_lost",
   description: "Close a lead as lost with a structured reason. The reason feeds workspace memory so future similar leads can be triaged earlier. Use when a lead has gone silent past the policy threshold, explicitly disengaged, or stated a hard 'no'.",
   scopes: ["operator_chat", "lead_conversation"],
@@ -207,9 +207,9 @@ export const markLeadLostTool: HarwickToolDefinition = {
       reasonCategory: input.reasonCategory,
     };
   },
-};
+});
 
-export const addLeadTagTool: HarwickToolDefinition = {
+export const addLeadTagTool = defineHarwickTool({
   name: "add_lead_tag",
   description: "Tag a lead with a category for future filtering. Examples: 'first_time_buyer', 'investor', 'relocation', 'cash_buyer', 'price_sensitive'. Tags accumulate; an existing tag is a no-op. Use natural-language slugs (lowercase + underscores).",
   scopes: ["operator_chat", "lead_conversation"],
@@ -252,9 +252,9 @@ export const addLeadTagTool: HarwickToolDefinition = {
 
     return { kind: "lead_tag", updated: true, leadId: input.leadId, tag: input.tag, tags: updatedTags };
   },
-};
+});
 
-export const recordLeadNoteTool: HarwickToolDefinition = {
+export const recordLeadNoteTool = defineHarwickTool({
   name: "record_lead_note",
   description: "Append a free-form note to a lead's audit trail. Use for capturing context the operator mentions during a chat ('she's worried about the inspection'), or to leave a breadcrumb for the next time anyone touches this lead. Visible on the lead detail timeline.",
   scopes: ["operator_chat", "lead_conversation", "channel_mention"],
@@ -277,9 +277,9 @@ export const recordLeadNoteTool: HarwickToolDefinition = {
 
     return { kind: "lead_note", created: true, leadId: input.leadId };
   },
-};
+});
 
-export const updateQualificationSummaryTool: HarwickToolDefinition = {
+export const updateQualificationSummaryTool = defineHarwickTool({
   name: "update_qualification_summary",
   description: "Refresh the 1-2 sentence rolling summary of where this lead is in qualification. Call after a meaningful turn where you learned something material — budget firmed up, timeline shifted, financing changed. This is what find_similar_leads matches on, so keep it dense.",
   scopes: ["operator_chat", "lead_conversation", "channel_mention"],
@@ -305,7 +305,7 @@ export const updateQualificationSummaryTool: HarwickToolDefinition = {
 
     return { kind: "qualification_summary", updated: true, leadId: input.leadId, summary: input.summary };
   },
-};
+});
 
 export const PIPELINE_TOOLS: HarwickToolDefinition[] = [
   updateLeadStageTool,

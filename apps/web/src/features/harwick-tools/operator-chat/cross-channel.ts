@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { decryptCredential } from "../../../lib/credentials";
 import { getServerEnvironment } from "../../../lib/server-env";
-import type { HarwickToolDefinition, HarwickToolDeps } from "../registry";
+import { defineHarwickTool, type HarwickToolDefinition, type HarwickToolDeps } from "../registry";
 
 /**
  * Cross-channel reach — Harwick can talk to leads outside Meta DMs.
@@ -31,7 +31,7 @@ async function readTwilioCredential(deps: HarwickToolDeps): Promise<{
     .from("integration_accounts")
     .select("encrypted_credential_ref, provider_account_id, provider_account_name, status")
     .eq("workspace_id", deps.workspaceId)
-    .eq("provider", "twilio" as never)
+    .eq("provider", "twilio")
     .eq("status", "connected")
     .maybeSingle();
 
@@ -57,7 +57,7 @@ async function readTwilioCredential(deps: HarwickToolDeps): Promise<{
   }
 }
 
-export const sendSmsTool: HarwickToolDefinition = {
+export const sendSmsTool = defineHarwickTool({
   name: "send_sms",
   description: "Send a real SMS to a lead via the workspace's connected Twilio number. Use when the operator says 'text her' or when SMS is the only channel reaching this lead. If Twilio isn't connected for this workspace, returns a draft you can paste into the operator's phone instead.",
   scopes: ["operator_chat", "lead_conversation"],
@@ -117,9 +117,9 @@ export const sendSmsTool: HarwickToolDefinition = {
       return { kind: "sms_action", sent: false, error: error instanceof Error ? error.message : "twilio_send_failed" };
     }
   },
-};
+});
 
-export const draftEmailTool: HarwickToolDefinition = {
+export const draftEmailTool = defineHarwickTool({
   name: "draft_email",
   description: "Compose an email reply (subject + body) ready to send. Use when an email is the right channel — long-form context, multiple recipients, attachments needed. Returns a structured draft; an email-send tool can pick this up in a follow-up turn.",
   scopes: ["operator_chat", "lead_conversation"],
@@ -131,7 +131,7 @@ export const draftEmailTool: HarwickToolDefinition = {
     body: z.string().min(20).max(8000).describe("Email body. Multi-line is fine; include greeting + sign-off. Pull the operator name from context for signing."),
     cc: z.array(z.string().email()).max(10).default([]),
   }),
-  async execute(input) {
+  execute(input) {
     return {
       kind: "email_draft",
       drafted: true,
@@ -141,9 +141,9 @@ export const draftEmailTool: HarwickToolDefinition = {
       cc: input.cc,
     };
   },
-};
+});
 
-export const draftCallScriptTool: HarwickToolDefinition = {
+export const draftCallScriptTool = defineHarwickTool({
   name: "draft_call_script",
   description: "Compose a structured call script for the operator to use on a live or upcoming call. Returns an opener, the 3-4 things to confirm, anticipated objections + responses, and a close. Use BEFORE the operator dials, or attached to a scheduled call task.",
   scopes: ["operator_chat", "lead_conversation"],
@@ -153,7 +153,7 @@ export const draftCallScriptTool: HarwickToolDefinition = {
     callPurpose: z.string().min(3).max(300).describe("Why is the operator calling? 'Showing follow-up', 'lender check-in', 'reactivate cold lead'."),
     knownContext: z.string().max(2000).optional().describe("Anything Harwick or the operator already knows about this lead that should shape the script."),
   }),
-  async execute(input) {
+  execute(input) {
     return {
       kind: "call_script",
       drafted: true,
@@ -162,9 +162,9 @@ export const draftCallScriptTool: HarwickToolDefinition = {
       note: "Use the model's prose output for the actual script — this tool just confirms the draft was produced.",
     };
   },
-};
+});
 
-export const summarizeCallRecordingTool: HarwickToolDefinition = {
+export const summarizeCallRecordingTool = defineHarwickTool({
   name: "summarize_call_recording",
   description: "Pull the Retell call summary for a lead's most recent call. Returns the call's transcript summary + handoff brief + key facts captured. Use when the operator asks 'what did she say on the call' or before doing a follow-up touch.",
   scopes: ["operator_chat", "lead_conversation"],
@@ -178,7 +178,7 @@ export const summarizeCallRecordingTool: HarwickToolDefinition = {
       .select("id, provider, event_type, text, occurred_at")
       .eq("workspace_id", deps.workspaceId)
       .eq("lead_id", input.leadId)
-      .eq("provider", "retell" as never)
+      .eq("provider", "retell")
       .order("occurred_at", { ascending: false })
       .limit(3);
 
@@ -203,7 +203,7 @@ export const summarizeCallRecordingTool: HarwickToolDefinition = {
       })),
     };
   },
-};
+});
 
 export const CROSS_CHANNEL_TOOLS: HarwickToolDefinition[] = [
   sendSmsTool,

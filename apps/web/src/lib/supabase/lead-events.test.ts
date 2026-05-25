@@ -232,6 +232,63 @@ describe("createLeadEventWriter", () => {
     ]);
   });
 
+  it("creates a post-call voice handoff callback for newly persisted Retell call analysis", async () => {
+    const insertedRows: LeadEventInsertRow[] = [];
+    const createdPostCallHandoffs: Array<{
+      workspaceId: string;
+      leadId: string;
+      leadEventId: string;
+      event: NormalizedLeadEvent;
+    }> = [];
+    const retellEvent: NormalizedLeadEvent = {
+      ...normalizedEvent,
+      provider: "retell",
+      eventType: "call_completed",
+      sourceChannel: "call",
+      providerEventId: "call_123:call_analyzed",
+      providerAccountId: "agent_123",
+      providerUserId: "+17135550123",
+      phone: "+17135550123",
+      text: "Caller wants a showing this weekend.",
+      rawPayload: {
+        call: { call_id: "call_123" },
+        extractedLead: {
+          callSummary: "Caller wants a showing this weekend.",
+          leadSummary: null,
+          leadType: "buyer",
+          intent: "high",
+          targetArea: "Katy",
+          timeline: "this weekend",
+          budget: "$600k",
+          financingStatus: "preapproved",
+          callOutcome: "showing_requested",
+          callerName: "Omar Banks",
+        },
+      },
+    };
+    const writer = createLeadEventWriter(
+      createRepository({ insertedRows }),
+      {
+        leadUpsertRepository: createLeadUpsertRepository({ upsertedLookups: [] }),
+        createPostCallVoiceHandoff(input) {
+          createdPostCallHandoffs.push(input);
+          return Promise.resolve();
+        },
+      },
+    );
+
+    await expect(writer([retellEvent])).resolves.toMatchObject({
+      persistedCount: 1,
+      leadUpsertCount: 1,
+    });
+    expect(createdPostCallHandoffs).toEqual([{
+      workspaceId,
+      leadId: "lead-id",
+      leadEventId: "lead-event-id-1",
+      event: retellEvent,
+    }]);
+  });
+
   it("passes the inserted lead event id to Harwick after persistence", async () => {
     const insertedRows: LeadEventInsertRow[] = [];
     const generated: Array<{

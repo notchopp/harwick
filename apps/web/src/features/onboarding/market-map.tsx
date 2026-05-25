@@ -256,11 +256,12 @@ export function AreaSearchInput({ placeholder, excludeKeys, onSelect }: AreaSear
       setSuggestions([]);
       return;
     }
-    debounceRef.current = setTimeout(async () => {
-      const results = await searchAreas(query);
-      const filtered = results.filter((entry) => !excludeSet.has(entry.placeName));
-      setSuggestions(filtered);
-      setActiveIndex(0);
+    debounceRef.current = setTimeout(() => {
+      void searchAreas(query).then((results) => {
+        const filtered = results.filter((entry) => !excludeSet.has(entry.placeName));
+        setSuggestions(filtered);
+        setActiveIndex(0);
+      });
     }, 180);
     return () => {
       if (debounceRef.current !== null) clearTimeout(debounceRef.current);

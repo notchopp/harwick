@@ -187,6 +187,14 @@ export const WorkspaceInvitationAcceptResponseSchema = z.object({
   workspaceSlug: z.string().min(1).max(80),
 });
 
+export const WorkspaceMemberProfileUpdateRequestSchema = z.object({
+  displayName: NonEmptyStringSchema.max(120),
+});
+
+export const WorkspaceMemberProfileUpdateResponseSchema = z.object({
+  displayName: NonEmptyStringSchema.max(120),
+});
+
 export type WorkspaceRole = z.infer<typeof WorkspaceRoleSchema>;
 export type WorkspaceCapability = z.infer<typeof WorkspaceCapabilitySchema>;
 export type Workspace = z.infer<typeof WorkspaceSchema>;
@@ -198,6 +206,8 @@ export type WorkspaceInvitationCreateRequest = z.infer<typeof WorkspaceInvitatio
 export type WorkspaceInvitationCreateResponse = z.infer<typeof WorkspaceInvitationCreateResponseSchema>;
 export type WorkspaceInvitationPreview = z.infer<typeof WorkspaceInvitationPreviewSchema>;
 export type WorkspaceInvitationAcceptResponse = z.infer<typeof WorkspaceInvitationAcceptResponseSchema>;
+export type WorkspaceMemberProfileUpdateRequest = z.infer<typeof WorkspaceMemberProfileUpdateRequestSchema>;
+export type WorkspaceMemberProfileUpdateResponse = z.infer<typeof WorkspaceMemberProfileUpdateResponseSchema>;
 
 export function getWorkspaceRoleCapabilities(role: WorkspaceRole): readonly WorkspaceCapability[] {
   return roleCapabilities[role];

@@ -20,6 +20,7 @@ export type LeadActionToolbarProps = {
   onChanged?: () => void | Promise<void>;
   className?: string;
   showAgentSteps?: boolean;
+  showComposer?: boolean;
 };
 
 type ButtonState = "idle" | "busy";
@@ -44,6 +45,7 @@ export function LeadActionToolbar(props: LeadActionToolbarProps) {
   }, [props.automationMode, props.leadId]);
 
   const aiOn = localAutomationMode === "ai_on";
+  const showComposer = props.showComposer ?? true;
   const isAssignedToMe = props.assignedMemberId === props.currentMemberId;
   const isAssignedToOther = props.assignedMemberId !== null && !isAssignedToMe;
   const busy = state === "busy";
@@ -227,37 +229,41 @@ export function LeadActionToolbar(props: LeadActionToolbarProps) {
         />
       )}
 
-      <div className={cn(
-        "rounded-[12px] border",
-        dark ? "border-white/[0.08] bg-[#0a0f0c]" : "border-border bg-surface",
-      )}>
-        <textarea
-          aria-label="Reply"
-          className={cn(
-            "block min-h-[68px] w-full resize-y bg-transparent px-3 py-2 text-[13px] leading-5 outline-none",
-            dark ? "text-white/82 placeholder:text-white/28" : "text-foreground placeholder:text-muted-subtle",
-          )}
-          onChange={(event) => {
-            const next = event.target.value;
-            setComposer(next);
-            props.onDraftChange?.(next);
-          }}
-          placeholder={aiOn ? "Send a manual reply (AI is running this thread)" : "AI is paused — your reply goes out as the operator"}
-          value={composer}
-        />
-      </div>
+      {showComposer ? (
+        <div className={cn(
+          "rounded-[12px] border",
+          dark ? "border-white/[0.08] bg-[#0a0f0c]" : "border-border bg-surface",
+        )}>
+          <textarea
+            aria-label="Reply"
+            className={cn(
+              "block min-h-[68px] w-full resize-y bg-transparent px-3 py-2 text-[13px] leading-5 outline-none",
+              dark ? "text-white/82 placeholder:text-white/28" : "text-foreground placeholder:text-muted-subtle",
+            )}
+            onChange={(event) => {
+              const next = event.target.value;
+              setComposer(next);
+              props.onDraftChange?.(next);
+            }}
+            placeholder={aiOn ? "Send a manual reply (AI is running this thread)" : "AI is paused - your reply goes out as the operator"}
+            value={composer}
+          />
+        </div>
+      ) : null}
 
       <div className="flex flex-wrap items-center gap-2">
-        <Button
-          className={cn(primaryClass, "min-w-0 flex-1 sm:flex-none")}
-          disabled={busy || draftToSend.length === 0}
-          onClick={() => void handleSend()}
-          type="button"
-          variant="ghost"
-        >
-          {busy ? <Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin" /> : <Send aria-hidden="true" className="h-3.5 w-3.5" />}
-          send reply
-        </Button>
+        {showComposer ? (
+          <Button
+            className={cn(primaryClass, "min-w-0 flex-1 sm:flex-none")}
+            disabled={busy || draftToSend.length === 0}
+            onClick={() => void handleSend()}
+            type="button"
+            variant="ghost"
+          >
+            {busy ? <Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin" /> : <Send aria-hidden="true" className="h-3.5 w-3.5" />}
+            send reply
+          </Button>
+        ) : null}
 
         {aiOn ? (
           <Button

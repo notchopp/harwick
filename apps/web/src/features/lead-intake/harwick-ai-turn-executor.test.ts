@@ -166,6 +166,7 @@ function createSupabaseMock(options: {
   turnsUsed?: number;
   walletBalanceCents?: number;
   subscriptionTier?: "solo" | "team" | "brokerage" | null;
+  assignedAgentId?: string | null;
 } = {}) {
   const updateConversationMessages = vi.fn(() => ({
     eq: vi.fn(() => ({
@@ -192,7 +193,7 @@ function createSupabaseMock(options: {
                 data: {
                   id: leadId,
                   workspace_id: workspaceId,
-                  assigned_agent_id: null,
+                  assigned_agent_id: options.assignedAgentId ?? null,
                   lead_type: "buyer",
                   target_area: "Katy",
                   budget_min: null,
@@ -416,8 +417,7 @@ describe("generateAndExecuteHarwickAiTurnSync", () => {
       getTurnById: vi.fn(),
       updateTurnStatus: vi.fn().mockResolvedValue(undefined),
     };
-    const policyRepository: HarwickAiAutomationPolicyRepository = {
-      resolveEffectivePolicy: vi.fn().mockResolvedValue({
+    const resolveEffectivePolicy = vi.fn<HarwickAiAutomationPolicyRepository["resolveEffectivePolicy"]>().mockResolvedValue({
         id: "00000000-0000-0000-0000-000000000030",
         workspaceId,
         memberId: null,
@@ -431,7 +431,9 @@ describe("generateAndExecuteHarwickAiTurnSync", () => {
         requiresApprovalActions: ["request_showing_approval", "route_lead"],
         requiresApprovalTools: ["request_showing_approval", "route_lead"],
         blockedSafetyFlags: ["needs_human_review", "human_takeover"],
-      }),
+      });
+    const policyRepository: HarwickAiAutomationPolicyRepository = {
+      resolveEffectivePolicy,
     };
 
     const event: NormalizedLeadEvent = {
@@ -450,7 +452,8 @@ describe("generateAndExecuteHarwickAiTurnSync", () => {
       text: "I like the Katy house. Is it still available?",
       rawPayload: {},
     };
-    const supabase = createSupabaseMock();
+    const assignedAgentId = "00000000-0000-0000-0000-000000000044";
+    const supabase = createSupabaseMock({ assignedAgentId });
 
     await generateAndExecuteHarwickAiTurnSync(
       { workspaceId, leadId, leadEventId, event },
@@ -466,9 +469,30 @@ describe("generateAndExecuteHarwickAiTurnSync", () => {
     );
 
     expect(runTurn).toHaveBeenCalledTimes(1);
+    expect(resolveEffectivePolicy).toHaveBeenCalledWith({
+      workspaceId,
+      memberId: assignedAgentId,
+      leadId,
+    });
     const runTurnCalls = runTurn.mock.calls as Array<[HarwickAiRuntimeInput]>;
+    expect(runTurnCalls[0]?.[0].state).toMatchObject({
+      workspaceId,
+      leadId,
+      providerThreadId: "ig-user-1",
+      automationMode: "ai_on",
+      qualification: {
+        leadType: "buyer",
+        targetArea: "Katy",
+        financingStatus: "unknown",
+        score: 72,
+      },
+    });
     expect(runTurnCalls[0]?.[0].workspaceMemory).toContain("Noah closes high-budget Katy buyers");
     expect(mocks.sendMetaReply).toHaveBeenCalledTimes(1);
+    const sendMetaReplyCalls = mocks.sendMetaReply.mock.calls as Array<[{
+      request: { automationMode?: string };
+    }]>;
+    expect(sendMetaReplyCalls[0]?.[0].request.automationMode).toBe("ai_on");
     expect(insertTurn).toHaveBeenCalledTimes(1);
     const insertedTurn = insertTurn.mock.calls[0]?.[0];
     expect(insertedTurn?.status).toBe("auto_executed");
@@ -606,5 +630,248 @@ describe("generateAndExecuteHarwickAiTurnSync", () => {
     expect(createdWorkItem?.targetRole).toBe("owner");
     expect(createdWorkItem?.payload?.code).toBe("wallet_empty");
     expect(createdWorkItem?.payload?.planTier).toBe("free");
+  });
+
+  it("persists approval-required executor turns without executing the gated tool", async () => {
+    vi.clearAllMocks();
+
+    mocks.conversationRepo.getMessagesByLeadId.mockResolvedValue([]);
+    mocks.policyNarrativeRepo.read.mockResolvedValue("Queue private showing requests for operator approval.");
+    mocks.leadDocumentRepo.read.mockResolvedValue("Lead asked to tour a Katy listing.");
+    mocks.leadDocumentRepo.appendUpdate.mockResolvedValue("updated lead document");
+    mocks.workspaceMemoryRepo.listRuntimeMemoryDocuments.mockResolvedValue([]);
+    mocks.workspaceMemoryRepo.semanticMemorySearch.mockResolvedValue([]);
+    mocks.workspaceMemoryRepo.saveMemoryEmbedding.mockResolvedValue(undefined);
+    mocks.findSimilarTrajectories.mockResolvedValue([]);
+    mocks.trajectoryStore.startTrajectory.mockResolvedValue({ trajectoryId: "00000000-0000-0000-0000-000000000110" });
+    mocks.trajectoryStore.appendStep.mockResolvedValue({ stepId: "00000000-0000-0000-0000-000000000111" });
+    mocks.trajectoryStore.completeTrajectory.mockResolvedValue(undefined);
+    mocks.auditRepo.insertAuditLog.mockResolvedValue(undefined);
+
+    const runTurn = vi.fn().mockResolvedValue({
+      intent: "showing_request",
+      nextAction: "request_showing_approval",
+      missingFields: ["phone"],
+      confidence: 0.93,
+      safetyFlags: ["safe_to_send"],
+      reply: "I can help request that showing. What is the best phone number for confirmation?",
+      statePatch: {
+        currentIntent: "showing_request",
+        leadType: "buyer",
+        intent: "high",
+        targetArea: "Katy",
+      },
+      handoffBrief: "showing request needs agent approval",
+      toolCalls: [{
+        tool: "request_showing_approval",
+        reason: "agent approval is required before confirming the private showing",
+        requiresApproval: true,
+        payload: { listing: "Katy listing" },
+      }],
+      selfGateAutoExecute: false,
+      selfGateReason: "policy narrative requires approval for private showings.",
+      documentUpdate: "Lead wants to tour a Katy listing and needs phone capture.",
+      endTurn: true,
+    });
+    const runtimeClient: HarwickAiRuntimeClient = { runTurn };
+
+    const insertTurn = vi.fn<HarwickAiTurnPersistenceRepository["insertTurn"]>(() =>
+      Promise.resolve({ turnId: "00000000-0000-0000-0000-000000000120" })
+    );
+    const updateTurnStatus = vi.fn<HarwickAiTurnPersistenceRepository["updateTurnStatus"]>().mockResolvedValue(undefined);
+    const turnRepository: HarwickAiTurnPersistenceRepository = {
+      insertTurn,
+      getTurnById: vi.fn(),
+      updateTurnStatus,
+    };
+    const resolveEffectivePolicy = vi.fn<HarwickAiAutomationPolicyRepository["resolveEffectivePolicy"]>().mockResolvedValue({
+      id: "00000000-0000-0000-0000-000000000130",
+      workspaceId,
+      memberId: null,
+      leadId,
+      scope: "conversation",
+      automationMode: "ai_on",
+      autoSendEnabled: true,
+      confidenceThreshold: 0.7,
+      allowedAutoActions: ["send_reply", "ask_qualification"],
+      allowedAutoTools: ["send_meta_message"],
+      requiresApprovalActions: ["request_showing_approval"],
+      requiresApprovalTools: ["request_showing_approval"],
+      blockedSafetyFlags: ["needs_human_review", "human_takeover"],
+    });
+    const policyRepository: HarwickAiAutomationPolicyRepository = {
+      resolveEffectivePolicy,
+    };
+
+    const event: NormalizedLeadEvent = {
+      workspaceId,
+      provider: "meta",
+      providerAccountId: "ig-business-1",
+      providerEventId: "dm-event-showing",
+      providerUserId: "ig-user-showing",
+      eventType: "message_received",
+      sourceChannel: "instagram_dm",
+      sourcePostId: null,
+      sourceCommentId: null,
+      instagramUsername: "buyer_demo",
+      phone: null,
+      occurredAt: "2026-05-05T17:00:00.000Z",
+      text: "Can I see the Katy house this weekend?",
+      rawPayload: {},
+    };
+    const supabase = createSupabaseMock();
+
+    await generateAndExecuteHarwickAiTurnSync(
+      { workspaceId, leadId, leadEventId, event },
+      {
+        supabase: supabase.client,
+        turnRepository,
+        policyRepository,
+        leadEventRepository: {} as LeadEventPersistenceRepository,
+        queueRepository: {} as SocialReplyQueueRepository,
+        runtimeClient,
+        credentialSecret: "test-secret",
+      },
+    );
+
+    expect(mocks.sendMetaReply).not.toHaveBeenCalled();
+    expect(updateTurnStatus).not.toHaveBeenCalled();
+    expect(insertTurn).toHaveBeenCalledTimes(1);
+    const insertedTurn = insertTurn.mock.calls[0]?.[0];
+    expect(insertedTurn?.status).toBe("queued_for_approval");
+    expect(insertedTurn?.automationDecision).toMatchObject({
+      canAutoExecute: false,
+      approvedTools: [],
+      blockedTools: ["request_showing_approval"],
+    });
+    expect(insertedTurn?.toolCalls[0]).toMatchObject({
+      tool: "request_showing_approval",
+      policyStatus: "approval_required",
+      executionStatus: "queued_for_approval",
+      executionOutput: {
+        payload: { listing: "Katy listing" },
+      },
+    });
+    expect(mocks.trajectoryStore.completeTrajectory).toHaveBeenCalledWith(
+      expect.objectContaining({
+        trajectoryId: "00000000-0000-0000-0000-000000000110",
+        completionReason: "queued_for_approval",
+      }),
+    );
+  });
+
+  it("persists human-takeover executor turns as blocked without executing outbound tools", async () => {
+    vi.clearAllMocks();
+
+    mocks.conversationRepo.getMessagesByLeadId.mockResolvedValue([]);
+    mocks.policyNarrativeRepo.read.mockResolvedValue("Human takeover is active. Do not send autonomously.");
+    mocks.leadDocumentRepo.read.mockResolvedValue("Operator is handling this lead.");
+    mocks.leadDocumentRepo.appendUpdate.mockResolvedValue("updated lead document");
+    mocks.workspaceMemoryRepo.listRuntimeMemoryDocuments.mockResolvedValue([]);
+    mocks.workspaceMemoryRepo.semanticMemorySearch.mockResolvedValue([]);
+    mocks.workspaceMemoryRepo.saveMemoryEmbedding.mockResolvedValue(undefined);
+    mocks.findSimilarTrajectories.mockResolvedValue([]);
+    mocks.trajectoryStore.startTrajectory.mockResolvedValue({ trajectoryId: "00000000-0000-0000-0000-000000000210" });
+    mocks.trajectoryStore.appendStep.mockResolvedValue({ stepId: "00000000-0000-0000-0000-000000000211" });
+    mocks.trajectoryStore.completeTrajectory.mockResolvedValue(undefined);
+    mocks.auditRepo.insertAuditLog.mockResolvedValue(undefined);
+
+    const runTurn = vi.fn().mockResolvedValue({
+      intent: "handoff_needed",
+      nextAction: "pause_for_owner",
+      missingFields: [],
+      confidence: 1,
+      safetyFlags: ["human_takeover", "needs_human_review"],
+      reply: "A human has taken over this conversation.",
+      statePatch: {
+        currentIntent: "human_takeover",
+      },
+      handoffBrief: "automation is paused",
+      toolCalls: [],
+      selfGateAutoExecute: false,
+      selfGateReason: "human takeover is active.",
+      documentUpdate: "Automation stayed paused because the operator took over.",
+      endTurn: true,
+    });
+    const runtimeClient: HarwickAiRuntimeClient = { runTurn };
+
+    const insertTurn = vi.fn<HarwickAiTurnPersistenceRepository["insertTurn"]>(() =>
+      Promise.resolve({ turnId: "00000000-0000-0000-0000-000000000220" })
+    );
+    const updateTurnStatus = vi.fn<HarwickAiTurnPersistenceRepository["updateTurnStatus"]>().mockResolvedValue(undefined);
+    const turnRepository: HarwickAiTurnPersistenceRepository = {
+      insertTurn,
+      getTurnById: vi.fn(),
+      updateTurnStatus,
+    };
+    const resolveEffectivePolicy = vi.fn<HarwickAiAutomationPolicyRepository["resolveEffectivePolicy"]>().mockResolvedValue({
+      id: "00000000-0000-0000-0000-000000000230",
+      workspaceId,
+      memberId: null,
+      leadId,
+      scope: "conversation",
+      automationMode: "human_takeover",
+      autoSendEnabled: true,
+      confidenceThreshold: 0.7,
+      allowedAutoActions: ["send_reply"],
+      allowedAutoTools: ["send_meta_message"],
+      requiresApprovalActions: [],
+      requiresApprovalTools: [],
+      blockedSafetyFlags: ["needs_human_review", "human_takeover"],
+    });
+    const policyRepository: HarwickAiAutomationPolicyRepository = {
+      resolveEffectivePolicy,
+    };
+
+    const event: NormalizedLeadEvent = {
+      workspaceId,
+      provider: "meta",
+      providerAccountId: "ig-business-1",
+      providerEventId: "dm-event-paused",
+      providerUserId: "ig-user-paused",
+      eventType: "message_received",
+      sourceChannel: "instagram_dm",
+      sourcePostId: null,
+      sourceCommentId: null,
+      instagramUsername: "buyer_demo",
+      phone: null,
+      occurredAt: "2026-05-05T17:00:00.000Z",
+      text: "Are you still there?",
+      rawPayload: {},
+    };
+    const supabase = createSupabaseMock();
+
+    await generateAndExecuteHarwickAiTurnSync(
+      { workspaceId, leadId, leadEventId, event },
+      {
+        supabase: supabase.client,
+        turnRepository,
+        policyRepository,
+        leadEventRepository: {} as LeadEventPersistenceRepository,
+        queueRepository: {} as SocialReplyQueueRepository,
+        runtimeClient,
+        credentialSecret: "test-secret",
+      },
+    );
+
+    expect(mocks.sendMetaReply).not.toHaveBeenCalled();
+    expect(updateTurnStatus).not.toHaveBeenCalled();
+    const runTurnCalls = runTurn.mock.calls as Array<[HarwickAiRuntimeInput]>;
+    expect(runTurnCalls[0]?.[0].state?.automationMode).toBe("human_takeover");
+    expect(insertTurn).toHaveBeenCalledTimes(1);
+    const insertedTurn = insertTurn.mock.calls[0]?.[0];
+    expect(insertedTurn?.status).toBe("blocked");
+    expect(insertedTurn?.automationDecision).toMatchObject({
+      canAutoExecute: false,
+      approvedTools: [],
+      blockedTools: [],
+    });
+    expect(insertedTurn?.toolCalls).toEqual([]);
+    expect(mocks.trajectoryStore.completeTrajectory).toHaveBeenCalledWith(
+      expect.objectContaining({
+        trajectoryId: "00000000-0000-0000-0000-000000000210",
+        completionReason: "no_tool_calls",
+      }),
+    );
   });
 });

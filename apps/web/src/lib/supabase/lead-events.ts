@@ -90,6 +90,12 @@ export type LeadEventPersistenceRepository = {
 export type LeadEventWriterOptions = {
   leadUpsertRepository?: LeadUpsertRepository;
   enqueueWorkflowJob?: WorkflowJobEnqueuer;
+  createPostCallVoiceHandoff?: (params: {
+    workspaceId: string;
+    leadId: string;
+    leadEventId: string;
+    event: NormalizedLeadEvent;
+  }) => Promise<void>;
   generateAndExecuteHarwickAiTurn?: (params: {
     workspaceId: string;
     leadId: string;
@@ -326,6 +332,21 @@ export function createLeadEventWriter(
             ...(leadId === null ? {} : { leadId }),
             reason: event.provider === "retell" ? "post_call_analysis" : "new_event",
           },
+        });
+      }
+
+      if (
+        options.createPostCallVoiceHandoff !== undefined
+        && event.provider === "retell"
+        && event.eventType === "call_completed"
+        && leadId !== null
+        && leadEventId !== null
+      ) {
+        await options.createPostCallVoiceHandoff({
+          workspaceId: event.workspaceId,
+          leadId,
+          leadEventId,
+          event,
         });
       }
 

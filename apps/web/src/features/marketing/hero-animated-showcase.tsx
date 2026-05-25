@@ -1156,12 +1156,12 @@ const CHANNEL_META: Record<ThreadChannel, {
   sms: {
     label: "SMS",
     bg: "linear-gradient(135deg,#7bcf85,#3aa44a)",
-    Icon: MessageSquare as unknown as IconCmp,
+    Icon: MessageSquare,
   },
   phone: {
     label: "Phone",
     bg: "linear-gradient(135deg,#e3a067,#c98b5a)",
-    Icon: Voicemail as unknown as IconCmp,
+    Icon: Voicemail,
   },
 };
 
@@ -1177,27 +1177,27 @@ const STATUS_META: Record<Thread["status"], {
     bg: "rgba(123,166,255,0.16)",
     border: "rgba(123,166,255,0.4)",
     fg: "#a8c2ff",
-    Icon: MessageCircle as unknown as IconCmp,
+    Icon: MessageCircle,
   },
   drafted: {
     label: "draft ready",
     bg: "rgba(154,181,170,0.16)",
     border: "rgba(154,181,170,0.4)",
     fg: "#b6d1c5",
-    Icon: Send as unknown as IconCmp,
+    Icon: Send,
   },
   routed: {
     label: "routed",
     bg: "rgba(201,139,90,0.18)",
     border: "rgba(201,139,90,0.42)",
     fg: "#e3b78c",
-    Icon: Phone as unknown as IconCmp,
+    Icon: Phone,
   },
   review: {
     label: "owner review",
     bg: "rgba(255,180,90,0.14)",
     border: "rgba(255,180,90,0.35)",
     fg: "#ffc488",
-    Icon: Check as unknown as IconCmp,
+    Icon: Check,
   },
 };

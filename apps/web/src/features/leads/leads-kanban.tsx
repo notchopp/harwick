@@ -85,7 +85,7 @@ function priorityChip(score: number): { label: string; bg: string; text: string;
   return { label: "low", bg: "bg-[var(--sage-soft)]", text: "text-[var(--sage)]", ring: "ring-1 ring-inset ring-[var(--sage)]/30" };
 }
 
-function LeadCard({ lead }: { lead: LeadPageItem }) {
+function LeadCard({ lead, onSelect }: { lead: LeadPageItem; onSelect?: (leadId: string) => void }) {
   const SourceIconCmp = sourceIcon(lead.source) as ComponentType<SVGProps<SVGSVGElement>>;
   const tint = sourceTint(lead.source);
   const intent = intentChip(lead.intent);
@@ -100,13 +100,38 @@ function LeadCard({ lead }: { lead: LeadPageItem }) {
       }
     : undefined;
 
+  // Open the lead drawer on click. The DnD sensor has a 6px activation
+  // distance so a real click (no movement) lands here, but a drag swallows
+  // it. We also guard with isDragging in case the pointer-up still fires.
+  function handleClick(event: React.MouseEvent<HTMLDivElement>) {
+    if (draggable.isDragging) return;
+    if (onSelect === undefined) return;
+    // Don't override deliberate text selection or middle-click.
+    if (event.defaultPrevented) return;
+    if (event.button !== 0) return;
+    onSelect(lead.id);
+  }
+
+  function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    if (onSelect === undefined) return;
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      onSelect(lead.id);
+    }
+  }
+
   return (
     <div
       ref={draggable.setNodeRef}
       style={{ ...(dragStyle ?? {}), viewTransitionName: `lead-${lead.id.slice(0, 8)}` }}
       {...draggable.attributes}
       {...draggable.listeners}
-      className={cn("touch-none", draggable.isDragging && "z-20")}
+      onClick={handleClick}
+      onKeyDown={handleKeyDown}
+      role={onSelect === undefined ? undefined : "button"}
+      tabIndex={onSelect === undefined ? undefined : 0}
+      aria-label={onSelect === undefined ? undefined : `Open lead ${lead.name}`}
+      className={cn("touch-none", draggable.isDragging && "z-20", onSelect !== undefined && "cursor-pointer")}
     >
     <Card
       interactive
@@ -171,7 +196,7 @@ function DroppableColumn({ id, children }: { id: LeadPageStage; children: React.
   );
 }
 
-export function LeadsKanban({ leads }: { leads: LeadPageItem[] }) {
+export function LeadsKanban({ leads, onLeadSelect }: { leads: LeadPageItem[]; onLeadSelect?: (leadId: string) => void }) {
   // Optimistic local stage overrides so dragged cards move instantly.
   const [overrides, setOverrides] = useState<Record<string, LeadPageStage>>({});
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
@@ -255,7 +280,13 @@ export function LeadsKanban({ leads }: { leads: LeadPageItem[] }) {
                       <p className="mt-1 text-[11px] text-[color:var(--graphite-text-muted)]">{column.description}</p>
                     </div>
                   ) : (
-                    items.map((lead) => <LeadCard key={lead.id} lead={lead} />)
+                    items.map((lead) => (
+                      <LeadCard
+                        key={lead.id}
+                        lead={lead}
+                        {...(onLeadSelect === undefined ? {} : { onSelect: onLeadSelect })}
+                      />
+                    ))
                   )}
                 </DroppableColumn>
               </Section>

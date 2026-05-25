@@ -29,6 +29,7 @@ export type LeadPageItem = {
   propertyType: string;
   financingStatus: LeadRow["financing_status"];
   assignedTo: string;
+  assignedMemberId: string | null;
   sourceOwner: string;
   lastTouch: string;
   routeReason: string;
@@ -209,6 +210,7 @@ export async function loadLeadsPageData(params: {
       propertyType: lead.lead_type === "renter" ? "lease" : lead.lead_type === "seller" ? "seller" : "home search",
       financingStatus: lead.financing_status,
       assignedTo: assignedMember?.display_name ?? (lead.assigned_agent_id === null ? "owner review" : "assigned agent"),
+      assignedMemberId: lead.assigned_agent_id,
       sourceOwner: "workspace",
       lastTouch: relativeLastTouch(lead),
       routeReason: assignedMember === null

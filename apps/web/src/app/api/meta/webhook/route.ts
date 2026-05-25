@@ -43,7 +43,7 @@ export function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const rateLimit = checkRateLimit({
     key: rateLimitKeyFromRequest({ request, namespace: "meta-webhook" }),
-    limit: 300,
+    limit: 60,
     windowMs: 60_000,
   });
   if (!rateLimit.allowed) {

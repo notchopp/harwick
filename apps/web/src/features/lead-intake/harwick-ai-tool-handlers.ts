@@ -1,5 +1,6 @@
 import type {
   CalendarAvailabilityWindow,
+  ConversationAutomationMode,
   GoogleCalendarCredential,
   HarwickAiToolCall,
   HarwickAiToolName,
@@ -33,7 +34,7 @@ export type HarwickAiToolContext = {
   recipientUserId: string;
   sourcePostId: string | null;
   sourceCommentId: string | null;
-  automationMode: "ai_on" | "human_takeover" | "human_review";
+  automationMode: ConversationAutomationMode;
   /** Trajectory + step IDs threaded into outbound conversation_messages so operator inline-tags attribute to the exact (state, action) pair. */
   agentTrajectoryId: string | null;
   agentStepId: string | null;

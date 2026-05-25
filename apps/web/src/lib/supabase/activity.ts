@@ -3,6 +3,7 @@ import type { Tables } from "./database.types";
 import type { RealtyOpsSupabaseClient } from "./server-client";
 
 type WorkflowJobRow = Tables<"workflow_jobs">;
+type AgentTrajectoryRow = Tables<"agent_trajectories">;
 
 export function createSupabaseWorkspaceActivityRepository(
   supabase: RealtyOpsSupabaseClient,
@@ -60,6 +61,18 @@ export function createSupabaseWorkspaceActivityRepository(
         .eq("workspace_id", params.workspaceId)
         .order("created_at", { ascending: false })
         .limit(params.limit);
+      if (error !== null) throw error;
+      return data ?? [];
+    },
+
+    async listAgentTrajectories(params) {
+      const { data, error } = await supabase
+        .from("agent_trajectories")
+        .select("*")
+        .eq("workspace_id", params.workspaceId)
+        .order("updated_at", { ascending: false })
+        .limit(params.limit)
+        .returns<AgentTrajectoryRow[]>();
       if (error !== null) throw error;
       return data ?? [];
     },

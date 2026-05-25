@@ -2,7 +2,7 @@ import type { WorkspaceRole, WorkspaceCapability } from "@realty-ops/core";
 import { workspaceRoleHasCapability } from "@realty-ops/core";
 import type { OpenAIProvider } from "@ai-sdk/openai";
 import { tool, type Tool } from "ai";
-import type { ZodTypeAny } from "zod";
+import type { z, ZodTypeAny } from "zod";
 
 import type { RealtyOpsSupabaseClient } from "../../lib/supabase/server-client";
 import type { HarwickSubagentExecutorClient } from "../agent-runtime/execute-subagent-tasks";
@@ -44,6 +44,10 @@ export type HarwickToolDeps = {
   openai?: OpenAIProvider;
 };
 
+type HarwickToolExecute<TInput extends ZodTypeAny, TOutput> = {
+  execute(input: z.output<TInput>, deps: HarwickToolDeps): Promise<TOutput> | TOutput;
+}["execute"];
+
 export type HarwickToolDefinition<TInput extends ZodTypeAny = ZodTypeAny, TOutput = unknown> = {
   name: string;
   description: string;
@@ -56,10 +60,16 @@ export type HarwickToolDefinition<TInput extends ZodTypeAny = ZodTypeAny, TOutpu
   // downstream executor surfaces for operator sign-off.
   approval: "auto_safe" | "approval_required" | "internal_safe";
   inputSchema: TInput;
-  execute: (input: ReturnType<TInput["parse"]>, deps: HarwickToolDeps) => Promise<TOutput> | TOutput;
+  execute: HarwickToolExecute<TInput, TOutput>;
 };
 
 export type HarwickToolDefinitions = ReadonlyArray<HarwickToolDefinition>;
+
+export function defineHarwickTool<TInput extends ZodTypeAny, TOutput>(
+  definition: HarwickToolDefinition<TInput, TOutput>,
+): HarwickToolDefinition<TInput, TOutput> {
+  return definition;
+}
 
 /**
  * Build the ai-sdk tool record for a given scope + operator deps. Filters by:
@@ -84,15 +94,15 @@ export function buildHarwickToolsForScope(params: {
     record[definition.name] = tool({
       description: definition.description,
       inputSchema: definition.inputSchema,
-      execute: async (input) => definition.execute(input as never, params.deps),
-    }) as Tool;
+      execute: (input) => definition.execute(definition.inputSchema.parse(input), params.deps),
+    });
   }
 
   // Provider-managed tools — only available when the OpenAI provider was passed
   // and the scope wants them.
   if (params.deps.openai !== undefined
     && (params.scope === "operator_chat" || params.scope === "channel_mention")) {
-    record["web_search"] = params.deps.openai.tools.webSearchPreview({}) as unknown as Tool;
+    record["web_search"] = params.deps.openai.tools.webSearchPreview({});
   }
 
   return record;

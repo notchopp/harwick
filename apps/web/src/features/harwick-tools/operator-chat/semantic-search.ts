@@ -21,18 +21,20 @@ async function embedText(text: string): Promise<number[] | null> {
   }
 }
 
+const FindSimilarLeadsInputSchema = z.object({
+  descriptor: z.string().min(8).max(800).describe("Natural-language description of the lead profile. Examples: 'first-time buyer in 78704 with $450k-$550k budget asking about financing', 'relocation buyer from California targeting downtown Austin'."),
+  excludeLeadId: z.string().uuid().nullable().default(null),
+  limit: z.number().int().min(1).max(12).default(6),
+});
+
 export const findSimilarLeadsTool: HarwickToolDefinition = {
   name: "find_similar_leads",
   description: "Find leads in this workspace that resemble the given descriptor — same area, similar budget, similar timeline. Use to spot patterns: 'leads like this one have closed 4-of-7 times' / 'this profile usually drops after showing #2'. Returns up to 8 ranked matches.",
   scopes: ["operator_chat", "lead_conversation", "channel_mention"],
   requiresCapability: "leads.read_all",
   approval: "internal_safe",
-  inputSchema: z.object({
-    descriptor: z.string().min(8).max(800).describe("Natural-language description of the lead profile. Examples: 'first-time buyer in 78704 with $450k-$550k budget asking about financing', 'relocation buyer from California targeting downtown Austin'."),
-    excludeLeadId: z.string().uuid().nullable().default(null),
-    limit: z.number().int().min(1).max(12).default(6),
-  }),
-  async execute(input, deps: HarwickToolDeps) {
+  inputSchema: FindSimilarLeadsInputSchema,
+  async execute(input: z.output<typeof FindSimilarLeadsInputSchema>, deps: HarwickToolDeps) {
     const { data, error } = await deps.supabase
       .from("leads")
       .select("id, full_name, status, score, target_area, budget_min, budget_max, lead_type, timeline, source_channel, assigned_agent_id, last_message_at, qualification_summary, tags")
@@ -91,16 +93,18 @@ export const findSimilarLeadsTool: HarwickToolDefinition = {
   },
 };
 
+const SearchListingsInputSchema = z.object({
+  query: z.string().min(3).max(500),
+  limit: z.number().int().min(1).max(12).default(6),
+});
+
 export const searchListingsTool: HarwickToolDefinition = {
   name: "search_listings",
   description: "Find workspace listings semantically — natural language query against listing_facts embeddings. Use for 'show me 3-bed under $600k near Mueller' or 'listings that match a downsizing empty-nester'. Returns up to 8 listings ranked by similarity.",
   scopes: ["operator_chat", "lead_conversation", "channel_mention"],
   approval: "internal_safe",
-  inputSchema: z.object({
-    query: z.string().min(3).max(500),
-    limit: z.number().int().min(1).max(12).default(6),
-  }),
-  async execute(input, deps: HarwickToolDeps) {
+  inputSchema: SearchListingsInputSchema,
+  async execute(input: z.output<typeof SearchListingsInputSchema>, deps: HarwickToolDeps) {
     const embedding = await embedText(input.query);
     if (embedding === null) {
       return { kind: "listings", count: 0, listings: [], note: "Embeddings unavailable." };
@@ -143,16 +147,18 @@ export const searchListingsTool: HarwickToolDefinition = {
   },
 };
 
+const FindCompsInputSchema = z.object({
+  listingId: z.string().uuid().describe("The reference listing_facts id."),
+  limit: z.number().int().min(1).max(8).default(5),
+});
+
 export const findCompsTool: HarwickToolDefinition = {
   name: "find_comps",
   description: "Find comparable listings to a target listing — similar size/price/bedrooms. Use for pricing conversations and valuation talk. Returns up to 6 comps ranked by closeness.",
   scopes: ["operator_chat", "lead_conversation"],
   approval: "internal_safe",
-  inputSchema: z.object({
-    listingId: z.string().uuid().describe("The reference listing_facts id."),
-    limit: z.number().int().min(1).max(8).default(5),
-  }),
-  async execute(input, deps: HarwickToolDeps) {
+  inputSchema: FindCompsInputSchema,
+  async execute(input: z.output<typeof FindCompsInputSchema>, deps: HarwickToolDeps) {
     const { data: anchor } = await deps.supabase
       .from("listing_facts")
       .select("id, address, status, price, beds, baths")

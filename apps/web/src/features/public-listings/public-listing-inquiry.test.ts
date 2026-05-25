@@ -59,7 +59,7 @@ describe("handlePublicListingInquiry", () => {
       },
       repository,
       now: () => new Date("2026-05-06T12:00:00.000Z"),
-    })).resolves.toEqual({
+    })).resolves.toMatchObject({
       leadId,
       showingTaskId: "00000000-0000-0000-0000-000000000005",
       openHouseRegistrationTaskId: null,
@@ -121,7 +121,7 @@ describe("handlePublicListingInquiry", () => {
         message: "Send me homes under 600k.",
       },
       repository,
-    })).resolves.toEqual({
+    })).resolves.toMatchObject({
       leadId,
       showingTaskId: null,
       openHouseRegistrationTaskId: null,
@@ -148,7 +148,7 @@ describe("handlePublicListingInquiry", () => {
       },
       repository,
       now: () => new Date("2026-05-06T12:00:00.000Z"),
-    })).resolves.toEqual({
+    })).resolves.toMatchObject({
       leadId,
       showingTaskId: null,
       openHouseRegistrationTaskId: "00000000-0000-0000-0000-000000000006",

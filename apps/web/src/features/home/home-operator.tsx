@@ -728,6 +728,7 @@ export function HomeOperatorPage(props: HomeOperatorPageProps) {
           item={selectedWorkItem}
           open={detailOpen}
           enabled={enabled}
+          currentMemberId={props.operatorMemberId}
           onOpenChange={handleDetailOpenChange}
           onRefresh={refresh}
           onStatus={setStatus}

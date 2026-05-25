@@ -59,42 +59,44 @@ const FilterSchema = z.object({
     .describe("Filter value. For 'in' use an array. For 'is_null' / 'not_null' value is ignored."),
 });
 
+const QueryWorkspaceInputSchema = z.object({
+  table: z.enum(READABLE_TABLES).describe("Which table to query. Pick from the whitelist; anything else returns an error."),
+  columns: z.array(z.string().min(1).max(60)).max(20).default([]).describe("Columns to select. Empty array = all columns."),
+  filters: z.array(FilterSchema).max(10).default([]).describe("Filters AND-ed together."),
+  orderBy: z.object({
+    column: z.string().min(1).max(60),
+    ascending: z.boolean().default(false),
+  }).optional().describe("Optional sort."),
+  limit: z.number().int().min(1).max(100).default(25),
+});
+
 export const queryWorkspaceTool: HarwickToolDefinition = {
   name: "query_workspace",
   description: "Read-only structured query against a whitelisted table set in this workspace. Use whenever you need data and no specific lookup tool fits — counts, custom slices, cross-table joins-by-followup-call, ad-hoc analytics. workspace_id is enforced server-side; you can never see another workspace. Filters use a whitelisted operator set (eq, neq, in, lt/lte/gt/gte, ilike, is_null, not_null). Returns up to 100 rows.",
   scopes: ["operator_chat", "channel_mention", "scheduled_loop"],
   approval: "internal_safe",
-  inputSchema: z.object({
-    table: z.enum(READABLE_TABLES).describe("Which table to query. Pick from the whitelist; anything else returns an error."),
-    columns: z.array(z.string().min(1).max(60)).max(20).default([]).describe("Columns to select. Empty array = all columns."),
-    filters: z.array(FilterSchema).max(10).default([]).describe("Filters AND-ed together."),
-    orderBy: z.object({
-      column: z.string().min(1).max(60),
-      ascending: z.boolean().default(false),
-    }).optional().describe("Optional sort."),
-    limit: z.number().int().min(1).max(100).default(25),
-  }),
-  async execute(input, deps: HarwickToolDeps) {
-    const table = input.table as ReadableTable;
+  inputSchema: QueryWorkspaceInputSchema,
+  async execute(input: z.output<typeof QueryWorkspaceInputSchema>, deps: HarwickToolDeps) {
+    const table: ReadableTable = input.table;
     const selectClause = input.columns.length === 0 ? "*" : input.columns.join(", ");
 
     let query = deps.supabase
       .from(table)
       .select(selectClause)
-      .eq("workspace_id" as never, deps.workspaceId as never)
+      .eq("workspace_id", deps.workspaceId)
       .limit(input.limit);
 
     for (const filter of input.filters) {
       switch (filter.op) {
         case "eq":
-          query = query.eq(filter.column as never, filter.value as never);
+          query = query.eq(filter.column, filter.value as never);
           break;
         case "neq":
-          query = query.neq(filter.column as never, filter.value as never);
+          query = query.neq(filter.column, filter.value);
           break;
         case "in":
           if (Array.isArray(filter.value)) {
-            query = query.in(filter.column as never, filter.value as never);
+            query = query.in(filter.column, filter.value);
           }
           break;
         case "lt":
@@ -111,7 +113,7 @@ export const queryWorkspaceTool: HarwickToolDefinition = {
           break;
         case "ilike":
           if (typeof filter.value === "string") {
-            query = query.ilike(filter.column, filter.value);
+          query = query.ilike(filter.column, filter.value);
           }
           break;
         case "is_null":
@@ -141,19 +143,21 @@ export const queryWorkspaceTool: HarwickToolDefinition = {
   },
 };
 
+const DelegateComplexTaskInputSchema = z.object({
+  title: z.string().min(8).max(160).describe("Short title for the operator's queue."),
+  body: z.string().min(20).max(4000).describe("Full description: what's needed, why it's outside Harwick's tool surface, what 'done' looks like."),
+  leadId: z.string().uuid().nullable().default(null),
+  priority: z.enum(["low", "normal", "high", "urgent"]).default("normal"),
+  suggestedNextStep: z.string().max(800).optional(),
+});
+
 export const delegateComplexTaskTool: HarwickToolDefinition = {
   name: "delegate_complex_task",
   description: "When a request genuinely doesn't fit any of your other tools — even chained — create a tracked work item describing what's needed. This surfaces in the operator's queue with full context. Use SPARINGLY; first try to compose existing tools. Good fit: novel research that needs a human pass, ambiguous routing that needs owner judgment, anything that needs a third-party API we haven't wired yet.",
   scopes: ["operator_chat", "channel_mention"],
   approval: "approval_required",
-  inputSchema: z.object({
-    title: z.string().min(8).max(160).describe("Short title for the operator's queue."),
-    body: z.string().min(20).max(4000).describe("Full description: what's needed, why it's outside Harwick's tool surface, what 'done' looks like."),
-    leadId: z.string().uuid().nullable().default(null),
-    priority: z.enum(["low", "normal", "high", "urgent"]).default("normal"),
-    suggestedNextStep: z.string().max(800).optional(),
-  }),
-  async execute(input, deps: HarwickToolDeps) {
+  inputSchema: DelegateComplexTaskInputSchema,
+  async execute(input: z.output<typeof DelegateComplexTaskInputSchema>, deps: HarwickToolDeps) {
     const { data, error } = await deps.supabase
       .from("harwick_work_items")
       .insert({

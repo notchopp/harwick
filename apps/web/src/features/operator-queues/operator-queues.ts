@@ -89,6 +89,7 @@ export type VoiceHandoffQueueRepository = {
     title: string;
     description: string;
     priority: "normal" | "high" | "urgent";
+    dueAt: string;
   }): Promise<{ taskId: string }>;
   updateVoiceHandoffReview(params: {
     workspaceId: string;
@@ -343,6 +344,24 @@ export async function loadVoiceHandoffQueue(params: {
   });
 }
 
+function defaultVoiceCallbackDueAt(handoff: VoiceHandoffQueueItem, now: Date): string {
+  const minutes = handoff.urgency === "hot" ? 15 : handoff.urgency === "needs_handoff" ? 60 : 24 * 60;
+  return new Date(now.getTime() + minutes * 60 * 1000).toISOString();
+}
+
+function defaultVoiceCallbackTitle(handoff: VoiceHandoffQueueItem): string {
+  const caller = handoff.callerName ?? handoff.phone ?? "Voice lead";
+  return `Call back ${caller}`;
+}
+
+function defaultVoiceCallbackDescription(handoff: VoiceHandoffQueueItem): string {
+  return [
+    handoff.summary,
+    handoff.phone === null ? null : `Phone: ${handoff.phone}`,
+    handoff.callId === null ? null : `Retell call: ${handoff.callId}`,
+  ].filter((line): line is string => line !== null && line.trim().length > 0).join("\n\n");
+}
+
 export async function actOnVoiceHandoff(params: {
   workspaceId: string;
   handoffId: string;
@@ -360,7 +379,8 @@ export async function actOnVoiceHandoff(params: {
     return null;
   }
 
-  const reviewedAt = (params.now?.() ?? new Date()).toISOString();
+  const reviewedAtDate = params.now?.() ?? new Date();
+  const reviewedAt = reviewedAtDate.toISOString();
   if (action.action === "dismiss") {
     return params.repository.updateVoiceHandoffReview({
       workspaceId: params.workspaceId,
@@ -390,12 +410,17 @@ export async function actOnVoiceHandoff(params: {
     return null;
   }
 
+  if (handoff.reviewStatus === "callback_created" && handoff.callbackTaskId !== null) {
+    return handoff;
+  }
+
   const task = await params.repository.createCallbackTask({
     workspaceId: params.workspaceId,
     leadId: handoff.leadId,
-    title: action.title ?? "Call back voice lead",
-    description: action.description ?? handoff.summary,
+    title: action.title ?? defaultVoiceCallbackTitle(handoff),
+    description: action.description ?? defaultVoiceCallbackDescription(handoff),
     priority: action.priority ?? (handoff.urgency === "hot" ? "urgent" : "high"),
+    dueAt: action.dueAt ?? defaultVoiceCallbackDueAt(handoff, reviewedAtDate),
   });
 
   return params.repository.updateVoiceHandoffReview({

@@ -74,10 +74,10 @@ export function useChannels(workspaceId: string): Hook {
     return payload.channel;
   }, [workspaceId]);
 
-  const archiveChannel = useCallback(async () => {
+  const archiveChannel = useCallback(() => {
     // Channel archive route is not yet exposed; placeholder so callers can wire
     // archive UI without breaking the type.
-    return;
+    return Promise.resolve();
   }, []);
 
   return { channels, loaded, refresh, createChannel, archiveChannel };

@@ -13,6 +13,7 @@ import type {
   HarwickAiTurnPersistenceRepository,
   HarwickAiAutomationPolicyRepository,
 } from "../../lib/supabase/harwick-ai-turns";
+import { buildHarwickAiConversationState } from "./harwick-ai-runtime-state";
 
 export type GenerateHarwickAiTurnParams = {
   workspaceId: string;
@@ -63,7 +64,13 @@ export function createHarwickAiTurnGeneratorService(params: {
         channel: generateParams.channel,
         inboundText: generateParams.inboundText,
         conversation,
-        state: null, // TODO: hydrate from conversation_automation_states
+        state: buildHarwickAiConversationState({
+          workspaceId: generateParams.workspaceId,
+          leadId: generateParams.leadId,
+          providerThreadId: generateParams.providerThreadId,
+          channel: generateParams.channel,
+          automationMode: automationPolicy.automationMode,
+        }),
         toneProfile: generateParams.context.toneProfile ?? {},
         postContext: generateParams.context.postContext,
         listingContext: generateParams.context.listingContext,

@@ -1,6 +1,6 @@
 import { AppShell } from "../../components/app-shell";
 import { requireActiveWorkspace } from "../../features/auth/session";
-import { MemoryPageContent } from "../../features/workspace/workspace-pages";
+import { MemoryPageContent } from "../../features/memory/memory-page";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +17,7 @@ export default async function Page() {
       workspaceId={membership.workspaceId}
       workspaceName={membership.workspaceName}
     >
-      <MemoryPageContent />
+      <MemoryPageContent workspaceId={membership.workspaceId} workspaceName={membership.workspaceName} />
     </AppShell>
   );
 }

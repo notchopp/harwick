@@ -46,6 +46,8 @@ import {
   retrievePositiveExamples,
   retrieveWorkspaceMemory,
 } from "../harwick-runtime/harwick-runtime-context";
+import { captureCriticalException } from "../../lib/observability/sentry";
+import { buildHarwickAiConversationState } from "./harwick-ai-runtime-state";
 
 export type GenerateAndExecuteHarwickAiTurnParams = {
   workspaceId: string;
@@ -162,9 +164,18 @@ export async function generateAndExecuteHarwickAiTurnSync(
   let exitReason: string = "unknown";
 
   try {
+    // Look up the lead row before resolving policy so member-scoped
+    // automation settings can apply to the assigned agent when present.
+    const { data: leadRow } = await deps.supabase
+      .from("leads")
+      .select("*")
+      .eq("workspace_id", params.workspaceId)
+      .eq("id", params.leadId)
+      .maybeSingle<LeadRow>();
+
     const resolvedAutomationPolicy = await deps.policyRepository.resolveEffectivePolicy({
       workspaceId: params.workspaceId,
-      memberId: null,
+      memberId: leadRow?.assigned_agent_id ?? null,
       leadId: params.leadId,
     });
     const planLimits = getPlanLimits(capacityDecision.planTier);
@@ -174,16 +185,6 @@ export async function generateAndExecuteHarwickAiTurnSync(
           ...resolvedAutomationPolicy,
           autoSendEnabled: false,
         };
-
-    // Look up the lead row once — handlers reuse it for assignment, calendar
-    // lookup, automation pause target, etc. A fresh read each step would be
-    // overkill since the agentic loop completes in seconds.
-    const { data: leadRow } = await deps.supabase
-      .from("leads")
-      .select("*")
-      .eq("workspace_id", params.workspaceId)
-      .eq("id", params.leadId)
-      .maybeSingle<LeadRow>();
 
     const conversationHistory = await loadAiConversationHistory({
       leadId: params.leadId,
@@ -228,12 +229,21 @@ export async function generateAndExecuteHarwickAiTurnSync(
       leadDocument,
     });
 
+    const conversationState = buildHarwickAiConversationState({
+      workspaceId: params.workspaceId,
+      leadId: params.leadId,
+      providerThreadId: params.event.providerUserId,
+      channel,
+      automationMode: automationPolicy.automationMode,
+      lead: leadRow,
+    });
+
     const initialInput = HarwickAiRuntimeInputSchema.parse({
       workspaceName: "Workspace",
       channel,
       inboundText: params.event.text,
       conversation: conversationHistory,
-      state: null,
+      state: conversationState,
       toneProfile: {},
       postContext: null,
       listingContext: null,
@@ -265,7 +275,7 @@ export async function generateAndExecuteHarwickAiTurnSync(
       recipientUserId: params.event.providerUserId,
       sourcePostId: params.event.sourcePostId,
       sourceCommentId: params.event.sourceCommentId,
-      automationMode: "ai_on",
+      automationMode: automationPolicy.automationMode,
       agentTrajectoryId: openedTrajectoryId,
       agentStepId: null,
     };
@@ -461,6 +471,18 @@ export async function generateAndExecuteHarwickAiTurnSync(
     });
   } catch (error) {
     console.error("Harwick AI turn generation error:", error);
+    captureCriticalException(error, {
+      surface: "harwick-ai-turn-executor",
+      workspaceId: params.workspaceId,
+      leadId: params.leadId,
+      extra: {
+        leadEventId: params.leadEventId,
+        channel,
+        stepCount,
+        trajectoryId,
+        exitReason,
+      },
+    });
     if (trajectoryId !== null) {
       try {
         await trajectoryStore.completeTrajectory({

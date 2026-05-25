@@ -27,6 +27,7 @@ import { Card, Inset } from "../../components/panels/panels";
 import { PanelButton } from "../../components/panels/panel-button";
 import { MicroLabel, MonoTag } from "../../components/panels/typography";
 import { cn } from "../../lib/utils";
+import { LeadActionToolbar } from "../conversations/lead-action-toolbar";
 import { type WorkItem } from "./home-page";
 import { resolveActions, type ResolvedAction } from "./work-item-actions";
 
@@ -39,6 +40,7 @@ type QueueActionDrawerProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   enabled?: boolean;
+  currentMemberId: string;
   onRefresh?: () => Promise<void> | void;
   onStatus?: (message: string | null) => void;
 };
@@ -72,6 +74,11 @@ function itemTime(item: HomeDetailItem): string {
 function itemLeadId(item: HomeDetailItem): string | null {
   if (item.kind === "lead") return item.item.id;
   return item.kind === "reply" ? item.item.leadId ?? null : item.item.leadId ?? null;
+}
+
+function itemWorkspaceId(item: HomeDetailItem): string | null {
+  if (item.kind === "lead") return item.item.workspaceId;
+  return item.item.workspaceId ?? threadFor(item)?.workspaceId ?? null;
 }
 
 function conversationHref(item: HomeDetailItem): string | null {
@@ -410,6 +417,9 @@ export function LeadDetailDrawer(props: QueueActionDrawerProps) {
   const rows = detailRows(detailItem);
   const tools = loopToolRows(detailItem);
   const draft = draftText(detailItem);
+  const leadId = itemLeadId(detailItem);
+  const workspaceId = itemWorkspaceId(detailItem);
+  const automationMode = thread?.automationMode ?? (detailItem.kind === "reply" ? detailItem.item.automationMode : null);
 
   async function runAction(action: ResolvedAction) {
     if (pendingLabel !== null || props.enabled === false) return;
@@ -681,6 +691,20 @@ export function LeadDetailDrawer(props: QueueActionDrawerProps) {
             className="shrink-0 border-t border-[color:var(--panel-line-soft)] bg-[color:var(--panel-2)] px-4 py-3"
             style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
           >
+            {workspaceId !== null && leadId !== null && automationMode !== null ? (
+              <LeadActionToolbar
+                className="mb-3"
+                workspaceId={workspaceId}
+                leadId={leadId}
+                automationMode={automationMode}
+                assignedMemberId={null}
+                currentMemberId={props.currentMemberId}
+                appearance="dark"
+                showAgentSteps={false}
+                showComposer={false}
+                {...(props.onRefresh === undefined ? {} : { onChanged: props.onRefresh })}
+              />
+            ) : null}
             {actions.length === 0 ? (
               <div className="flex items-center gap-2">
                 {descriptor.primaryHref === null ? null : (

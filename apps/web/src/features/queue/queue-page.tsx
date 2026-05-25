@@ -211,7 +211,7 @@ export function QueuePage(props: QueuePageProps) {
         setLoaded(true);
         return;
       }
-      const payload = await response.json();
+      const payload: unknown = await response.json();
       const parsed = OwnerHomeQueueResponseSchema.safeParse(payload);
       if (!parsed.success) {
         setError("Queue response failed schema validation.");

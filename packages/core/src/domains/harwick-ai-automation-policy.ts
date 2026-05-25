@@ -72,8 +72,17 @@ export const HarwickAiAutomationDecisionSchema = z.object({
   reason: z.string().trim().min(1).max(500),
 });
 
+export const HarwickAiAutomationSettingsRequestSchema = z.object({
+  autoSendEnabled: z.boolean(),
+  confidenceThreshold: z.number().min(0).max(1),
+});
+
+export const HarwickAiAutomationSettingsResponseSchema = HarwickAiAutomationSettingsRequestSchema;
+
 export type HarwickAiAutomationPolicy = z.infer<typeof HarwickAiAutomationPolicySchema>;
 export type HarwickAiAutomationDecision = z.infer<typeof HarwickAiAutomationDecisionSchema>;
+export type HarwickAiAutomationSettingsRequest = z.infer<typeof HarwickAiAutomationSettingsRequestSchema>;
+export type HarwickAiAutomationSettingsResponse = z.infer<typeof HarwickAiAutomationSettingsResponseSchema>;
 
 function uniqueTools(toolCalls: HarwickAiToolCall[]): HarwickAiToolName[] {
   return [...new Set(toolCalls.map((toolCall) => toolCall.tool))];

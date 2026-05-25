@@ -128,8 +128,11 @@ export function RoutingAssignSheet(props: {
         body: JSON.stringify(body),
       });
       if (!response.ok) {
-        const payload = await response.json().catch(() => ({}));
-        throw new Error(typeof payload?.error === "string" ? payload.error : "Assignment failed");
+        const payload: unknown = await response.json().catch(() => ({}));
+        const payloadRecord = payload !== null && typeof payload === "object" && !Array.isArray(payload)
+          ? payload as Record<string, unknown>
+          : {};
+        throw new Error(typeof payloadRecord["error"] === "string" ? payloadRecord["error"] : "Assignment failed");
       }
       props.onAssigned();
       props.onOpenChange(false);
@@ -147,8 +150,12 @@ export function RoutingAssignSheet(props: {
       busyMemberId={busyMemberId}
       manualReason={manualReason}
       setManualReason={setManualReason}
-      onApprove={(memberId) => submitAssignment({ memberId, mode: "auto" })}
-      onManual={(memberId) => submitAssignment({ memberId, mode: "manual" })}
+      onApprove={(memberId) => {
+        void submitAssignment({ memberId, mode: "auto" });
+      }}
+      onManual={(memberId) => {
+        void submitAssignment({ memberId, mode: "manual" });
+      }}
     />
   );
 

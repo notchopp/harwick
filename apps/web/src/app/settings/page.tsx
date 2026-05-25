@@ -7,16 +7,22 @@ import {
   getWorkspaceUsageWallet,
 } from "../../lib/supabase/billing";
 import { createServerSupabaseClient } from "../../lib/supabase/server-client";
+import {
+  createSupabaseVoiceAgentRepository,
+  mapWorkspaceVoiceAgentRow,
+} from "../../lib/supabase/voice-agents";
 
 export const dynamic = "force-dynamic";
 
 export default async function Page() {
   const { session, membership } = await requireActiveWorkspace({ nextPath: "/settings" });
   const supabase = createServerSupabaseClient();
-  const [subscription, wallet, usageSummary] = await Promise.all([
+  const voiceAgentRepository = createSupabaseVoiceAgentRepository(supabase);
+  const [subscription, wallet, usageSummary, voiceAgent] = await Promise.all([
     getWorkspaceSubscription(supabase, membership.workspaceId),
     getWorkspaceUsageWallet(supabase, membership.workspaceId),
     getLatestMonthlyUsageSummary(supabase, membership.workspaceId),
+    voiceAgentRepository.getWorkspaceVoiceAgent(membership.workspaceId),
   ]);
 
   return (
@@ -43,6 +49,7 @@ export default async function Page() {
         memberRole={membership.role}
         memberDisplayName={membership.displayName}
         memberEmail={session.user.email}
+        voiceAgent={voiceAgent === null ? null : mapWorkspaceVoiceAgentRow(voiceAgent)}
         workspaceId={membership.workspaceId}
         workspaceName={membership.workspaceName}
       />

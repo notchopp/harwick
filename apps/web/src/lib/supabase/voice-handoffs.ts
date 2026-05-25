@@ -1,8 +1,11 @@
 import {
+  ExtractedLeadFieldsSchema,
   normalizeFreeformText,
   parseBudgetRangeText,
   normalizeUsPhoneNumber,
   type CreateLeadHandoffArgs,
+  type ExtractedLeadFields,
+  type NormalizedLeadEvent,
 } from "@realty-ops/core";
 import type { LeadInsertRow, LeadLookup, LeadRow, LeadUpdateRow, LeadUpsertRepository } from "./leads";
 import type { RealtyOpsSupabaseClient } from "./server-client";
@@ -60,6 +63,10 @@ export type VoiceLeadHandoffResult = {
 };
 
 export type VoiceLeadHandoffRepository = LeadUpsertRepository & {
+  findVoiceLeadHandoffByCallId(params: {
+    workspaceId: string;
+    callId: string;
+  }): Promise<Pick<VoiceLeadHandoffRow, "id"> | null>;
   insertVoiceLeadHandoff(row: VoiceLeadHandoffInsertRow): Promise<Pick<VoiceLeadHandoffRow, "id">>;
 };
 
@@ -92,6 +99,73 @@ function statusFromVoiceHandoff(args: CreateLeadHandoffArgs): LeadRow["status"] 
     return "qualified";
   }
   return "new";
+}
+
+function readRecord(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function readString(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+function extractRetellPostCallAnalysis(event: NormalizedLeadEvent): ExtractedLeadFields | null {
+  const rawPayload = readRecord(event.rawPayload);
+  const extractedLead = readRecord(rawPayload?.["extractedLead"]);
+  if (extractedLead === null) {
+    return null;
+  }
+
+  const parsed = ExtractedLeadFieldsSchema.safeParse(extractedLead);
+  return parsed.success ? parsed.data : null;
+}
+
+function extractRetellCallId(event: NormalizedLeadEvent): string | null {
+  const rawPayload = readRecord(event.rawPayload);
+  const call = readRecord(rawPayload?.["call"]);
+  return readString(call?.["call_id"]) ?? event.providerEventId.split(":")[0] ?? null;
+}
+
+function urgencyFromPostCallAnalysis(analysis: ExtractedLeadFields): CreateLeadHandoffArgs["urgency"] {
+  const outcome = analysis.callOutcome?.toLowerCase() ?? "";
+  if (
+    analysis.intent === "high"
+    || outcome.includes("showing")
+    || outcome.includes("valuation")
+    || outcome.includes("handoff")
+  ) {
+    return "hot";
+  }
+
+  if (outcome.includes("callback") || analysis.financingStatus === "preapproved" || analysis.financingStatus === "cash") {
+    return "needs_handoff";
+  }
+
+  return "routine";
+}
+
+function buildPostCallHandoffArgs(params: {
+  event: NormalizedLeadEvent;
+  analysis: ExtractedLeadFields;
+}): CreateLeadHandoffArgs | null {
+  const summary = params.analysis.callSummary ?? params.analysis.leadSummary;
+  if (summary === null) {
+    return null;
+  }
+
+  return {
+    ...(params.analysis.callerName === null ? {} : { caller_name: params.analysis.callerName }),
+    ...(params.event.phone === null ? {} : { phone_number: params.event.phone }),
+    lead_type: params.analysis.leadType,
+    target_area: params.analysis.targetArea ?? "",
+    timeline: params.analysis.timeline ?? "",
+    budget: params.analysis.budget ?? "",
+    financing_status: params.analysis.financingStatus,
+    urgency: urgencyFromPostCallAnalysis(params.analysis),
+    summary,
+  };
 }
 
 export function buildVoiceLeadLookup(input: VoiceLeadHandoffInput): LeadLookup {
@@ -233,6 +307,78 @@ export async function persistVoiceLeadHandoff(params: {
   };
 }
 
+export async function persistRetellPostCallAnalysisHandoff(params: {
+  event: NormalizedLeadEvent;
+  leadId: string;
+  repository: VoiceLeadHandoffRepository;
+  enqueueWorkflowJob?: WorkflowJobEnqueuer;
+}): Promise<VoiceLeadHandoffResult | null> {
+  if (params.event.provider !== "retell" || params.event.eventType !== "call_completed") {
+    return null;
+  }
+
+  const callId = extractRetellCallId(params.event);
+  if (callId === null) {
+    return null;
+  }
+
+  const existingHandoff = await params.repository.findVoiceLeadHandoffByCallId({
+    workspaceId: params.event.workspaceId,
+    callId,
+  });
+  if (existingHandoff !== null) {
+    return {
+      leadId: params.leadId,
+      handoffId: existingHandoff.id,
+      createdLead: false,
+    };
+  }
+
+  const analysis = extractRetellPostCallAnalysis(params.event);
+  if (analysis === null) {
+    return null;
+  }
+
+  const args = buildPostCallHandoffArgs({
+    event: params.event,
+    analysis,
+  });
+  if (args === null) {
+    return null;
+  }
+
+  const handoff = await params.repository.insertVoiceLeadHandoff(mapVoiceHandoffToInsertRow({
+    workspaceId: params.event.workspaceId,
+    callId,
+    retellAgentId: params.event.providerAccountId,
+    fallbackPhone: params.event.phone,
+    args,
+    occurredAt: params.event.occurredAt,
+  }, params.leadId));
+
+  if (params.enqueueWorkflowJob !== undefined) {
+    await params.enqueueWorkflowJob({
+      workspaceId: params.event.workspaceId,
+      leadId: params.leadId,
+      leadEventId: null,
+      jobType: "lead_qualification",
+      idempotencyKey: `voice_post_call_qualification:${handoff.id}`,
+      payload: {
+        jobType: "lead_qualification",
+        workspaceId: params.event.workspaceId,
+        leadId: params.leadId,
+        reason: "post_call_analysis",
+      },
+    });
+  }
+
+  return {
+    leadId: params.leadId,
+    handoffId: handoff.id,
+    createdLead: false,
+  };
+}
+
 export function createSupabaseVoiceLeadHandoffRepository(
   supabase: RealtyOpsSupabaseClient,
 ): VoiceLeadHandoffRepository {
@@ -253,6 +399,22 @@ export function createSupabaseVoiceLeadHandoffRepository(
       }
 
       const { data, error } = await query.maybeSingle<Pick<LeadRow, "id">>();
+
+      if (error !== null) {
+        throw error;
+      }
+
+      return data ?? null;
+    },
+
+    async findVoiceLeadHandoffByCallId(params) {
+      const { data, error } = await supabase
+        .from("voice_lead_handoffs")
+        .select("id")
+        .eq("workspace_id", params.workspaceId)
+        .eq("call_id", params.callId)
+        .limit(1)
+        .maybeSingle<Pick<VoiceLeadHandoffRow, "id">>();
 
       if (error !== null) {
         throw error;

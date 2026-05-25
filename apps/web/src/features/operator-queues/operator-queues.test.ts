@@ -301,11 +301,14 @@ describe("operator queues", () => {
       memberId,
       request: { action: "create_callback_task" },
       repository,
+      now: () => new Date("2026-04-29T13:00:00.000Z"),
     });
 
     expect(createCallbackTask).toHaveBeenCalledWith(expect.objectContaining({
       priority: "urgent",
-      description: "Wants a showing this weekend.",
+      title: "Call back Ari Buyer",
+      description: "Wants a showing this weekend.\n\nPhone: +17135551212\n\nRetell call: call-1",
+      dueAt: "2026-04-29T13:15:00.000Z",
     }));
     expect(updateVoiceHandoffReview).toHaveBeenCalledWith(expect.objectContaining({
       values: expect.objectContaining({
@@ -313,6 +316,33 @@ describe("operator queues", () => {
         callbackTaskId: "77777777-7777-4777-8777-777777777777",
       }) as Record<string, unknown>,
     }));
+  });
+
+  it("does not create another callback task for an already scheduled voice handoff", async () => {
+    const createCallbackTask = vi.fn<VoiceHandoffQueueRepository["createCallbackTask"]>();
+    const updateVoiceHandoffReview = vi.fn<VoiceHandoffQueueRepository["updateVoiceHandoffReview"]>();
+    const existing = voiceItem({
+      reviewStatus: "callback_created",
+      callbackTaskId: "77777777-7777-4777-8777-777777777777",
+    });
+    const repository: VoiceHandoffQueueRepository = {
+      listVoiceHandoffs: vi.fn(),
+      findVoiceHandoff: vi.fn().mockResolvedValue(existing),
+      createCallbackTask,
+      updateVoiceHandoffReview,
+    };
+
+    const result = await actOnVoiceHandoff({
+      workspaceId,
+      handoffId: voiceItem().id,
+      memberId,
+      request: { action: "create_callback_task" },
+      repository,
+    });
+
+    expect(result).toBe(existing);
+    expect(createCallbackTask).not.toHaveBeenCalled();
+    expect(updateVoiceHandoffReview).not.toHaveBeenCalled();
   });
 
   it("loads the social conversation thread for a review", async () => {

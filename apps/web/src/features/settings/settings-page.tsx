@@ -3,6 +3,8 @@
 import {
   HarwickLoopListResponseSchema,
   HarwickLoopSchema,
+  ProvisionWorkspaceVoiceAgentResponseSchema,
+  WorkspaceVoiceAgentLookupResponseSchema,
   WorkspaceMemoryReviewListResponseSchema,
   WorkspaceMemoryReviewUpdateResponseSchema,
   type BillingInterval,
@@ -17,6 +19,7 @@ import {
   type WorkspaceMemoryDocument,
   type WorkspaceMemoryReviewStatus,
   type WorkspaceRole,
+  type WorkspaceVoiceAgent,
   type WorkspaceUsageWallet,
   getPlanLimits,
 } from "@realty-ops/core";
@@ -921,6 +924,188 @@ function HarwickMemoryReviewPanel(props: {
   );
 }
 
+function formatVoiceTimestamp(value: string | null): string {
+  if (value === null) return "Not synced yet";
+  return new Intl.DateTimeFormat("en", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
+function voiceStatusLabel(status: WorkspaceVoiceAgent["status"] | null): string {
+  if (status === null) return "not provisioned";
+  return status.replace(/_/g, " ");
+}
+
+function readApiErrorCode(body: unknown, fallback: string): string {
+  if (body === null || typeof body !== "object" || !("error" in body)) {
+    return fallback;
+  }
+
+  const error = body.error;
+  return typeof error === "string" ? error : fallback;
+}
+
+function VoiceAgentPanel(props: {
+  canManageVoice: boolean;
+  initialVoiceAgent: WorkspaceVoiceAgent | null;
+  workspaceId: string;
+}) {
+  const [voiceAgent, setVoiceAgent] = useState<WorkspaceVoiceAgent | null>(props.initialVoiceAgent);
+  const [serviceAreasText, setServiceAreasText] = useState(() => props.initialVoiceAgent?.serviceAreas.join(", ") ?? "");
+  const [transferNumber, setTransferNumber] = useState(() => props.initialVoiceAgent?.transferNumber ?? "");
+  const [status, setStatus] = useState<"idle" | "loading" | "provisioning" | "error">("idle");
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadVoiceAgent() {
+      setStatus("loading");
+      try {
+        const response = await fetch(`/api/workspaces/${props.workspaceId}/voice-agent/provision`);
+        if (!response.ok) {
+          throw new Error("voice_agent_load_failed");
+        }
+        const parsed = WorkspaceVoiceAgentLookupResponseSchema.parse(await response.json());
+        if (cancelled) return;
+        setVoiceAgent(parsed.voiceAgent);
+        setServiceAreasText(parsed.voiceAgent?.serviceAreas.join(", ") ?? "");
+        setTransferNumber(parsed.voiceAgent?.transferNumber ?? "");
+        setStatus("idle");
+      } catch (loadError) {
+        console.error("Failed to load voice agent:", loadError);
+        if (!cancelled) {
+          setStatus("error");
+          setError("Could not load the current voice number.");
+        }
+      }
+    }
+
+    void loadVoiceAgent();
+    return () => {
+      cancelled = true;
+    };
+  }, [props.workspaceId]);
+
+  async function provisionVoiceAgent() {
+    if (!props.canManageVoice || status === "provisioning") return;
+
+    const serviceAreas = serviceAreasText
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0)
+      .slice(0, 12);
+
+    setStatus("provisioning");
+    setError(null);
+    try {
+      const response = await fetch(`/api/workspaces/${props.workspaceId}/voice-agent/provision`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          accountScope: "workspace",
+          ownerMemberId: null,
+          serviceAreas,
+          transferNumber: transferNumber.trim().length === 0 ? null : transferNumber.trim(),
+        }),
+      });
+      const body: unknown = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(readApiErrorCode(body, "provisioning_failed"));
+      }
+      ProvisionWorkspaceVoiceAgentResponseSchema.parse(body);
+
+      const reload = await fetch(`/api/workspaces/${props.workspaceId}/voice-agent/provision`);
+      if (!reload.ok) {
+        throw new Error("voice_agent_reload_failed");
+      }
+      const parsed = WorkspaceVoiceAgentLookupResponseSchema.parse(await reload.json());
+      setVoiceAgent(parsed.voiceAgent);
+      setServiceAreasText(parsed.voiceAgent?.serviceAreas.join(", ") ?? serviceAreasText);
+      setTransferNumber(parsed.voiceAgent?.transferNumber ?? transferNumber);
+      setStatus("idle");
+    } catch (provisionError) {
+      console.error("Failed to provision voice agent:", provisionError);
+      setStatus("error");
+      setError(provisionError instanceof Error && provisionError.message === "missing_retell_config"
+        ? "Retell voice provisioning is missing server configuration."
+        : "Could not provision the voice number.");
+    }
+  }
+
+  const phoneNumber = voiceAgent?.phoneNumber ?? "Not provisioned";
+  const syncedAt = formatVoiceTimestamp(voiceAgent?.lastSyncedAt ?? null);
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-[14px] border border-harwick-border-strong bg-surface-muted/55 p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="text-[11px] uppercase tracking-[0.12em] text-muted-subtle">Workspace voice number</div>
+            <div className="mt-1 font-display text-[23px] font-medium text-foreground">{phoneNumber}</div>
+            <div className="mt-1 text-[11.5px] text-muted-subtle">
+              {voiceStatusLabel(voiceAgent?.status ?? null)} / {syncedAt}
+            </div>
+          </div>
+          <Button
+            className="text-[11px]"
+            disabled={!props.canManageVoice || status === "provisioning"}
+            onClick={() => void provisionVoiceAgent()}
+            size="sm"
+            type="button"
+          >
+            {status === "provisioning" ? "Provisioning..." : voiceAgent === null ? "Claim Number" : "Sync Number"}
+          </Button>
+        </div>
+
+        {voiceAgent?.lastErrorMessage ? (
+          <div className="mt-3 rounded-[10px] border border-oxblood-soft bg-oxblood-soft/30 px-3 py-2 text-[11.5px] text-hot">
+            {voiceAgent.lastErrorMessage}
+          </div>
+        ) : null}
+        {error === null ? null : (
+          <div className="mt-3 rounded-[10px] border border-oxblood-soft bg-oxblood-soft/30 px-3 py-2 text-[11.5px] text-hot">
+            {error}
+          </div>
+        )}
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-2">
+        <label className="block">
+          <span className="text-[11px] uppercase tracking-[0.12em] text-muted-subtle">Service areas</span>
+          <input
+            className="harwick-control mt-2 w-full px-[11px] py-[8px] text-[12.5px]"
+            disabled={!props.canManageVoice || status === "provisioning"}
+            onChange={(event) => setServiceAreasText(event.target.value)}
+            placeholder="Houston, Katy, Sugar Land"
+            value={serviceAreasText}
+          />
+        </label>
+        <label className="block">
+          <span className="text-[11px] uppercase tracking-[0.12em] text-muted-subtle">Transfer number</span>
+          <input
+            className="harwick-control mt-2 w-full px-[11px] py-[8px] text-[12.5px]"
+            disabled={!props.canManageVoice || status === "provisioning"}
+            onChange={(event) => setTransferNumber(event.target.value)}
+            placeholder="+17135550100"
+            value={transferNumber}
+          />
+        </label>
+      </div>
+
+      <div className="rounded-[12px] border border-border bg-surface-muted/45 px-3 py-2 text-[11.5px] leading-5 text-muted-subtle">
+        Harwick uses this number for inbound buyer and seller calls, then writes call context back into the queue and lead record. Keep the transfer number as the human line Harwick can hand off to.
+      </div>
+      {props.canManageVoice ? null : (
+        <div className="text-[11.5px] text-muted-subtle">Only owners, admins, team leads, and lead managers can provision workspace voice.</div>
+      )}
+    </div>
+  );
+}
+
 export function SettingsPageContent(props: {
   billing: BillingSummary;
   billingUsage: MonthlyUsageSummary | null;
@@ -928,6 +1113,7 @@ export function SettingsPageContent(props: {
   memberDisplayName: string;
   memberEmail: string | null;
   memberRole: WorkspaceRole;
+  voiceAgent: WorkspaceVoiceAgent | null;
   workspaceName: string;
   workspaceId: string;
 }) {
@@ -945,9 +1131,6 @@ export function SettingsPageContent(props: {
     missedCallAlerts: true,
     fubSyncErrors: false,
     dailyDigest: false,
-  });
-  const [preferences, setPreferences] = useState({
-    transferQualifiedCalls: true,
   });
 
   // Load automation settings on mount
@@ -1092,7 +1275,7 @@ export function SettingsPageContent(props: {
               <InfoRow label="Name" value={props.workspaceName} />
               <InfoRow label="Plan" value={props.billing === null ? "Not configured" : planLabel(props.billing.planTier)} />
               <InfoRow label="Members" value="Managed by workspace roles" />
-              <InfoRow label="Phone" value="Not configured" />
+              <InfoRow label="Phone" value={props.voiceAgent?.phoneNumber ?? "Not provisioned"} />
               <div className="mt-[11px]">
                 <Button
                   className="text-[11px]"
@@ -1278,24 +1461,11 @@ export function SettingsPageContent(props: {
             ) : null}
 
             <SettingsSection title="Voice Agent">
-              <ToggleRow
-                checked={preferences.transferQualifiedCalls}
-                description="Voice agent routes matching calls to your line"
-                label="Transfer qualified calls to me"
-                onToggle={() => setPreferences((current) => ({ ...current, transferQualifiedCalls: !current.transferQualifiedCalls }))}
+              <VoiceAgentPanel
+                canManageVoice={props.memberRole === "owner" || props.memberRole === "admin" || props.memberRole === "team_lead" || props.memberRole === "lead_manager"}
+                initialVoiceAgent={props.voiceAgent}
+                workspaceId={props.workspaceId}
               />
-              <div className="flex items-center gap-4 border-b border-border py-3">
-                <div className="flex-1 text-[13px] font-medium">My transfer number</div>
-                <input className="harwick-control w-[155px] px-[11px] py-[7px] text-[12.5px]" placeholder="Not configured" readOnly value="" />
-              </div>
-              <div className="flex items-center gap-4 py-3">
-                <div className="flex-1 text-[13px] font-medium">Availability hours</div>
-                <select className="harwick-control px-[10px] py-[6px] text-[12px]">
-                  <option>9 AM – 6 PM daily</option>
-                  <option>Mon–Fri 9–6</option>
-                  <option selected>Mon–Sat 9–7</option>
-                </select>
-              </div>
             </SettingsSection>
 
             <SettingsSection danger title="Danger Zone">

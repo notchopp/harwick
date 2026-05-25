@@ -13,6 +13,10 @@ import {
 } from "../../../lib/supabase/lead-events";
 import { createSupabaseLeadUpsertRepository } from "../../../lib/supabase/leads";
 import { createServerSupabaseClient } from "../../../lib/supabase/server-client";
+import {
+  createSupabaseVoiceLeadHandoffRepository,
+  persistRetellPostCallAnalysisHandoff,
+} from "../../../lib/supabase/voice-handoffs";
 import { createWorkflowJobEnqueuer } from "../../../lib/supabase/workflow-jobs";
 
 export type RetellWebhookPostRequest = {
@@ -46,12 +50,22 @@ export function createRetellWebhookPostDependencies(): RetellWebhookPostDependen
   const supabase = createServerSupabaseClient();
   const repository = createSupabaseLeadEventRepository(supabase);
   const leadUpsertRepository = createSupabaseLeadUpsertRepository(supabase);
+  const workflowJobEnqueuer = createWorkflowJobEnqueuer(supabase);
+  const voiceHandoffRepository = createSupabaseVoiceLeadHandoffRepository(supabase);
 
   return {
     resolveWorkspaceIdByProviderAccountId: createRetellWorkspaceResolver(repository),
     writeLeadEvents: createLeadEventWriter(repository, {
       leadUpsertRepository,
-      enqueueWorkflowJob: createWorkflowJobEnqueuer(supabase),
+      enqueueWorkflowJob: workflowJobEnqueuer,
+      createPostCallVoiceHandoff: async ({ event, leadId }) => {
+        await persistRetellPostCallAnalysisHandoff({
+          event,
+          leadId,
+          repository: voiceHandoffRepository,
+          enqueueWorkflowJob: workflowJobEnqueuer,
+        });
+      },
     }),
     recordVoiceCallUsage: (params) => recordBillingUsageEvent(supabase, {
       workspaceId: params.workspaceId,

@@ -11,12 +11,29 @@ import {
   creditWorkspaceUsageWallet,
   upsertWorkspaceSubscriptionFromProvider,
 } from "../../../../lib/supabase/billing";
+import { captureCriticalException } from "../../../../lib/observability/sentry";
+import { checkRateLimit, rateLimitKeyFromRequest } from "../../../../lib/rate-limit";
 import { getServerEnvironment } from "../../../../lib/server-env";
 import { createServerSupabaseClient } from "../../../../lib/supabase/server-client";
 
 export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
+  const rateLimit = checkRateLimit({
+    key: rateLimitKeyFromRequest({ request, namespace: "stripe-webhook" }),
+    limit: 200,
+    windowMs: 60_000,
+  });
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { accepted: false, reason: "rate_limited" },
+      {
+        status: 429,
+        headers: { "Retry-After": String(rateLimit.retryAfterSeconds) },
+      },
+    );
+  }
+
   const environment = getServerEnvironment();
   if (environment.STRIPE_SECRET_KEY === undefined || environment.STRIPE_WEBHOOK_SECRET === undefined) {
     return NextResponse.json({ accepted: false, reason: "stripe_not_configured" }, { status: 503 });
@@ -73,7 +90,11 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json(result);
-  } catch {
+  } catch (error) {
+    captureCriticalException(error, {
+      surface: "stripe/webhook",
+      extra: { eventId: event.id, eventType: event.type },
+    });
     return NextResponse.json({ accepted: false, reason: "reconciliation_failed" }, { status: 500 });
   }
 }

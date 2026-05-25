@@ -2,6 +2,7 @@ import type {
   ProvisionWorkspaceVoiceAgentRequest,
   ProvisionWorkspaceVoiceAgentResponse,
   RetellCallContextResponse,
+  WorkspaceVoiceAgent,
   VoiceAgentStatus,
 } from "@realty-ops/core";
 import { buildRealtyVoiceAliases, buildRealtyVoiceContract, normalizeUsPhoneNumber } from "@realty-ops/core";
@@ -119,6 +120,32 @@ export type VoiceAgentRepository = {
     errorMessage: string;
   }): Promise<void>;
 };
+
+export function mapWorkspaceVoiceAgentRow(row: WorkspaceVoiceAgentRow): WorkspaceVoiceAgent {
+  return {
+    id: row.id,
+    workspaceId: row.workspace_id,
+    accountScope: row.account_scope,
+    ownerMemberId: row.owner_member_id,
+    provider: row.provider,
+    status: row.status,
+    retellAgentId: row.retell_agent_id,
+    retellConversationFlowId: row.retell_conversation_flow_id,
+    retellPhoneNumberId: row.retell_phone_number_id,
+    phoneNumber: row.phone_number,
+    serviceAreas: row.service_areas,
+    transferNumber: row.transfer_number,
+    templateVersion: row.template_version,
+    publishedConfigHash: row.published_config_hash,
+    webhookUrl: row.webhook_url,
+    dynamicVariablesWebhookUrl: row.dynamic_variables_webhook_url,
+    lastSyncedAt: row.last_synced_at,
+    lastErrorCode: row.last_error_code,
+    lastErrorMessage: row.last_error_message,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
 
 export function buildRetellCallContextResponse(
   row: WorkspaceVoiceAgentContextRow,

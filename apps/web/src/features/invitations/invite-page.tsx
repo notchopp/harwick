@@ -36,8 +36,11 @@ export function InvitePage({ token, preview, viewerEmail }: InvitePageProps) {
         method: "POST",
       });
       if (!response.ok) {
-        const detail = await response.json().catch(() => ({}));
-        const code = typeof detail.error === "string" ? detail.error : "accept_failed";
+        const detail: unknown = await response.json().catch(() => ({}));
+        const detailRecord = detail !== null && typeof detail === "object" && !Array.isArray(detail)
+          ? detail as Record<string, unknown>
+          : {};
+        const code = typeof detailRecord["error"] === "string" ? detailRecord["error"] : "accept_failed";
         const message =
           code === "email_mismatch"
             ? `This invite is for ${preview.invitedEmail}. Sign in with that account to accept.`

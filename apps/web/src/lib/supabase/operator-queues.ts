@@ -475,6 +475,7 @@ export function createSupabaseVoiceHandoffQueueRepository(
           priority: params.priority,
           title: params.title,
           description: params.description,
+          due_at: params.dueAt,
           assigned_member_id: null,
         })
         .select("id")

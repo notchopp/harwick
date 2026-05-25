@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import type { HarwickToolDefinition, HarwickToolDeps } from "../registry";
+import { defineHarwickTool, type HarwickToolDefinition, type HarwickToolDeps } from "../registry";
 
 /**
  * Briefings — Harwick acts like a chief of staff by surfacing daily rhythms.
@@ -88,7 +88,7 @@ async function gatherSubagentResults(deps: HarwickToolDeps, sinceIso: string) {
   return data ?? [];
 }
 
-export const generateMorningBriefingTool: HarwickToolDefinition = {
+export const generateMorningBriefingTool = defineHarwickTool({
   name: "generate_morning_briefing",
   description: "Gather the today-ahead state of the workspace so you can write the morning briefing. Returns hot leads (score ≥ 60), unassigned leads waiting, pending routing decisions, team load by member, and overnight subagent results. Use this when the operator opens Harwick first thing, asks 'what's the day looking like?', or as the body of a scheduled morning loop.",
   scopes: ["operator_chat", "scheduled_loop"],
@@ -120,9 +120,9 @@ export const generateMorningBriefingTool: HarwickToolDefinition = {
       overnightSubagentResults: overnight,
     };
   },
-};
+});
 
-export const generateEndOfDayTool: HarwickToolDefinition = {
+export const generateEndOfDayTool = defineHarwickTool({
   name: "generate_end_of_day",
   description: "Gather what happened today + what's pending for tomorrow. Returns stage changes (audit_logs), subagent results, and tomorrow's open lead tasks. Use this for an end-of-day wrap or a scheduled evening loop.",
   scopes: ["operator_chat", "scheduled_loop"],
@@ -163,9 +163,9 @@ export const generateEndOfDayTool: HarwickToolDefinition = {
       tomorrowOpenTasks: openTasks.data ?? [],
     };
   },
-};
+});
 
-export const generateHandoffBriefTool: HarwickToolDefinition = {
+export const generateHandoffBriefTool = defineHarwickTool({
   name: "generate_handoff_brief",
   description: "Bundle the workspace state for someone covering the operator. Use when the operator says they're going OOO, leaving for the day, or handing off to a teammate. Returns hot leads + open tasks + team online status.",
   scopes: ["operator_chat"],
@@ -199,7 +199,7 @@ export const generateHandoffBriefTool: HarwickToolDefinition = {
       openTasks: openTasks.data ?? [],
     };
   },
-};
+});
 
 export const BRIEFING_TOOLS: HarwickToolDefinition[] = [
   generateMorningBriefingTool,

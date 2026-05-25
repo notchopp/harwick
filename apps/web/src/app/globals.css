@@ -33,8 +33,8 @@
   src: url("/fonts/instrument-sans-0.ttf") format("truetype");
 }
 
-/* Nunito (display) and Geist Mono (codes) are loaded via the
- * <link rel="stylesheet"> in apps/web/src/app/layout.tsx. */
+/* Typography is fully local/system-backed so production builds do not depend
+ * on remote font fetches. */
 
 @custom-variant dark (&:is(.dark *));
 
@@ -112,8 +112,8 @@
 
 @theme inline {
   --font-sans: "Instrument Sans", "Inter", "Geist", "Aptos", "Segoe UI", sans-serif;
-  --font-display: var(--font-display-google, "Nunito"), "Instrument Sans", "Inter", "Aptos", "Segoe UI", sans-serif;
-  --font-mono: var(--font-mono-google, "Geist Mono"), ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Mono", Menlo, Monaco, Consolas, monospace;
+  --font-display: "Instrument Sans", "Inter", "Aptos", "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Mono", Menlo, Monaco, Consolas, monospace;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);

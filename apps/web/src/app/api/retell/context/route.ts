@@ -1,5 +1,6 @@
 import { createLogger } from "@realty-ops/core";
 import { NextResponse, type NextRequest } from "next/server";
+import { checkRateLimit, rateLimitKeyFromRequest } from "../../../../lib/rate-limit";
 import { postRetellContext } from "../context-handler";
 
 export const runtime = "nodejs";
@@ -9,6 +10,21 @@ const logger = createLogger({
 });
 
 export async function POST(request: NextRequest) {
+  const rateLimit = checkRateLimit({
+    key: rateLimitKeyFromRequest({ request, namespace: "retell-context" }),
+    limit: 60,
+    windowMs: 60_000,
+  });
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: "rate_limited" },
+      {
+        status: 429,
+        headers: { "Retry-After": String(rateLimit.retryAfterSeconds) },
+      },
+    );
+  }
+
   try {
     let body: unknown;
 

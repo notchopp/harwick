@@ -1,12 +1,34 @@
 import { describe, expect, it } from "vitest";
 
 import { queryWorkspaceTool, delegateComplexTaskTool } from "./anything";
+import type { HarwickToolDefinition, HarwickToolDeps } from "../registry";
+import type { RealtyOpsSupabaseClient } from "../../../lib/supabase/server-client";
 
 type StubResult = { data: unknown; error: { message: string } | null };
+type ChainBuilder = {
+  select: () => ChainBuilder;
+  insert: () => ChainBuilder;
+  update: () => ChainBuilder;
+  eq: () => ChainBuilder;
+  neq: () => ChainBuilder;
+  in: () => ChainBuilder;
+  is: () => ChainBuilder;
+  not: () => ChainBuilder;
+  gte: () => ChainBuilder;
+  gt: () => ChainBuilder;
+  lt: () => ChainBuilder;
+  lte: () => ChainBuilder;
+  ilike: () => ChainBuilder;
+  order: () => ChainBuilder;
+  limit: () => ChainBuilder;
+  maybeSingle: () => Promise<StubResult>;
+  single: () => Promise<StubResult>;
+  then: Promise<StubResult>["then"];
+};
 
-function chain(result: StubResult) {
+function chain(result: StubResult): ChainBuilder {
   const promise = Promise.resolve(result);
-  const builder: Record<string, unknown> = {
+  const builder: ChainBuilder = {
     select: () => builder,
     insert: () => builder,
     update: () => builder,
@@ -24,20 +46,20 @@ function chain(result: StubResult) {
     limit: () => builder,
     maybeSingle: () => promise,
     single: () => promise,
-    then: (...args: unknown[]) => (promise as unknown as { then: Function }).then(...args),
+    then: promise.then.bind(promise),
   };
   return builder;
 }
 
-function makeStubSupabase(perTable: Record<string, StubResult>): unknown {
+function makeStubSupabase(perTable: Record<string, StubResult>): RealtyOpsSupabaseClient {
   return {
     from(table: string) {
       return chain(perTable[table] ?? { data: null, error: { message: `unstubbed table: ${table}` } });
     },
-  };
+  } as unknown as RealtyOpsSupabaseClient;
 }
 
-const baseDeps = {
+const baseDeps: Omit<HarwickToolDeps, "supabase"> = {
   workspaceId: "00000000-0000-0000-0000-000000000001",
   workspaceName: "Test Workspace",
   operatorMemberId: "00000000-0000-0000-0000-000000000002",
@@ -45,8 +67,8 @@ const baseDeps = {
   operatorRole: "owner" as const,
 };
 
-async function call(tool: { execute: (input: unknown, deps: unknown) => unknown }, input: unknown, deps: unknown): Promise<unknown> {
-  return tool.execute(input, deps);
+function call(tool: HarwickToolDefinition, input: unknown, deps: HarwickToolDeps): Promise<unknown> {
+  return Promise.resolve(tool.execute(input, deps));
 }
 
 describe("query_workspace tool", () => {
@@ -54,7 +76,7 @@ describe("query_workspace tool", () => {
     const supabase = makeStubSupabase({
       leads: { data: [{ id: "lead-1", status: "hot" }, { id: "lead-2", status: "engaged" }], error: null },
     });
-    const result = (await call(queryWorkspaceTool as never, {
+    const result = (await call(queryWorkspaceTool, {
       table: "leads",
       columns: ["id", "status"],
       filters: [],
@@ -68,7 +90,7 @@ describe("query_workspace tool", () => {
     const supabase = makeStubSupabase({
       leads: { data: null, error: { message: "permission denied" } },
     });
-    const result = (await call(queryWorkspaceTool as never, {
+    const result = (await call(queryWorkspaceTool, {
       table: "leads",
       columns: [],
       filters: [],
@@ -78,7 +100,7 @@ describe("query_workspace tool", () => {
     expect(result.error).toMatch(/permission/);
   });
 
-  it("only allows whitelisted tables (model can't read arbitrary tables)", async () => {
+  it("only allows whitelisted tables (model can't read arbitrary tables)", () => {
     // We invoke the zod parse directly to verify the schema rejects non-whitelisted tables.
     const result = queryWorkspaceTool.inputSchema.safeParse({
       table: "auth.users",
@@ -95,7 +117,7 @@ describe("delegate_complex_task tool", () => {
     const supabase = makeStubSupabase({
       harwick_work_items: { data: { id: "wi-1", title: "Custom market analysis", priority: "high" }, error: null },
     });
-    const result = (await call(delegateComplexTaskTool as never, {
+    const result = (await call(delegateComplexTaskTool, {
       title: "Custom market analysis",
       body: "Pull median DOM for our top 3 zip codes vs last quarter and surface the delta.",
       leadId: null,
@@ -110,7 +132,7 @@ describe("delegate_complex_task tool", () => {
     const supabase = makeStubSupabase({
       harwick_work_items: { data: null, error: { message: "insert failed" } },
     });
-    const result = (await call(delegateComplexTaskTool as never, {
+    const result = (await call(delegateComplexTaskTool, {
       title: "Should fail",
       body: "Some body text that's long enough.",
       leadId: null,

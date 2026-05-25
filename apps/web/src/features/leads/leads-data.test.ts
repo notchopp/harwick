@@ -140,6 +140,7 @@ describe("loadLeadsPageData", () => {
       "nurture",
     ]);
     expect(data.items[0]).toMatchObject({
+      assignedMemberId: memberId,
       reviewId: "66666666-6666-4666-8666-666666666666",
       automationMode: "human_takeover",
       automationReason: "agent is replying live",

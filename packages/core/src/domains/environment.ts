@@ -68,11 +68,16 @@ const ServerEnvironmentBaseSchema = z.object({
   STRIPE_TEAM_YEARLY_PRICE_ID: OptionalNonEmptyStringSchema,
   STRIPE_BROKERAGE_MONTHLY_PRICE_ID: OptionalNonEmptyStringSchema,
   STRIPE_BROKERAGE_YEARLY_PRICE_ID: OptionalNonEmptyStringSchema,
+  RESEND_API_KEY: OptionalNonEmptyStringSchema,
   AGENT_RECONCILE_CRON_SECRET: OptionalNonEmptyStringSchema,
   CRON_SECRET: OptionalNonEmptyStringSchema,
   NEXT_PUBLIC_SUPABASE_URL: z.string().trim().url(),
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().trim().min(1),
   SUPABASE_SERVICE_ROLE_KEY: z.string().trim().min(1),
+  // Sentry DSN — optional. When undefined the @sentry/nextjs SDK silently
+  // no-ops (initialization with no DSN never emits events), which is the
+  // desired behavior for dev / unconfigured deploys.
+  SENTRY_DSN: OptionalNonEmptyStringSchema,
 });
 
 export const ServerEnvironmentSchema = ServerEnvironmentBaseSchema.superRefine((value, context) => {

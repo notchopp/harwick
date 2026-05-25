@@ -22,7 +22,6 @@ import {
   Plus,
   Route,
   ShieldCheck,
-  Sparkles,
   Trash2,
   UploadCloud,
   TrendingUp,
@@ -38,7 +37,9 @@ import {
   useState,
 } from "react";
 
-import type {
+import {
+  ProvisionWorkspaceVoiceAgentResponseSchema,
+  type ProvisionWorkspaceVoiceAgentResponse,
   OnboardingChannel,
   OnboardingChannelMode,
   WorkspaceOnboardingState,
@@ -54,11 +55,9 @@ import {
   HouseLine as PhosphorHouseLine,
   type Icon as PhosphorIcon,
   Key as PhosphorKey,
-  MapPin as PhosphorMapPin,
 } from "@phosphor-icons/react";
 
 import { FacebookGlyph, InstagramGlyph, PhoneGlyph } from "../../components/harwick-icons";
-import { HarwickMark } from "../../components/harwick-rail/harwick-mark";
 import { Button } from "../../components/ui/button";
 import { Label } from "../../components/ui/label";
 import { cn } from "../../lib/utils";
@@ -333,6 +332,15 @@ function planLabel(tier: SetupPageProps["planTier"]): string {
   return "Brokerage";
 }
 
+function readApiErrorCode(body: unknown, fallback: string): string {
+  if (body === null || typeof body !== "object" || !("error" in body)) {
+    return fallback;
+  }
+
+  const error = body.error;
+  return typeof error === "string" ? error : fallback;
+}
+
 // Plan tier → workspace shape. Inside Harwick "team" and "seats" mean the
 // same thing — Team plan ships 10 seats, so Team plan = team-shaped
 // workspace. Free + Solo are single-operator shapes by definition.
@@ -340,26 +348,6 @@ function workspaceTypeFromPlan(planTier: SetupPageProps["planTier"]): WorkspaceT
   if (planTier === "team") return "team";
   if (planTier === "brokerage") return "brokerage";
   return "solo";
-}
-
-function roleLabel(role: WorkspaceRole): string {
-  return role.replace(/_/g, " ");
-}
-
-function roleLens(role: WorkspaceRole): string {
-  if (role === "owner" || role === "admin") {
-    return "Full setup: integrations, autonomy, team access, routing policy, and launch checks.";
-  }
-  if (role === "team_lead" || role === "lead_manager") {
-    return "Operational setup: routing, load, SLA, approval rules, and team handoffs.";
-  }
-  if (role === "agent") {
-    return "Personal setup: areas, lead types, calendar, showing preferences, and assigned-lead workflow.";
-  }
-  if (role === "operator") {
-    return "Queue setup: approvals, escalation, triage, and clean handoff expectations.";
-  }
-  return "Read-only orientation: see what Harwick is doing without changing owner-level controls.";
 }
 
 function previousScene(current: SceneKey): SceneKey {
@@ -1247,14 +1235,6 @@ function modeShortLabel(mode: ChannelMode): string {
   return "off";
 }
 
-function channelLabel(channels: Record<OnboardingChannel, ChannelMode>): string {
-  const active = CHANNEL_OPTIONS.filter((option) => channels[option.key] !== "off").length;
-  const auto = (Object.values(channels) as ChannelMode[]).filter((mode) => mode === "auto_send").length;
-  if (active === 0) return "no channels on yet";
-  if (auto > 0) return `${active} on · ${auto} on auto`;
-  return `${active} of ${CHANNEL_OPTIONS.length} channels`;
-}
-
 function AutonomyVisual({ autonomy }: { autonomy: SetupDraft["autonomy"] }) {
   // Talking-state SVG. Harwick (H glyph) on the left, chat bubble on the
   // right. Dial position changes what Harwick is doing:
@@ -2096,12 +2076,55 @@ function AutonomyScene({
 function ActivationScene({
   planTier,
   operatorRole,
+  serviceAreas,
+  workspaceId,
   onNext,
 }: {
   planTier: SetupPageProps["planTier"];
   operatorRole: WorkspaceRole;
+  serviceAreas: string[];
+  workspaceId: string;
   onNext: () => void;
 }) {
+  const [voiceStatus, setVoiceStatus] = useState<"idle" | "provisioning" | "ready" | "error">("idle");
+  const [voiceResult, setVoiceResult] = useState<ProvisionWorkspaceVoiceAgentResponse | null>(null);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
+  const canProvisionVoice =
+    planMeets(planTier, "solo")
+    && ["owner", "admin", "team_lead", "lead_manager"].includes(operatorRole);
+
+  async function provisionVoiceAgent() {
+    if (!canProvisionVoice || voiceStatus === "provisioning") return;
+
+    setVoiceStatus("provisioning");
+    setVoiceError(null);
+    try {
+      const response = await fetch(`/api/workspaces/${workspaceId}/voice-agent/provision`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          accountScope: "workspace",
+          ownerMemberId: null,
+          serviceAreas,
+          transferNumber: null,
+        }),
+      });
+      const body: unknown = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(readApiErrorCode(body, "provisioning_failed"));
+      }
+      const parsed = ProvisionWorkspaceVoiceAgentResponseSchema.parse(body);
+      setVoiceResult(parsed);
+      setVoiceStatus("ready");
+    } catch (error) {
+      console.error("Failed to provision onboarding voice agent:", error);
+      setVoiceStatus("error");
+      setVoiceError(error instanceof Error && error.message === "missing_retell_config"
+        ? "Retell voice provisioning is not configured on this environment."
+        : "Could not claim a voice number right now.");
+    }
+  }
+
   return (
     <SceneFrame
       eyebrow="connect"
@@ -2118,6 +2141,37 @@ function ActivationScene({
             <p className="mt-1 text-[11.5px] leading-5 text-white/45">
               Each connector lives in Settings → Integrations after setup. Connect what you have now; come back for the rest.
             </p>
+          </div>
+          <div className="rounded-[22px] border border-white/10 bg-white/[0.045] p-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2 text-[12px] font-medium text-white">
+                  <PhoneGlyph className="size-4 text-[#b8d3c5]" />
+                  Claim Harwick&apos;s call number
+                </div>
+                <p className="mt-1 text-[11.5px] leading-5 text-white/45">
+                  {voiceResult?.phoneNumber
+                    ? `Ready: ${voiceResult.phoneNumber}`
+                    : canProvisionVoice
+                      ? "Retell creates the workspace voice agent and inbound number."
+                      : "Available on Solo and above for owners, admins, and launch managers."}
+                </p>
+              </div>
+              <button
+                className={cn(
+                  "rounded-full border border-white/12 px-4 py-2 text-[11px] font-semibold text-white transition",
+                  canProvisionVoice ? "bg-white/[0.08] hover:bg-white/[0.13]" : "cursor-not-allowed bg-white/[0.03] text-white/35",
+                )}
+                disabled={!canProvisionVoice || voiceStatus === "provisioning" || voiceStatus === "ready"}
+                onClick={() => void provisionVoiceAgent()}
+                type="button"
+              >
+                {voiceStatus === "provisioning" ? "Claiming..." : voiceStatus === "ready" ? "Number ready" : "Claim number"}
+              </button>
+            </div>
+            {voiceError === null ? null : (
+              <p className="mt-2 text-[11px] leading-5 text-[#f0a59d]">{voiceError}</p>
+            )}
           </div>
           <PrimaryCta onClick={onNext}>
             Finish and open Harwick
@@ -2159,12 +2213,6 @@ export function OnboardingSetupPage(props: SetupPageProps) {
 
   function goBack() {
     setScene((current) => previousScene(current));
-  }
-
-  function addArea() {
-    const trimmed = draft.areaDraft.trim();
-    if (trimmed.length === 0 || draft.areas.includes(trimmed) || draft.areas.length >= 8) return;
-    setDraft((current) => ({ ...current, areas: [...current.areas, trimmed], areaDraft: "" }));
   }
 
   function handleAreaSelect(resolved: ResolvedArea) {
@@ -2404,6 +2452,8 @@ export function OnboardingSetupPage(props: SetupPageProps) {
         <ActivationScene
           planTier={props.planTier}
           operatorRole={props.operatorRole}
+          serviceAreas={draft.areas}
+          workspaceId={props.workspaceId}
           onNext={() => setScene("done")}
         />
       ) : null}

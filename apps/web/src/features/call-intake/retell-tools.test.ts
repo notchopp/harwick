@@ -35,6 +35,7 @@ describe("handleRetellToolCall", () => {
     const enqueuedJobs: EnqueueWorkflowJobInput[] = [];
     const repository: VoiceLeadHandoffRepository = {
       findExistingLead: () => Promise.resolve(null),
+      findVoiceLeadHandoffByCallId: () => Promise.resolve(null),
       insertLead: (row) => {
         expect(row).toMatchObject({
           workspace_id: "123e4567-e89b-12d3-a456-426614174000",

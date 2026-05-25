@@ -3,6 +3,7 @@ import { createLogger } from "@realty-ops/core";
 import { verifyRetellWebhookSignature } from "@realty-ops/integrations";
 import { handleRetellToolCall } from "../../../../features/call-intake/retell-tools";
 import { createWorkspaceScopedListingLookupRepository } from "../../../../features/listings/workspace-listing-lookup";
+import { checkRateLimit, rateLimitKeyFromRequest } from "../../../../lib/rate-limit";
 import { getServerEnvironment } from "../../../../lib/server-env";
 import { createSupabaseRepliersCredentialRepository } from "../../../../lib/supabase/integration-accounts";
 import { createSupabaseVerifyListingTaskRepository } from "../../../../lib/supabase/lead-tasks";
@@ -19,6 +20,21 @@ const logger = createLogger({
 });
 
 export async function POST(request: NextRequest) {
+  const rateLimit = checkRateLimit({
+    key: rateLimitKeyFromRequest({ request, namespace: "retell-tools" }),
+    limit: 60,
+    windowMs: 60_000,
+  });
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { result: "rate_limited" },
+      {
+        status: 429,
+        headers: { "Retry-After": String(rateLimit.retryAfterSeconds) },
+      },
+    );
+  }
+
   const rawBody = await request.text();
   const signature = request.headers.get("x-retell-signature");
   const environment = getServerEnvironment();

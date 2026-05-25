@@ -9,6 +9,7 @@ import { loadWorkspaceActivity, type WorkspaceActivityRepository } from "./activ
 
 type WorkflowJobRow = Tables<"workflow_jobs">;
 type AuditLogRow = Tables<"audit_logs">;
+type AgentTrajectoryRow = Tables<"agent_trajectories">;
 
 const workspaceId = "11111111-1111-4111-8111-111111111111";
 
@@ -111,12 +112,33 @@ function providerError(overrides: Partial<ProviderErrorLogRow> = {}): ProviderEr
   };
 }
 
+function agentTrajectory(overrides: Partial<AgentTrajectoryRow> = {}): AgentTrajectoryRow {
+  return {
+    id: "traj-1",
+    workspace_id: workspaceId,
+    lead_id: "11111111-1111-4111-8111-aaaaaaaaaaaa",
+    channel: "instagram_dm",
+    completed_at: "2026-05-06T15:00:00.000Z",
+    completion_reason: "policy_blocked",
+    created_at: "2026-05-06T14:55:00.000Z",
+    final_lead_status: "qualified",
+    outcome_label: "negative",
+    started_at: "2026-05-06T14:50:00.000Z",
+    step_count: 3,
+    summary_embedding: null,
+    summary_text: "harwick drafted a reply to sarah@example.com but waited for approval.",
+    updated_at: "2026-05-06T15:00:00.000Z",
+    ...overrides,
+  };
+}
+
 function makeRepository() {
   const listLeadEvents = vi.fn<WorkspaceActivityRepository["listLeadEvents"]>().mockResolvedValue([leadEvent()]);
   const listAuditLogs = vi.fn<WorkspaceActivityRepository["listAuditLogs"]>().mockResolvedValue([auditLog()]);
   const listWorkflowJobs = vi.fn<WorkspaceActivityRepository["listWorkflowJobs"]>().mockResolvedValue([workflowJob()]);
   const listCrmSyncLogs = vi.fn<WorkspaceActivityRepository["listCrmSyncLogs"]>().mockResolvedValue([crmSync()]);
   const listProviderErrors = vi.fn<WorkspaceActivityRepository["listProviderErrors"]>().mockResolvedValue([providerError()]);
+  const listAgentTrajectories = vi.fn<WorkspaceActivityRepository["listAgentTrajectories"]>().mockResolvedValue([agentTrajectory()]);
 
   return {
     repository: {
@@ -125,6 +147,7 @@ function makeRepository() {
       listWorkflowJobs,
       listCrmSyncLogs,
       listProviderErrors,
+      listAgentTrajectories,
     } satisfies WorkspaceActivityRepository,
     mocks: {
       listLeadEvents,
@@ -132,6 +155,7 @@ function makeRepository() {
       listWorkflowJobs,
       listCrmSyncLogs,
       listProviderErrors,
+      listAgentTrajectories,
     },
   };
 }
@@ -146,20 +170,32 @@ describe("loadWorkspaceActivity", () => {
     expect(mocks.listWorkflowJobs).toHaveBeenCalledWith({ workspaceId, limit: 25 });
     expect(mocks.listCrmSyncLogs).toHaveBeenCalledWith({ workspaceId, limit: 25 });
     expect(mocks.listProviderErrors).toHaveBeenCalledWith({ workspaceId, limit: 25 });
+    expect(mocks.listAgentTrajectories).toHaveBeenCalledWith({ workspaceId, limit: 25 });
     expect(activity.events.map((event) => event.id)).toEqual([
+      "agent_trajectory:traj-1",
       "lead_event:lead-event-1",
       "audit_log:audit-1",
       "workflow_job:job-1",
       "crm_sync:crm-1",
       "provider_error:provider-error-1",
     ]);
-    expect(activity.events[0]?.detail).toBe("Call me at [phone] about this home.");
-    expect(activity.events[2]).toMatchObject({
+    expect(activity.events[0]).toMatchObject({
+      type: "harwick",
+      source: "ai",
+      icon: "harwick",
+      error: true,
+    });
+    expect(activity.events[0]?.detail).toBe("harwick drafted a reply to [email] but waited for approval.");
+    expect(activity.events[1]?.detail).toBe("Call me at [phone] about this home.");
+    expect(activity.events[1]?.source).toBe("operator");
+    expect(activity.events[3]).toMatchObject({
       type: "fub",
       icon: "sync",
+      source: "system",
       error: true,
       detail: "Failed for [email]",
     });
-    expect(activity.events[4]?.detail).toBe("Could not send to [phone].");
+    expect(activity.events[5]?.detail).toBe("Could not send to [phone].");
+    expect(activity.events[5]?.source).toBe("system");
   });
 });

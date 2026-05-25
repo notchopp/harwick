@@ -1,10 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { ZodError } from "zod";
+import { pushLeadToFollowUpBoss } from "../../../../../features/crm/follow-up-boss-push";
 import {
   handlePublicListingInquiry,
   PublicListingInquiryError,
 } from "../../../../../features/public-listings/public-listing-inquiry";
 import { checkRateLimit, rateLimitKeyFromRequest } from "../../../../../lib/rate-limit";
+import { getServerEnvironment } from "../../../../../lib/server-env";
 import { createSupabasePublicListingInquiryRepository } from "../../../../../lib/supabase/public-listing-inquiry";
 import { createServerSupabaseClient } from "../../../../../lib/supabase/server-client";
 
@@ -45,12 +47,37 @@ export async function POST(
   }
 
   try {
+    const supabase = createServerSupabaseClient();
     const result = await handlePublicListingInquiry({
       workspaceSlug,
       listingId: request.nextUrl.searchParams.get("listingId"),
       request: body,
-      repository: createSupabasePublicListingInquiryRepository(createServerSupabaseClient()),
+      repository: createSupabasePublicListingInquiryRepository(supabase),
     });
+
+    // Fire-and-forget FUB push. Failures are logged but never block the user-facing response —
+    // the lead is already persisted in Harwick. Async sync via fub_sync queue (GTM-2) handles retry.
+    const environment = getServerEnvironment();
+    if (environment.CREDENTIAL_ENCRYPTION_KEY !== undefined) {
+      void pushLeadToFollowUpBoss({
+        supabase,
+        credentialSecret: environment.CREDENTIAL_ENCRYPTION_KEY,
+        workspaceId: result.workspaceId,
+        leadId: result.leadId,
+        lead: result.lead,
+        listing: result.listingContext,
+        source: "listings_site",
+      }).then((outcome) => {
+        if (!outcome.pushed && outcome.reason !== "no_credential") {
+          console.warn(
+            "[fub_push] sync failed; lead persisted in Harwick only",
+            { reason: outcome.reason, error: outcome.error, leadId: result.leadId },
+          );
+        }
+      }).catch((error) => {
+        console.error("[fub_push] unexpected error", error);
+      });
+    }
 
     return NextResponse.json(
       {

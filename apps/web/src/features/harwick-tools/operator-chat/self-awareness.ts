@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import type { HarwickToolDefinition, HarwickToolDeps } from "../registry";
+import type { HarwickToolDefinition } from "../registry";
 
 /**
  * Self-awareness tools — make uncertainty a first-class signal.
@@ -18,18 +18,20 @@ import type { HarwickToolDefinition, HarwickToolDeps } from "../registry";
  * surface metadata about the model's own confidence to the operator.
  */
 
+const FlagMyUncertaintyInputSchema = z.object({
+  topic: z.string().min(3).max(200).describe("Short description of what you're uncertain about. Example: 'Whether this lead is the same person as the one Sarah closed last month'."),
+  why: z.string().min(8).max(500).describe("Why you're uncertain. Concrete: 'IG handles match but phone numbers differ; could be a partner or a relative'."),
+  confidence: z.number().min(0).max(1).describe("0..1 self-rating."),
+  wouldHelpResolve: z.string().max(400).optional().describe("Optional. What would resolve the uncertainty? Example: 'A look at the FUB contact record', 'A direct question to the lead about which property they meant'."),
+});
+
 export const flagMyUncertaintyTool: HarwickToolDefinition = {
   name: "flag_my_uncertainty",
   description: "Use when you'd otherwise bluff. Emits an explicit 'I'm not confident here' signal that the operator's UI surfaces. The reply you write should also be honest about the gap — don't paper over it. Confidence is 0..1 where 0 = total guess, 0.5 = could go either way, 0.8 = pretty sure but flagging anyway.",
   scopes: ["operator_chat", "lead_conversation", "channel_mention"],
   approval: "auto_safe",
-  inputSchema: z.object({
-    topic: z.string().min(3).max(200).describe("Short description of what you're uncertain about. Example: 'Whether this lead is the same person as the one Sarah closed last month'."),
-    why: z.string().min(8).max(500).describe("Why you're uncertain. Concrete: 'IG handles match but phone numbers differ; could be a partner or a relative'."),
-    confidence: z.number().min(0).max(1).describe("0..1 self-rating."),
-    wouldHelpResolve: z.string().max(400).optional().describe("Optional. What would resolve the uncertainty? Example: 'A look at the FUB contact record', 'A direct question to the lead about which property they meant'."),
-  }),
-  execute(input) {
+  inputSchema: FlagMyUncertaintyInputSchema,
+  execute(input: z.output<typeof FlagMyUncertaintyInputSchema>) {
     return {
       kind: "uncertainty_flag",
       topic: input.topic,
@@ -40,20 +42,22 @@ export const flagMyUncertaintyTool: HarwickToolDefinition = {
   },
 };
 
+const RequestClarificationInputSchema = z.object({
+  question: z.string().min(8).max(300).describe("The clarifying question in plain English."),
+  ambiguity: z.string().min(8).max(400).describe("What specifically is ambiguous. 'You said \"call her\" but you have 3 open leads — which one?'"),
+  options: z.array(z.object({
+    label: z.string().min(1).max(120),
+    value: z.string().min(1).max(200),
+  })).min(2).max(6).describe("2-6 distinct answer options the operator can quick-pick. The 'value' is what should come back from the operator."),
+});
+
 export const requestClarificationTool: HarwickToolDefinition = {
   name: "request_clarification",
   description: "Ask the operator a structured question when an instruction is genuinely ambiguous. Use SPARINGLY — only when guessing has real downside (sending the wrong reply, routing to the wrong agent). Don't use for guesses you could make on your own. Returns the question + machine-readable options so the UI can render quick-picks.",
   scopes: ["operator_chat", "lead_conversation", "channel_mention"],
   approval: "auto_safe",
-  inputSchema: z.object({
-    question: z.string().min(8).max(300).describe("The clarifying question in plain English."),
-    ambiguity: z.string().min(8).max(400).describe("What specifically is ambiguous. 'You said \"call her\" but you have 3 open leads — which one?'"),
-    options: z.array(z.object({
-      label: z.string().min(1).max(120),
-      value: z.string().min(1).max(200),
-    })).min(2).max(6).describe("2-6 distinct answer options the operator can quick-pick. The 'value' is what should come back from the operator."),
-  }),
-  execute(input) {
+  inputSchema: RequestClarificationInputSchema,
+  execute(input: z.output<typeof RequestClarificationInputSchema>) {
     return {
       kind: "clarification_request",
       question: input.question,

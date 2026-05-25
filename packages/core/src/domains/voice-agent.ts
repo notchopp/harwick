@@ -38,6 +38,10 @@ export const WorkspaceVoiceAgentSchema = z.object({
   updatedAt: IsoDateTimeSchema,
 });
 
+export const WorkspaceVoiceAgentLookupResponseSchema = z.object({
+  voiceAgent: WorkspaceVoiceAgentSchema.nullable(),
+});
+
 export const ProvisionWorkspaceVoiceAgentRequestSchema = z.object({
   accountScope: IntegrationAccountScopeSchema.default("workspace"),
   ownerMemberId: UuidSchema.nullable().default(null),
@@ -101,6 +105,7 @@ export const RetellCallContextResponseSchema = z.object({
 export type VoiceAgentProvider = z.infer<typeof VoiceAgentProviderSchema>;
 export type VoiceAgentStatus = z.infer<typeof VoiceAgentStatusSchema>;
 export type WorkspaceVoiceAgent = z.infer<typeof WorkspaceVoiceAgentSchema>;
+export type WorkspaceVoiceAgentLookupResponse = z.infer<typeof WorkspaceVoiceAgentLookupResponseSchema>;
 export type ProvisionWorkspaceVoiceAgentRequest = z.infer<typeof ProvisionWorkspaceVoiceAgentRequestSchema>;
 export type ProvisionWorkspaceVoiceAgentResponse = z.infer<typeof ProvisionWorkspaceVoiceAgentResponseSchema>;
 export type RetellCallContextRequest = z.infer<typeof RetellCallContextRequestSchema>;

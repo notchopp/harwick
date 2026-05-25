@@ -8,7 +8,7 @@ import { z } from "zod";
 import { decryptCredential, encryptCredential } from "../../../lib/credentials";
 import { getServerEnvironment } from "../../../lib/server-env";
 import { createSupabaseMemberCalendarConnectionRepository, type ActiveMemberCalendarConnection } from "../../../lib/supabase/member-calendar-connections";
-import type { HarwickToolDefinition, HarwickToolDeps } from "../registry";
+import { defineHarwickTool, type HarwickToolDefinition, type HarwickToolDeps } from "../registry";
 
 /**
  * Real calendar tools, backed by the operator's connected Google Calendar.
@@ -93,7 +93,7 @@ async function getOperatorCalendarAccess(
   };
 }
 
-export const checkAvailabilityTool: HarwickToolDefinition = {
+export const checkAvailabilityTool = defineHarwickTool({
   name: "check_availability",
   description: "Read the operator's connected Google Calendar over a window and return busy blocks. Use BEFORE proposing showing times so you're not suggesting times the operator is busy. Defaults to the next 7 days from the operator's timezone.",
   scopes: ["operator_chat", "lead_conversation"],
@@ -137,9 +137,9 @@ export const checkAvailabilityTool: HarwickToolDefinition = {
       return { kind: "availability", available: false, busy: [], note: error instanceof Error ? error.message : "calendar_read_failed" };
     }
   },
-};
+});
 
-export const proposeShowingTimesTool: HarwickToolDefinition = {
+export const proposeShowingTimesTool = defineHarwickTool({
   name: "propose_showing_times",
   description: "Given a calendar window and a lead's stated availability hints (in natural language), return up to 4 candidate showing slots that don't conflict with the operator's calendar. Use this when a lead asks for a tour but didn't pick a time. Returns slots in 1-hour blocks during business hours.",
   scopes: ["operator_chat", "lead_conversation"],
@@ -216,9 +216,9 @@ export const proposeShowingTimesTool: HarwickToolDefinition = {
       slots,
     };
   },
-};
+});
 
-export const scheduleShowingTool: HarwickToolDefinition = {
+export const scheduleShowingTool = defineHarwickTool({
   name: "schedule_showing",
   description: "Actually create a real calendar event on the operator's connected calendar. Use after you've proposed times and the operator (or lead) has accepted one. Returns the event id + link so you can share it back. This is APPROVAL-REQUIRED — Harwick should only call this once the operator has confirmed.",
   scopes: ["operator_chat", "lead_conversation"],
@@ -272,9 +272,9 @@ export const scheduleShowingTool: HarwickToolDefinition = {
       return { kind: "showing_event", created: false, error: error instanceof Error ? error.message : "event_create_failed" };
     }
   },
-};
+});
 
-export const blockFocusTimeTool: HarwickToolDefinition = {
+export const blockFocusTimeTool = defineHarwickTool({
   name: "block_focus_time",
   description: "Block the operator's own calendar with a focus-time event so they don't get pulled into meetings during a window. Use when the operator asks for protected time ('block 2-4pm for prep') or when Harwick infers a clash that needs guarding. Self-only event, no attendees.",
   scopes: ["operator_chat"],
@@ -313,7 +313,7 @@ export const blockFocusTimeTool: HarwickToolDefinition = {
       return { kind: "focus_block", created: false, error: error instanceof Error ? error.message : "event_create_failed" };
     }
   },
-};
+});
 
 export const CALENDAR_TOOLS: HarwickToolDefinition[] = [
   checkAvailabilityTool,

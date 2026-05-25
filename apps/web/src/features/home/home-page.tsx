@@ -401,17 +401,25 @@ function mapHarwickWorkItemToQueueItem(item: HarwickHomeWorkItem, thread: Conver
     const steps = rawNextSteps.flatMap((entry) => {
       if (entry === null || typeof entry !== "object") return [];
       const row = entry as Record<string, unknown>;
+      const who = row["who"];
+      const action = row["action"];
+      const why = row["why"];
       const urgency = row["urgency"];
-      if (typeof row["who"] !== "string" || typeof row["action"] !== "string"
-        || typeof row["why"] !== "string"
-        || (urgency !== "now" && urgency !== "this_week" && urgency !== "this_month" && urgency !== "later")) {
+      if (typeof who !== "string" || typeof action !== "string"
+        || typeof why !== "string") {
+        return [];
+      }
+      let nextStepUrgency: "now" | "this_week" | "this_month" | "later";
+      if (urgency === "now" || urgency === "this_week" || urgency === "this_month" || urgency === "later") {
+        nextStepUrgency = urgency;
+      } else {
         return [];
       }
       return [{
-        who: row["who"],
-        action: row["action"],
-        why: row["why"],
-        urgency: urgency as "now" | "this_week" | "this_month" | "later",
+        who,
+        action,
+        why,
+        urgency: nextStepUrgency,
       }];
     });
     if (steps.length > 0) task.subagentNextSteps = steps;

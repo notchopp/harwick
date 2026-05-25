@@ -8,6 +8,7 @@ import {
 } from "@realty-ops/core";
 import { NextResponse, type NextRequest } from "next/server";
 
+import { sendInvitationEmail } from "../../../../../features/invitations/send-invitation-email";
 import { authorizeWorkspaceRequest } from "../../../../../lib/api/workspace-auth";
 import { getServerEnvironment } from "../../../../../lib/server-env";
 import { getWorkspaceSubscription } from "../../../../../lib/supabase/billing";
@@ -172,5 +173,30 @@ export async function POST(
     inviteUrl,
     expiresAt,
   });
+
+  // Fire-and-forget Resend email. Invitation creation must NOT fail if the
+  // email layer is down — the operator can always copy the URL from the
+  // response. Errors are logged and swallowed.
+  try {
+    const environment = getServerEnvironment();
+    void sendInvitationEmail({
+      to: body.data.email,
+      workspaceName: membership.workspaceName,
+      inviterDisplayName: membership.displayName,
+      inviteUrl,
+      apiKey: environment.RESEND_API_KEY,
+    })
+      .then((result) => {
+        if (result.status === "failed") {
+          console.warn("[invitations] resend send failed", result.message);
+        }
+      })
+      .catch((error: unknown) => {
+        console.warn("[invitations] resend send threw", error);
+      });
+  } catch (error) {
+    console.warn("[invitations] could not dispatch invitation email", error);
+  }
+
   return NextResponse.json(response, { status: 201 });
 }

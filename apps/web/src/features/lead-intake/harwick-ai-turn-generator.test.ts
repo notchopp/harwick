@@ -5,12 +5,24 @@ import type {
   HarwickAiTurnPersistenceRepository,
   HarwickAiAutomationPolicyRepository,
 } from "../../lib/supabase/harwick-ai-turns";
+import type { HarwickAiRuntimeInput } from "@realty-ops/core";
 
 // UUID generator for testing
 const uuidv4 = () =>
   "00000000-0000-0000-0000-000000000000".replace(/0/g, () =>
     Math.floor(Math.random() * 16).toString(16)
   );
+
+function firstRuntimeInput(runTurn: HarwickAiRuntimeClient["runTurn"] | undefined): HarwickAiRuntimeInput {
+  if (runTurn === undefined) {
+    throw new Error("Expected Harwick runtime mock");
+  }
+  const input = vi.mocked(runTurn).mock.calls[0]?.[0];
+  if (input === undefined) {
+    throw new Error("Expected Harwick runtime to be called");
+  }
+  return input;
+}
 
 describe("HarwickAiTurnGeneratorService", () => {
   it("generates and persists a turn with auto_executed status when policy allows auto-send", async () => {
@@ -99,7 +111,97 @@ describe("HarwickAiTurnGeneratorService", () => {
     expect(result.persistenceStatus).toBe("drafted");
     expect(result.shouldExecute).toBe(true);
     expect(mockRuntimeClient.runTurn).toHaveBeenCalled();
+    const runtimeInput = firstRuntimeInput(mockRuntimeClient.runTurn);
+    const state = runtimeInput.state;
+    expect(state).not.toBeNull();
+    if (state === null || state === undefined) {
+      throw new Error("Expected hydrated runtime state");
+    }
+    expect(state.workspaceId).toBe(wsId);
+    expect(typeof state.leadId).toBe("string");
+    expect(state.providerThreadId).toBe("thread-123");
+    expect(state.automationMode).toBe("ai_on");
+    const qualification = state.qualification;
+    expect(qualification).not.toBeUndefined();
+    if (qualification === undefined) {
+      throw new Error("Expected hydrated qualification state");
+    }
+    expect(qualification.leadType).toBe("unknown");
+    expect(qualification.score).toBe(0);
     expect(mockTurnRepository.insertTurn).toHaveBeenCalled();
+  });
+
+  it("hydrates human takeover state from the effective policy before running the model", async () => {
+    const mockTurn = {
+      intent: "handoff_needed" as const,
+      nextAction: "pause_for_owner" as const,
+      confidence: 1,
+      reply: "A human has taken over this conversation.",
+      safetyFlags: ["human_takeover" as const, "needs_human_review" as const],
+      missingFields: [],
+      toolCalls: [],
+      statePatch: { currentIntent: "human_takeover" },
+      handoffBrief: "automation is paused",
+    };
+
+    const mockRuntimeClient: Partial<HarwickAiRuntimeClient> = {
+      runTurn: vi.fn().mockResolvedValue(mockTurn),
+    };
+    const wsId = uuidv4();
+    const leadId = uuidv4();
+    const mockPolicy = {
+      id: uuidv4(),
+      workspaceId: wsId,
+      scope: "conversation" as const,
+      automationMode: "human_takeover" as const,
+      autoSendEnabled: true,
+      confidenceThreshold: 0.7,
+      allowedAutoActions: ["send_reply"],
+      allowedAutoTools: ["send_meta_message"],
+      requiresApprovalActions: [],
+      requiresApprovalTools: [],
+      blockedSafetyFlags: ["needs_human_review", "human_takeover"],
+    };
+    const mockTurnRepository: Partial<HarwickAiTurnPersistenceRepository> = {
+      insertTurn: vi.fn().mockResolvedValue({ turnId: "turn-human" }),
+    };
+    const mockPolicyRepository: Partial<HarwickAiAutomationPolicyRepository> = {
+      resolveEffectivePolicy: vi.fn().mockResolvedValue(mockPolicy),
+    };
+
+    const service = createHarwickAiTurnGeneratorService({
+      runtimeClient: mockRuntimeClient as HarwickAiRuntimeClient,
+      turnRepository: mockTurnRepository as HarwickAiTurnPersistenceRepository,
+      policyRepository: mockPolicyRepository as HarwickAiAutomationPolicyRepository,
+    });
+
+    const result = await service.generateAndPersistTurn({
+      workspaceId: wsId,
+      leadId,
+      socialReplyReviewId: null,
+      providerThreadId: "thread-paused",
+      channel: "instagram_dm",
+      inboundText: "Is anyone there?",
+      context: {
+        conversationHistory: [],
+        workspaceName: "Acme Realty",
+        toneProfile: {},
+        listingContext: null,
+        calendarContext: [],
+        postContext: null,
+      },
+    });
+
+    expect(result.persistenceStatus).toBe("blocked");
+    const runtimeInput = firstRuntimeInput(mockRuntimeClient.runTurn);
+    const state = runtimeInput.state;
+    expect(state).not.toBeNull();
+    if (state === null || state === undefined) {
+      throw new Error("Expected hydrated runtime state");
+    }
+    expect(state.leadId).toBe(leadId);
+    expect(state.providerThreadId).toBe("thread-paused");
+    expect(state.automationMode).toBe("human_takeover");
   });
 
   it("generates and persists a turn with queued_for_approval status when tools require approval", async () => {

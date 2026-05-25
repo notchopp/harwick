@@ -59,15 +59,15 @@ function repository(): RoutingDeskRepository {
   } as MemberRoutingProfileRow;
 
   return {
-    listLeadsForRouting: async () => [lead()],
-    listMemberRoutingProfiles: async () => [profile],
-    listMembersByIds: async () => [{
+    listLeadsForRouting: () => Promise.resolve([lead()]),
+    listMemberRoutingProfiles: () => Promise.resolve([profile]),
+    listMembersByIds: () => Promise.resolve([{
       id: memberId,
       display_name: "Malik Johnson",
       role: "agent",
       role_label: "Agent",
-    } satisfies Pick<WorkspaceMemberRow, "id" | "display_name" | "role" | "role_label">],
-    countActiveLeadsByMember: async () => new Map([[memberId, 2]]),
+    } satisfies Pick<WorkspaceMemberRow, "id" | "display_name" | "role" | "role_label">]),
+    countActiveLeadsByMember: () => Promise.resolve(new Map([[memberId, 2]])),
   };
 }
 

@@ -67,8 +67,23 @@ export type PublicListingInquiryRepository = {
 
 export type PublicListingInquiryResult = {
   leadId: string;
+  workspaceId: string;
   showingTaskId: string | null;
   openHouseRegistrationTaskId: string | null;
+  lead: {
+    fullName: string;
+    email: string;
+    phone: string;
+    intent: "general" | "question" | "showing" | "open_house";
+    message: string | null;
+  };
+  listingContext: {
+    address: string;
+    city: string | null;
+    state: string | null;
+    postalCode: string | null;
+    price: number | null;
+  } | null;
 };
 
 export class PublicListingInquiryError extends Error {
@@ -187,7 +202,41 @@ export async function handlePublicListingInquiry(params: {
 
   return {
     leadId: lead.id,
+    workspaceId: workspace.id,
     showingTaskId,
     openHouseRegistrationTaskId,
+    lead: {
+      fullName: values.fullName,
+      email: values.email,
+      phone: values.phone,
+      intent: values.intent,
+      message: values.message ?? null,
+    },
+    listingContext: listing === null ? null : extractListingContext(listing),
+  };
+}
+
+function extractListingContext(listing: Record<string, unknown>): {
+  address: string;
+  city: string | null;
+  state: string | null;
+  postalCode: string | null;
+  price: number | null;
+} {
+  const rawFacts = listing["raw_facts"];
+  const raw = typeof rawFacts === "object" && rawFacts !== null && !Array.isArray(rawFacts)
+    ? (rawFacts as Record<string, unknown>)
+    : {};
+  const readString = (key: string): string | null => {
+    const value = raw[key];
+    return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+  };
+  const price = listing["price"];
+  return {
+    address: typeof listing["address"] === "string" ? listing["address"] : "",
+    city: readString("city"),
+    state: readString("state"),
+    postalCode: readString("postalCode") ?? readString("postal_code") ?? readString("zip"),
+    price: typeof price === "number" && Number.isFinite(price) ? Math.round(price) : null,
   };
 }

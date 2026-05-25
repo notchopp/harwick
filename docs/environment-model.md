@@ -29,6 +29,10 @@ Variables are tracked in `.env.example` and `.env.staging.example`. When adding 
 
 `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, and the `STRIPE_*_PRICE_ID` variables are server-only billing configuration. Staging must use Stripe test-mode keys and test price IDs; production must use production Stripe assets. Stripe must deliver subscription webhooks to `/api/stripe/webhook`; the route verifies the raw `Stripe-Signature` header before reconciling `workspace_subscriptions`.
 
+`RESEND_API_KEY` is optional and server-only. When present, workspace invitation creation sends invite email through Resend; when absent, the invite URL is still created and returned.
+
+`SENTRY_DSN` is optional and server-only for API routes, workers, and server rendering. `NEXT_PUBLIC_SENTRY_DSN` is optional for browser-side error capture. Both must be environment-specific and must not be reused across staging and production if separate telemetry projects exist.
+
 `GOOGLE_CALENDAR_CLIENT_ID`, `GOOGLE_CALENDAR_CLIENT_SECRET`, and `GOOGLE_CALENDAR_OAUTH_REDIRECT_URI` configure member-scoped Google Calendar OAuth. The default redirect path is `/api/integrations/google-calendar/callback`. Calendar credentials are encrypted server-side and used for FreeBusy availability checks before Harwick proposes showing windows.
 
 `AGENT_RECONCILE_CRON_SECRET` or `CRON_SECRET` must be configured in staging and production so scheduled agent-runtime routes can run without exposing unauthenticated cron endpoints.

@@ -34,13 +34,15 @@ describe("createHarwickAiRuntime", () => {
     const client = createHarwickAiRuntime({ apiKey: "sk-test", model: "gpt-4o" });
     // Missing required workspaceName — schema parse should throw before any
     // network call is attempted.
+    const invalidInput = {
+      workspaceName: 5,
+      channel: "instagram_dm",
+      inboundText: "test",
+      conversation: [],
+    } as unknown as Parameters<typeof client.runTurn>[0];
+
     await expect(
-      client.runTurn({
-        workspaceName: 5 as unknown as string,
-        channel: "instagram_dm",
-        inboundText: "test",
-        conversation: [],
-      } as Parameters<typeof client.runTurn>[0]),
+      client.runTurn(invalidInput),
     ).rejects.toThrow();
   });
 });

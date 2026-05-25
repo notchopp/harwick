@@ -70,6 +70,7 @@ export const VoiceHandoffQueueActionRequestSchema = z.discriminatedUnion("action
     title: z.string().trim().min(1).max(255).optional(),
     description: z.string().trim().min(1).max(2000).optional(),
     priority: z.enum(["normal", "high", "urgent"]).optional(),
+    dueAt: IsoDateTimeSchema.optional(),
   }),
   z.object({
     action: z.literal("mark_reviewed"),

@@ -2,7 +2,7 @@ import { createOpenAIEmbeddingClient } from "@realty-ops/integrations";
 import { z } from "zod";
 
 import { getServerEnvironment } from "../../../lib/server-env";
-import type { HarwickToolDefinition, HarwickToolDeps } from "../registry";
+import { defineHarwickTool, type HarwickToolDefinition, type HarwickToolDeps } from "../registry";
 
 /**
  * Memory tools — Harwick can now remember things across conversations and
@@ -31,7 +31,7 @@ async function embedTextSafely(text: string): Promise<number[] | null> {
   }
 }
 
-export const rememberFactTool: HarwickToolDefinition = {
+export const rememberFactTool = defineHarwickTool({
   name: "remember_fact",
   description: "Store a long-lived fact about this workspace, a lead, a listing, or a pattern you've noticed. Use this any time you learn something that future Harwick turns should know — operator-stated facts ('Sarah handles relocation leads'), inferred patterns ('financing questions on weekends tend to close'), or specific lead context ('Mary makes the buying decision, not John'). Returns a confirmation that's safe to ignore in your reply.",
   scopes: ["operator_chat", "lead_conversation", "channel_mention"],
@@ -79,9 +79,9 @@ export const rememberFactTool: HarwickToolDefinition = {
       embedded: embedding !== null,
     };
   },
-};
+});
 
-export const noteOperatorPreferenceTool: HarwickToolDefinition = {
+export const noteOperatorPreferenceTool = defineHarwickTool({
   name: "note_operator_preference",
   description: "Capture a preference about how THIS operator wants you to work. Use when the operator corrects your style ('stop summarizing what you just did'), asks you to always do something ('always draft, never send'), or expresses a workflow preference ('I want morning briefings at 7am'). These compound across sessions — future Harwick turns will see and respect them.",
   scopes: ["operator_chat", "channel_mention"],
@@ -118,9 +118,9 @@ export const noteOperatorPreferenceTool: HarwickToolDefinition = {
 
     return { kind: "operator_preference_stored", stored: true, memoryId: data.id };
   },
-};
+});
 
-export const recallFactTool: HarwickToolDefinition = {
+export const recallFactTool = defineHarwickTool({
   name: "recall_fact",
   description: "Semantic search across everything you've remembered for this workspace — operator notes, lead facts, operator preferences, and the distillation worker's auto-mined patterns. Use this WHENEVER you'd otherwise guess about workspace state, operator preferences, or a lead's history. The relevant memories come back ranked by similarity to your query.",
   scopes: ["operator_chat", "lead_conversation", "channel_mention", "scheduled_loop"],
@@ -201,7 +201,7 @@ export const recallFactTool: HarwickToolDefinition = {
       memories: rpcRows,
     };
   },
-};
+});
 
 export const MEMORY_TOOLS: HarwickToolDefinition[] = [
   rememberFactTool,

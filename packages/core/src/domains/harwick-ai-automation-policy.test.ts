@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { evaluateHarwickAiAutomation } from "./harwick-ai-automation-policy.js";
+import { HarwickAiAutomationPolicySchema, evaluateHarwickAiAutomation } from "./harwick-ai-automation-policy.js";
 import type { HarwickAiTurn } from "./harwick-ai-runtime.js";
 
 const safeTurn: HarwickAiTurn = {
@@ -34,6 +34,18 @@ const safeTurn: HarwickAiTurn = {
 };
 
 describe("evaluateHarwickAiAutomation", () => {
+  it("keeps the canonical Meta send tool and safe internal dispatch in default policy allowlists", () => {
+    const policy = HarwickAiAutomationPolicySchema.parse({});
+
+    expect(policy.allowedAutoTools).toEqual(expect.arrayContaining([
+      "send_meta_message",
+      "send_meta_reply",
+      "send_meta_dm",
+      "dispatch_subagent",
+    ]));
+    expect(policy.allowedAutoActions).toContain("dispatch_subagent");
+  });
+
   it("allows auto-send for safe high-confidence qualification turns", () => {
     expect(evaluateHarwickAiAutomation({
       turn: safeTurn,

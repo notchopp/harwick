@@ -16,7 +16,6 @@ import {
   MessageSquare,
   Pause,
   Phone,
-  Play,
   Plus,
   Search,
   SortAsc,
@@ -26,12 +25,14 @@ import {
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Drawer } from "vaul";
 
 import { FacebookGlyph, InstagramGlyph, PhoneGlyph } from "../../components/harwick-icons";
 import { Avatar, AvatarFallback } from "../../components/ui/avatar";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import { cn } from "../../lib/utils";
+import { LeadActionToolbar } from "../conversations/lead-action-toolbar";
 import type { LeadPageItem, LeadPageSource, LeadPageStage } from "./leads-data";
 import { LeadsKanban } from "./leads-kanban";
 
@@ -149,6 +150,7 @@ function draftFor(item: LeadPageItem) {
 function mapLeadPageItemToRecord(item: LeadPageItem): LeadRecord {
   return {
     ...item,
+    assignedMemberId: item.assignedMemberId ?? null,
     automationMode: item.automationMode ?? (item.stage === "callback" ? "paused_by_rule" : "ai_on"),
     automationReason: item.automationReason ?? automationReasonFor(item),
     displayStatus: deriveDisplayStatus(item.stage),
@@ -192,6 +194,7 @@ function isLeadPageItem(value: unknown): value is LeadPageItem {
     && typeof item["propertyType"] === "string"
     && typeof item["financingStatus"] === "string"
     && typeof item["assignedTo"] === "string"
+    && (typeof item["assignedMemberId"] === "string" || item["assignedMemberId"] === null || item["assignedMemberId"] === undefined)
     && typeof item["sourceOwner"] === "string"
     && typeof item["lastTouch"] === "string"
     && typeof item["routeReason"] === "string"
@@ -361,13 +364,7 @@ function LeadInlineDetail(props: {
   onOpenConversation: (leadId: string) => void;
   onPrimaryAction: (lead: LeadRecord) => void | Promise<void>;
 }) {
-  const [automationMode, setAutomationMode] = useState<ConversationAutomationMode>(props.lead.automationMode);
-
-  useEffect(() => {
-    setAutomationMode(props.lead.automationMode);
-  }, [props.lead]);
-
-  const automationPaused = automationMode !== "ai_on";
+  const automationPaused = props.lead.automationMode !== "ai_on";
 
   return (
     <div className="flex h-full min-h-0 flex-col border-l border-border/50 bg-surface">
@@ -415,43 +412,29 @@ function LeadInlineDetail(props: {
           </div>
 
           <div className="rounded-[10px] border border-border/50 bg-background p-4">
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex min-w-0 items-center gap-3">
-                <div className={cn("flex h-10 w-10 items-center justify-center rounded-[8px]", automationPaused ? "bg-clay-soft" : "bg-sage-soft")}>
-                  {automationPaused ? (
-                    <Pause className="h-5 w-5 text-warm" />
-                  ) : (
-                    <Bot className="h-5 w-5 text-qualified" />
-                  )}
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-foreground">{automationModeLabel(automationMode)}</p>
-                  <p className="truncate text-xs text-muted">{props.lead.automationReason}</p>
-                </div>
+            <div className="mb-3 flex min-w-0 items-center gap-3">
+              <div className={cn("flex h-10 w-10 items-center justify-center rounded-[8px]", automationPaused ? "bg-clay-soft" : "bg-sage-soft")}>
+                {automationPaused ? (
+                  <Pause className="h-5 w-5 text-warm" />
+                ) : (
+                  <Bot className="h-5 w-5 text-qualified" />
+                )}
               </div>
-
-              {automationMode !== "human_takeover" ? (
-                <Button
-                  className="h-8 gap-1.5 rounded-[8px]"
-                  onClick={() => setAutomationMode((current) => current === "ai_on" ? "paused_by_rule" : "ai_on")}
-                  size="sm"
-                  type="button"
-                  variant="outline"
-                >
-                  {automationPaused ? (
-                    <>
-                      <Play className="h-3.5 w-3.5" />
-                      Resume
-                    </>
-                  ) : (
-                    <>
-                      <Pause className="h-3.5 w-3.5" />
-                      Pause
-                    </>
-                  )}
-                </Button>
-              ) : null}
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-foreground">{automationModeLabel(props.lead.automationMode)}</p>
+                <p className="truncate text-xs text-muted">{props.lead.automationReason}</p>
+              </div>
             </div>
+            <LeadActionToolbar
+              workspaceId={props.lead.workspaceId}
+              leadId={props.lead.id}
+              automationMode={props.lead.automationMode}
+              assignedMemberId={props.lead.assignedMemberId ?? null}
+              currentMemberId={props.currentMemberId}
+              showAgentSteps={false}
+              showComposer={false}
+              onChanged={props.onChanged}
+            />
           </div>
 
           <div>
@@ -864,7 +847,16 @@ export function LeadsPageContent(props: { workspaceId: string; workspaceName: st
         <div className="min-h-0 flex-1 overflow-y-auto">
           {viewMode === "kanban" ? (
             <div className="p-4">
-              <LeadsKanban leads={filtered} />
+              <LeadsKanban
+                leads={filtered}
+                onLeadSelect={(leadId) => {
+                  const matched = leadRecords.find((entry) => entry.id === leadId) ?? null;
+                  if (matched !== null) {
+                    setSelectedLead(matched);
+                  }
+                  replaceLeadQuery(leadId);
+                }}
+              />
             </div>
           ) : filtered.length === 0 ? (
             <div className="flex min-h-[320px] flex-col items-center justify-center px-6 py-12 text-center">
@@ -955,6 +947,45 @@ export function LeadsPageContent(props: { workspaceId: string; workspaceName: st
           </div>
         )}
       </aside>
+
+      {/*
+       * Mobile + tablet drawer. The desktop aside is hidden below `lg`, so on
+       * smaller screens we surface the same LeadInlineDetail body inside a
+       * bottom-anchored vaul drawer driven by the same URL state. Closing the
+       * drawer drops the leadId from the URL so refresh/back behaves.
+       */}
+      <Drawer.Root
+        open={selectedLead !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedLead(null);
+            replaceLeadQuery(null);
+          }
+        }}
+      >
+        <Drawer.Portal>
+          <Drawer.Overlay className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm lg:hidden" />
+          <Drawer.Content className="fixed inset-x-0 bottom-0 z-50 flex h-[92vh] flex-col overflow-hidden rounded-t-[var(--panel-radius-lg)] border-t border-[color:var(--panel-line-strong)] bg-surface outline-none lg:hidden">
+            <Drawer.Title className="sr-only">{selectedLead?.name ?? "Lead detail"}</Drawer.Title>
+            <Drawer.Description className="sr-only">Lead detail and routing controls</Drawer.Description>
+            <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-foreground/14" aria-hidden="true" />
+            {selectedLead !== null ? (
+              <LeadInlineDetail
+                actionStatus={actionStatus}
+                currentMemberId={props.currentMemberId}
+                lead={selectedLead}
+                onChanged={() => void refreshLeads()}
+                onClose={() => {
+                  setSelectedLead(null);
+                  replaceLeadQuery(null);
+                }}
+                onOpenConversation={(leadId) => router.push(`/conversations?leadId=${leadId}`)}
+                onPrimaryAction={(lead) => void handlePrimaryAction(lead)}
+              />
+            ) : null}
+          </Drawer.Content>
+        </Drawer.Portal>
+      </Drawer.Root>
     </div>
   );
 }
