@@ -198,90 +198,15 @@ body {
   line-height: 1.45;
 }
 
-/* Dark chrome surfaces. Intentionally minimal — past iterations added a
- * var(--harwick-public-viewport-height) min-height, a `position: fixed`
- * ::before pseudo at inset -120vh, and `overscroll-behavior: none`. All
- * three were defensible in isolation (visual viewport tracking, masking
- * iOS rubber-band, killing bounce) but stacked together they broke
- * `position: sticky` on the page header — the visualViewport-driven
- * min-height made the body the de-facto scroll container, the ::before
- * created an extra stacking context that fought sticky reparenting on
- * iOS Safari, and overscroll-behavior interacted with the sticky math.
- * The header would render *in the middle of the page* mid-scroll instead
- * of pinning to the top.
- *
- * Keeping just color-scheme + background. The body's own background
- * (set above in the base body rule) plus the html background here cover
- * iOS rubber-band scroll without needing the fixed pseudo. */
-html.harwick-public-dark-chrome,
-body.harwick-public-dark-chrome {
-  color-scheme: dark;
-  background: #0a0f0c !important;
-}
-
-/* iOS PWA status-bar mask + status tint. Both elements ONLY exist in
- * installed PWA standalone display mode where the OS hands us the notch
- * area to paint. On regular browser windows (desktop AND mobile Safari
- * non-installed) they're completely inert — `display: none` rather than
- * relying on `height: env(...)` collapsing, because at z-index
- * 2147483647 even a zero-height stacking context can interfere with
- * sticky-header backdrop-filter compositing on some browsers and was
- * visually masking the workspace chip + nav.
- *
- * Earlier iteration had `max(env(safe-area-inset-top), 44px)` here which
- * baked in a 44px floor on desktop — that painted a solid bar over the
- * top of the sticky header. Scoping to @media display-mode: standalone
- * permanently retires that footgun. */
-body.harwick-public-dark-chrome::after,
-[data-public-status-tint="true"] {
-  display: none;
-}
-
-@media (display-mode: standalone) {
-  body.harwick-public-dark-chrome::after {
-    content: "";
-    display: block;
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: env(safe-area-inset-top, 0px);
-    z-index: 2147483647;
-    pointer-events: none;
-    background: #0a0f0c;
-  }
-
-  [data-public-status-tint="true"] {
-    display: block;
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    z-index: 2147483647;
-    height: 1px;
-    pointer-events: none;
-    background: #0a0f0c;
-  }
-}
-
-html.harwick-public-dark-chrome input,
-html.harwick-public-dark-chrome textarea,
-html.harwick-public-dark-chrome select {
-  color-scheme: dark;
-}
-
-@supports selector(html:has([data-public-listings-shell="true"])) {
-  html:has([data-public-listings-shell="true"]),
-  body:has([data-public-listings-shell="true"]) {
-    color-scheme: dark;
-    background: #0a0f0c !important;
-  }
-}
-
-[data-public-listings-shell="true"] {
-  min-height: 100dvh;
-  background: #0a0f0c;
-}
+/* Public listings dark surface: the SSR inline <style> in
+ * apps/web/src/app/[workspaceSlug]/listings/layout.tsx handles all of
+ * the dark-bg work on first paint. Earlier iterations stacked four extra
+ * mechanisms here (body class + ::before fixed pseudo + ::after notch
+ * mask + visualViewport-driven min-height + data-shell + :has fallback)
+ * and the stack collectively broke `position: sticky` on the page
+ * header on iOS Safari + visually masked the top nav buttons with a
+ * 44px z-2147483647 strip on desktop. All of that scaffolding has been
+ * removed; the inline <style> alone is the source of truth now. */
 
 /* Vaul stabilization — the goal is a clean slide-down on close with no
  * "flash back to fully-open" frame. Vaul already sets `will-change: transform`,

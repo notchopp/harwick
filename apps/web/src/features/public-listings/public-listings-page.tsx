@@ -122,63 +122,15 @@ function useIsDesktop(): boolean {
   return isDesktop;
 }
 
-function usePublicListingDarkBrowserChrome() {
-  useEffect(() => {
-    const html = document.documentElement;
-    const body = document.body;
-    const className = "harwick-public-dark-chrome";
-    const mountCountKey = "harwickPublicDarkChromeCount";
-    const existingColorScheme = document.querySelector<HTMLMetaElement>('meta[name="color-scheme"]');
-    const previousColorScheme = existingColorScheme?.content ?? null;
-    const colorSchemeMeta = existingColorScheme ?? document.createElement("meta");
-    const previousViewportHeight = html.style.getPropertyValue("--harwick-public-viewport-height");
-    const readMountCount = () => Number(html.dataset[mountCountKey] ?? "0");
-    const writeViewportHeight = () => {
-      const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
-      html.style.setProperty("--harwick-public-viewport-height", `${Math.ceil(viewportHeight)}px`);
-    };
-
-    if (existingColorScheme === null) {
-      colorSchemeMeta.name = "color-scheme";
-      document.head.appendChild(colorSchemeMeta);
-    }
-
-    html.dataset[mountCountKey] = String(readMountCount() + 1);
-    html.classList.add(className);
-    body.classList.add(className);
-    colorSchemeMeta.content = "dark";
-    writeViewportHeight();
-    window.visualViewport?.addEventListener("resize", writeViewportHeight);
-    window.visualViewport?.addEventListener("scroll", writeViewportHeight);
-    window.addEventListener("resize", writeViewportHeight);
-
-    return () => {
-      window.visualViewport?.removeEventListener("resize", writeViewportHeight);
-      window.visualViewport?.removeEventListener("scroll", writeViewportHeight);
-      window.removeEventListener("resize", writeViewportHeight);
-
-      const nextMountCount = Math.max(0, readMountCount() - 1);
-      if (nextMountCount > 0) {
-        html.dataset[mountCountKey] = String(nextMountCount);
-        return;
-      }
-
-      delete html.dataset[mountCountKey];
-      html.classList.remove(className);
-      body.classList.remove(className);
-      if (previousViewportHeight.length === 0) {
-        html.style.removeProperty("--harwick-public-viewport-height");
-      } else {
-        html.style.setProperty("--harwick-public-viewport-height", previousViewportHeight);
-      }
-      if (existingColorScheme === null) {
-        colorSchemeMeta.remove();
-      } else if (previousColorScheme !== null) {
-        colorSchemeMeta.content = previousColorScheme;
-      }
-    };
-  }, []);
-}
+// usePublicListingDarkBrowserChrome was deleted on purpose: the hook +
+// its CSS counterparts (body.harwick-public-dark-chrome class, ::before
+// fixed pseudo, --harwick-public-viewport-height var, status-tint div,
+// @supports :has() fallback) collectively broke the sticky page header
+// on iOS Safari — the header would either render in the middle of the
+// page mid-scroll OR get clipped by the OS status bar. SSR dark
+// background now comes entirely from the inline <style> in this
+// segment's layout.tsx, which is sufficient since it lands as the first
+// child of <body> during streaming SSR.
 
 // Shared scrollbar-hide utility for content inside dark surfaces — the
 // default OS bars sit on top of our hairline borders and look heavy.
@@ -1233,15 +1185,13 @@ export function PublicListingDetailPage(props: {
   listing: PublicListingCardData;
   workspaceSlug: string;
 }) {
-  usePublicListingDarkBrowserChrome();
   const workspaceName = formatWorkspaceName(props.workspaceSlug);
   const { listing } = props;
   const siblingUrl = `/${props.workspaceSlug}/listings`;
 
   return (
-    <main className="min-h-[100dvh] bg-[#0a0f0c] text-white [color-scheme:dark]" data-public-listings-shell="true">
-      <div aria-hidden="true" data-public-status-tint="true" />
-      <header className="sticky top-0 z-40 border-b border-white/8 bg-[#0a0f0c]/88 px-4 pt-[env(safe-area-inset-top)] backdrop-blur-xl">
+    <main className="min-h-[100dvh] bg-[#0a0f0c] text-white [color-scheme:dark]">
+      <header className="sticky top-0 z-40 border-b border-white/8 bg-[#0a0f0c]/95 px-4 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-[1320px] items-center gap-4">
           <a
             className="inline-flex h-9 items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 text-[13px] font-medium lowercase text-white/72 transition hover:border-white/22 hover:bg-white/[0.06] hover:text-white"
@@ -1339,7 +1289,6 @@ export function PublicListingDetailPage(props: {
 // The duplicate old inline body that used to live here has moved into
 // ListingViewerBody above. Keeping this comment as a navigation aid.
 export function PublicListingsPage(props: { listings?: PublicListingCardData[]; workspaceSlug: string }) {
-  usePublicListingDarkBrowserChrome();
   const workspaceName = formatWorkspaceName(props.workspaceSlug);
   const listings = props.listings ?? [];
   const hasListings = listings.length > 0;
@@ -1386,9 +1335,8 @@ export function PublicListingsPage(props: { listings?: PublicListingCardData[]; 
   };
 
   return (
-    <main className="min-h-[100dvh] bg-[#0a0f0c] text-white [color-scheme:dark]" data-public-listings-shell="true">
-      <div aria-hidden="true" data-public-status-tint="true" />
-      <header className="sticky top-0 z-40 border-b border-white/8 bg-[#0a0f0c]/88 px-4 pt-[env(safe-area-inset-top)] backdrop-blur-xl">
+    <main className="min-h-[100dvh] bg-[#0a0f0c] text-white [color-scheme:dark]">
+      <header className="sticky top-0 z-40 border-b border-white/8 bg-[#0a0f0c]/95 px-4 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-[1320px] items-center gap-4">
           <a className="flex items-center gap-3" href={`/${props.workspaceSlug}/listings`}>
             <span className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-[#88a276] font-display text-[17px] text-[#07100a] shadow-[0_10px_24px_rgba(136,162,118,0.20)]">

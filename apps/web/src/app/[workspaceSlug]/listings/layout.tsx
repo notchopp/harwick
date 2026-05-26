@@ -14,9 +14,18 @@ export const metadata: Metadata = {
   },
 };
 
+/**
+ * NOTE: viewportFit is INTENTIONALLY not "cover" here. An earlier pass set
+ * it to "cover" to let the dark theme run edge-to-edge under the iOS
+ * status bar, but on non-PWA mobile Safari the env(safe-area-inset-top)
+ * value needed to push the sticky header back below the notch is unreliable
+ * — header content (workspace chip + "ask harwick" button) ends up clipped
+ * by the OS status bar overlay. Leaving viewportFit at the default keeps
+ * the page contained below the OS chrome; themeColor still colors that
+ * status-bar strip dark so the visual continuity is preserved.
+ */
 export const viewport: Viewport = {
-  themeColor: "#000000",
-  viewportFit: "cover",
+  themeColor: "#0a0f0c",
   interactiveWidget: "resizes-content",
 };
 
