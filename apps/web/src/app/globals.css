@@ -215,37 +215,49 @@ body.harwick-public-dark-chrome::before {
   background: #0a0f0c;
 }
 
-/* iOS PWA status-bar mask. Renders ONLY when env(safe-area-inset-top)
- * resolves to a real value (iOS standalone-mode PWA) — on desktop
- * browsers env() === 0 so the height collapses and the bar disappears.
+/* iOS PWA status-bar mask + status tint. Both elements ONLY exist in
+ * installed PWA standalone display mode where the OS hands us the notch
+ * area to paint. On regular browser windows (desktop AND mobile Safari
+ * non-installed) they're completely inert — `display: none` rather than
+ * relying on `height: env(...)` collapsing, because at z-index
+ * 2147483647 even a zero-height stacking context can interfere with
+ * sticky-header backdrop-filter compositing on some browsers and was
+ * visually masking the workspace chip + nav.
  *
- * The earlier version used max(env(safe-area-inset-top), 44px) which
- * forced a 44px floor on desktop, painting a solid dark rectangle at
- * z-index 2147483647 on top of the sticky header — nav buttons were
- * invisible AND non-clickable (pointer-events:none mitigated the click
- * issue in some browsers but not the visual occlusion). Dropping the
- * floor preserves the iOS intent without breaking desktop. */
-body.harwick-public-dark-chrome::after {
-  content: "";
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: env(safe-area-inset-top, 0px);
-  z-index: 2147483647;
-  pointer-events: none;
-  background: #0a0f0c;
+ * Earlier iteration had `max(env(safe-area-inset-top), 44px)` here which
+ * baked in a 44px floor on desktop — that painted a solid bar over the
+ * top of the sticky header. Scoping to @media display-mode: standalone
+ * permanently retires that footgun. */
+body.harwick-public-dark-chrome::after,
+[data-public-status-tint="true"] {
+  display: none;
 }
 
-[data-public-status-tint="true"] {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 2147483647;
-  height: 1px;
-  pointer-events: none;
-  background: #0a0f0c;
+@media (display-mode: standalone) {
+  body.harwick-public-dark-chrome::after {
+    content: "";
+    display: block;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: env(safe-area-inset-top, 0px);
+    z-index: 2147483647;
+    pointer-events: none;
+    background: #0a0f0c;
+  }
+
+  [data-public-status-tint="true"] {
+    display: block;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 2147483647;
+    height: 1px;
+    pointer-events: none;
+    background: #0a0f0c;
+  }
 }
 
 html.harwick-public-dark-chrome input,
