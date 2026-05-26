@@ -210,7 +210,13 @@ export const HarwickAiStatePatchSchema = z.object({
   leadType: LeadTypeSchema.nullable().default(null),
   intent: LeadIntentSchema.nullable().default(null),
   timeline: z.string().trim().min(1).max(120).nullable().default(null),
-  budget: z.union([z.string(), z.number()]).pipe(z.coerce.string().trim().min(1).max(120)).nullable().default(null),
+  // Budget must be a plain string field in the JSON schema OpenAI sees.
+  // Earlier shape was `z.union([z.string(), z.number()]).pipe(z.coerce.string()...)`
+  // which compiles to `allOf` in JSON schema — and OpenAI's structured-output
+  // validator explicitly rejects `allOf` ("'allOf' is not permitted" 400).
+  // Numeric budgets from upstream should be stringified at the boundary
+  // (the runtime input schema does the coercion before sending to the model).
+  budget: z.string().trim().min(1).max(120).nullable().default(null),
   targetArea: z.string().trim().min(1).max(180).nullable().default(null),
   propertyType: z.string().trim().min(1).max(120).nullable().default(null),
   financingStatus: FinancingStatusSchema.nullable().default(null),
