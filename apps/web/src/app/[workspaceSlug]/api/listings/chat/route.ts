@@ -1,13 +1,12 @@
 import { createHash } from "node:crypto";
 
-import { createLocalHarwickAiRuntime } from "@realty-ops/integrations";
 import { NextResponse, type NextRequest } from "next/server";
 import { ZodError } from "zod";
-import { createHarwickAiRuntime } from "../../../../../features/lead-intake/ai-sdk-runtime";
 import {
   handlePublicListingChat,
   PublicListingChatError,
 } from "../../../../../features/public-listings/public-listing-chat";
+import { generateListingChatReply } from "../../../../../features/public-listings/listing-chat-generator";
 import { checkRateLimit, rateLimitKeyFromRequest } from "../../../../../lib/rate-limit";
 import { getServerEnvironment } from "../../../../../lib/server-env";
 import { createSupabasePublicListingChatRepository } from "../../../../../lib/supabase/public-listing-chat";
@@ -63,18 +62,22 @@ export async function POST(
 
   try {
     const environment = getServerEnvironment();
-    const runtimeClient = environment.OPENAI_API_KEY === undefined && environment.APP_ENV === "development"
-      ? createLocalHarwickAiRuntime()
-      : createHarwickAiRuntime({
-          apiKey: environment.OPENAI_API_KEY ?? "",
-          model: environment.OPENAI_REPLY_MODEL,
-        });
+    if (environment.OPENAI_API_KEY === undefined || environment.OPENAI_API_KEY.length === 0) {
+      return NextResponse.json({ error: "openai_unavailable" }, { status: 503 });
+    }
+    const openaiApiKey = environment.OPENAI_API_KEY;
+    // Same default operator-side harwick-chat uses — gpt-4o is the
+    // tool-capable model that handles streamText reliably. Smaller models
+    // (mini, nano) have intermittent tool-call issues.
+    const model = process.env["OPENAI_PUBLIC_LISTING_CHAT_MODEL"]
+      ?? environment.OPENAI_REPLY_MODEL
+      ?? "gpt-4o";
 
     const result = await handlePublicListingChat({
       workspaceSlug,
       request: body,
       repository: createSupabasePublicListingChatRepository(createServerSupabaseClient()),
-      runtimeClient,
+      generator: (params) => generateListingChatReply({ ...params, openaiApiKey, model }),
       sessionToken: request.cookies.get(SESSION_COOKIE_NAME)?.value ?? null,
       ipHash: hashClientIp(request),
       userAgent: request.headers.get("user-agent"),

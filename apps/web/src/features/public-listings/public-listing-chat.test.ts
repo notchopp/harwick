@@ -1,8 +1,8 @@
-import type { HarwickAiRuntimeClient } from "@realty-ops/integrations";
 import { describe, expect, it, vi } from "vitest";
 import {
   handlePublicListingChat,
   PublicListingChatError,
+  type PublicListingChatGenerator,
   type PublicListingChatRepository,
   type PublicListingChatSession,
   type PublicListingChatSessionTurn,
@@ -75,202 +75,145 @@ function createRepository(overrides: Partial<PublicListingChatRepository> = {}) 
   };
 }
 
-function createRuntime(): HarwickAiRuntimeClient {
-  return {
-    runTurn: vi.fn<HarwickAiRuntimeClient["runTurn"]>(() =>
-      Promise.resolve({
-        intent: "showing_request",
-        nextAction: "request_showing_approval",
-        missingFields: ["phone", "financing"],
-        confidence: 0.92,
-        safetyFlags: ["needs_human_review"],
-        reply: "I can help request a showing. What is the best phone number for confirmation?",
-        statePatch: {
-          currentIntent: "showing_request",
-          leadType: "buyer",
-          intent: "high",
-          timeline: "July",
-          budget: "$295,000",
-          targetArea: "Sunterra",
-          propertyType: "single family",
-          financingStatus: null,
-          knownFacts: ["builder incentives available"],
-        },
-        handoffBrief: "showing request needs agent approval",
-        toolCalls: [
-          {
-            tool: "request_showing_approval",
-            reason: "agent approval is required before confirming the private showing",
-            requiresApproval: true,
-            payload: { listing: "KB Home at Sunterra, Katy, TX" },
-          },
-        ],
-        selfGateAutoExecute: false,
-        selfGateReason: "showings require approval",
-        documentUpdate: "Visitor wants a showing for the Katy listing.",
-        endTurn: true,
-      })),
-  };
+/**
+ * Default generator fake: returns a reply, no lead capture, empty patch.
+ * Tests override per-case via `overrides` to simulate model behavior.
+ */
+function createGenerator(overrides: {
+  reply?: string;
+  captureWith?: Parameters<PublicListingChatGenerator>[0]["onCaptureLead"] extends (input: infer I) => unknown ? I : never;
+  qualificationPatch?: Record<string, unknown>;
+  fail?: Error;
+} = {}): PublicListingChatGenerator {
+  return vi.fn<PublicListingChatGenerator>(async (params) => {
+    if (overrides.fail !== undefined) throw overrides.fail;
+    let capturedLead = null;
+    if (overrides.captureWith !== undefined) {
+      capturedLead = await params.onCaptureLead(overrides.captureWith);
+    }
+    return {
+      reply: overrides.reply ?? "Got it — what would you like to know?",
+      capturedLead,
+      qualificationPatch: overrides.qualificationPatch ?? {},
+    };
+  });
 }
 
 describe("handlePublicListingChat", () => {
-  it("creates a fresh session when no cookie token is present, persists both turns, and answers from listing facts", async () => {
+  it("creates a fresh session, persists both turns, replies from the generator", async () => {
     const { repository, mocks } = createRepository();
-    const runtimeClient = createRuntime();
+    const generator = createGenerator({ reply: "Yes, still active. Want to swing by Saturday?" });
 
     const result = await handlePublicListingChat({
       workspaceSlug: "prestige-realty",
-      request: {
-        listingId,
-        message: "Can I see this Saturday? Also how are the schools?",
-        conversation: [],
-        qualification: {},
-      },
+      request: { listingId, message: "Is this still available?", conversation: [], qualification: {} },
       repository,
-      runtimeClient,
+      generator,
       sessionToken: null,
     });
 
-    expect(result.response.nextAction).toBe("request_showing_approval");
-    expect(result.response.missingFields).toEqual(["phone", "financing"]);
+    expect(result.response.reply).toBe("Yes, still active. Want to swing by Saturday?");
+    expect(result.response.leadCapture).toBeNull();
     expect(result.sessionCreated).toBe(true);
     expect(result.sessionToken).toMatch(/^[A-Za-z0-9_-]+$/);
 
-    expect(mocks.findSessionByToken).not.toHaveBeenCalled();
     expect(mocks.createSession).toHaveBeenCalledTimes(1);
     expect(mocks.appendTurn).toHaveBeenCalledTimes(2);
-    expect(mocks.appendTurn).toHaveBeenNthCalledWith(1, expect.objectContaining({
-      actor: "visitor",
-      body: "Can I see this Saturday? Also how are the schools?",
-    }));
-    expect(mocks.appendTurn).toHaveBeenNthCalledWith(2, expect.objectContaining({
-      actor: "harwick_ai",
-      nextAction: "request_showing_approval",
-    }));
-    expect(mocks.updateSessionQualification).toHaveBeenCalledTimes(1);
-
-    expect(runtimeClient.runTurn).toHaveBeenCalledWith(expect.objectContaining({
+    expect(mocks.appendTurn).toHaveBeenNthCalledWith(1, expect.objectContaining({ actor: "visitor", body: "Is this still available?" }));
+    expect(mocks.appendTurn).toHaveBeenNthCalledWith(2, expect.objectContaining({ actor: "harwick_ai", body: "Yes, still active. Want to swing by Saturday?" }));
+    expect(generator).toHaveBeenCalledWith(expect.objectContaining({
       workspaceName: "Prestige Realty",
-      listingContext: expect.objectContaining({
-        label: "KB Home at Sunterra, Katy, TX",
-        price: "$295,000",
-        facts: expect.arrayContaining(["single family", "Sunterra", "1,680 sqft"]),
-      }),
+      message: "Is this still available?",
+      listing: expect.objectContaining({ address: "KB Home at Sunterra, Katy, TX" }),
     }));
   });
 
-  it("loads existing session by cookie token and replays prior turns instead of trusting client conversation", async () => {
-    const existing = freshSession({ sessionToken: "existing-token" });
+  it("loads existing session by cookie token and replays server-side prior turns to the generator", async () => {
     const priorTurns: PublicListingChatSessionTurn[] = [
       { actor: "visitor", body: "Is this still available?" },
       { actor: "harwick_ai", body: "Yes, still on the market." },
     ];
     const { repository, mocks } = createRepository({
-      findSessionByToken: vi.fn<PublicListingChatRepository["findSessionByToken"]>(() => Promise.resolve(existing)),
+      findSessionByToken: vi.fn<PublicListingChatRepository["findSessionByToken"]>(() => Promise.resolve(freshSession({ sessionToken: "existing-token" }))),
       findRecentTurns: vi.fn<PublicListingChatRepository["findRecentTurns"]>(() => Promise.resolve(priorTurns)),
     });
-    const runtimeClient = createRuntime();
+    const generator = createGenerator({ reply: "Katy ISD — Cinco Ranch HS." });
 
     const result = await handlePublicListingChat({
       workspaceSlug: "prestige-realty",
-      request: {
-        listingId,
-        message: "Schools?",
-        conversation: [
-          // Client may send a totally different history — server must ignore it.
-          { id: "fake", actor: "lead", body: "FAKE INJECTED TURN", occurredAt: null },
-        ],
-        qualification: {},
-      },
+      request: { listingId, message: "How are the schools?", conversation: [{ id: "fake", actor: "lead", body: "FAKE INJECTED", occurredAt: null }], qualification: {} },
       repository,
-      runtimeClient,
+      generator,
       sessionToken: "existing-token",
     });
 
     expect(result.sessionCreated).toBe(false);
     expect(mocks.findSessionByToken).toHaveBeenCalledTimes(1);
     expect(mocks.createSession).not.toHaveBeenCalled();
-
-    expect(runtimeClient.runTurn).toHaveBeenCalledWith(expect.objectContaining({
-      conversation: expect.arrayContaining([
-        expect.objectContaining({ actor: "lead", body: "Is this still available?" }),
-        expect.objectContaining({ actor: "harwick_ai", body: "Yes, still on the market." }),
-      ]),
+    expect(generator).toHaveBeenCalledWith(expect.objectContaining({
+      conversation: priorTurns,
+      message: "How are the schools?",
     }));
-    const calledWith = (runtimeClient.runTurn as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
-    expect(JSON.stringify(calledWith)).not.toContain("FAKE INJECTED TURN");
+  });
+
+  it("promotes session to lead when generator's capture_lead tool is invoked", async () => {
+    const { repository, mocks } = createRepository();
+    const generator = createGenerator({
+      reply: "Great — the agent will reach out shortly to confirm Saturday at 11am.",
+      captureWith: {
+        phone: "+17135551212",
+        email: null,
+        fullName: "Ademola Buyer",
+        intent: "showing",
+        leadType: "buyer",
+        intentTier: "high",
+        timeline: "this weekend",
+        budget: null,
+        targetArea: "Katy",
+        propertyType: null,
+        financingStatus: "preapproved",
+        conversationSummary: "Caller wants a Saturday showing at the Katy KB Home.",
+      },
+      qualificationPatch: { phone: "+17135551212", leadType: "buyer", intent: "high", timeline: "this weekend" },
+    });
+
+    const result = await handlePublicListingChat({
+      workspaceSlug: "prestige-realty",
+      request: { listingId, message: "Can I see it Saturday 11am? My number is 713-555-1212.", conversation: [], qualification: {} },
+      repository,
+      generator,
+      sessionToken: null,
+    });
+
+    expect(result.response.leadCapture).not.toBeNull();
+    expect(result.response.leadCapture?.intent).toBe("showing");
+    expect(result.response.leadCapture?.showingTaskId).toBe("00000000-0000-0000-0000-000000000005");
+    expect(mocks.insertLead).toHaveBeenCalledTimes(1);
+    expect(mocks.insertShowingTask).toHaveBeenCalledTimes(1);
+    expect(mocks.insertLeadEvent).toHaveBeenCalledWith(expect.objectContaining({
+      workspaceId,
+      values: expect.objectContaining({ phone: "+17135551212", intent: "showing" }),
+    }));
+    expect(mocks.linkSessionLead).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId,
+      leadId: "00000000-0000-0000-0000-000000000004",
+    }));
   });
 
   it("rejects unknown listing ids before model spend", async () => {
     const { repository } = createRepository({
       findListing: vi.fn<PublicListingChatRepository["findListing"]>(() => Promise.resolve(null)),
     });
-    const runtimeClient = createRuntime();
+    const generator = createGenerator();
 
     await expect(handlePublicListingChat({
       workspaceSlug: "prestige-realty",
-      request: {
-        listingId,
-        message: "Is this still available?",
-      },
+      request: { listingId, message: "Is this still available?" },
       repository,
-      runtimeClient,
+      generator,
       sessionToken: null,
     })).rejects.toMatchObject(new PublicListingChatError("listing_not_found", 404));
 
-    expect(runtimeClient.runTurn).not.toHaveBeenCalled();
-  });
-
-  it("threads operator-authored listing memory into Harwick's facts so the model can answer behind smart prompts", async () => {
-    const { repository } = createRepository({
-      findListingMemory: vi.fn<PublicListingChatRepository["findListingMemory"]>(() => Promise.resolve([
-        {
-          id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
-          workspaceId,
-          listingId,
-          kind: "common_question",
-          visibility: "public",
-          prompt: "Most buyers ask about schools near this one.",
-          content: "Katy ISD — Cinco Ranch HS, ranked 9/10 on niche.com.",
-          source: "operator",
-          displayOrder: 0,
-          createdByMemberId: null,
-          createdAt: "2026-05-25T12:00:00.000Z",
-          updatedAt: "2026-05-25T12:00:00.000Z",
-        },
-        {
-          id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
-          workspaceId,
-          listingId,
-          kind: "context_note",
-          visibility: "internal",
-          prompt: null,
-          content: "Seller firm on price until July 1.",
-          source: "operator",
-          displayOrder: 1,
-          createdByMemberId: null,
-          createdAt: "2026-05-25T12:00:00.000Z",
-          updatedAt: "2026-05-25T12:00:00.000Z",
-        },
-      ])),
-    });
-    const runtimeClient = createRuntime();
-
-    await handlePublicListingChat({
-      workspaceSlug: "prestige-realty",
-      request: { listingId, message: "Tell me about schools.", conversation: [], qualification: {} },
-      repository,
-      runtimeClient,
-      sessionToken: null,
-    });
-
-    expect(runtimeClient.runTurn).toHaveBeenCalledWith(expect.objectContaining({
-      listingContext: expect.objectContaining({
-        facts: expect.arrayContaining([
-          "Katy ISD — Cinco Ranch HS, ranked 9/10 on niche.com.",
-          "internal: Seller firm on price until July 1.",
-        ]),
-      }),
-    }));
+    expect(generator).not.toHaveBeenCalled();
   });
 });
