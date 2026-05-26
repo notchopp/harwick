@@ -23,7 +23,7 @@
 create table if not exists public.public_listing_sessions (
   id uuid primary key default gen_random_uuid(),
   workspace_id uuid not null references public.workspaces(id) on delete cascade,
-  listing_id uuid not null references public.listings(id) on delete cascade,
+  listing_id uuid not null references public.listing_facts(id) on delete cascade,
   session_token text not null unique,
   -- Accumulating qualification state, shape mirrors HarwickAiQualification.
   -- Updated turn-by-turn by the runtime statePatch.

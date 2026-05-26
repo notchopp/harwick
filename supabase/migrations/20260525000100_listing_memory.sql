@@ -35,7 +35,7 @@ create type public.listing_memory_source as enum (
 create table if not exists public.listing_memory (
   id uuid primary key default gen_random_uuid(),
   workspace_id uuid not null references public.workspaces(id) on delete cascade,
-  listing_id uuid not null references public.listings(id) on delete cascade,
+  listing_id uuid not null references public.listing_facts(id) on delete cascade,
   kind public.listing_memory_kind not null,
   visibility public.listing_memory_visibility not null default 'internal',
   -- The visitor-facing prompt chip text. Only required when visibility =

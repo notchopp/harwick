@@ -104,6 +104,37 @@ export async function POST(
     }
 
     console.error("Public listing chat error:", error);
+    // In dev, surface the full underlying error payload. Supabase
+    // throws PostgrestError objects (plain objects with
+    // {message, code, details, hint}), not Error instances — so the
+    // earlier `String(error)` collapsed them to "[object Object]".
+    // Now we extract the shape regardless of whether it's an Error
+    // instance, a PostgrestError, or any other thrown value.
+    if (process.env.NODE_ENV !== "production") {
+      const payload: Record<string, unknown> = { error: "internal_error" };
+      if (error instanceof Error) {
+        payload["devMessage"] = error.message;
+        payload["devStack"] = error.stack;
+        if (error.cause !== undefined) {
+          payload["devCause"] = error.cause instanceof Error ? error.cause.message : error.cause;
+        }
+      } else if (typeof error === "object" && error !== null) {
+        // PostgrestError + other object-shape thrown values.
+        const obj = error as Record<string, unknown>;
+        payload["devMessage"] = obj["message"] ?? "(object thrown without message)";
+        payload["devCode"] = obj["code"];
+        payload["devDetails"] = obj["details"];
+        payload["devHint_supabase"] = obj["hint"];
+        payload["devRaw"] = obj;
+      } else {
+        payload["devMessage"] = String(error);
+      }
+      const msg = typeof payload["devMessage"] === "string" ? payload["devMessage"] : "";
+      if (msg.includes("does not exist") || msg.includes("schema cache") || payload["devCode"] === "PGRST205" || payload["devCode"] === "42P01") {
+        payload["devHint"] = "One of public_listing_sessions / public_listing_session_turns / listing_memory is not migrated yet. Run `npm run supabase:migrate supabase/migrations/20260525000100_listing_memory.sql` then `npm run supabase:migrate supabase/migrations/20260525000200_public_listing_sessions.sql` from the repo root.";
+      }
+      return NextResponse.json(payload, { status: 500 });
+    }
     return NextResponse.json({ error: "internal_error" }, { status: 500 });
   }
 }
