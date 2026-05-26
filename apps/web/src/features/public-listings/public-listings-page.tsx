@@ -7,7 +7,6 @@ import {
   Building2,
   Calendar,
   ChevronLeft,
-  Grid2X2,
   Heart,
   Mail,
   MapPin,
@@ -70,8 +69,8 @@ type InquiryIntent = "general" | "question" | "showing" | "open_house";
 const pageCopy: PublicListingsCopy = {
   phone: null,
   activeListingsLabel: "all listings",
-  headline: "listings ready to send.",
-  subheadline: "A live inventory surface for buyers who want the right listing link, current availability, and a fast answer from Harwick.",
+  headline: "ask about any home.",
+  subheadline: "Current availability, financing, and showing help in one thread.",
 };
 
 
@@ -121,6 +120,64 @@ function useIsDesktop(): boolean {
     return () => query.removeEventListener("change", update);
   }, []);
   return isDesktop;
+}
+
+function usePublicListingDarkBrowserChrome() {
+  useEffect(() => {
+    const html = document.documentElement;
+    const body = document.body;
+    const className = "harwick-public-dark-chrome";
+    const mountCountKey = "harwickPublicDarkChromeCount";
+    const existingColorScheme = document.querySelector<HTMLMetaElement>('meta[name="color-scheme"]');
+    const previousColorScheme = existingColorScheme?.content ?? null;
+    const colorSchemeMeta = existingColorScheme ?? document.createElement("meta");
+    const previousViewportHeight = html.style.getPropertyValue("--harwick-public-viewport-height");
+    const readMountCount = () => Number(html.dataset[mountCountKey] ?? "0");
+    const writeViewportHeight = () => {
+      const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+      html.style.setProperty("--harwick-public-viewport-height", `${Math.ceil(viewportHeight)}px`);
+    };
+
+    if (existingColorScheme === null) {
+      colorSchemeMeta.name = "color-scheme";
+      document.head.appendChild(colorSchemeMeta);
+    }
+
+    html.dataset[mountCountKey] = String(readMountCount() + 1);
+    html.classList.add(className);
+    body.classList.add(className);
+    colorSchemeMeta.content = "dark";
+    writeViewportHeight();
+    window.visualViewport?.addEventListener("resize", writeViewportHeight);
+    window.visualViewport?.addEventListener("scroll", writeViewportHeight);
+    window.addEventListener("resize", writeViewportHeight);
+
+    return () => {
+      window.visualViewport?.removeEventListener("resize", writeViewportHeight);
+      window.visualViewport?.removeEventListener("scroll", writeViewportHeight);
+      window.removeEventListener("resize", writeViewportHeight);
+
+      const nextMountCount = Math.max(0, readMountCount() - 1);
+      if (nextMountCount > 0) {
+        html.dataset[mountCountKey] = String(nextMountCount);
+        return;
+      }
+
+      delete html.dataset[mountCountKey];
+      html.classList.remove(className);
+      body.classList.remove(className);
+      if (previousViewportHeight.length === 0) {
+        html.style.removeProperty("--harwick-public-viewport-height");
+      } else {
+        html.style.setProperty("--harwick-public-viewport-height", previousViewportHeight);
+      }
+      if (existingColorScheme === null) {
+        colorSchemeMeta.remove();
+      } else if (previousColorScheme !== null) {
+        colorSchemeMeta.content = previousColorScheme;
+      }
+    };
+  }, []);
 }
 
 // Shared scrollbar-hide utility for content inside dark surfaces — the
@@ -233,6 +290,9 @@ function ListingCard(props: {
             <div className="text-[30px] font-semibold leading-none tracking-[-0.01em]">{props.listing.price}</div>
             <div className="pb-0.5 text-[12px] text-white/54">list price</div>
           </div>
+          <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-[#b5c9a8]/80">
+            live listing · updated {props.listing.updated}
+          </div>
           <div className="max-w-[82%] truncate text-[16px] font-medium text-white/86">{props.listing.shortAddress}</div>
           <div className="mt-1 flex items-center gap-1.5 text-[13px] text-white/58">
             <MapPin aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={1.7} />
@@ -262,39 +322,6 @@ function formatMoney(value: number) {
     style: "currency",
     currency: "USD",
   }).format(value);
-}
-
-function CostCalculator(props: { listing: PublicListingCardData }) {
-  const downPayment = Math.round(props.listing.priceValue * 0.2);
-  const loanAmount = props.listing.priceValue - downPayment;
-  const monthlyPrincipal = Math.round((loanAmount * 0.0675) / 12);
-  const monthlyTaxes = Math.round((props.listing.priceValue * (props.listing.annualTaxRate / 100)) / 12);
-  const monthlyInsurance = Math.round(props.listing.priceValue * 0.00035);
-  const monthlyEstimate = monthlyPrincipal + monthlyTaxes + monthlyInsurance + props.listing.monthlyHoa;
-
-  return (
-    <div className="rounded-[26px] border border-border bg-surface-muted p-5">
-      <div className="text-[13px] font-semibold">estimated monthly</div>
-      <div className="mt-2 font-display text-[33px] font-medium leading-none">
-        {formatMoney(monthlyEstimate)}
-      </div>
-      <div className="mt-1 text-[11px] text-muted-subtle">20% down, 6.75% illustrative rate</div>
-      <div className="mt-5 space-y-2.5 text-[12px] text-muted">
-        {[
-          ["down payment", formatMoney(downPayment)],
-          ["loan amount", formatMoney(loanAmount)],
-          ["taxes", `${formatMoney(monthlyTaxes)}/mo`],
-          ["insurance", `${formatMoney(monthlyInsurance)}/mo`],
-          ["hoa", `${formatMoney(props.listing.monthlyHoa)}/mo`],
-        ].map(([label, value]) => (
-          <div className="flex justify-between gap-4 border-b border-border pb-2 last:border-b-0 last:pb-0" key={label}>
-            <span>{label}</span>
-            <span className="font-semibold text-foreground">{value}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
 }
 
 function InquiryDialog(props: {
@@ -381,22 +408,37 @@ function InquiryDialog(props: {
     <div
       aria-labelledby="public-listing-inquiry-title"
       aria-modal="true"
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-harwick-ink/48 p-4 backdrop-blur-md"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-[rgba(8,12,8,0.62)] p-4 backdrop-blur-[18px] backdrop-saturate-125"
+      onClick={onClose}
       role="dialog"
     >
-      <div className="w-full max-w-[520px] overflow-hidden rounded-[28px] border border-white/20 bg-harwick-paper shadow-[0_36px_120px_rgba(8,15,10,0.36)]">
-        <div className="flex items-start justify-between gap-4 border-b border-border bg-surface px-6 py-5">
-          <div>
-            <h2 className="font-display text-[30px] font-medium leading-none" id="public-listing-inquiry-title">
+      <div
+        className="relative w-full max-w-[520px] overflow-hidden rounded-[28px] border border-white/8 bg-[#0c130e] text-white shadow-[0_42px_120px_-12px_rgba(0,0,0,0.65)]"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 rounded-[28px]"
+          style={{
+            backgroundImage:
+              "radial-gradient(circle at 86% 4%, rgba(136,162,118,0.22), transparent 40%), linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0) 22%)",
+          }}
+        />
+        <div className="relative flex items-start justify-between gap-3 px-6 pt-5 pb-4">
+          <div className="min-w-0">
+            <div className="text-[10px] font-bold uppercase leading-none tracking-[0.18em] text-white/46">
+              {intent === "showing" ? "request a showing" : intent === "open_house" ? "register for open house" : "send a question"}
+            </div>
+            <h2 className="mt-2 font-display text-[26px] font-medium lowercase leading-[1.05] tracking-[-0.02em] text-white" id="public-listing-inquiry-title">
               let&apos;s connect.
             </h2>
-            <p className="mt-2 text-[13px] leading-6 text-muted">
-              Harwick will attach {listing === null ? "your request" : listingLabel}, route it to {listing?.agent ?? workspaceName}, and follow up with the next best step.
+            <p className="mt-1.5 text-[12.5px] leading-5 text-white/56">
+              Harwick attaches {listing === null ? "your request" : listingLabel} and routes it to {listing?.agent ?? workspaceName}.
             </p>
           </div>
           <button
             aria-label="close inquiry form"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border bg-surface text-muted transition hover:border-border-strong hover:text-foreground"
+            className="-mr-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/12 bg-white/[0.04] text-white/70 transition hover:border-white/22 hover:text-white"
             onClick={onClose}
             type="button"
           >
@@ -405,17 +447,17 @@ function InquiryDialog(props: {
         </div>
 
         <form
-          className="space-y-4 p-6"
+          className="relative space-y-3.5 px-6 pb-6"
           onSubmit={(event) => {
             void handleSubmit(event);
           }}
         >
-          <label className="block text-[12px] font-semibold text-foreground" htmlFor="inquiry-name">
+          <label className="block text-[11px] font-bold uppercase tracking-[0.14em] text-white/40" htmlFor="inquiry-name">
             name
-            <span className="mt-2 flex items-center gap-2 rounded-2xl border border-border bg-surface px-3 py-2.5 focus-within:border-border-strong focus-within:ring-2 focus-within:ring-harwick-brass/20">
-              <User aria-hidden="true" className="h-4 w-4 text-muted-subtle" />
+            <span className="mt-1.5 flex items-center gap-2 rounded-[14px] border border-white/10 bg-white/[0.04] px-3 py-2.5 transition focus-within:border-[#88a276]/50 focus-within:bg-white/[0.06]">
+              <User aria-hidden="true" className="h-4 w-4 text-white/40" />
               <input
-                className="min-w-0 flex-1 bg-transparent text-[14px] font-normal outline-none placeholder:text-muted-subtle"
+                className="min-w-0 flex-1 bg-transparent text-[14px] font-normal text-white outline-none placeholder:text-white/30"
                 id="inquiry-name"
                 name="fullName"
                 placeholder="your name"
@@ -424,28 +466,28 @@ function InquiryDialog(props: {
             </span>
           </label>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className="block text-[12px] font-semibold text-foreground" htmlFor="inquiry-phone">
+          <div className="grid gap-3.5 sm:grid-cols-2">
+            <label className="block text-[11px] font-bold uppercase tracking-[0.14em] text-white/40" htmlFor="inquiry-phone">
               phone
-              <span className="mt-2 flex items-center gap-2 rounded-2xl border border-border bg-surface px-3 py-2.5 focus-within:border-border-strong focus-within:ring-2 focus-within:ring-harwick-brass/20">
-                <Phone aria-hidden="true" className="h-4 w-4 text-muted-subtle" />
+              <span className="mt-1.5 flex items-center gap-2 rounded-[14px] border border-white/10 bg-white/[0.04] px-3 py-2.5 transition focus-within:border-[#88a276]/50 focus-within:bg-white/[0.06]">
+                <Phone aria-hidden="true" className="h-4 w-4 text-white/40" />
                 <input
-                  className="min-w-0 flex-1 bg-transparent text-[14px] font-normal outline-none placeholder:text-muted-subtle"
+                  className="min-w-0 flex-1 bg-transparent text-[14px] font-normal text-white outline-none placeholder:text-white/30"
                   id="inquiry-phone"
                   name="phone"
-                  placeholder="Phone number"
+                  placeholder="phone number"
                   required
                   type="tel"
                 />
               </span>
             </label>
 
-            <label className="block text-[12px] font-semibold text-foreground" htmlFor="inquiry-email">
+            <label className="block text-[11px] font-bold uppercase tracking-[0.14em] text-white/40" htmlFor="inquiry-email">
               email
-              <span className="mt-2 flex items-center gap-2 rounded-2xl border border-border bg-surface px-3 py-2.5 focus-within:border-border-strong focus-within:ring-2 focus-within:ring-harwick-brass/20">
-                <Mail aria-hidden="true" className="h-4 w-4 text-muted-subtle" />
+              <span className="mt-1.5 flex items-center gap-2 rounded-[14px] border border-white/10 bg-white/[0.04] px-3 py-2.5 transition focus-within:border-[#88a276]/50 focus-within:bg-white/[0.06]">
+                <Mail aria-hidden="true" className="h-4 w-4 text-white/40" />
                 <input
-                  className="min-w-0 flex-1 bg-transparent text-[14px] font-normal outline-none placeholder:text-muted-subtle"
+                  className="min-w-0 flex-1 bg-transparent text-[14px] font-normal text-white outline-none placeholder:text-white/30"
                   id="inquiry-email"
                   name="email"
                   placeholder="you@example.com"
@@ -456,11 +498,11 @@ function InquiryDialog(props: {
             </label>
           </div>
 
-          <label className="block text-[12px] font-semibold text-foreground" htmlFor="inquiry-message">
+          <label className="block text-[11px] font-bold uppercase tracking-[0.14em] text-white/40" htmlFor="inquiry-message">
             message
-            <span className="mt-2 block rounded-2xl border border-border bg-surface px-3 py-3 focus-within:border-border-strong focus-within:ring-2 focus-within:ring-harwick-brass/20">
+            <span className="mt-1.5 block rounded-[14px] border border-white/10 bg-white/[0.04] px-3 py-2.5 transition focus-within:border-[#88a276]/50 focus-within:bg-white/[0.06]">
               <textarea
-                className="min-h-[116px] w-full resize-none bg-transparent text-[14px] font-normal leading-6 outline-none placeholder:text-muted-subtle"
+                className="min-h-[96px] w-full resize-none bg-transparent text-[14px] font-normal leading-6 text-white outline-none placeholder:text-white/30"
                 id="inquiry-message"
                 name="message"
                 onChange={(event) => setMessage(event.target.value)}
@@ -470,12 +512,12 @@ function InquiryDialog(props: {
           </label>
 
           {intent === "showing" || intent === "open_house" ? (
-            <label className="block text-[12px] font-semibold text-foreground" htmlFor="inquiry-preferred-start">
+            <label className="block text-[11px] font-bold uppercase tracking-[0.14em] text-white/40" htmlFor="inquiry-preferred-start">
               {intent === "open_house" ? "preferred arrival time" : "preferred showing time"}
-              <span className="mt-2 flex items-center gap-2 rounded-2xl border border-border bg-surface px-3 py-2.5 focus-within:border-border-strong focus-within:ring-2 focus-within:ring-harwick-brass/20">
-                <Calendar aria-hidden="true" className="h-4 w-4 text-muted-subtle" />
+              <span className="mt-1.5 flex items-center gap-2 rounded-[14px] border border-white/10 bg-white/[0.04] px-3 py-2.5 transition focus-within:border-[#88a276]/50 focus-within:bg-white/[0.06]">
+                <Calendar aria-hidden="true" className="h-4 w-4 text-white/40" />
                 <input
-                  className="min-w-0 flex-1 bg-transparent text-[14px] font-normal outline-none placeholder:text-muted-subtle"
+                  className="min-w-0 flex-1 bg-transparent text-[14px] font-normal text-white outline-none placeholder:text-white/30 [color-scheme:dark]"
                   id="inquiry-preferred-start"
                   name="preferredStart"
                   type="datetime-local"
@@ -484,38 +526,38 @@ function InquiryDialog(props: {
             </label>
           ) : null}
 
-          <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end">
+          <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
             <button
-              className="rounded-2xl border border-border bg-surface px-4 py-2.5 text-[13px] font-semibold text-muted transition hover:border-border-strong hover:text-foreground"
+              className="rounded-[14px] border border-white/12 bg-white/[0.04] px-4 py-2.5 text-[13px] font-semibold lowercase text-white/82 transition hover:border-white/22 hover:bg-white/[0.06]"
               onClick={onClose}
               type="button"
             >
               cancel
             </button>
             <button
-              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-harwick-ink px-4 py-2.5 text-[13px] font-semibold text-white transition hover:bg-harwick-ink-soft disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex items-center justify-center gap-2 rounded-[14px] bg-[#88a276] px-4 py-2.5 text-[13px] font-semibold lowercase text-[#07100a] shadow-[0_10px_22px_rgba(136,162,118,0.30)] transition hover:bg-[#94ad81] disabled:cursor-not-allowed disabled:opacity-60"
               disabled={submitState === "submitting" || submitState === "sent"}
               type="submit"
             >
               <Send aria-hidden="true" className="h-4 w-4" />
-              {submitState === "submitting" ? "sending" : submitState === "sent" ? "sent" : "send to Harwick"}
+              {submitState === "submitting" ? "sending" : submitState === "sent" ? "sent" : "send to harwick"}
             </button>
           </div>
 
           {submitState === "sent" ? (
-            <div className="rounded-2xl border border-sage/25 bg-sage/10 px-4 py-3 text-[12px] font-medium text-foreground">
+            <div className="rounded-[14px] border border-[var(--sage)]/30 bg-[var(--sage)]/12 px-4 py-3 text-[12px] font-medium text-white/86">
               Harwick saved the request and routed it into the workspace.
             </div>
           ) : null}
           {submitState === "failed" && submitError !== null ? (
-            <div className="rounded-2xl border border-oxblood/20 bg-oxblood/10 px-4 py-3 text-[12px] font-medium text-foreground">
+            <div className="rounded-[14px] border border-[var(--oxblood)]/30 bg-[var(--oxblood)]/12 px-4 py-3 text-[12px] font-medium text-white/86">
               {submitError}
             </div>
           ) : null}
 
-          <div className="flex items-center justify-center gap-2 border-t border-border pt-4 text-[11px] text-muted-subtle">
-            <span className="flex h-5 w-5 items-center justify-center rounded-md bg-harwick-ink font-display text-[11px] text-harwick-brass">H</span>
-            powered by Harwick - responses in minutes
+          <div className="flex items-center justify-center gap-2 border-t border-white/8 pt-3.5 text-[10.5px] font-medium lowercase tracking-[0.06em] text-white/40">
+            <span className="flex h-5 w-5 items-center justify-center rounded-md bg-[#88a276]/20 font-display text-[10px] text-[var(--sage)]">H</span>
+            powered by harwick — responses in minutes
           </div>
         </form>
       </div>
@@ -567,19 +609,19 @@ function mergeQualification(current: ChatQualification, patch: Record<string, un
   return next;
 }
 
-function HarwickListingChatDialog(props: {
+function HarwickListingChatPanel(props: {
   listing: PublicListingCardData;
-  onClose: () => void;
-  onRequestShowing: () => void;
+  onClose?: () => void;
+  framed?: boolean;
   workspaceSlug: string;
   workspaceName: string;
 }) {
-  const { listing, onClose, onRequestShowing, workspaceName, workspaceSlug } = props;
+  const { framed = true, listing, onClose, workspaceName, workspaceSlug } = props;
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: "harwick-open",
       actor: "harwick_ai",
-      body: `I'm Harwick for ${workspaceName}. Ask me about ${listing.shortAddress}, availability, financing, schools, commute, or showing times.`,
+      body: `I'm Harwick for ${workspaceName}. I already have the facts for ${listing.shortAddress}. Ask what matters, or I can help you get toward a showing.`,
       occurredAt: new Date().toISOString(),
     },
   ]);
@@ -597,9 +639,10 @@ function HarwickListingChatDialog(props: {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (onClose === undefined) return;
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
-        onClose();
+        onClose?.();
       }
     }
 
@@ -677,39 +720,30 @@ function HarwickListingChatDialog(props: {
   }
 
   const prompts = [
-    "Is this still available?",
-    "How are the schools?",
-    "What would payment look like?",
+    `Is ${listing.shortAddress} still available?`,
+    `What do buyers usually ask about ${listing.shortAddress}?`,
+    "What would payment look like with 10% down?",
     "Can I see it this weekend?",
   ];
 
   return (
-    <div
+    <section
       aria-labelledby="public-listing-chat-title"
-      aria-modal="true"
-      className="fixed inset-0 z-[70] flex items-end justify-center bg-[rgba(8,12,8,0.62)] p-0 backdrop-blur-[18px] backdrop-saturate-125 sm:items-center sm:p-4"
-      onClick={onClose}
-      role="dialog"
+      className={cn(
+        "relative flex min-h-[560px] flex-col overflow-hidden bg-[#0c130e] text-white [color-scheme:dark]",
+        framed && "rounded-[28px] border border-white/8 shadow-[0_34px_90px_-24px_rgba(0,0,0,0.72)]",
+      )}
     >
       <div
-        className="relative flex max-h-[92vh] w-full max-w-[560px] flex-col overflow-hidden rounded-t-[32px] border border-b-0 border-white/8 bg-[#0c130e] text-white shadow-[0_-32px_80px_-12px_rgba(6,12,8,0.55)] sm:max-h-[min(94vh,880px)] sm:rounded-[28px] sm:border-b"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 rounded-t-[32px] sm:rounded-[28px]"
-          style={{
-            backgroundImage:
-              "radial-gradient(circle at 86% 4%, rgba(136,162,118,0.22), transparent 40%), linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0) 22%)",
-          }}
-        />
+        aria-hidden
+        className={cn("pointer-events-none absolute inset-0", framed && "rounded-[28px]")}
+        style={{
+          backgroundImage:
+            "radial-gradient(circle at 86% 4%, rgba(136,162,118,0.22), transparent 40%), linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0) 22%)",
+        }}
+      />
 
-        {/* Mobile drag handle visual */}
-        <div className="relative mt-2.5 flex justify-center sm:hidden">
-          <div className="h-[5px] w-[44px] rounded-full bg-white/22" aria-hidden="true" />
-        </div>
-
-        <div className="relative flex items-start justify-between gap-3 px-6 pb-4 pt-3.5">
+        <div className="relative flex items-start justify-between gap-3 px-5 pb-4 pt-5 sm:px-6">
           <div className="min-w-0">
             <div className="flex items-center gap-2 text-[10px] font-bold uppercase leading-none tracking-[0.18em] text-white/46">
               <span className="flex h-4 w-4 items-center justify-center rounded-sm bg-[#88a276]/20 font-display text-[9px] text-[var(--sage)]">H</span>
@@ -722,17 +756,19 @@ function HarwickListingChatDialog(props: {
               ask anything about this place.
             </h2>
             <p className="mt-1.5 text-[12.5px] leading-5 text-white/56">
-              Answers come from this listing's verified facts. Tap a prompt or write your own.
+              Answers come from this listing's verified facts. If you want to see it, Harwick will qualify the request here.
             </p>
           </div>
-          <button
-            aria-label="close Harwick chat"
-            className="-mr-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/12 bg-white/[0.04] text-white/70 transition hover:border-white/22 hover:text-white"
-            onClick={onClose}
-            type="button"
-          >
-            <X aria-hidden="true" className="h-4 w-4" />
-          </button>
+          {onClose === undefined ? null : (
+            <button
+              aria-label="close Harwick chat"
+              className="-mr-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/12 bg-white/[0.04] text-white/70 transition hover:border-white/22 hover:text-white"
+              onClick={onClose}
+              type="button"
+            >
+              <X aria-hidden="true" className="h-4 w-4" />
+            </button>
+          )}
         </div>
 
         <div className={cn("relative flex-1 space-y-2.5 overflow-y-auto px-5 py-4", SCROLL_HIDE)}>
@@ -793,7 +829,7 @@ function HarwickListingChatDialog(props: {
           >
             <input
               aria-label="Ask Harwick about this listing"
-              className="h-11 min-w-0 flex-1 rounded-[14px] border border-white/10 bg-white/[0.04] px-4 text-[14px] text-white outline-none placeholder:text-white/30 focus:border-[#88a276]/50 focus:bg-white/[0.06]"
+              className="h-11 min-w-0 flex-1 rounded-[14px] border border-white/10 bg-white/[0.04] px-4 text-[16px] text-white outline-none placeholder:text-white/30 focus:border-[#88a276]/50 focus:bg-white/[0.06] sm:text-[14px]"
               onChange={(event) => setDraft(event.target.value)}
               placeholder="ask about schools, payment, availability..."
               value={draft}
@@ -809,13 +845,48 @@ function HarwickListingChatDialog(props: {
           </form>
           <button
             className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-[12px] border border-white/10 bg-white/[0.02] px-4 py-2.5 text-[12.5px] font-medium lowercase text-white/72 transition hover:border-white/22 hover:bg-white/[0.05] hover:text-white"
-            onClick={onRequestShowing}
+            onClick={() => {
+              void sendMessage("Can I see it this weekend? What times are open?");
+            }}
             type="button"
           >
             <Calendar aria-hidden="true" className="h-3.5 w-3.5 text-[var(--sage)]" />
-            ready to book a showing instead?
+            guide me to a showing
           </button>
         </div>
+    </section>
+  );
+}
+
+function HarwickListingChatDialog(props: {
+  listing: PublicListingCardData;
+  onClose: () => void;
+  workspaceSlug: string;
+  workspaceName: string;
+}) {
+  const { listing, onClose, workspaceName, workspaceSlug } = props;
+
+  return (
+    <div
+      aria-labelledby="public-listing-chat-title"
+      aria-modal="true"
+      className="fixed inset-0 z-[70] flex items-end justify-center bg-[rgba(8,12,8,0.62)] p-0 backdrop-blur-[18px] backdrop-saturate-125 sm:items-center sm:p-4"
+      onClick={onClose}
+      role="dialog"
+    >
+      <div
+        className="w-full max-w-[560px] overflow-hidden rounded-t-[32px] sm:rounded-[28px]"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="relative mt-2.5 flex justify-center sm:hidden">
+          <div className="h-[5px] w-[44px] rounded-full bg-white/22" aria-hidden="true" />
+        </div>
+        <HarwickListingChatPanel
+          listing={listing}
+          onClose={onClose}
+          workspaceSlug={workspaceSlug}
+          workspaceName={workspaceName}
+        />
       </div>
     </div>
   );
@@ -1158,9 +1229,117 @@ function ListingViewer(props: {
   );
 }
 
+export function PublicListingDetailPage(props: {
+  listing: PublicListingCardData;
+  workspaceSlug: string;
+}) {
+  usePublicListingDarkBrowserChrome();
+  const workspaceName = formatWorkspaceName(props.workspaceSlug);
+  const { listing } = props;
+  const siblingUrl = `/${props.workspaceSlug}/listings`;
+
+  return (
+    <main className="min-h-[100dvh] bg-[#0a0f0c] text-white [color-scheme:dark]" data-public-listings-shell="true">
+      <div aria-hidden="true" data-public-status-tint="true" />
+      <header className="sticky top-0 z-40 border-b border-white/8 bg-[#0a0f0c]/88 px-4 pt-[env(safe-area-inset-top)] backdrop-blur-xl">
+        <div className="mx-auto flex h-16 max-w-[1320px] items-center gap-4">
+          <a
+            className="inline-flex h-9 items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 text-[13px] font-medium lowercase text-white/72 transition hover:border-white/22 hover:bg-white/[0.06] hover:text-white"
+            href={siblingUrl}
+          >
+            <ChevronLeft aria-hidden="true" className="h-4 w-4" />
+            all listings
+          </a>
+          <div className="ml-auto text-right">
+            <div className="text-[13px] font-semibold text-white">{workspaceName}</div>
+            <div className="mt-0.5 text-[9px] font-bold uppercase tracking-[0.16em] text-white/36">powered by harwick</div>
+          </div>
+        </div>
+      </header>
+
+      <div className="mx-auto grid max-w-[1320px] gap-8 px-4 py-5 sm:px-6 lg:grid-cols-[minmax(0,1fr)_430px] lg:items-start lg:py-8 xl:grid-cols-[minmax(0,1fr)_480px]">
+        <section className="min-w-0">
+          <div className="rounded-[30px] border border-white/8 bg-white/[0.025] pb-6 shadow-[0_34px_90px_-34px_rgba(0,0,0,0.8)]">
+            <div className="px-5 pb-4 pt-5 sm:px-6">
+              <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#b5c9a8]/72">
+                live listing · updated {listing.updated}
+              </div>
+              <div className="mt-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+                <div className="min-w-0">
+                  <h1 className="font-display text-[34px] font-medium lowercase leading-[0.98] tracking-[-0.02em] text-white sm:text-[46px]">
+                    {listing.shortAddress}
+                  </h1>
+                  <div className="mt-3 flex items-center gap-1.5 text-[14px] text-white/58">
+                    <MapPin aria-hidden="true" className="h-4 w-4 shrink-0" strokeWidth={1.7} />
+                    <span className="truncate">{listing.address}</span>
+                  </div>
+                </div>
+                <div className="font-display text-[34px] font-semibold leading-none tracking-[-0.01em] text-white sm:text-[40px]">
+                  {listing.price}
+                </div>
+              </div>
+            </div>
+
+            <ListingMediaGallery media={listingMediaFor(listing)} listingLabel={listing.shortAddress} />
+
+            <div className="mt-4 grid grid-cols-2 gap-x-4 px-6 sm:grid-cols-4">
+              <ListingViewerStat icon={BedDouble} value={listing.beds} label="beds" />
+              <ListingViewerStat icon={Bath} value={listing.baths} label="baths" />
+              <ListingViewerStat icon={Ruler} value={listing.area} label="size" />
+              <ListingViewerStat icon={Building2} value={listing.type} label="type" />
+            </div>
+          </div>
+
+          <div className="mt-6 grid gap-4 md:grid-cols-2">
+            <section className="rounded-[24px] border border-white/8 bg-white/[0.025] p-5">
+              <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/38">what harwick knows</div>
+              <p className="mt-3 text-[14px] leading-7 text-white/70">{listing.description}</p>
+              <div className="mt-5 flex flex-wrap gap-1.5">
+                {listing.features.map((feature) => (
+                  <span
+                    key={feature}
+                    className="rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-[11.5px] font-medium lowercase text-white/72"
+                  >
+                    {feature}
+                  </span>
+                ))}
+              </div>
+            </section>
+
+            <section className="rounded-[24px] border border-white/8 bg-white/[0.025] p-5">
+              <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/38">showing context</div>
+              <div className="mt-4 space-y-3">
+                <ListingViewerFactRow icon={Building2} label="mls" value={listing.mls} />
+                <ListingViewerFactRow icon={Calendar} label="open house" value={listing.openHouse} />
+                <ListingViewerFactRow icon={User} label="listing agent" value={listing.agent} />
+              </div>
+            </section>
+          </div>
+
+          <div className="mt-6 rounded-[24px] border border-white/8 bg-white/[0.025] p-5">
+            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/38">monthly picture</div>
+            <div className="mt-4">
+              <ListingViewerMonthly listing={listing} />
+            </div>
+          </div>
+        </section>
+
+        <aside className="min-w-0 lg:sticky lg:top-24">
+          <HarwickListingChatPanel
+            listing={listing}
+            workspaceSlug={props.workspaceSlug}
+            workspaceName={workspaceName}
+          />
+        </aside>
+      </div>
+    </main>
+  );
+}
+
 // The duplicate old inline body that used to live here has moved into
 // ListingViewerBody above. Keeping this comment as a navigation aid.
 export function PublicListingsPage(props: { listings?: PublicListingCardData[]; workspaceSlug: string }) {
+  usePublicListingDarkBrowserChrome();
   const workspaceName = formatWorkspaceName(props.workspaceSlug);
   const listings = props.listings ?? [];
   const hasListings = listings.length > 0;
@@ -1197,6 +1376,9 @@ export function PublicListingsPage(props: { listings?: PublicListingCardData[]; 
   const openInquiry = (intent: InquiryIntent, listing: PublicListingCardData | null = selectedListing) => {
     setInquiryState({ intent, listing });
   };
+  const openListingPage = (listing: PublicListingCardData) => {
+    window.location.assign(`/${props.workspaceSlug}/listings/${listing.slug}`);
+  };
   const toggleFavorite = (listing: PublicListingCardData) => {
     setFavoriteSlugs((currentFavorites) => currentFavorites.includes(listing.slug)
       ? currentFavorites.filter((slug) => slug !== listing.slug)
@@ -1204,8 +1386,9 @@ export function PublicListingsPage(props: { listings?: PublicListingCardData[]; 
   };
 
   return (
-    <main className="min-h-screen bg-[#0a0f0c] text-white">
-      <header className="sticky top-0 z-40 border-b border-white/8 bg-[#0a0f0c]/88 px-4 backdrop-blur-xl">
+    <main className="min-h-[100dvh] bg-[#0a0f0c] text-white [color-scheme:dark]" data-public-listings-shell="true">
+      <div aria-hidden="true" data-public-status-tint="true" />
+      <header className="sticky top-0 z-40 border-b border-white/8 bg-[#0a0f0c]/88 px-4 pt-[env(safe-area-inset-top)] backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-[1320px] items-center gap-4">
           <a className="flex items-center gap-3" href={`/${props.workspaceSlug}/listings`}>
             <span className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-[#88a276] font-display text-[17px] text-[#07100a] shadow-[0_10px_24px_rgba(136,162,118,0.20)]">
@@ -1232,7 +1415,7 @@ export function PublicListingsPage(props: { listings?: PublicListingCardData[]; 
             </a>
           )}
           <button
-            className="inline-flex min-w-[108px] items-center justify-center rounded-lg bg-[#88a276] px-4 py-2.5 text-center text-[13px] font-semibold lowercase text-[#07100a] shadow-[0_10px_22px_rgba(136,162,118,0.30)] transition hover:bg-[#94ad81]"
+            className="ml-auto inline-flex min-w-[108px] items-center justify-center rounded-lg bg-[#88a276] px-4 py-2.5 text-center text-[13px] font-semibold lowercase text-[#07100a] shadow-[0_10px_22px_rgba(136,162,118,0.30)] transition hover:bg-[#94ad81] md:ml-0"
             onClick={() => {
               if (featuredListing === null) {
                 openInquiry("general", null);
@@ -1247,35 +1430,31 @@ export function PublicListingsPage(props: { listings?: PublicListingCardData[]; 
         </div>
       </header>
 
-      <section className="mx-auto max-w-[1320px] px-6 pb-8 pt-5">
+      <section className="mx-auto max-w-[1320px] px-5 pb-8 pt-5 sm:px-6">
         <div className="grid gap-8 lg:grid-cols-[minmax(0,0.85fr)_minmax(440px,1fr)] lg:items-end">
-          <div className="py-6">
-            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-[12px] font-medium text-white/72 shadow-sm">
-              <Send aria-hidden="true" className="h-4 w-4 text-[var(--sage)]" />
-              live inventory you can ask about
-            </div>
-            <h1 className="max-w-[760px] font-display text-[58px] font-medium lowercase leading-[0.94] text-white md:text-[78px]">
+          <div className="py-5 sm:py-6">
+            <h1 className="max-w-[760px] font-display text-[48px] font-medium lowercase leading-[0.95] text-white sm:text-[58px] md:text-[78px]">
               {pageCopy.headline}
             </h1>
-            <p className="mt-5 max-w-[620px] text-[18px] leading-7 text-white/56">
+            <p className="mt-4 max-w-[620px] text-[15px] leading-6 text-white/56 sm:text-[18px] sm:leading-7">
               {pageCopy.subheadline}
             </p>
-            <div className="mt-7 flex max-w-[780px] flex-wrap items-center gap-3 rounded-[24px] border border-white/10 bg-white/[0.03] p-2 shadow-[0_24px_70px_rgba(6,12,8,0.40)] backdrop-blur-md">
-              <div className="flex min-w-[240px] flex-1 items-center gap-3 px-4">
-                <Search aria-hidden="true" className="h-5 w-5 text-white/40" />
+            <div className="mt-6 flex h-12 max-w-[780px] items-center gap-1.5 rounded-[18px] border border-white/10 bg-white/[0.03] p-1.5 shadow-[0_24px_70px_rgba(6,12,8,0.40)] backdrop-blur-md sm:h-auto sm:gap-3 sm:rounded-[24px] sm:p-2">
+              <div className="flex min-w-0 flex-1 items-center gap-2 px-2 sm:gap-3 sm:px-4">
+                <Search aria-hidden="true" className="h-4 w-4 shrink-0 text-white/40 sm:h-5 sm:w-5" />
                 <input
                   aria-label="search listings"
-                  className="h-11 min-w-0 flex-1 bg-transparent text-[14px] text-white outline-none placeholder:text-white/30"
+                  className="h-9 min-w-0 flex-1 bg-transparent text-[13px] text-white outline-none placeholder:text-white/30 sm:h-11 sm:text-[14px]"
                   onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder="city, neighborhood, address, or MLS"
+                  placeholder="search homes"
                   value={searchQuery}
                 />
               </div>
-              <button className="flex h-11 items-center gap-2 rounded-2xl border border-white/12 bg-white/[0.04] px-4 text-[13px] font-medium text-white/82 transition hover:border-white/22 hover:bg-white/[0.06]" type="button">
+              <button aria-label="filter listings" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] border border-white/12 bg-white/[0.04] text-white/82 transition hover:border-white/22 hover:bg-white/[0.06] sm:h-11 sm:w-auto sm:gap-2 sm:rounded-2xl sm:px-4 sm:text-[13px] sm:font-medium" type="button">
                 <SlidersHorizontal aria-hidden="true" className="h-4 w-4" />
-                filters
+                <span className="hidden sm:inline">filters</span>
               </button>
-              <button className="h-11 rounded-2xl bg-[#88a276] px-6 text-[13px] font-semibold lowercase text-[#07100a] shadow-[0_10px_22px_rgba(136,162,118,0.30)] transition hover:bg-[#94ad81]" type="button">
+              <button className="hidden h-11 rounded-2xl bg-[#88a276] px-6 text-[13px] font-semibold lowercase text-[#07100a] shadow-[0_10px_22px_rgba(136,162,118,0.30)] transition hover:bg-[#94ad81] sm:block" type="button">
                 search
               </button>
             </div>
@@ -1295,7 +1474,7 @@ export function PublicListingsPage(props: { listings?: PublicListingCardData[]; 
             <ListingCard
               isFavorite={favoriteSlugs.includes(featuredListing.slug)}
               listing={featuredListing}
-              onOpen={(listing) => setSelectedListingSlug(listing.slug)}
+              onOpen={openListingPage}
               onToggleFavorite={toggleFavorite}
               priority
             />
@@ -1336,7 +1515,7 @@ export function PublicListingsPage(props: { listings?: PublicListingCardData[]; 
               isFavorite={favoriteSlugs.includes(listing.slug)}
               key={listing.slug}
               listing={listing}
-              onOpen={(activeListing) => setSelectedListingSlug(activeListing.slug)}
+              onOpen={openListingPage}
               onToggleFavorite={toggleFavorite}
             />
           ))}
@@ -1439,10 +1618,6 @@ export function PublicListingsPage(props: { listings?: PublicListingCardData[]; 
         <HarwickListingChatDialog
           listing={chatListing}
           onClose={() => setChatListing(null)}
-          onRequestShowing={() => {
-            setInquiryState({ intent: "showing", listing: chatListing });
-            setChatListing(null);
-          }}
           workspaceSlug={props.workspaceSlug}
           workspaceName={workspaceName}
         />

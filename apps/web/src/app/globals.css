@@ -198,6 +198,65 @@ body {
   line-height: 1.45;
 }
 
+html.harwick-public-dark-chrome,
+body.harwick-public-dark-chrome {
+  color-scheme: dark;
+  min-height: var(--harwick-public-viewport-height, 100dvh);
+  background: #0a0f0c !important;
+  overscroll-behavior: none;
+}
+
+body.harwick-public-dark-chrome::before {
+  content: "";
+  position: fixed;
+  inset: -120vh 0;
+  z-index: -1;
+  pointer-events: none;
+  background: #0a0f0c;
+}
+
+body.harwick-public-dark-chrome::after {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: max(env(safe-area-inset-top), 44px);
+  z-index: 2147483647;
+  pointer-events: none;
+  background: #0a0f0c;
+}
+
+[data-public-status-tint="true"] {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 2147483647;
+  height: 1px;
+  pointer-events: none;
+  background: #0a0f0c;
+}
+
+html.harwick-public-dark-chrome input,
+html.harwick-public-dark-chrome textarea,
+html.harwick-public-dark-chrome select {
+  color-scheme: dark;
+}
+
+@supports selector(html:has([data-public-listings-shell="true"])) {
+  html:has([data-public-listings-shell="true"]),
+  body:has([data-public-listings-shell="true"]) {
+    color-scheme: dark;
+    background: #0a0f0c !important;
+  }
+}
+
+[data-public-listings-shell="true"] {
+  min-height: var(--harwick-public-viewport-height, 100dvh);
+  background: #0a0f0c;
+}
+
 /* Vaul stabilization — the goal is a clean slide-down on close with no
  * "flash back to fully-open" frame. Vaul already sets `will-change: transform`,
  * `touch-action: none`, and `transition: transform .5s cubic-bezier(...)` inline
