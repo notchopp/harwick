@@ -164,4 +164,100 @@ describe("handleRetellWebhookDelivery", () => {
     expect(response.status).toBe(202);
     expect(response.body.unmatchedProviderAccountIds).toEqual(["unknown_agent"]);
   });
+
+  it("fires post-call Harwick synthesis when call_analyzed lands on a real lead with a transcript", async () => {
+    const request = await signedBody({
+      event: "call_analyzed",
+      call: {
+        call_id: "call_post_synth_1",
+        agent_id: "agent_123",
+        from_number: "+14845551234",
+        transcript: "Buyer asked about a Saturday showing at the Katy listing.",
+        call_analysis: {
+          call_summary: "Saturday showing requested.",
+        },
+      },
+    });
+
+    const synthesisHook = vi.fn(() => Promise.resolve());
+
+    const response = await handleRetellWebhookDelivery({
+      ...request,
+      retellApiKey,
+      resolveWorkspaceIdByProviderAccountId: () => Promise.resolve(workspaceId),
+      writeLeadEvents: (events) => Promise.resolve({
+        persistedCount: events.length,
+        duplicateCount: 0,
+        leadUpsertCount: events.length,
+      }),
+      runPostCallSynthesis: synthesisHook,
+    });
+
+    expect(response.status).toBe(200);
+    expect(synthesisHook).toHaveBeenCalledTimes(1);
+    expect(synthesisHook).toHaveBeenCalledWith(expect.objectContaining({
+      workspaceId,
+      callId: "call_post_synth_1",
+      transcript: "Buyer asked about a Saturday showing at the Katy listing.",
+    }));
+  });
+
+  it("skips post-call synthesis when no lead was upserted from the call", async () => {
+    const request = await signedBody({
+      event: "call_analyzed",
+      call: {
+        call_id: "call_no_lead",
+        agent_id: "agent_123",
+        from_number: "+14845551234",
+        transcript: "Empty hangup.",
+        call_analysis: { call_summary: "Hangup." },
+      },
+    });
+
+    const synthesisHook = vi.fn(() => Promise.resolve());
+
+    await handleRetellWebhookDelivery({
+      ...request,
+      retellApiKey,
+      resolveWorkspaceIdByProviderAccountId: () => Promise.resolve(workspaceId),
+      writeLeadEvents: () => Promise.resolve({
+        persistedCount: 1,
+        duplicateCount: 0,
+        leadUpsertCount: 0,
+      }),
+      runPostCallSynthesis: synthesisHook,
+    });
+
+    expect(synthesisHook).not.toHaveBeenCalled();
+  });
+
+  it("swallows synthesis errors so Retell still gets a 200 ack", async () => {
+    const request = await signedBody({
+      event: "call_analyzed",
+      call: {
+        call_id: "call_synth_error",
+        agent_id: "agent_123",
+        from_number: "+14845551234",
+        transcript: "Caller wanted a showing this weekend.",
+        call_analysis: { call_summary: "Weekend showing." },
+      },
+    });
+
+    const synthesisHook = vi.fn(() => Promise.reject(new Error("model down")));
+
+    const response = await handleRetellWebhookDelivery({
+      ...request,
+      retellApiKey,
+      resolveWorkspaceIdByProviderAccountId: () => Promise.resolve(workspaceId),
+      writeLeadEvents: (events) => Promise.resolve({
+        persistedCount: events.length,
+        duplicateCount: 0,
+        leadUpsertCount: events.length,
+      }),
+      runPostCallSynthesis: synthesisHook,
+    });
+
+    expect(response.status).toBe(200);
+    expect(synthesisHook).toHaveBeenCalledTimes(1);
+  });
 });

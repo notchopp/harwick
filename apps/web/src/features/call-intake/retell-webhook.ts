@@ -25,6 +25,22 @@ export type RetellVoiceUsageRecorder = (params: {
   billableMinutes: number;
 }) => Promise<void>;
 
+/**
+ * Optional post-call Harwick synthesis hook. Fires after the call_analyzed
+ * lead events are persisted AND at least one lead was upserted. The
+ * implementation is expected to run the typed HarwickAi runtime over the
+ * transcript, update the lead document, and queue follow-on tasks
+ * (callback / showing approval / listing-memory log). Errors are
+ * swallowed and logged — synthesis failure should never break the
+ * webhook ack since Retell will retry the whole payload otherwise.
+ */
+export type RetellPostCallSynthesisHook = (params: {
+  workspaceId: string;
+  callId: string;
+  transcript: string;
+  durationMs: number | null;
+}) => Promise<void>;
+
 export type RetellWebhookDeliveryResponse = {
   status: 200 | 202 | 400 | 401;
   body: {
@@ -89,6 +105,7 @@ export async function handleRetellWebhookDelivery(params: {
   resolveWorkspaceIdByProviderAccountId: RetellWorkspaceResolver;
   writeLeadEvents: RetellLeadEventWriter;
   recordVoiceCallUsage?: RetellVoiceUsageRecorder;
+  runPostCallSynthesis?: RetellPostCallSynthesisHook;
 }): Promise<RetellWebhookDeliveryResponse> {
   const signatureValid = await verifyRetellWebhookSignature({
     rawBody: params.rawBody,
@@ -152,6 +169,37 @@ export async function handleRetellWebhookDelivery(params: {
       });
     } catch (error) {
       console.error("[retell] failed to record voice usage", error);
+    }
+  }
+
+  // Post-call Harwick synthesis — God Flow 2's "Harwick thinks after the
+  // call ends" step. Fires only when (a) we got a call_analyzed event with
+  // a real transcript, (b) at least one lead was upserted from this call
+  // (otherwise there's nothing for Harwick to attach synthesis to), and
+  // (c) the route configured the hook. Failures are logged but never
+  // surface to Retell — the webhook still acks 200 so Retell doesn't
+  // retry the whole payload and risk double-persistence downstream.
+  if (
+    params.runPostCallSynthesis !== undefined
+    && parsedPayload.data.event === "call_analyzed"
+    && writeResult.leadUpsertCount > 0
+  ) {
+    const transcript = parsedPayload.data.call.transcript;
+    if (typeof transcript === "string" && transcript.trim().length > 0) {
+      try {
+        await params.runPostCallSynthesis({
+          workspaceId,
+          callId: parsedPayload.data.call.call_id,
+          transcript: transcript.trim(),
+          durationMs,
+        });
+      } catch (error) {
+        console.error("[retell] post-call Harwick synthesis failed", {
+          callId: parsedPayload.data.call.call_id,
+          workspaceId,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
   }
 
