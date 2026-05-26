@@ -206,6 +206,19 @@ function buildListingMemory(params: {
     ...memoryFacts,
   ].filter((fact): fact is string => fact !== null && fact.trim().length > 0);
 
+  // Supabase returns Postgres timestamp format ("2026-05-25 12:00:00+00")
+  // but HarwickAiListingMemorySchema.lastVerifiedAt requires strict ISO 8601
+  // ("2026-05-25T12:00:00.000Z"). Normalize through Date — if parsing fails
+  // for any reason, fall back to null so the chat doesn't blow up over
+  // an unparseable verified_at.
+  let normalizedVerifiedAt: string | null = null;
+  if (listing.verifiedAt !== null) {
+    const parsed = new Date(listing.verifiedAt);
+    if (!Number.isNaN(parsed.getTime())) {
+      normalizedVerifiedAt = parsed.toISOString();
+    }
+  }
+
   return {
     listingId: listing.id,
     label: listing.address,
@@ -216,7 +229,7 @@ function buildListingMemory(params: {
     baths: listing.baths === null ? null : String(listing.baths),
     area: neighborhood ?? city,
     facts,
-    lastVerifiedAt: listing.verifiedAt,
+    lastVerifiedAt: normalizedVerifiedAt,
   };
 }
 
