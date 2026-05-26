@@ -72,6 +72,22 @@ export type PublicListingChatRepository = {
     workspaceId: string;
     listingId: string;
   }): Promise<PublicListingChatListing | null>;
+  // Read-only public surface: the model can offer alternatives when the
+  // current listing isn't the right fit. Filters mirror what a buyer
+  // would actually narrow on: price range, beds, baths, area substring.
+  // Excludes the current listing from results.
+  findOtherListings(params: {
+    workspaceId: string;
+    excludeListingId: string;
+    criteria: {
+      minPrice?: number | null;
+      maxPrice?: number | null;
+      minBeds?: number | null;
+      areaContains?: string | null;
+      propertyType?: string | null;
+    };
+    limit: number;
+  }): Promise<PublicListingChatListing[]>;
   findListingMemory(params: {
     workspaceId: string;
     listingId: string;
@@ -242,6 +258,20 @@ export type PublicListingChatGenerator = (params: {
   message: string;
   priorQualification: PublicListingChatQualification;
   onCaptureLead: (input: ListingChatCaptureInput) => Promise<ListingChatCaptureResult>;
+  // Workspace-wide listing search so the model can surface alternatives
+  // when the current listing isn't the fit. Wired to the repo at the
+  // handler boundary so the generator stays pure.
+  findOtherListings: (params: {
+    excludeListingId: string;
+    criteria: {
+      minPrice?: number | null;
+      maxPrice?: number | null;
+      minBeds?: number | null;
+      areaContains?: string | null;
+      propertyType?: string | null;
+    };
+    limit: number;
+  }) => Promise<readonly PublicListingChatListing[]>;
 }) => Promise<GenerateListingChatReplyResult>;
 
 export async function handlePublicListingChat(params: {
@@ -421,6 +451,12 @@ export async function handlePublicListingChat(params: {
     message: request.message,
     priorQualification: session.qualification,
     onCaptureLead,
+    findOtherListings: (input) => params.repository.findOtherListings({
+      workspaceId: workspace.id,
+      excludeListingId: input.excludeListingId,
+      criteria: input.criteria,
+      limit: input.limit,
+    }),
   });
 
   // Persist the assistant turn (the natural-language reply). State patch

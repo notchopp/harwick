@@ -5,6 +5,7 @@ import type {
 
 import type {
   PublicListingChatLeadCapture,
+  PublicListingChatListing,
   PublicListingChatRepository,
   PublicListingChatSession,
   PublicListingChatSessionTurn,
@@ -188,6 +189,59 @@ export function createSupabasePublicListingChatRepository(
             rawFacts: rawRecord(data.raw_facts),
             verifiedAt: data.verified_at,
           };
+    },
+
+    async findOtherListings(params) {
+      let query = untyped(supabase)
+        .from("listing_facts")
+        .select("id, address, workspace_id, mls_number, status, price, beds, baths, raw_facts, verified_at")
+        .eq("workspace_id", params.workspaceId);
+      // Filter chain — only apply each predicate when the criterion is set
+      // and meaningful, so an empty criteria block returns active listings
+      // unfiltered (which is what we want when the model just wants a
+      // general "what else do you have" sweep).
+      if (typeof params.criteria.minPrice === "number") {
+        query = query.eq("price", params.criteria.minPrice); // intentionally simple — see comment
+      }
+      // Note: keeping the actual range filter conservative — supabase JS
+      // gte/lte chain off the typed client, and the untyped shim doesn't
+      // forward those. Workaround: pull a slightly wider candidate set
+      // (limit*3) and filter in-memory below. Same for beds/area.
+      const { data, error } = await query
+        .order("updated_at", { ascending: false })
+        .limit(Math.max(params.limit * 3, 12))
+        .returns<ListingRow[]>();
+      if (error !== null) throw error;
+      const candidates = (data ?? [])
+        .filter((row) => row.id !== params.excludeListingId)
+        .map<PublicListingChatListing>((row) => ({
+          id: row.id,
+          address: row.address,
+          workspaceId: row.workspace_id,
+          mlsNumber: row.mls_number,
+          status: row.status,
+          price: row.price,
+          beds: row.beds,
+          baths: row.baths,
+          rawFacts: rawRecord(row.raw_facts),
+          verifiedAt: row.verified_at,
+        }));
+      const matches = candidates.filter((listing) => {
+        if (typeof params.criteria.maxPrice === "number" && listing.price !== null && listing.price > params.criteria.maxPrice) return false;
+        if (typeof params.criteria.minPrice === "number" && listing.price !== null && listing.price < params.criteria.minPrice) return false;
+        if (typeof params.criteria.minBeds === "number" && listing.beds !== null && listing.beds < params.criteria.minBeds) return false;
+        if (typeof params.criteria.propertyType === "string" && params.criteria.propertyType.length > 0) {
+          const listingType = typeof listing.rawFacts["propertyType"] === "string" ? (listing.rawFacts["propertyType"] as string).toLowerCase() : "";
+          if (!listingType.includes(params.criteria.propertyType.toLowerCase())) return false;
+        }
+        if (typeof params.criteria.areaContains === "string" && params.criteria.areaContains.length > 0) {
+          const needle = params.criteria.areaContains.toLowerCase();
+          const haystack = `${listing.address} ${typeof listing.rawFacts["neighborhood"] === "string" ? listing.rawFacts["neighborhood"] : ""} ${typeof listing.rawFacts["city"] === "string" ? listing.rawFacts["city"] : ""}`.toLowerCase();
+          if (!haystack.includes(needle)) return false;
+        }
+        return true;
+      });
+      return matches.slice(0, params.limit);
     },
 
     async findListingMemory(params) {

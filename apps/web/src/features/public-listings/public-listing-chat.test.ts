@@ -48,6 +48,7 @@ function createRepository(overrides: Partial<PublicListingChatRepository> = {}) 
         verifiedAt: "2026-05-01T12:00:00.000Z",
       })),
     findListingMemory: vi.fn<PublicListingChatRepository["findListingMemory"]>(() => Promise.resolve([])),
+    findOtherListings: vi.fn<PublicListingChatRepository["findOtherListings"]>(() => Promise.resolve([])),
     findSessionByToken: vi.fn<PublicListingChatRepository["findSessionByToken"]>(() => Promise.resolve(null)),
     createSession: vi.fn<PublicListingChatRepository["createSession"]>((params) =>
       Promise.resolve(freshSession({ sessionToken: params.sessionToken }))),

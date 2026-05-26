@@ -77,7 +77,7 @@ export async function POST(
       workspaceSlug,
       request: body,
       repository: createSupabasePublicListingChatRepository(createServerSupabaseClient()),
-      generator: (params) => generateListingChatReply({ ...params, openaiApiKey, model }),
+      generator: (params) => generateListingChatReply({ ...params, openaiApiKey, model, findOtherListings: params.findOtherListings }),
       sessionToken: request.cookies.get(SESSION_COOKIE_NAME)?.value ?? null,
       ipHash: hashClientIp(request),
       userAgent: request.headers.get("user-agent"),
