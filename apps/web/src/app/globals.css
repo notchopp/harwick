@@ -215,13 +215,23 @@ body.harwick-public-dark-chrome::before {
   background: #0a0f0c;
 }
 
+/* iOS PWA status-bar mask. Renders ONLY when env(safe-area-inset-top)
+ * resolves to a real value (iOS standalone-mode PWA) — on desktop
+ * browsers env() === 0 so the height collapses and the bar disappears.
+ *
+ * The earlier version used max(env(safe-area-inset-top), 44px) which
+ * forced a 44px floor on desktop, painting a solid dark rectangle at
+ * z-index 2147483647 on top of the sticky header — nav buttons were
+ * invisible AND non-clickable (pointer-events:none mitigated the click
+ * issue in some browsers but not the visual occlusion). Dropping the
+ * floor preserves the iOS intent without breaking desktop. */
 body.harwick-public-dark-chrome::after {
   content: "";
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
-  height: max(env(safe-area-inset-top), 44px);
+  height: env(safe-area-inset-top, 0px);
   z-index: 2147483647;
   pointer-events: none;
   background: #0a0f0c;
