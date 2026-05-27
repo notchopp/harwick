@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  calculateMortgagePaymentEstimate,
   ListingFactSchema,
   ListingMemorySchema,
   ListingMemoryUpsertRequestSchema,
+  MortgagePaymentEstimateInputSchema,
   ListingProviderLookupInputSchema,
   ManualListingFactRequestSchema,
   ManualListingCsvImportRequestSchema,
@@ -47,6 +49,71 @@ describe("ListingFactSchema", () => {
       hasPool: true,
       rawFacts: {},
       verifiedAt: "2026-04-29T12:00:00.000Z",
+    })).toThrow();
+  });
+});
+
+describe("calculateMortgagePaymentEstimate", () => {
+  it("calculates amortized principal and interest with taxes, insurance, and HOA", () => {
+    const estimate = calculateMortgagePaymentEstimate({
+      price: 500000,
+      downPaymentPercent: 20,
+      annualInterestRatePercent: 6,
+      termYears: 30,
+      annualTaxRatePercent: 1.2,
+      monthlyInsurance: 150,
+      monthlyHoa: 75,
+    });
+
+    expect(estimate).toMatchObject({
+      downPayment: 100000,
+      downPaymentPercent: 20,
+      loanAmount: 400000,
+      monthlyPrincipalAndInterest: 2398,
+      monthlyTaxes: 500,
+      monthlyInsurance: 150,
+      monthlyHoa: 75,
+      monthlyPmi: 0,
+      monthlyTotal: 3123,
+    });
+    expect(estimate.disclaimer).toContain("Estimate only");
+  });
+
+  it("handles zero-interest loans without dividing by a mortgage-rate factor", () => {
+    const estimate = calculateMortgagePaymentEstimate({
+      price: 120000,
+      downPaymentPercent: 0,
+      annualInterestRatePercent: 0,
+      termYears: 10,
+      annualTaxRatePercent: 0,
+      includeEstimatedPmi: false,
+    });
+
+    expect(estimate.monthlyPrincipalAndInterest).toBe(1000);
+    expect(estimate.monthlyTotal).toBe(1000);
+  });
+
+  it("estimates PMI when the buyer models less than 20 percent down", () => {
+    const estimate = calculateMortgagePaymentEstimate({
+      price: 340000,
+      downPaymentPercent: 10,
+      annualInterestRatePercent: 6.75,
+      termYears: 30,
+      annualTaxRatePercent: 1.1,
+      monthlyInsurance: 119,
+      monthlyHoa: 0,
+    });
+
+    expect(estimate.downPayment).toBe(34000);
+    expect(estimate.loanAmount).toBe(306000);
+    expect(estimate.monthlyPmi).toBe(128);
+    expect(estimate.warnings[0]).toContain("PMI is estimated");
+  });
+
+  it("rejects a cash/down-payment assumption above the listing price", () => {
+    expect(() => MortgagePaymentEstimateInputSchema.parse({
+      price: 300000,
+      downPayment: 350000,
     })).toThrow();
   });
 });

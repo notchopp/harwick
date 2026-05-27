@@ -1,18 +1,13 @@
-import { randomBytes } from "node:crypto";
-
 import {
-  PublicListingChatRequestSchema,
-  PublicListingChatResponseSchema,
+  type HarwickAiMissingFieldRuntime,
+  type HarwickAiToolCall,
+  type ListingAreaIntel,
   type ListingMemory,
   type PublicListingChatQualification,
-  type PublicListingChatResponse,
+  type PublicListingPortalAgent,
+  type PublicListingPortalShowing,
+  type PublicListingPortalState,
 } from "@realty-ops/core";
-
-import type {
-  GenerateListingChatReplyResult,
-  ListingChatCaptureInput,
-  ListingChatCaptureResult,
-} from "./listing-chat-generator";
 
 export type PublicListingChatSession = {
   id: string;
@@ -24,6 +19,7 @@ export type PublicListingChatSession = {
 export type PublicListingChatSessionTurn = {
   actor: "visitor" | "harwick_ai";
   body: string;
+  occurredAt: string;
 };
 
 export type PublicListingChatWorkspace = {
@@ -42,6 +38,51 @@ export type PublicListingChatListing = {
   baths: number | null;
   rawFacts: Record<string, unknown>;
   verifiedAt: string | null;
+  // Pre-enriched area intelligence. Written by area-enrichment.ts during
+  // listing import; read by the chat generator at zero per-message cost.
+  // Null when enrichment hasn't run yet — generator falls back to the
+  // runtime lookup_area_info tool (Brave Search).
+  areaIntel: ListingAreaIntel | null;
+};
+
+export type PublicListingChatTeamMember = {
+  memberId: string;
+  displayName: string;
+  role: string;
+  email: string | null;
+  phone: string | null;
+  // Free-text from member profile — agents often note specialties
+  // ("luxury / Cinco Ranch / first-time buyers"). Surfaced so Harwick
+  // can match a buyer to the right agent.
+  specialties: string | null;
+  // workspace_members.avatar_url. Rendered as real photo on the
+  // Meet-the-Team and assigned-agent cards; falls back to initials.
+  avatarUrl: string | null;
+};
+
+/**
+ * Returned by findVisitorContext — the moat that makes Harwick feel
+ * like a real employee. Lets the chat greet returning visitors by name,
+ * pick up where the prior conversation left off, and skip qualification
+ * steps already covered.
+ */
+export type PublicListingChatVisitorContext = {
+  isReturning: boolean;
+  lastSeenAt: string | null;
+  priorQualification: PublicListingChatQualification;
+  // Listings this visitor has chatted about across ALL sessions on the
+  // same cookie. firstAskedAt / lastAskedAt power the cross-listing
+  // timeline rendered in the buyer-portal drawer.
+  priorListingsAskedAbout: Array<{
+    id: string;
+    address: string;
+    firstAskedAt: string | null;
+    lastAskedAt: string | null;
+  }>;
+  // Last 6 turns from the most recent session — enough to feel like
+  // continuity without ballooning the prompt budget.
+  recentTranscript: Array<{ actor: "visitor" | "harwick_ai"; body: string }>;
+  promotedLead: { id: string; fullName: string | null; assignedAgentId: string | null } | null;
 };
 
 export type PublicListingChatLead = {
@@ -88,6 +129,41 @@ export type PublicListingChatRepository = {
     };
     limit: number;
   }): Promise<PublicListingChatListing[]>;
+  // Returns active workspace members + their roles + specialties so
+  // Harwick can match a buyer to the right agent or surface "the team"
+  // when asked who they'd work with.
+  findWorkspaceTeam(params: { workspaceId: string }): Promise<PublicListingChatTeamMember[]>;
+  // Returns full visitor context across sessions — the moat. Called once
+  // per chat turn at the top of the handler; the result feeds the system
+  // prompt as a RETURNING VISITOR block when isReturning is true.
+  findVisitorContext(params: {
+    workspaceId: string;
+    sessionToken: string | null;
+  }): Promise<PublicListingChatVisitorContext>;
+  // Seller funnel: queues a CMA prep task for the operator. Harwick
+  // surfaces the request ("agent will run real comps and reach out")
+  // but never pretends to deliver a CMA itself.
+  insertCMARequest(params: {
+    workspaceId: string;
+    leadId: string;
+    sellerPropertyAddress: string;
+    sellerMotivation: string | null;
+    sellerTimeline: string | null;
+    sellerCondition: string | null;
+    sellerPriceExpectation: string | null;
+    createdAt: string;
+  }): Promise<string>;
+  // Generic "agent please call/text me" intent — when buyer wants a
+  // human voice but no specific showing window yet.
+  insertCallbackTask(params: {
+    workspaceId: string;
+    leadId: string;
+    listingId: string | null;
+    assignedMemberId: string | null;
+    reason: string;
+    urgency: "now" | "today" | "this_week";
+    createdAt: string;
+  }): Promise<string>;
   findListingMemory(params: {
     workspaceId: string;
     listingId: string;
@@ -115,6 +191,12 @@ export type PublicListingChatRepository = {
     body: string;
     statePatch: Record<string, unknown> | null;
     nextAction: string | null;
+    confidence?: number | null;
+    missingFields?: HarwickAiMissingFieldRuntime[];
+    safetyFlags?: string[];
+    handoffBrief?: string | null;
+    documentUpdate?: string | null;
+    toolCalls?: HarwickAiToolCall[];
     occurredAt: string;
   }): Promise<void>;
   updateSessionQualification(params: {
@@ -138,6 +220,7 @@ export type PublicListingChatRepository = {
     createdAt: string;
   }): Promise<PublicListingChatLead>;
   updateLead(params: {
+    workspaceId: string;
     leadId: string;
     values: PublicListingChatLeadCapture;
     updatedAt: string;
@@ -156,8 +239,24 @@ export type PublicListingChatRepository = {
     listing: PublicListingChatListing;
     assignedMemberId: string | null;
     values: PublicListingChatLeadCapture;
+    requestedStartAt?: string | null;
+    requestedEndAt?: string | null;
     createdAt: string;
   }): Promise<string>;
+  // Returns showings tied to this visitor (via promoted lead). Each row
+  // carries the assigned agent so the buyer portal can render
+  // "Priya confirmed Saturday 11" without a separate agent lookup.
+  findShowingsForVisitor(params: {
+    workspaceId: string;
+    leadId: string;
+  }): Promise<PublicListingPortalShowing[]>;
+  // Resolve a single agent by member id — used when the promoted lead
+  // has an assigned_agent_id but no showing yet, so the portal can still
+  // render the "Priya Shah is helping you" card pre-showing.
+  findAgentByMemberId(params: {
+    workspaceId: string;
+    memberId: string;
+  }): Promise<PublicListingPortalAgent | null>;
 };
 
 export class PublicListingChatError extends Error {
@@ -169,368 +268,202 @@ export class PublicListingChatError extends Error {
   }
 }
 
-function readRawString(rawFacts: Record<string, unknown>, key: string): string | null {
-  const value = rawFacts[key];
-  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
-}
-
-function generateSessionToken(): string {
-  return randomBytes(24).toString("base64url");
-}
-
-function parseBudget(value: string | null | undefined): number | null {
-  if (value === null || value === undefined) return null;
-  const normalized = value.toLowerCase().replace(/,/g, "");
-  const match = normalized.match(/(\d+(?:\.\d+)?)/);
-  if (match === null) return null;
-  const parsed = Number(match[1]);
-  if (!Number.isFinite(parsed)) return null;
-  const multiplier = normalized.includes("m") ? 1_000_000 : normalized.includes("k") ? 1_000 : 1;
-  return Math.round(parsed * multiplier);
-}
-
-function buildProviderEventId(params: {
-  workspaceId: string;
-  listingId: string;
-  phone: string;
-  occurredAt: string;
-}): string {
-  return [
-    "public_listing_chat",
-    params.workspaceId,
-    params.listingId,
-    params.phone.replace(/[^0-9]/g, ""),
-    Date.parse(params.occurredAt),
-  ].join(":");
-}
-
-// Folds the qualification patch returned by the generator into the session
-// qualification jsonb so the next turn starts from the latest state.
-function mergeQualification(
-  current: PublicListingChatQualification,
-  patch: Record<string, unknown>,
-): PublicListingChatQualification {
-  const next: PublicListingChatQualification = { ...current };
-  const set = <K extends keyof PublicListingChatQualification>(key: K, value: PublicListingChatQualification[K] | undefined) => {
-    if (value !== undefined) next[key] = value;
+function defaultVisitorContext(): PublicListingChatVisitorContext {
+  return {
+    isReturning: false,
+    lastSeenAt: null,
+    priorQualification: {},
+    priorListingsAskedAbout: [],
+    recentTranscript: [],
+    promotedLead: null,
   };
-  if (typeof patch["name"] === "string") set("name", patch["name"]);
-  if (typeof patch["phone"] === "string") set("phone", patch["phone"]);
-  if (typeof patch["email"] === "string") set("email", patch["email"]);
-  if (typeof patch["timeline"] === "string") set("timeline", patch["timeline"]);
-  if (typeof patch["budget"] === "string" || typeof patch["budget"] === "number") {
-    set("budget", String(patch["budget"]));
-  }
-  if (typeof patch["targetArea"] === "string") set("targetArea", patch["targetArea"]);
-  if (typeof patch["propertyType"] === "string") set("propertyType", patch["propertyType"]);
-  const leadType = patch["leadType"];
-  if (leadType === "buyer" || leadType === "seller" || leadType === "renter" || leadType === "investor" || leadType === "unknown") {
-    set("leadType", leadType);
-  }
-  const intent = patch["intent"];
-  if (intent === "high" || intent === "medium" || intent === "low" || intent === "spam" || intent === "unknown") {
-    set("intent", intent);
-  }
-  const financingStatus = patch["financingStatus"];
-  if (financingStatus === "preapproved" || financingStatus === "cash" || financingStatus === "needs_lender" || financingStatus === "unknown") {
-    set("financingStatus", financingStatus);
-  }
-  return next;
 }
-
-export type HandlePublicListingChatResult = {
-  response: PublicListingChatResponse;
-  sessionToken: string;
-  sessionCreated: boolean;
-};
 
 /**
- * Function the handler calls to actually generate the model reply. Defaults
- * to `generateListingChatReply` from `./listing-chat-generator` (which uses
- * `generateText` + tools — the same proven pattern operator-side harwick-chat
- * uses). Injectable so tests can mock without spinning up the AI SDK.
+ * GET handler — returns the dynamic buyer-portal state for the cookie
+ * holder on a given listing. No state mutation, no LLM call. Cheap.
+ *
+ * Two roles in one shape:
+ *   - "Living buyer thread" — priorTurns is the chat scrollback the
+ *     visitor sees on mount, profile is what the lower-right chip+drawer
+ *     renders, showings/assignedAgent power the Meet-the-Team panel
+ *     transition from generic → personalized.
+ *   - "Listing trust block" — team is always returned so the
+ *     Meet-the-Team Airbnb-style card has something to render even for
+ *     anonymous first-time visitors (no session token).
  */
-export type PublicListingChatGenerator = (params: {
-  workspaceName: string;
-  listing: PublicListingChatListing;
-  memory: readonly ListingMemory[];
-  conversation: ReadonlyArray<{ actor: string; body: string }>;
-  message: string;
-  priorQualification: PublicListingChatQualification;
-  onCaptureLead: (input: ListingChatCaptureInput) => Promise<ListingChatCaptureResult>;
-  // Workspace-wide listing search so the model can surface alternatives
-  // when the current listing isn't the fit. Wired to the repo at the
-  // handler boundary so the generator stays pure.
-  findOtherListings: (params: {
-    excludeListingId: string;
-    criteria: {
-      minPrice?: number | null;
-      maxPrice?: number | null;
-      minBeds?: number | null;
-      areaContains?: string | null;
-      propertyType?: string | null;
-    };
-    limit: number;
-  }) => Promise<readonly PublicListingChatListing[]>;
-}) => Promise<GenerateListingChatReplyResult>;
-
-export async function handlePublicListingChat(params: {
-  workspaceSlug: string;
-  request: unknown;
-  repository: PublicListingChatRepository;
-  // The generator is the seam where the model is actually called. Route
-  // wires it to the real generateListingChatReply with an openai key; tests
-  // pass a fake that returns deterministic {reply, capturedLead, qualificationPatch}.
-  generator: PublicListingChatGenerator;
+export type LoadPublicListingPortalStateResult = {
+  state: PublicListingPortalState;
   sessionToken: string | null;
-  ipHash?: string | null;
-  userAgent?: string | null;
-  now?: () => Date;
-}): Promise<HandlePublicListingChatResult> {
-  const request = PublicListingChatRequestSchema.parse(params.request);
+};
+
+function summarizeQualificationAsFacts(q: PublicListingChatQualification): string[] {
+  const facts: string[] = [];
+  // Lead with the model's own per-turn observations (auto-appended to
+  // knownFacts via note_qualification.learned). These are the highest-
+  // signal entries because they're whatever the model thought was
+  // notable in real visitor speech.
+  for (const f of q.knownFacts ?? []) {
+    if (typeof f === "string" && f.trim().length > 0) facts.push(f.trim());
+  }
+  if (q.targetArea !== null && q.targetArea !== undefined) facts.push(`Looking in ${q.targetArea}`);
+  if (q.budget !== null && q.budget !== undefined) facts.push(`Budget around ${q.budget}`);
+  if (q.timeline !== null && q.timeline !== undefined) facts.push(`Timeline: ${q.timeline}`);
+  if (q.propertyType !== null && q.propertyType !== undefined) facts.push(`${q.propertyType} preferred`);
+  if (q.financingStatus !== undefined && q.financingStatus !== "unknown") {
+    facts.push(`Financing: ${q.financingStatus.replace(/_/g, " ")}`);
+  }
+  if (q.preApprovalStatus !== undefined && q.preApprovalStatus !== "unknown") {
+    facts.push(`Pre-approval: ${q.preApprovalStatus.replace(/_/g, " ")}`);
+  }
+  if (q.hasBuyerRep === true) facts.push("Has buyer-rep agreement");
+  if (q.sellerPropertyAddress !== null && q.sellerPropertyAddress !== undefined) {
+    facts.push(`Selling ${q.sellerPropertyAddress}`);
+  }
+  // Dedupe (case-insensitive) — knownFacts and structured fields can
+  // overlap (e.g. model says "Looking in Coral Gables" AND captures
+  // targetArea = "Coral Gables").
+  const seen = new Set<string>();
+  return facts.filter((f) => {
+    const k = f.toLowerCase();
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
+
+export async function loadPublicListingPortalState(params: {
+  workspaceSlug: string;
+  listingId: string;
+  sessionToken: string | null;
+  repository: PublicListingChatRepository;
+}): Promise<LoadPublicListingPortalStateResult> {
   const workspace = await params.repository.findWorkspaceBySlug(params.workspaceSlug);
   if (workspace === null) {
     throw new PublicListingChatError("workspace_not_found", 404);
   }
-
   const listing = await params.repository.findListing({
     workspaceId: workspace.id,
-    listingId: request.listingId,
+    listingId: params.listingId,
   });
   if (listing === null) {
     throw new PublicListingChatError("listing_not_found", 404);
   }
 
-  const memory = await params.repository.findListingMemory({
-    workspaceId: workspace.id,
-    listingId: listing.id,
-  });
+  // Team is unconditional — first-time anonymous visitors still get the
+  // brokerage trust block.
+  const team = await params.repository.findWorkspaceTeam({ workspaceId: workspace.id });
 
-  const now = params.now?.() ?? new Date();
-  const occurredAt = now.toISOString();
-
-  // Load or create session FIRST so every subsequent persistence step has a
-  // session_id to anchor on. This is what makes pre-promotion transcripts
-  // recoverable by operators on the promoted lead.
-  let session = params.sessionToken === null
-    ? null
-    : await params.repository.findSessionByToken({
-        sessionToken: params.sessionToken,
-        workspaceId: workspace.id,
-        listingId: listing.id,
-      });
-  let sessionCreated = false;
-  if (session === null) {
-    const newToken = generateSessionToken();
-    session = await params.repository.createSession({
-      workspaceId: workspace.id,
-      listingId: listing.id,
-      sessionToken: newToken,
-      ipHash: params.ipHash ?? null,
-      userAgent: params.userAgent ?? null,
-      createdAt: occurredAt,
-    });
-    sessionCreated = true;
+  // No cookie = empty portal but full team. The Meet-the-Team card still
+  // renders; the chip/drawer/showings/scrollback simply aren't there yet.
+  if (params.sessionToken === null) {
+    const state: PublicListingPortalState = {
+      priorTurns: [],
+      profile: {
+        isReturning: false,
+        name: null,
+        phone: null,
+        email: null,
+        lastSeenAt: null,
+        headline: null,
+        knownFacts: [],
+        lifeContext: [],
+        preferredShowingTimes: [],
+        vibeNotes: [],
+        listingsAskedAbout: [],
+      },
+      team: team.map((m) => ({
+        memberId: m.memberId,
+        displayName: m.displayName,
+        role: m.role,
+        specialties: m.specialties,
+        avatarUrl: m.avatarUrl,
+      })),
+      assignedAgent: null,
+      showings: [],
+    };
+    return { state, sessionToken: null };
   }
 
-  // Persist visitor turn upfront so even if the model fails we have the
-  // inbound recorded for support / debugging.
-  await params.repository.appendTurn({
-    sessionId: session.id,
-    actor: "visitor",
-    body: request.message,
-    statePatch: null,
-    nextAction: null,
-    occurredAt,
-  });
-
-  // Server-side conversation is authoritative; client-sent conversation
-  // is ignored.
-  const priorTurns = await params.repository.findRecentTurns({
-    sessionId: session.id,
-    limit: 20,
-  });
-
-  // capture_lead tool implementation. The model decides WHEN to call this
-  // (it has the policy in its system prompt: phone captured + clear intent).
-  // We do the persistence: findExistingLead → insert/update → write event →
-  // queue showing task if intent = showing → pin session to promoted lead.
-  let promotionTookPlace = false;
-  const onCaptureLead = async (input: ListingChatCaptureInput): Promise<ListingChatCaptureResult> => {
-    const captureValues: PublicListingChatLeadCapture = {
-      fullName: input.fullName,
-      email: input.email,
-      phone: input.phone,
-      message: input.conversationSummary,
-      intent: input.intent,
-      leadType: input.leadType ?? "buyer",
-      leadIntent: input.intentTier ?? "medium",
-      timeline: input.timeline,
-      budget: input.budget === null ? null : parseBudget(input.budget),
-      targetArea: input.targetArea ?? readRawString(listing.rawFacts, "neighborhood"),
-      propertyType: input.propertyType ?? readRawString(listing.rawFacts, "propertyType"),
-      financingStatus: input.financingStatus,
-      score: input.intent === "showing" ? 75 : input.intentTier === "high" ? 70 : 50,
-      documentUpdate: input.conversationSummary,
-    };
-
-    const existingLead = session === null || session.promotedLeadId === null
-      ? await params.repository.findExistingLead({
-          workspaceId: workspace.id,
-          email: captureValues.email,
-          phone: captureValues.phone,
-        })
-      : { id: session.promotedLeadId, assignedAgentId: null };
-
-    const lead = existingLead === null
-      ? await params.repository.insertLead({
-          workspaceId: workspace.id,
-          values: captureValues,
-          createdAt: occurredAt,
-        })
-      : existingLead;
-
-    if (existingLead !== null) {
-      await params.repository.updateLead({
-        leadId: existingLead.id,
-        values: captureValues,
-        updatedAt: occurredAt,
-      });
-    }
-
-    await params.repository.insertLeadEvent({
+  const [session, visitorContext] = await Promise.all([
+    params.repository.findSessionByToken({
+      sessionToken: params.sessionToken,
       workspaceId: workspace.id,
-      leadId: lead.id,
-      listing,
-      values: captureValues,
-      providerEventId: buildProviderEventId({
-        workspaceId: workspace.id,
-        listingId: listing.id,
-        phone: captureValues.phone,
-        occurredAt,
-      }),
-      occurredAt,
-    });
-
-    const showingTaskId = captureValues.intent === "showing"
-      ? await params.repository.insertShowingTask({
-          workspaceId: workspace.id,
-          leadId: lead.id,
-          listing,
-          assignedMemberId: lead.assignedAgentId,
-          values: captureValues,
-          createdAt: occurredAt,
-        })
-      : null;
-
-    if (session !== null && session.promotedLeadId !== lead.id) {
-      await params.repository.linkSessionLead({
-        sessionId: session.id,
-        leadId: lead.id,
-        promotedAt: occurredAt,
-      });
-    }
-
-    promotionTookPlace = existingLead === null;
-    return {
-      leadId: lead.id,
-      status: existingLead === null ? "created" : "updated",
-      intent: captureValues.intent,
-      showingTaskId,
-    };
-  };
-
-  // Call the generator (real or test fake). Errors here bubble up — the
-  // visitor turn is already persisted at the top of the handler so the
-  // session has a record even if the model call dies.
-  const generated = await params.generator({
-    workspaceName: workspace.name,
-    listing,
-    memory,
-    conversation: priorTurns,
-    message: request.message,
-    priorQualification: session.qualification,
-    onCaptureLead,
-    findOtherListings: (input) => params.repository.findOtherListings({
-      workspaceId: workspace.id,
-      excludeListingId: input.excludeListingId,
-      criteria: input.criteria,
-      limit: input.limit,
+      listingId: listing.id,
     }),
-  });
+    params.repository.findVisitorContext({
+      workspaceId: workspace.id,
+      sessionToken: params.sessionToken,
+    }).catch(() => defaultVisitorContext()),
+  ]);
 
-  // Persist the assistant turn (the natural-language reply). State patch
-  // and nextAction columns get derived values from the qualification patch
-  // the generator returned, so the operator-side replay still sees what
-  // changed.
-  await params.repository.appendTurn({
-    sessionId: session.id,
-    actor: "harwick_ai",
-    body: generated.reply,
-    statePatch: Object.keys(generated.qualificationPatch).length > 0
-      ? generated.qualificationPatch as Record<string, unknown>
-      : null,
-    nextAction: generated.capturedLead === null
-      ? "send_reply"
-      : generated.capturedLead.intent === "showing"
-        ? "request_showing_approval"
-        : "handoff_to_agent",
-    occurredAt,
-  });
+  const priorTurns: PublicListingPortalState["priorTurns"] = session === null
+    ? []
+    : (await params.repository.findRecentTurns({
+        sessionId: session.id,
+        limit: 40,
+      }))
+        .filter((turn) => turn.body.trim().length > 0)
+        .map((turn) => ({
+          actor: turn.actor,
+          body: turn.body,
+          occurredAt: turn.occurredAt,
+        }));
 
-  // Merge qualification updates into the session for the next turn.
-  const mergedQualification = mergeQualification(
-    session.qualification,
-    generated.qualificationPatch as Record<string, unknown>,
-  );
-  await params.repository.updateSessionQualification({
-    sessionId: session.id,
-    qualification: mergedQualification,
-    lastActiveAt: occurredAt,
-  });
+  const liveQualification = session === null
+    ? visitorContext.priorQualification
+    : { ...visitorContext.priorQualification, ...session.qualification };
 
-  // Build the response in the existing PublicListingChatResponse shape so
-  // the client doesn't need any changes. Fields the old typed runtime
-  // returned (missingFields, safetyFlags, etc.) become empty arrays —
-  // the tools-based generator doesn't surface them in the same way, but
-  // they're not consumed by the client today either.
-  const response = PublicListingChatResponseSchema.parse({
-    reply: generated.reply,
-    nextAction: generated.capturedLead === null ? "send_reply" : "request_showing_approval",
-    missingFields: [],
-    statePatch: {
-      currentIntent: generated.capturedLead === null ? "qualification_in_progress" : "lead_captured",
-      leadType: mergedQualification.leadType ?? null,
-      intent: mergedQualification.intent ?? null,
-      timeline: mergedQualification.timeline ?? null,
-      budget: mergedQualification.budget ?? null,
-      targetArea: mergedQualification.targetArea ?? null,
-      propertyType: mergedQualification.propertyType ?? null,
-      financingStatus: mergedQualification.financingStatus ?? null,
-      knownFacts: [],
+  // Showings + assigned agent only resolve if the visitor has been
+  // promoted to a lead (capture_lead fired). Pre-promotion the portal
+  // is just "thread + maybe team."
+  const promotedLeadId = session?.promotedLeadId ?? visitorContext.promotedLead?.id ?? null;
+  const promotedAgentId = visitorContext.promotedLead?.assignedAgentId ?? null;
+  const [showings, assignedAgent] = promotedLeadId === null
+    ? [[] as PublicListingPortalShowing[], null as PublicListingPortalAgent | null]
+    : await Promise.all([
+        params.repository.findShowingsForVisitor({
+          workspaceId: workspace.id,
+          leadId: promotedLeadId,
+        }),
+        promotedAgentId === null
+          ? Promise.resolve<PublicListingPortalAgent | null>(null)
+          : params.repository.findAgentByMemberId({
+              workspaceId: workspace.id,
+              memberId: promotedAgentId,
+            }),
+      ]);
+
+  // Prefer the agent attached to the most recent showing — it's the
+  // person actually committed to this visitor's request. Falls back to
+  // the lead's assigned_agent_id (set by routing) when no showing yet.
+  const showingAgent = showings.find((s) => s.assignedAgent !== null)?.assignedAgent ?? null;
+  const resolvedAgent = showingAgent ?? assignedAgent;
+
+  const state: PublicListingPortalState = {
+    priorTurns,
+    profile: {
+      isReturning: visitorContext.isReturning,
+      name: liveQualification.name ?? null,
+      phone: liveQualification.phone ?? null,
+      email: liveQualification.email ?? null,
+      lastSeenAt: visitorContext.lastSeenAt,
+      headline: liveQualification.headline ?? null,
+      knownFacts: summarizeQualificationAsFacts(liveQualification),
+      lifeContext: (liveQualification.lifeContext ?? []).slice(0, 12),
+      preferredShowingTimes: (liveQualification.preferredShowingTimes ?? []).slice(0, 8),
+      vibeNotes: (liveQualification.vibeNotes ?? []).slice(0, 8),
+      listingsAskedAbout: visitorContext.priorListingsAskedAbout,
     },
-    handoffBrief: null,
-    safetyFlags: [],
-    confidence: 0.85,
-    toolCalls: generated.capturedLead === null ? [] : [{
-      tool: "request_showing_approval",
-      reason: "capture_lead tool was invoked with shared contact + intent",
-      requiresApproval: true,
-      payload: { leadId: generated.capturedLead.leadId },
-    }],
-    documentUpdate: "",
-    leadCapture: generated.capturedLead === null ? null : {
-      leadId: generated.capturedLead.leadId,
-      status: generated.capturedLead.status,
-      intent: generated.capturedLead.intent,
-      showingTaskId: generated.capturedLead.showingTaskId,
-    },
-  });
-
-  // Silence the unused-var warning — promotionTookPlace is observable
-  // through the response.leadCapture.status field but the variable itself
-  // is informational only.
-  void promotionTookPlace;
-
-  return { response, sessionToken: session.sessionToken, sessionCreated };
+    team: team.map((m) => ({
+      memberId: m.memberId,
+      displayName: m.displayName,
+      role: m.role,
+      specialties: m.specialties,
+      avatarUrl: m.avatarUrl,
+    })),
+    assignedAgent: resolvedAgent,
+    showings,
+  };
+  return { state, sessionToken: session?.sessionToken ?? params.sessionToken };
 }

@@ -1,6 +1,9 @@
 "use client";
 
 import {
+  calculateMortgagePaymentEstimate,
+} from "@realty-ops/core";
+import {
   ArrowUpRight,
   Bath,
   BedDouble,
@@ -20,11 +23,20 @@ import {
   User,
   X,
 } from "lucide-react";
-import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Drawer } from "vaul";
 
 import { ListingMediaGallery, photosToMedia, type ListingMedia } from "./listing-media-gallery";
+import {
+  BuyerPortalChip,
+  BuyerPortalMeetTheTeam,
+  useBuyerPortalState,
+} from "./buyer-portal";
+import { ToolResultCard } from "./listing-chat-cards";
+import { useBuyerChat } from "./use-buyer-chat";
 import { cn } from "../../lib/utils";
+import type { PublicListingPortalState } from "@realty-ops/core";
+import type { UIMessage } from "ai";
 
 export type PublicListingCardData = {
   id: string;
@@ -517,48 +529,32 @@ function InquiryDialog(props: {
   );
 }
 
-type ChatMessage = {
-  id: string;
-  actor: "lead" | "harwick_ai";
-  body: string;
-  occurredAt: string;
-};
-
-type ChatQualification = {
-  name?: string | null;
-  phone?: string | null;
-  email?: string | null;
-  leadType?: "buyer" | "seller" | "renter" | "investor" | "unknown";
-  intent?: "high" | "medium" | "low" | "spam" | "unknown";
-  timeline?: string | null;
-  budget?: string | null;
-  targetArea?: string | null;
-  propertyType?: string | null;
-  financingStatus?: "preapproved" | "cash" | "needs_lender" | "unknown";
-  score?: number;
-};
-
-function mergeQualification(current: ChatQualification, patch: Record<string, unknown>): ChatQualification {
-  const next: ChatQualification = { ...current };
-  const leadType = patch["leadType"];
-  if (leadType === "buyer" || leadType === "seller" || leadType === "renter" || leadType === "investor" || leadType === "unknown") {
-    next.leadType = leadType;
-  }
-  const intent = patch["intent"];
-  if (intent === "high" || intent === "medium" || intent === "low" || intent === "spam" || intent === "unknown") {
-    next.intent = intent;
-  }
-  if (typeof patch["timeline"] === "string") next.timeline = patch["timeline"];
-  const budget = patch["budget"];
-  if (typeof budget === "string" || typeof budget === "number") next.budget = String(budget);
-  if (typeof patch["targetArea"] === "string") next.targetArea = patch["targetArea"];
-  if (typeof patch["propertyType"] === "string") next.propertyType = patch["propertyType"];
-  const financingStatus = patch["financingStatus"];
-  if (financingStatus === "preapproved" || financingStatus === "cash" || financingStatus === "needs_lender" || financingStatus === "unknown") {
-    next.financingStatus = financingStatus;
-  }
-  if (intent === "high") next.score = Math.max(current.score ?? 0, 75);
-  return next;
+/**
+ * Defensive markdown stripper. The system prompt forbids markdown, but
+ * gpt-4o occasionally regresses. We render bubbles as raw text, so any
+ * residual `**bold**` / `![text](url)` / `[link](url)` shows as literal
+ * characters. This collapses them to plain prose before render.
+ */
+function stripMarkdown(text: string): string {
+  return text
+    // ![alt](url) — image links — drop entirely.
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, "")
+    // [text](url) — links — keep text, drop URL.
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    // **bold** and __bold__
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/__([^_]+)__/g, "$1")
+    // *italic* and _italic_ (only when not part of words)
+    .replace(/(^|\s)\*([^*\s][^*]*?[^*\s])\*(?=\s|$|[.,!?])/g, "$1$2")
+    .replace(/(^|\s)_([^_\s][^_]*?[^_\s])_(?=\s|$|[.,!?])/g, "$1$2")
+    // Leading bullets and numbered list markers.
+    .replace(/^\s*[-*]\s+/gm, "")
+    .replace(/^\s*\d+\.\s+/gm, "")
+    // Headers.
+    .replace(/^\s*#+\s+/gm, "")
+    // Collapse runs of blank lines.
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 function HarwickListingChatPanel(props: {
@@ -567,28 +563,59 @@ function HarwickListingChatPanel(props: {
   framed?: boolean;
   workspaceSlug: string;
   workspaceName: string;
+  // Portal scrollback. When set, the chat seeds itself with these turns
+  // on first arrival instead of the canned greeting — so the visitor
+  // sees the thread they actually had, not a blank canvas.
+  priorTurns?: PublicListingPortalState["priorTurns"];
+  // Fired when a turn completes (status streaming/submitted → ready).
+  // The parent uses this to re-fetch portal state so the chip + drawer
+  // pick up newly-captured name / showing / agent without a page reload.
+  onTurnComplete?: () => void;
 }) {
-  const { framed = true, listing, onClose, workspaceName, workspaceSlug } = props;
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: "harwick-open",
-      actor: "harwick_ai",
-      body: `I'm Harwick for ${workspaceName}. I already have the facts for ${listing.shortAddress}. Ask what matters, or I can help you get toward a showing.`,
-      occurredAt: new Date().toISOString(),
-    },
-  ]);
-  const [draft, setDraft] = useState("");
-  const [qualification, setQualification] = useState<ChatQualification>({
-    leadType: "unknown",
-    intent: "unknown",
-    targetArea: listing.neighborhood,
-    propertyType: listing.type,
-    budget: listing.price,
-    financingStatus: "unknown",
-    score: 0,
+  const { framed = true, listing, onClose, workspaceName, workspaceSlug, onTurnComplete } = props;
+
+  // Convert portal scrollback (server-side persisted turns) to the AI SDK
+  // UIMessage shape so useChat can seed itself once. After hydration, the
+  // hook owns the messages array end-to-end (streaming tool parts in).
+  const initialMessages = useMemo<UIMessage[]>(() => {
+    if (props.priorTurns === undefined || props.priorTurns.length === 0) {
+      return [
+        {
+          id: "harwick-open",
+          role: "assistant",
+          parts: [{
+            type: "text",
+            text: `I'm Harwick for ${workspaceName}. Ask anything about ${listing.shortAddress.toLowerCase()} — schools, payment, availability — or tell me what you're looking for.`,
+          }],
+        } satisfies UIMessage,
+      ];
+    }
+    return props.priorTurns.map((turn, index) => ({
+      id: `portal-${index}-${turn.occurredAt}`,
+      role: turn.actor === "visitor" ? "user" : "assistant",
+      parts: [{ type: "text", text: turn.body }],
+    } satisfies UIMessage));
+  }, [props.priorTurns, workspaceName, listing.shortAddress]);
+
+  const chat = useBuyerChat({
+    workspaceSlug,
+    listingId: listing.id,
+    initialMessages,
   });
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { messages, sendMessage, status, error } = chat;
+  const [draft, setDraft] = useState("");
+  const isStreaming = status === "streaming" || status === "submitted";
+
+  // Detect status transition from streaming/submitted → ready so the parent
+  // can re-fetch portal state (chip materializes when name gets captured,
+  // showing card appears when propose_showing_window fires, etc).
+  const prevStreamingRef = useRef(false);
+  useEffect(() => {
+    if (prevStreamingRef.current && !isStreaming) {
+      onTurnComplete?.();
+    }
+    prevStreamingRef.current = isStreaming;
+  }, [isStreaming, onTurnComplete]);
 
   useEffect(() => {
     if (onClose === undefined) return;
@@ -597,78 +624,15 @@ function HarwickListingChatPanel(props: {
         onClose?.();
       }
     }
-
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [onClose]);
 
-  async function sendMessage(message: string) {
-    const trimmed = message.trim();
-    if (trimmed.length === 0 || pending) return;
-
-    setError(null);
-    setPending(true);
+  function submit(text: string) {
+    const trimmed = text.trim();
+    if (trimmed.length === 0 || isStreaming) return;
+    void sendMessage({ text: trimmed });
     setDraft("");
-
-    const leadMessage: ChatMessage = {
-      id: `lead-${Date.now()}`,
-      actor: "lead",
-      body: trimmed,
-      occurredAt: new Date().toISOString(),
-    };
-    const nextMessages = [...messages, leadMessage];
-    setMessages(nextMessages);
-
-    let response: Response;
-    try {
-      response = await fetch(`/${workspaceSlug}/api/listings/chat`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          listingId: listing.id,
-          message: trimmed,
-          conversation: nextMessages.slice(-12).map((entry) => ({
-            id: entry.id,
-            actor: entry.actor,
-            body: entry.body,
-            occurredAt: entry.occurredAt,
-          })),
-          qualification,
-        }),
-      });
-    } catch {
-      setPending(false);
-      setError("Harwick could not answer right now. You can still request a showing.");
-      return;
-    }
-
-    if (!response.ok) {
-      setPending(false);
-      setError("Harwick could not answer right now. You can still request a showing.");
-      return;
-    }
-
-    const data = await response.json() as {
-      reply?: unknown;
-      statePatch?: Record<string, unknown>;
-      nextAction?: unknown;
-    };
-    const reply = typeof data.reply === "string" && data.reply.trim().length > 0
-      ? data.reply.trim()
-      : "I can help with that. What timeline are you working with?";
-    setMessages((current) => [
-      ...current,
-      {
-        id: `harwick-${Date.now()}`,
-        actor: "harwick_ai",
-        body: reply,
-        occurredAt: new Date().toISOString(),
-      },
-    ]);
-    if (data.statePatch !== undefined) {
-      setQualification((current) => mergeQualification(current, data.statePatch ?? {}));
-    }
-    setPending(false);
   }
 
   const prompts = [
@@ -695,117 +659,138 @@ function HarwickListingChatPanel(props: {
         }}
       />
 
-        <div className="relative flex items-start justify-between gap-3 px-5 pb-4 pt-5 sm:px-6">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 text-[10px] font-bold uppercase leading-none tracking-[0.18em] text-white/46">
-              <span className="flex h-4 w-4 items-center justify-center rounded-sm bg-[#88a276]/20 font-display text-[9px] text-[var(--sage)]">H</span>
-              harwick · {listing.shortAddress.toLowerCase()}
-            </div>
-            <h2
-              className="mt-2 font-display text-[22px] font-medium lowercase leading-[1.05] tracking-[-0.02em] text-white"
-              id="public-listing-chat-title"
-            >
-              ask anything about this place.
-            </h2>
-            <p className="mt-1.5 text-[12.5px] leading-5 text-white/56">
-              Answers come from this listing's verified facts. If you want to see it, Harwick will qualify the request here.
-            </p>
+      <div className="relative flex items-start justify-between gap-3 px-5 pb-4 pt-5 sm:px-6">
+        <div className="min-w-0">
+          <div className="text-[10px] font-bold uppercase leading-none tracking-[0.18em] text-white/46">
+            harwick · {listing.shortAddress.toLowerCase()}
           </div>
-          {onClose === undefined ? null : (
-            <button
-              aria-label="close Harwick chat"
-              className="-mr-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/12 bg-white/[0.04] text-white/70 transition hover:border-white/22 hover:text-white"
-              onClick={onClose}
-              type="button"
-            >
-              <X aria-hidden="true" className="h-4 w-4" />
-            </button>
-          )}
-        </div>
-
-        <div className={cn("relative flex-1 space-y-2.5 overflow-y-auto px-5 py-4", SCROLL_HIDE)}>
-          {messages.map((message) => (
-            <div
-              className={cn(
-                "max-w-[86%] text-[13.5px] leading-6",
-                message.actor === "lead"
-                  ? "ml-auto rounded-[20px] rounded-br-[6px] bg-[#88a276] px-4 py-2.5 font-medium text-[#07100a] shadow-[0_8px_18px_rgba(136,162,118,0.22)]"
-                  : "mr-auto rounded-[20px] rounded-bl-[6px] border border-white/10 bg-white/[0.04] px-4 py-2.5 text-white/86",
-              )}
-              key={message.id}
-            >
-              {message.body}
-            </div>
-          ))}
-          {pending ? (
-            <div className="mr-auto inline-flex max-w-[86%] items-center gap-2 rounded-[20px] rounded-bl-[6px] border border-white/10 bg-white/[0.04] px-4 py-2.5 text-[13px] text-white/56">
-              <span className="flex gap-1">
-                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--sage)]" />
-                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--sage)] [animation-delay:120ms]" />
-                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--sage)] [animation-delay:240ms]" />
-              </span>
-              harwick is reading the listing...
-            </div>
-          ) : null}
-          {error === null ? null : (
-            <div className="rounded-[16px] border border-[var(--oxblood)]/30 bg-[var(--oxblood)]/12 px-4 py-3 text-[12.5px] text-white/82">
-              {error}
-            </div>
-          )}
-        </div>
-
-        <div className="relative border-t border-white/8 bg-[#0c130e]/95 px-5 py-3.5 backdrop-blur-md">
-          {messages.length <= 1 ? (
-            <div className={cn("mb-3 -mx-1 flex gap-2 overflow-x-auto pb-1 px-1", SCROLL_HIDE)}>
-              {prompts.map((prompt) => (
-                <button
-                  className="shrink-0 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[12px] font-medium lowercase text-white/76 transition hover:border-white/22 hover:bg-white/[0.06] hover:text-white disabled:opacity-50"
-                  disabled={pending}
-                  key={prompt}
-                  onClick={() => {
-                    void sendMessage(prompt);
-                  }}
-                  type="button"
-                >
-                  {prompt.toLowerCase()}
-                </button>
-              ))}
-            </div>
-          ) : null}
-          <form
-            className="flex items-center gap-2"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void sendMessage(draft);
-            }}
+          <h2
+            className="mt-2 font-display text-[22px] font-medium lowercase leading-[1.05] tracking-[-0.02em] text-white"
+            id="public-listing-chat-title"
           >
-            <input
-              aria-label="Ask Harwick about this listing"
-              className="h-11 min-w-0 flex-1 rounded-[14px] border border-white/10 bg-white/[0.04] px-4 text-[16px] text-white outline-none placeholder:text-white/30 focus:border-[#88a276]/50 focus:bg-white/[0.06] sm:text-[14px]"
-              onChange={(event) => setDraft(event.target.value)}
-              placeholder="ask about schools, payment, availability..."
-              value={draft}
-            />
-            <button
-              aria-label="send message to Harwick"
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-[#88a276] text-[#07100a] shadow-[0_8px_18px_rgba(136,162,118,0.28)] transition hover:bg-[#94ad81] disabled:opacity-50"
-              disabled={pending || draft.trim().length === 0}
-              type="submit"
-            >
-              <Send aria-hidden="true" className="h-4 w-4" />
-            </button>
-          </form>
+            ask anything about this place.
+          </h2>
+          <p className="mt-1.5 text-[12.5px] leading-5 text-white/56">
+            Answers come from this listing's verified facts. If you want to see it, Harwick will qualify the request here.
+          </p>
+        </div>
+        {onClose === undefined ? null : (
           <button
-            className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-[12px] border border-white/10 bg-white/[0.02] px-4 py-2.5 text-[12.5px] font-medium lowercase text-white/72 transition hover:border-white/22 hover:bg-white/[0.05] hover:text-white"
-            onClick={() => {
-              void sendMessage("Can I see it this weekend? What times are open?");
-            }}
+            aria-label="close Harwick chat"
+            className="-mr-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/12 bg-white/[0.04] text-white/70 transition hover:border-white/22 hover:text-white"
+            onClick={onClose}
             type="button"
           >
-            <Calendar aria-hidden="true" className="h-3.5 w-3.5 text-[var(--sage)]" />
-            guide me to a showing
+            <X aria-hidden="true" className="h-4 w-4" />
           </button>
-        </div>
+        )}
+      </div>
+
+      <div className={cn("relative flex-1 space-y-2.5 overflow-y-auto px-5 py-4", SCROLL_HIDE)}>
+        {messages.map((message) => {
+          if (message.role === "user") {
+            const text = message.parts.filter((p): p is { type: "text"; text: string } => p.type === "text").map((p) => p.text).join("");
+            if (text.trim().length === 0) return null;
+            return (
+              <div key={message.id} className="ml-auto max-w-[86%] rounded-[20px] rounded-br-[6px] bg-[#88a276] px-4 py-2.5 text-[13.5px] font-medium leading-6 text-[#07100a] shadow-[0_8px_18px_rgba(136,162,118,0.22)]">
+                {text}
+              </div>
+            );
+          }
+          return (
+            <div key={message.id} className="space-y-2">
+              {message.parts.map((part, partIndex) => {
+                if (part.type === "text") {
+                  const clean = stripMarkdown(part.text);
+                  if (clean.trim().length === 0) return null;
+                  return (
+                    <div key={`${message.id}:t:${partIndex}`} className="mr-auto max-w-[86%] whitespace-pre-wrap rounded-[20px] rounded-bl-[6px] border border-white/10 bg-white/[0.04] px-4 py-2.5 text-[13.5px] leading-6 text-white/86">
+                      {clean}
+                    </div>
+                  );
+                }
+                if (part.type.startsWith("tool-")) {
+                  const toolPart = part as { type: string; state: "input-streaming" | "input-available" | "output-available" | "output-error"; output?: unknown };
+                  // Silent tools (note_qualification, search, get_listing_location, lookup_area_info) don't render.
+                  // Only surface_* and capture tools have output payloads with `kind` discriminators that the card renderer handles.
+                  if (toolPart.state !== "output-available" || toolPart.output === undefined) return null;
+                  return (
+                    <div key={`${message.id}:tool:${partIndex}`} className="mr-auto max-w-[86%]">
+                      <ToolResultCard output={toolPart.output} />
+                    </div>
+                  );
+                }
+                return null;
+              })}
+            </div>
+          );
+        })}
+        {isStreaming && messages[messages.length - 1]?.role !== "assistant" ? (
+          <div className="mr-auto inline-flex max-w-[86%] items-center gap-2 rounded-[20px] rounded-bl-[6px] border border-white/10 bg-white/[0.04] px-4 py-2.5 text-[13px] text-white/56">
+            <span className="flex gap-1">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--sage)]" />
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--sage)] [animation-delay:120ms]" />
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--sage)] [animation-delay:240ms]" />
+            </span>
+            harwick is thinking...
+          </div>
+        ) : null}
+        {error === undefined ? null : (
+          <div className="rounded-[16px] border border-[var(--oxblood)]/30 bg-[var(--oxblood)]/12 px-4 py-3 text-[12.5px] text-white/82">
+            {error.message ?? "Harwick stream failed."}
+          </div>
+        )}
+      </div>
+
+      <div className="relative border-t border-white/8 bg-[#0c130e]/95 px-5 py-3.5 backdrop-blur-md">
+        {messages.length <= 1 ? (
+          <div className={cn("mb-3 -mx-1 flex gap-2 overflow-x-auto pb-1 px-1", SCROLL_HIDE)}>
+            {prompts.map((prompt) => (
+              <button
+                className="shrink-0 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[12px] font-medium lowercase text-white/76 transition hover:border-white/22 hover:bg-white/[0.06] hover:text-white disabled:opacity-50"
+                disabled={isStreaming}
+                key={prompt}
+                onClick={() => submit(prompt)}
+                type="button"
+              >
+                {prompt.toLowerCase()}
+              </button>
+            ))}
+          </div>
+        ) : null}
+        <form
+          className="flex items-center gap-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            submit(draft);
+          }}
+        >
+          <input
+            aria-label="Ask Harwick about this listing"
+            className="h-11 min-w-0 flex-1 rounded-[14px] border border-white/10 bg-white/[0.04] px-4 text-[16px] text-white outline-none placeholder:text-white/30 focus:border-[#88a276]/50 focus:bg-white/[0.06] sm:text-[14px]"
+            onChange={(event) => setDraft(event.target.value)}
+            placeholder="ask about schools, payment, availability..."
+            value={draft}
+          />
+          <button
+            aria-label="send message to Harwick"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-[#88a276] text-[#07100a] shadow-[0_8px_18px_rgba(136,162,118,0.28)] transition hover:bg-[#94ad81] disabled:opacity-50"
+            disabled={isStreaming || draft.trim().length === 0}
+            type="submit"
+          >
+            <Send aria-hidden="true" className="h-4 w-4" />
+          </button>
+        </form>
+        <button
+          className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-[12px] border border-white/10 bg-white/[0.02] px-4 py-2.5 text-[12.5px] font-medium lowercase text-white/72 transition hover:border-white/22 hover:bg-white/[0.05] hover:text-white disabled:opacity-50"
+          disabled={isStreaming}
+          onClick={() => submit("Can I see it this weekend? What times are open?")}
+          type="button"
+        >
+          <Calendar aria-hidden="true" className="h-3.5 w-3.5 text-[var(--sage)]" />
+          guide me to a showing
+        </button>
+      </div>
     </section>
   );
 }
@@ -895,31 +880,151 @@ function ListingViewerFactRow(props: {
 }
 
 function ListingViewerMonthly(props: { listing: PublicListingCardData }) {
-  const downPayment = Math.round(props.listing.priceValue * 0.2);
-  const loanAmount = props.listing.priceValue - downPayment;
-  const monthlyPrincipal = Math.round((loanAmount * 0.0675) / 12);
-  const monthlyTaxes = Math.round((props.listing.priceValue * (props.listing.annualTaxRate / 100)) / 12);
-  const monthlyInsurance = Math.round(props.listing.priceValue * 0.00035);
-  const monthlyEstimate = monthlyPrincipal + monthlyTaxes + monthlyInsurance + props.listing.monthlyHoa;
+  const defaultMonthlyInsurance = Math.round(props.listing.priceValue * 0.00035);
+  const [downPaymentPercent, setDownPaymentPercent] = useState(20);
+  const [annualInterestRatePercent, setAnnualInterestRatePercent] = useState(6.75);
+  const [termYears, setTermYears] = useState(30);
+  const [annualTaxRatePercent, setAnnualTaxRatePercent] = useState(props.listing.annualTaxRate);
+  const [monthlyInsurance, setMonthlyInsurance] = useState(defaultMonthlyInsurance);
+  const [monthlyHoa, setMonthlyHoa] = useState(props.listing.monthlyHoa);
+  const estimate = useMemo(() => calculateMortgagePaymentEstimate({
+    price: props.listing.priceValue,
+    downPaymentPercent,
+    annualInterestRatePercent,
+    termYears,
+    annualTaxRatePercent,
+    monthlyInsurance,
+    monthlyHoa,
+  }), [
+    annualInterestRatePercent,
+    annualTaxRatePercent,
+    downPaymentPercent,
+    monthlyHoa,
+    monthlyInsurance,
+    props.listing.priceValue,
+    termYears,
+  ]);
+  const assumptionControls = [
+    {
+      key: "down",
+      label: "down",
+      suffix: "%",
+      value: downPaymentPercent,
+      min: 0,
+      max: 100,
+      step: 1,
+      onChange: setDownPaymentPercent,
+    },
+    {
+      key: "rate",
+      label: "rate",
+      suffix: "%",
+      value: annualInterestRatePercent,
+      min: 0,
+      max: 30,
+      step: 0.125,
+      onChange: setAnnualInterestRatePercent,
+    },
+    {
+      key: "term",
+      label: "term",
+      suffix: "yr",
+      value: termYears,
+      min: 1,
+      max: 50,
+      step: 1,
+      onChange: setTermYears,
+    },
+    {
+      key: "tax",
+      label: "tax",
+      suffix: "%",
+      value: annualTaxRatePercent,
+      min: 0,
+      max: 10,
+      step: 0.05,
+      onChange: setAnnualTaxRatePercent,
+    },
+  ];
+
+  function updateNumber(nextValue: string, control: (value: number) => void, fallback: number) {
+    const parsed = Number(nextValue);
+    control(Number.isFinite(parsed) ? parsed : fallback);
+  }
+
   return (
     <div className="rounded-[18px] border border-white/10 bg-white/[0.03] p-4">
       <div className="flex items-baseline justify-between gap-4">
         <div>
           <div className="text-[11px] uppercase tracking-[0.12em] text-white/40">est. monthly</div>
           <div className="mt-1 font-display text-[28px] font-medium leading-none tracking-[-0.02em] text-white">
-            {formatMoney(monthlyEstimate)}
+            {formatMoney(estimate.monthlyTotal)}
           </div>
         </div>
         <div className="text-right text-[11px] leading-4 text-white/40">
-          20% down<br />6.75% rate
+          {formatMoney(estimate.downPayment)} down<br />{estimate.annualInterestRatePercent}% rate
         </div>
       </div>
-      <div className="mt-3 space-y-1.5 text-[11.5px]">
+      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {assumptionControls.map((control) => (
+          <label
+            className="rounded-[14px] border border-white/8 bg-black/18 px-3 py-2"
+            key={control.key}
+          >
+            <span className="block text-[9px] font-bold uppercase tracking-[0.15em] text-white/34">{control.label}</span>
+            <span className="mt-1 flex items-center gap-1 text-[13px] font-semibold text-white/86">
+              <input
+                className="min-w-0 flex-1 bg-transparent text-[16px] font-semibold leading-none text-white outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                inputMode="decimal"
+                max={control.max}
+                min={control.min}
+                onChange={(event) => updateNumber(event.target.value, control.onChange, control.value)}
+                step={control.step}
+                type="number"
+                value={control.value}
+              />
+              <span className="shrink-0 text-[12px] text-white/44">{control.suffix}</span>
+            </span>
+          </label>
+        ))}
+      </div>
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        <label className="rounded-[14px] border border-white/8 bg-black/18 px-3 py-2">
+          <span className="block text-[9px] font-bold uppercase tracking-[0.15em] text-white/34">insurance</span>
+          <span className="mt-1 flex items-center gap-1 text-[13px] font-semibold text-white/86">
+            <span className="shrink-0 text-[12px] text-white/44">$</span>
+            <input
+              className="min-w-0 flex-1 bg-transparent text-[16px] font-semibold leading-none text-white outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+              inputMode="numeric"
+              min={0}
+              onChange={(event) => updateNumber(event.target.value, setMonthlyInsurance, monthlyInsurance)}
+              type="number"
+              value={monthlyInsurance}
+            />
+          </span>
+        </label>
+        <label className="rounded-[14px] border border-white/8 bg-black/18 px-3 py-2">
+          <span className="block text-[9px] font-bold uppercase tracking-[0.15em] text-white/34">hoa</span>
+          <span className="mt-1 flex items-center gap-1 text-[13px] font-semibold text-white/86">
+            <span className="shrink-0 text-[12px] text-white/44">$</span>
+            <input
+              className="min-w-0 flex-1 bg-transparent text-[16px] font-semibold leading-none text-white outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+              inputMode="numeric"
+              min={0}
+              onChange={(event) => updateNumber(event.target.value, setMonthlyHoa, monthlyHoa)}
+              type="number"
+              value={monthlyHoa}
+            />
+          </span>
+        </label>
+      </div>
+      <div className="mt-4 space-y-1.5 text-[11.5px]">
         {[
-          ["principal & interest", formatMoney(monthlyPrincipal) + "/mo"],
-          ["taxes", formatMoney(monthlyTaxes) + "/mo"],
-          ["insurance", formatMoney(monthlyInsurance) + "/mo"],
-          ["hoa", formatMoney(props.listing.monthlyHoa) + "/mo"],
+          ["principal & interest", formatMoney(estimate.monthlyPrincipalAndInterest) + "/mo"],
+          ["taxes", formatMoney(estimate.monthlyTaxes) + "/mo"],
+          ["insurance", formatMoney(estimate.monthlyInsurance) + "/mo"],
+          ["hoa", formatMoney(estimate.monthlyHoa) + "/mo"],
+          ["pmi", formatMoney(estimate.monthlyPmi) + "/mo"],
         ].map(([label, value]) => (
           <div className="flex items-center justify-between gap-3 text-white/52" key={label}>
             <span>{label}</span>
@@ -927,6 +1032,14 @@ function ListingViewerMonthly(props: { listing: PublicListingCardData }) {
           </div>
         ))}
       </div>
+      <p className="mt-3 text-[10.5px] leading-4 text-white/38">
+        {estimate.disclaimer}
+      </p>
+      {estimate.warnings.length === 0 ? null : (
+        <p className="mt-1 text-[10.5px] leading-4 text-[#b5c9a8]/62">
+          {estimate.warnings[0]}
+        </p>
+      )}
     </div>
   );
 }
@@ -1188,13 +1301,19 @@ export function PublicListingDetailPage(props: {
   const workspaceName = formatWorkspaceName(props.workspaceSlug);
   const { listing } = props;
   const siblingUrl = `/${props.workspaceSlug}/listings`;
+  // One fetch, three consumers: chat scrollback, Meet-the-Team panel,
+  // floating chip + drawer. The cookie is the only identity.
+  const portal = useBuyerPortalState({
+    workspaceSlug: props.workspaceSlug,
+    listingId: listing.id,
+  });
 
   return (
     <main className="min-h-[100dvh] bg-[#0a0f0c] text-white [color-scheme:dark]">
       <header className="sticky top-0 z-40 border-b border-white/8 bg-[#0a0f0c]/95 px-4 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-[1320px] items-center gap-4">
           <a
-            className="inline-flex h-9 items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 text-[13px] font-medium lowercase text-white/72 transition hover:border-white/22 hover:bg-white/[0.06] hover:text-white"
+            className="inline-flex items-center gap-1.5 text-[13px] font-medium lowercase text-white/56 transition hover:text-white"
             href={siblingUrl}
           >
             <ChevronLeft aria-hidden="true" className="h-4 w-4" />
@@ -1272,16 +1391,41 @@ export function PublicListingDetailPage(props: {
               <ListingViewerMonthly listing={listing} />
             </div>
           </div>
+
+          {/* Meet the team / your agent — Airbnb-style trust block.
+              Pre-routing: brokerage card with stacked-avatar strip.
+              Post-routing: replaces with "Priya is helping you" + showing
+              row. Same vertical slot in both cases. */}
+          <div className="mt-6">
+            <BuyerPortalMeetTheTeam
+              workspaceName={workspaceName}
+              listingId={listing.id}
+              state={portal.state}
+            />
+          </div>
         </section>
 
         <aside className="min-w-0 lg:sticky lg:top-24">
           <HarwickListingChatPanel
+            // Key by portal-hydration so useChat re-initializes with
+            // the real priorTurns AFTER the GET resolves — the hook
+            // consumes initialMessages only on mount, so without
+            // remounting, scrollback would stay stuck on the canned
+            // greeting forever.
+            key={portal.state === null ? "loading" : `hydrated-${portal.state.priorTurns.length}`}
             listing={listing}
             workspaceSlug={props.workspaceSlug}
             workspaceName={workspaceName}
+            {...(portal.state === null ? {} : { priorTurns: portal.state.priorTurns })}
+            onTurnComplete={portal.reload}
           />
         </aside>
       </div>
+
+      {/* Floating slight-profile chip. Materializes only after the
+          visitor has shared a first name — first-time anonymous browsers
+          see no chip. Tap → vaul drawer with what Harwick remembers. */}
+      <BuyerPortalChip state={portal.state} />
     </main>
   );
 }
