@@ -13,6 +13,7 @@ dist
 *.tsbuildinfo
 coverage
 playwright-report
+.playwright-cli/
 test-results
 tmp/*.json
 tmp/*.txt

@@ -120,7 +120,6 @@ function Lightbox(props: {
             src={current.url}
           />
         ) : current.kind === "video" ? (
-          // eslint-disable-next-line jsx-a11y/media-has-caption
           <video
             className="max-h-full max-w-full"
             controls

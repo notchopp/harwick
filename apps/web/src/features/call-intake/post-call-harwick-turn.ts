@@ -293,22 +293,22 @@ export async function runPostCallHarwickTurn(params: {
   });
 
   // Patch the lead document with refined qualification picked up on the call.
-  const statePatch = (turn.statePatch ?? {}) as Record<string, unknown>;
+  const statePatch = turn.statePatch ?? {};
   const qualificationPatch: PostCallQualificationPatch = {};
   if (typeof statePatch["leadType"] === "string" && ["buyer", "seller", "renter", "investor", "unknown"].includes(statePatch["leadType"])) {
-    qualificationPatch.leadType = statePatch["leadType"] as PostCallQualificationPatch["leadType"];
+    qualificationPatch.leadType = statePatch["leadType"];
   }
   if (typeof statePatch["intent"] === "string" && ["high", "medium", "low", "spam", "unknown"].includes(statePatch["intent"])) {
-    qualificationPatch.intent = statePatch["intent"] as PostCallQualificationPatch["intent"];
+    qualificationPatch.intent = statePatch["intent"];
   }
   if (typeof statePatch["timeline"] === "string") qualificationPatch.timeline = statePatch["timeline"];
   if (typeof statePatch["budget"] === "string" || typeof statePatch["budget"] === "number") {
-    qualificationPatch.budget = statePatch["budget"] as string | number;
+    qualificationPatch.budget = statePatch["budget"];
   }
   if (typeof statePatch["targetArea"] === "string") qualificationPatch.targetArea = statePatch["targetArea"];
   if (typeof statePatch["propertyType"] === "string") qualificationPatch.propertyType = statePatch["propertyType"];
   if (typeof statePatch["financingStatus"] === "string" && ["preapproved", "cash", "needs_lender", "unknown"].includes(statePatch["financingStatus"])) {
-    qualificationPatch.financingStatus = statePatch["financingStatus"] as PostCallQualificationPatch["financingStatus"];
+    qualificationPatch.financingStatus = statePatch["financingStatus"];
   }
   // Note: HarwickAiStatePatch doesn't carry `score` — score is on the input
   // qualification only. If post-call score evolution becomes useful, extend

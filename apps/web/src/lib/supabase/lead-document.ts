@@ -25,6 +25,24 @@ function trimDocument(document: string): string {
   return segments.join(DOCUMENT_SEPARATOR);
 }
 
+export function buildNextLeadDocument(params: {
+  existing: string | null;
+  update: string;
+  occurredAt: string;
+}): string {
+  const update = params.update.trim();
+  if (update.length === 0) {
+    return params.existing ?? "";
+  }
+
+  const stamped = `[${params.occurredAt}] ${update}`;
+  return trimDocument(
+    params.existing === null || params.existing.length === 0
+      ? stamped
+      : `${params.existing}${DOCUMENT_SEPARATOR}${stamped}`,
+  );
+}
+
 export function createSupabaseLeadDocumentRepository(
   supabase: RealtyOpsSupabaseClient,
 ): LeadDocumentRepository {
@@ -53,8 +71,11 @@ export function createSupabaseLeadDocumentRepository(
 
       const occurredAt = params.occurredAt ?? new Date().toISOString();
       const existing = await this.read(params);
-      const stamped = `[${occurredAt}] ${update}`;
-      const next = trimDocument(existing === null ? stamped : `${existing}${DOCUMENT_SEPARATOR}${stamped}`);
+      const next = buildNextLeadDocument({
+        existing,
+        update,
+        occurredAt,
+      });
 
       const { error } = await supabase
         .from("leads")

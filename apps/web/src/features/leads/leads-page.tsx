@@ -742,7 +742,6 @@ export function LeadsPageContent(props: { workspaceId: string; workspaceName: st
     const desired = selectedLead?.id ?? null;
     if (desired === leadIdParam) return;
     replaceLeadQuery(desired);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedLead?.id]);
 
   const filtered = useMemo(() => {

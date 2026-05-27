@@ -48,12 +48,12 @@ function createRepository(overrides: Partial<PostCallHarwickRepository> = {}) {
       Promise.resolve("00000000-0000-0000-0000-000000000012")),
     ...overrides,
   };
-  return { repository: mocks as PostCallHarwickRepository, mocks };
+  return { repository: mocks, mocks };
 }
 
-function createRuntime(overrides: Partial<HarwickAiTurn> = {}): HarwickAiRuntimeClient {
+function createRuntime(overrides: Partial<HarwickAiTurn> = {}) {
   const base: HarwickAiTurn = {
-    intent: "showing_request" as const,
+    intent: "showing_request",
         nextAction: "request_showing_approval",
         missingFields: [],
         confidence: 0.84,
@@ -126,11 +126,11 @@ describe("runPostCallHarwickTurn", () => {
 
     expect(mocks.insertLeadEvent).toHaveBeenCalledWith(expect.objectContaining({
       workspaceId, leadId, callId,
-      summary: expect.stringContaining("Saturday"),
+      summary: expect.stringContaining("Saturday") as unknown,
     }));
     expect(mocks.updateLeadDocument).toHaveBeenCalledWith(expect.objectContaining({
       leadId,
-      qualification: expect.objectContaining({ leadType: "buyer", intent: "high", timeline: "this weekend" }),
+      qualification: expect.objectContaining({ leadType: "buyer", intent: "high", timeline: "this weekend" }) as unknown,
     }));
     expect(mocks.insertCallbackTask).toHaveBeenCalledWith(expect.objectContaining({
       workspaceId, leadId, listingId,
@@ -145,7 +145,7 @@ describe("runPostCallHarwickTurn", () => {
       kind: "common_question",
       visibility: "public",
       prompt: "How are the schools nearby?",
-      content: expect.stringContaining("Cinco Ranch"),
+      content: expect.stringContaining("Cinco Ranch") as unknown,
     }));
   });
 

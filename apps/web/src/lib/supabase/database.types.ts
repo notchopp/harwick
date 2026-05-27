@@ -1989,6 +1989,8 @@ export type Database = {
           instagram_username: string | null
           intent: string
           last_message_at: string | null
+          lead_document: string | null
+          lead_document_updated_at: string | null
           lead_type: string
           next_followup_at: string | null
           phone: string | null
@@ -2019,6 +2021,8 @@ export type Database = {
           instagram_username?: string | null
           intent: string
           last_message_at?: string | null
+          lead_document?: string | null
+          lead_document_updated_at?: string | null
           lead_type: string
           next_followup_at?: string | null
           phone?: string | null
@@ -2049,6 +2053,8 @@ export type Database = {
           instagram_username?: string | null
           intent?: string
           last_message_at?: string | null
+          lead_document?: string | null
+          lead_document_updated_at?: string | null
           lead_type?: string
           next_followup_at?: string | null
           phone?: string | null
