@@ -262,7 +262,10 @@ export async function POST(
     priorQualification: mergedQualification,
     team: portal.state.team,
     assignedAgent: portal.state.assignedAgent,
-    braveSearchApiKey: process.env["BRAVE_SEARCH_API_KEY"],
+    // Tavily is the active backend; BRAVE_SEARCH_API_KEY is a legacy
+    // fallback in case operators set Brave instead. Either powers the
+    // same `lookup_area_info` tool — see `area-lookup.ts`.
+    searchApiKey: process.env["TAVILY_API_KEY"] ?? process.env["BRAVE_SEARCH_API_KEY"],
     occurredAt,
     latestVisitorText: latestUserText ?? undefined,
     gateJudge,

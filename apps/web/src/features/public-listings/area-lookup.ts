@@ -1,20 +1,21 @@
 /**
- * Runtime area-lookup via Brave Search — the chat-time fallback Harwick
- * uses to answer area-specific questions that aren't in the pre-enriched
- * cache (schools, walk score, nearby shopping, commute estimates,
- * neighborhood character).
+ * Runtime area-lookup via Tavily Search — the chat-time tool Harwick uses
+ * to answer area-specific questions that aren't in the pre-enriched cache
+ * (schools, walk score, HOA rules, noise ordinances, commute estimates,
+ * neighborhood character, flood / insurance, broadband providers, etc).
  *
- * Why Brave Search and not Google/Tavily: Brave's free tier is 2000
- * queries/month with no credit card required, the API is straight HTTP,
- * and they explicitly allow attribution-free commercial use. Tavily is
- * also fine (1000/mo free) — same shape, swap the endpoint.
+ * Why Tavily and not Brave/Google: Tavily is purpose-built for LLM agents.
+ * Same shape as Brave's API, free tier is 1000 queries/month (no card),
+ * and it returns pre-cleaned snippets plus a synthesized one-sentence
+ * `answer` field — less prompt-side cleanup than raw web results. Paid
+ * tier starts at $50/mo for 50k queries when usage grows.
  *
- * Env var: BRAVE_SEARCH_API_KEY. When unset, the tool returns a
- * graceful empty result so Harwick can fall back to "let me have the
- * agent confirm that for you" instead of fabricating.
+ * Env var: TAVILY_API_KEY. When unset (or any transient error / rate-limit)
+ * the tool returns a graceful empty result so Harwick can fall back to
+ * "let me have the agent confirm that for you" instead of fabricating.
  */
 
-const BRAVE_ENDPOINT = "https://api.search.brave.com/res/v1/web/search";
+const TAVILY_ENDPOINT = "https://api.tavily.com/search";
 
 export type AreaLookupResult = {
   query: string;
@@ -28,19 +29,22 @@ export type AreaLookupResult = {
   }>;
 };
 
-type BraveSearchResponse = {
-  web?: {
-    results?: Array<{
-      title?: string;
-      url?: string;
-      description?: string;
-    }>;
-  };
+type TavilySearchResponse = {
+  query?: string;
+  // Tavily synthesizes a one-sentence answer when `include_answer` is set
+  // — concrete, citation-ready prose the model can quote directly.
+  answer?: string;
+  results?: Array<{
+    title?: string;
+    url?: string;
+    content?: string;
+    score?: number;
+  }>;
 };
 
 export async function lookupAreaInfo(params: {
   query: string;
-  // Anchors the query to a place. Without this, Brave returns generic
+  // Anchors the query to a place. Without this, Tavily returns generic
   // results; with it, results are specific to the listing's geography.
   contextLocation: string;
   apiKey: string | undefined;
@@ -53,27 +57,36 @@ export async function lookupAreaInfo(params: {
       query: params.query,
       available: false,
       reason: "no_api_key",
-      summary: "Area-lookup search is not configured (BRAVE_SEARCH_API_KEY missing). Tell the buyer the agent will confirm specifics.",
+      summary: "Area-lookup search is not configured (TAVILY_API_KEY missing). Tell the buyer the agent will confirm specifics.",
       citations: [],
     };
   }
 
   const compositeQuery = `${params.query} ${params.contextLocation}`.trim();
-  const url = new URL(BRAVE_ENDPOINT);
-  url.searchParams.set("q", compositeQuery);
-  url.searchParams.set("count", "5");
-  url.searchParams.set("safesearch", "moderate");
-
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), params.timeoutMs ?? 6000);
   const doFetch = params.fetchImpl ?? fetch;
 
   try {
-    const response = await doFetch(url.toString(), {
+    const response = await doFetch(TAVILY_ENDPOINT, {
+      method: "POST",
       headers: {
         "Accept": "application/json",
-        "X-Subscription-Token": params.apiKey,
+        "Content-Type": "application/json",
       },
+      body: JSON.stringify({
+        api_key: params.apiKey,
+        query: compositeQuery,
+        // "basic" is fine for area facts (~1s); "advanced" is heavier and
+        // takes ~3s but does deeper crawling — overkill for this tool.
+        search_depth: "basic",
+        max_results: 5,
+        // Asks Tavily to synthesize a one-sentence answer from the
+        // results, ready for the model to quote. This is the AI-agent
+        // affordance that Brave lacks.
+        include_answer: true,
+        include_raw_content: false,
+      }),
       signal: controller.signal,
     });
     clearTimeout(timeout);
@@ -97,11 +110,11 @@ export async function lookupAreaInfo(params: {
       };
     }
 
-    const data = await response.json() as BraveSearchResponse;
-    const results = (data.web?.results ?? []).slice(0, 5).map((entry) => ({
+    const data = await response.json() as TavilySearchResponse;
+    const results = (data.results ?? []).slice(0, 5).map((entry) => ({
       title: (entry.title ?? "").trim().slice(0, 240),
       url: (entry.url ?? "").trim(),
-      snippet: (entry.description ?? "").trim().slice(0, 480),
+      snippet: (entry.content ?? "").trim().slice(0, 480),
     })).filter((entry) => entry.title.length > 0 && entry.url.length > 0);
 
     if (results.length === 0) {
@@ -114,11 +127,17 @@ export async function lookupAreaInfo(params: {
       };
     }
 
-    // Compose a short summary the model can quote from. Keep it dense —
-    // model will paraphrase, this is just the grounding data.
-    const summary = results
-      .map((entry, index) => `[${index + 1}] ${entry.title}: ${entry.snippet}`)
-      .join("\n\n");
+    // Prefer Tavily's synthesized answer when available — it's already
+    // pre-cleaned for LLM consumption. Fall back to a dense numbered
+    // bullet list of result snippets when no answer was returned (rare
+    // for area-style queries).
+    const summary = typeof data.answer === "string" && data.answer.trim().length > 0
+      ? `${data.answer.trim()}\n\nCitations:\n${results
+          .map((entry, index) => `[${index + 1}] ${entry.title}: ${entry.snippet}`)
+          .join("\n\n")}`
+      : results
+          .map((entry, index) => `[${index + 1}] ${entry.title}: ${entry.snippet}`)
+          .join("\n\n");
 
     return {
       query: params.query,

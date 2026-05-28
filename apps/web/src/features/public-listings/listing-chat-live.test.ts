@@ -140,7 +140,7 @@ async function runLiveTurn(params: {
       avatarUrl: null,
     }],
     assignedAgent: null,
-    braveSearchApiKey: undefined,
+    searchApiKey: undefined,
     occurredAt: new Date().toISOString(),
     state,
   });

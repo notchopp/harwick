@@ -119,7 +119,7 @@ export type ListingChatToolDeps = {
   priorQualification: PublicListingChatQualification;
   team: readonly PublicListingPortalTeamMember[];
   assignedAgent: PublicListingPortalAgent | null;
-  braveSearchApiKey: string | undefined;
+  searchApiKey: string | undefined;
   occurredAt: string;
   latestVisitorText?: string | undefined;
   // Optional small-model gate judge — when supplied, replaces the cheap
@@ -576,7 +576,7 @@ export function buildListingChatTools(deps: ListingChatToolDeps) {
         return lookupAreaInfo({
           query,
           contextLocation,
-          apiKey: deps.braveSearchApiKey,
+          apiKey: deps.searchApiKey,
         });
       },
     }),
