@@ -1,4 +1,4 @@
-import { AtSign, MessageSquareText, PhoneCall } from "lucide-react";
+import { AtSign, House, MessageSquareText, PhoneCall } from "lucide-react";
 import type { RealtyOpsSupabaseClient } from "../../lib/supabase/server-client";
 import type { Lead, Metric, PipelineStage } from "./dashboard-data";
 
@@ -6,7 +6,7 @@ type LeadQueueRow = {
   id: string;
   full_name: string | null;
   instagram_username: string | null;
-  source_channel: "instagram_dm" | "instagram_comment" | "facebook_dm" | "facebook_comment" | "call" | "sms" | "manual" | "csv_import";
+  source_channel: "instagram_dm" | "instagram_comment" | "facebook_dm" | "facebook_comment" | "call" | "sms" | "manual" | "csv_import" | "public_listing_chat";
   status: "new" | "engaged" | "qualified" | "hot" | "assigned" | "nurture" | "appointment_booked" | "active_client" | "closed_won" | "closed_lost" | "archived";
   score: number;
   lead_type: "buyer" | "seller" | "renter" | "investor" | "unknown";
@@ -24,11 +24,15 @@ function mapStatus(status: LeadQueueRow["status"]): Lead["status"] {
 
 function channelLabel(channel: LeadQueueRow["source_channel"]) {
   switch (channel) {
+    case "public_listing_chat": return { label: "Listing chat", icon: House };
     case "instagram_dm": return { label: "Instagram DM", icon: AtSign };
     case "instagram_comment": return { label: "Comment", icon: MessageSquareText };
     case "facebook_dm": return { label: "Facebook DM", icon: AtSign };
     case "facebook_comment": return { label: "FB Comment", icon: MessageSquareText };
     case "call": return { label: "Retell call", icon: PhoneCall };
+    case "sms": return { label: "SMS", icon: MessageSquareText };
+    case "manual": return { label: "Manual", icon: MessageSquareText };
+    case "csv_import": return { label: "Import", icon: MessageSquareText };
     default: return { label: channel, icon: MessageSquareText };
   }
 }

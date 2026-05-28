@@ -703,7 +703,7 @@ export function createSupabasePublicListingChatRepository(
           phone: params.values.phone,
           lead_type: params.values.leadType === "unknown" ? "buyer" : params.values.leadType,
           intent: params.values.leadIntent === "unknown" ? "medium" : params.values.leadIntent,
-          source_channel: "manual",
+          source_channel: "public_listing_chat",
           financing_status: params.values.financingStatus,
           timeline: params.values.timeline,
           budget_min: params.values.budget,
