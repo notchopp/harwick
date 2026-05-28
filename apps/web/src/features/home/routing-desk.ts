@@ -33,16 +33,18 @@ export type RoutingDeskRepository = {
 };
 
 function leadDisplayName(lead: LeadRow): string {
+  // Phone > IG: public-chat leads have real phones and no IG handle.
   if (lead.full_name !== null && lead.full_name.trim().length > 0) return lead.full_name.trim();
+  if (lead.phone !== null && lead.phone.trim().length > 0) return lead.phone.trim();
+  if (lead.email !== null && lead.email.trim().length > 0) return lead.email.trim();
   if (lead.instagram_username !== null && lead.instagram_username.trim().length > 0) {
     return `@${lead.instagram_username.trim()}`;
   }
-  if (lead.email !== null && lead.email.trim().length > 0) return lead.email.trim();
-  if (lead.phone !== null && lead.phone.trim().length > 0) return lead.phone.trim();
   return `Lead ${lead.id.slice(0, 8)}`;
 }
 
 function sourceLabelForRouting(channel: LeadRow["source_channel"]): string {
+  if (channel === "public_listing_chat") return "Listing chat";
   if (channel === "instagram_dm") return "Instagram DM";
   if (channel === "instagram_comment") return "Instagram comment";
   if (channel === "facebook_dm") return "Facebook DM";
@@ -51,6 +53,23 @@ function sourceLabelForRouting(channel: LeadRow["source_channel"]): string {
   if (channel === "sms") return "SMS";
   if (channel === "csv_import") return "Imported";
   return "Manual";
+}
+
+/**
+ * Smart money formatter: $1,000,000 -> "$1M+", $1,500,000 -> "$1.5M",
+ * $325,000 -> "$325k". The "$1000k+" rendering bug came from treating
+ * everything as thousands regardless of magnitude.
+ */
+function formatMoneyShort(value: number): string {
+  if (value >= 1_000_000) {
+    const m = value / 1_000_000;
+    // Show 1 decimal only if needed (1.5M but 2M).
+    return `$${(m % 1 === 0 ? m.toFixed(0) : m.toFixed(1))}M`;
+  }
+  if (value >= 1_000) {
+    return `$${Math.round(value / 1_000)}k`;
+  }
+  return `$${value}`;
 }
 
 function sourceOwnerLabel(params: {
@@ -86,9 +105,11 @@ function buildSummary(lead: LeadRow): string {
   if (lead.lead_type !== "unknown") parts.push(lead.lead_type);
   if (lead.target_area !== null && lead.target_area.trim().length > 0) parts.push(lead.target_area.trim());
   if (lead.budget_min !== null || lead.budget_max !== null) {
-    const min = lead.budget_min === null ? null : `$${(lead.budget_min / 1000).toFixed(0)}k`;
-    const max = lead.budget_max === null ? null : `$${(lead.budget_max / 1000).toFixed(0)}k`;
-    parts.push(min !== null && max !== null ? `${min}-${max}` : (min ?? max ?? ""));
+    const min = lead.budget_min === null ? null : formatMoneyShort(lead.budget_min);
+    const max = lead.budget_max === null ? null : formatMoneyShort(lead.budget_max);
+    if (min !== null && max !== null) parts.push(`${min}-${max}`);
+    else if (min !== null) parts.push(`${min}+`);
+    else if (max !== null) parts.push(`up to ${max}`);
   }
   if (lead.timeline !== null && lead.timeline.trim().length > 0) parts.push(lead.timeline.trim());
 

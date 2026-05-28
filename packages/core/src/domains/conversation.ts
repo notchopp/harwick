@@ -2,7 +2,7 @@ import { z } from "zod";
 import { ConversationAutomationModeSchema } from "./conversation-automation.js";
 import { IsoDateTimeSchema, ProviderIdSchema, UuidSchema } from "./common.js";
 
-export const ConversationInboxSourceSchema = z.enum(["instagram", "facebook", "voice", "sms", "manual"]);
+export const ConversationInboxSourceSchema = z.enum(["instagram", "facebook", "voice", "sms", "manual", "listing_chat"]);
 export const ConversationInboxBucketSchema = z.enum(["dms", "comments"]);
 export const ConversationInboxStageToneSchema = z.enum(["new", "qualified", "nurture", "review", "lost"]);
 export const ConversationInboxMessageKindSchema = z.enum(["lead", "sent", "ai_action", "system"]);

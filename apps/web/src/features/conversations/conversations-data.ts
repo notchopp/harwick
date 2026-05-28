@@ -46,21 +46,25 @@ function titleCase(value: string): string {
 }
 
 function sourceFromChannel(channel: LeadRow["source_channel"]): ConversationInboxSource {
+  if (channel === "public_listing_chat") return "listing_chat";
   if (channel === "call") return "voice";
   if (channel === "sms") return "sms";
   if (channel.startsWith("facebook")) return "facebook";
   if (channel === "manual" || channel === "csv_import") return "manual";
-  return "instagram";
+  if (channel.startsWith("instagram")) return "instagram";
+  return "manual";
 }
 
 function sourceLabel(source: ConversationInboxSource): string {
   if (source === "voice") return "Voice";
   if (source === "sms") return "SMS";
   if (source === "manual") return "Manual";
+  if (source === "listing_chat") return "Listing chat";
   return source.charAt(0).toUpperCase() + source.slice(1);
 }
 
 function channelLabel(channel: LeadRow["source_channel"]): string {
+  if (channel === "public_listing_chat") return "Chat";
   if (channel === "instagram_comment" || channel === "facebook_comment") return "Comment";
   if (channel === "instagram_dm" || channel === "facebook_dm") return "DM";
   if (channel === "call") return "Call";
@@ -105,11 +109,22 @@ function stageLabel(lead: LeadRow): string {
   return "New";
 }
 
+function formatMoneyShort(value: number): string {
+  if (value >= 1_000_000) {
+    const m = value / 1_000_000;
+    return `$${m % 1 === 0 ? m.toFixed(0) : m.toFixed(1)}M`;
+  }
+  if (value >= 1_000) return `$${Math.round(value / 1_000)}k`;
+  return `$${value}`;
+}
+
 function formatBudget(lead: LeadRow): string {
-  if (lead.budget_min === null && lead.budget_max === null) return "Unknown";
-  if (lead.budget_min !== null && lead.budget_max !== null) return `$${Math.round(lead.budget_min / 1000)}k-$${Math.round(lead.budget_max / 1000)}k`;
-  if (lead.budget_min !== null) return `$${Math.round(lead.budget_min / 1000)}k+`;
-  return `Up to $${Math.round((lead.budget_max ?? 0) / 1000)}k`;
+  if (lead.budget_min === null && lead.budget_max === null) return "—";
+  if (lead.budget_min !== null && lead.budget_max !== null) {
+    return `${formatMoneyShort(lead.budget_min)}-${formatMoneyShort(lead.budget_max)}`;
+  }
+  if (lead.budget_min !== null) return `${formatMoneyShort(lead.budget_min)}+`;
+  return `Up to ${formatMoneyShort(lead.budget_max ?? 0)}`;
 }
 
 function formatShortRelative(iso: string): string {

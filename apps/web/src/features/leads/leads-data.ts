@@ -133,11 +133,22 @@ function stageLabel(stage: LeadPageStage, lead: LeadRow): string {
   return "owner review";
 }
 
+function formatMoneyShort(value: number): string {
+  if (value >= 1_000_000) {
+    const m = value / 1_000_000;
+    return `$${m % 1 === 0 ? m.toFixed(0) : m.toFixed(1)}M`;
+  }
+  if (value >= 1_000) return `$${Math.round(value / 1_000)}k`;
+  return `$${value}`;
+}
+
 function formatBudget(lead: LeadRow): string {
-  if (lead.budget_min === null && lead.budget_max === null) return "unknown";
-  if (lead.budget_min !== null && lead.budget_max !== null) return `$${Math.round(lead.budget_min / 1000)}k-$${Math.round(lead.budget_max / 1000)}k`;
-  if (lead.budget_min !== null) return `$${Math.round(lead.budget_min / 1000)}k+`;
-  return `up to $${Math.round((lead.budget_max ?? 0) / 1000)}k`;
+  if (lead.budget_min === null && lead.budget_max === null) return "—";
+  if (lead.budget_min !== null && lead.budget_max !== null) {
+    return `${formatMoneyShort(lead.budget_min)}-${formatMoneyShort(lead.budget_max)}`;
+  }
+  if (lead.budget_min !== null) return `${formatMoneyShort(lead.budget_min)}+`;
+  return `up to ${formatMoneyShort(lead.budget_max ?? 0)}`;
 }
 
 function sourceDetail(lead: LeadRow): string {
