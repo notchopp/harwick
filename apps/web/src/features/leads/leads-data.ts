@@ -4,7 +4,7 @@ import type { WorkspaceMemberRow } from "../../lib/supabase/database.types";
 import type { LeadRow } from "../../lib/supabase/leads";
 import type { ListingFactRow } from "../../lib/supabase/listings";
 
-export type LeadPageSource = "instagram" | "facebook" | "voice";
+export type LeadPageSource = "instagram" | "facebook" | "voice" | "listing_chat" | "manual";
 export type LeadPageStage = "hot" | "qualified" | "unrouted" | "callback" | "nurture" | "showing";
 export type LeadPageCardKind = "listing" | "area" | "seller";
 
@@ -38,6 +38,12 @@ export type LeadPageItem = {
   reviewId: string | null;
   automationMode: ConversationAutomationMode | null;
   automationReason: string | null;
+  // Harwick's running notes on this lead — surfaced in the drawer so
+  // the operator sees a digest of what got captured across the chat
+  // without scrolling through every turn. Built up by the model via
+  // `documentUpdate` on each surface-tool call.
+  qualificationSummary: string | null;
+  leadDocument: string | null;
 };
 
 export type LeadsPageData = {
@@ -62,6 +68,23 @@ export type LeadsPageRepository = {
   } | null>;
 };
 
+/**
+ * Display-name ordering, intent-aware. For public-chat leads (where we
+ * captured a real first name + real phone but have no IG handle) prefer
+ * full_name > phone > email. For IG/FB leads where full_name is often
+ * the IG bio (or missing) we still want full_name first but fall back
+ * to instagram_username so older IG-DM-originated leads still render.
+ */
+function leadDisplayName(lead: LeadRow): string {
+  if (lead.full_name !== null && lead.full_name.trim().length > 0) return lead.full_name.trim();
+  if (lead.phone !== null && lead.phone.trim().length > 0) return lead.phone.trim();
+  if (lead.email !== null && lead.email.trim().length > 0) return lead.email.trim();
+  if (lead.instagram_username !== null && lead.instagram_username.trim().length > 0) {
+    return `@${lead.instagram_username.trim()}`;
+  }
+  return `Lead ${lead.id.slice(0, 8)}`;
+}
+
 function initialsForName(name: string): string {
   return name
     .split(/\s+/)
@@ -73,9 +96,12 @@ function initialsForName(name: string): string {
 }
 
 function sourceFromChannel(channel: LeadRow["source_channel"]): LeadPageSource {
+  if (channel === "public_listing_chat") return "listing_chat";
   if (channel === "call") return "voice";
+  if (channel === "manual" || channel === "csv_import") return "manual";
   if (channel.startsWith("facebook")) return "facebook";
-  return "instagram";
+  if (channel.startsWith("instagram")) return "instagram";
+  return "manual";
 }
 
 function stageFromLead(lead: LeadRow): LeadPageStage {
@@ -115,12 +141,18 @@ function formatBudget(lead: LeadRow): string {
 }
 
 function sourceDetail(lead: LeadRow): string {
+  if (lead.source_channel === "public_listing_chat") return "listing chat";
   if (lead.source_channel === "instagram_comment") return "instagram comment";
   if (lead.source_channel === "instagram_dm") return "instagram dm";
   if (lead.source_channel === "facebook_comment") return "facebook comment";
   if (lead.source_channel === "facebook_dm") return "facebook dm";
   if (lead.source_channel === "call") return "voice call";
-  return lead.source_channel.replace("_", " ");
+  if (lead.source_channel === "sms") return "sms";
+  if (lead.source_channel === "csv_import") return "imported";
+  if (lead.source_channel === "manual") return "manual";
+  // All enum members are covered above; TypeScript narrows to `never` here.
+  // The cast is defensive in case the union grows.
+  return String(lead.source_channel).replace(/_/g, " ");
 }
 
 function relativeLastTouch(lead: LeadRow): string {
@@ -168,7 +200,7 @@ export async function loadLeadsPageData(params: {
   });
 
   const items = await Promise.all(actionableLeads.map(async (lead): Promise<LeadPageItem> => {
-    const name = lead.full_name ?? lead.instagram_username ?? lead.phone ?? "unknown lead";
+    const name = leadDisplayName(lead);
     const stage = stageFromLead(lead);
     const assignedMember = lead.assigned_agent_id === null ? null : (membersById.get(lead.assigned_agent_id) ?? null);
     const message = await params.repository.findLatestLeadMessage({
@@ -221,6 +253,8 @@ export async function loadLeadsPageData(params: {
       reviewId: review?.id ?? null,
       automationMode: review?.automationMode ?? null,
       automationReason: review?.automationReason ?? null,
+      qualificationSummary: lead.qualification_summary ?? null,
+      leadDocument: lead.lead_document ?? null,
     };
   }));
 

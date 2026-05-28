@@ -17,6 +17,7 @@ export const LeadSourceChannelSchema = z.enum([
   "sms",
   "manual",
   "csv_import",
+  "public_listing_chat",
 ]);
 
 export const LeadTypeSchema = z.enum(["buyer", "seller", "renter", "investor", "unknown"]);

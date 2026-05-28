@@ -44,6 +44,13 @@ export type LeadRow = {
   next_followup_at: string | null;
   created_at: string;
   updated_at: string;
+  // Added in the public-listing-chat era — Harwick maintains a per-lead
+  // running document (timestamped append-only log of what got captured
+  // turn-by-turn) plus a one-sentence qualification summary that the
+  // operator drawer surfaces. Optional so older lead-insertion paths
+  // (IG/FB/voice flows that don't write these columns) keep typechecking.
+  qualification_summary?: string | null;
+  lead_document?: string | null;
 };
 
 export type LeadInsertRow = Omit<LeadRow, "id" | "created_at" | "updated_at"> & {

@@ -27,7 +27,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Drawer } from "vaul";
 
-import { FacebookGlyph, InstagramGlyph, PhoneGlyph } from "../../components/harwick-icons";
+import { FacebookGlyph, HouseGlyph, InstagramGlyph, PhoneGlyph } from "../../components/harwick-icons";
 import { Avatar, AvatarFallback } from "../../components/ui/avatar";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
@@ -59,7 +59,10 @@ function clampPage(page: number, pageCount: number) {
 }
 
 function sourceLabel(source: LeadPageSource) {
-  return source === "voice" ? "Voice" : source.charAt(0).toUpperCase() + source.slice(1);
+  if (source === "voice") return "Voice";
+  if (source === "listing_chat") return "Listing chat";
+  if (source === "manual") return "Manual";
+  return source.charAt(0).toUpperCase() + source.slice(1);
 }
 
 function deriveDisplayStatus(stage: LeadPageStage): LeadStatus {
@@ -202,10 +205,49 @@ function isLeadPageItem(value: unknown): value is LeadPageItem {
     && typeof item["message"] === "string"
     && (typeof item["reviewId"] === "string" || item["reviewId"] === null || item["reviewId"] === undefined)
     && (typeof item["automationMode"] === "string" || item["automationMode"] === null || item["automationMode"] === undefined)
-    && (typeof item["automationReason"] === "string" || item["automationReason"] === null || item["automationReason"] === undefined);
+    && (typeof item["automationReason"] === "string" || item["automationReason"] === null || item["automationReason"] === undefined)
+    && (typeof item["qualificationSummary"] === "string" || item["qualificationSummary"] === null || item["qualificationSummary"] === undefined)
+    && (typeof item["leadDocument"] === "string" || item["leadDocument"] === null || item["leadDocument"] === undefined);
+}
+
+/**
+ * Parse Harwick's lead_document — a timestamped append-only log built up
+ * across chat turns via `documentUpdate`. Format: "[ISO timestamp] body\n\n---\n\n".
+ * Returns at most `max` entries newest-first, each with parsed Date.
+ */
+function parseHarwickNotes(raw: string | null, max = 8): Array<{ at: Date; body: string }> {
+  if (raw === null || raw.trim().length === 0) return [];
+  const chunks = raw.split(/\n\n---\n\n/).map((c) => c.trim()).filter((c) => c.length > 0);
+  const parsed: Array<{ at: Date; body: string }> = [];
+  for (const chunk of chunks) {
+    const match = chunk.match(/^\[(\d{4}-\d{2}-\d{2}T[^\]]+)\]\s+([\s\S]+)$/);
+    if (match === null) {
+      parsed.push({ at: new Date(0), body: chunk });
+      continue;
+    }
+    const [, iso, body] = match;
+    const at = new Date(iso!);
+    parsed.push({ at: Number.isNaN(at.getTime()) ? new Date(0) : at, body: body!.trim() });
+  }
+  parsed.sort((a, b) => b.at.getTime() - a.at.getTime());
+  return parsed.slice(0, max);
+}
+
+function formatNoteTimestamp(at: Date): string {
+  if (at.getTime() === 0) return "—";
+  return at.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 function SourceGlyph(props: { source: LeadPageSource }) {
+  if (props.source === "listing_chat") {
+    return <HouseGlyph className="h-[15px] w-[15px]" />;
+  }
+
   if (props.source === "instagram") {
     return <InstagramGlyph className="h-[15px] w-[15px]" />;
   }
@@ -214,6 +256,7 @@ function SourceGlyph(props: { source: LeadPageSource }) {
     return <FacebookGlyph className="h-[15px] w-[15px]" />;
   }
 
+  // voice / manual / fallback
   return <PhoneGlyph className="h-[15px] w-[15px]" />;
 }
 
@@ -498,6 +541,62 @@ function LeadInlineDetail(props: {
               </div>
             </>
           )}
+
+          {/* Harwick's notes — qualification summary + timestamped doc entries.
+              Surfaces the document Harwick builds up across the conversation
+              so the operator doesn't have to scroll the full transcript to
+              know who this person is and what they want. */}
+          {(() => {
+            const notes = parseHarwickNotes(props.lead.leadDocument);
+            const hasSummary = props.lead.qualificationSummary !== null && props.lead.qualificationSummary.trim().length > 0;
+            if (!hasSummary && notes.length === 0) return null;
+            return (
+              <div
+                className={cn(
+                  "rounded-[12px] border p-4",
+                  drawerSurface
+                    ? "border-white/[0.1] bg-white/[0.045] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+                    : "border-[color:var(--panel-line)]/50 bg-[color:var(--panel-2)]",
+                )}
+              >
+                <div className={cn("text-[10px] font-bold uppercase tracking-[0.18em] mb-3", faintText)}>
+                  what harwick knows
+                </div>
+                {hasSummary ? (
+                  <p className={cn("text-[13px] leading-[1.55]", primaryText)}>
+                    {props.lead.qualificationSummary}
+                  </p>
+                ) : null}
+                {notes.length > 0 ? (
+                  <div className={cn("mt-3 space-y-2 border-t pt-3", drawerSurface ? "border-white/8" : "border-[color:var(--panel-line)]/50")}>
+                    <div className={cn("text-[10px] font-semibold uppercase tracking-[0.14em]", faintText)}>
+                      timeline · {notes.length} note{notes.length === 1 ? "" : "s"}
+                    </div>
+                    <ol className="space-y-2">
+                      {notes.map((note, idx) => (
+                        <li
+                          key={`${note.at.toISOString()}-${idx}`}
+                          className={cn(
+                            "rounded-[10px] px-3 py-2",
+                            drawerSurface
+                              ? "bg-white/[0.035] border border-white/[0.08]"
+                              : "bg-[color:var(--panel-1)] border border-[color:var(--panel-line)]/40",
+                          )}
+                        >
+                          <div className={cn("text-[10px] font-medium uppercase tracking-[0.12em]", faintText)}>
+                            {formatNoteTimestamp(note.at)}
+                          </div>
+                          <div className={cn("mt-1 text-[12.5px] leading-[1.5]", primaryText)}>
+                            {note.body}
+                          </div>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                ) : null}
+              </div>
+            );
+          })()}
 
           <div
             className={cn(

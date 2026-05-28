@@ -50,6 +50,35 @@ export function createSupabaseLeadsPageRepository(
     },
 
     async findLatestLeadMessage(params) {
+      // Try the public-listing-chat transcript first — for chat-origin
+      // leads it's the freshest, richest source of the visitor's last
+      // utterance. Falls back to lead_events for IG/FB/voice flows
+      // where the chat table won't have anything. The two public-chat
+      // tables aren't in the generated database.types.ts yet (added in
+      // migrations 20260525*), so we cast at the boundary.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const untyped = supabase as any;
+      const sessionsQuery: { data: Array<{ id: string }> | null } = await untyped
+        .from("public_listing_sessions")
+        .select("id")
+        .eq("workspace_id", params.workspaceId)
+        .eq("promoted_lead_id", params.leadId);
+      const sessionIds: string[] = (sessionsQuery.data ?? []).map((row) => row.id);
+      if (sessionIds.length > 0) {
+        const turnsQuery: { data: { body: string | null } | null } = await untyped
+          .from("public_listing_session_turns")
+          .select("body")
+          .in("session_id", sessionIds)
+          .eq("actor", "visitor")
+          .not("body", "is", null)
+          .order("occurred_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        const body = turnsQuery.data?.body ?? null;
+        if (body !== null && body.trim().length > 0) {
+          return body;
+        }
+      }
       const { data, error } = await supabase
         .from("lead_events")
         .select("text")
