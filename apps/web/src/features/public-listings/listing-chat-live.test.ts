@@ -300,6 +300,51 @@ describe.skipIf(!HAS_KEY)("public listing chat — LIVE OpenAI integration", () 
     assertNoMarkdown(text);
   }, 45_000);
 
+  it("looks up area info instead of asking for phone (replay of Clinton noise-policy moment)", async () => {
+    const { text, toolNames } = await runLiveTurn({
+      priorMessages: [
+        { role: "user", content: "hey i'm clinton and is this still available?" },
+        { role: "assistant", content: "Still active — what brought you to it?" },
+        { role: "user", content: "i'm a streamer looking for a streaming house, group of 6" },
+        { role: "assistant", content: "Got it — media room would be the move for streams. What else matters to you for the setup?" },
+        { role: "user", content: "yeah how's the neighborhood we are pretty loud and wild lol" },
+      ],
+      visitorMessage: "what's the noise policy here? we stream pretty late",
+    });
+    // Model MUST call lookup_area_info — this is a factual area question.
+    // Without Brave key the tool returns available:false, but the model
+    // should still try the lookup before falling back.
+    expect(toolNames, `expected lookup_area_info — got [${toolNames.join(", ")}]`).toContain("lookup_area_info");
+    // Model MUST NOT ask for phone for this — it's an info question, not a callback.
+    expect(text.toLowerCase()).not.toMatch(/phone number|best number|what'?s your number/);
+    assertNoMarkdown(text);
+  }, 45_000);
+
+  it("does not default to 'showing or features' on every close — varies the close type", async () => {
+    // Replay early-conversation pattern where the old prompt closed every reply
+    // with "want a showing or features?". With the new VARY THE CLOSE rule the
+    // first two replies should close with different categories.
+    const t1 = await runLiveTurn({
+      visitorMessage: "is this still available?",
+    });
+    const t2 = await runLiveTurn({
+      priorMessages: [
+        { role: "user", content: "is this still available?" },
+        { role: "assistant", content: t1.text },
+      ],
+      visitorMessage: "what would you say this house is good for?",
+    });
+    // Neither close should be the "want a showing or [features|details]?" binary.
+    // (Allow EITHER reply to mention showing in *prose*; reject only when the
+    // closing question is the showing/features binary.)
+    const looksLikeShowingBinary = (s: string) =>
+      /(showing.{0,30}features|features.{0,30}showing|showing.{0,30}details|details.{0,30}showing)\s*\??\s*$/i.test(s.trim());
+    expect(looksLikeShowingBinary(t1.text), `T1 closed with showing-binary: "${t1.text}"`).toBe(false);
+    expect(looksLikeShowingBinary(t2.text), `T2 closed with showing-binary: "${t2.text}"`).toBe(false);
+    assertNoMarkdown(t1.text);
+    assertNoMarkdown(t2.text);
+  }, 60_000);
+
   it("does not loop the discovery gate — asks instead of re-searching", async () => {
     // Start with a sparse "show me listings" request; model should hit the
     // discovery_required gate and ask one question, not call search again.
