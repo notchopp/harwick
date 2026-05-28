@@ -6,6 +6,7 @@ import {
 import {
   ArrowUpRight,
   Bath,
+  BadgeDollarSign,
   BedDouble,
   Building2,
   Calendar,
@@ -42,12 +43,16 @@ export type PublicListingCardData = {
   id: string;
   slug: string;
   label: string;
-  badgeTone: "prime" | "new" | "reduced";
+  badgeTone: "prime" | "new" | "reduced" | "sold";
   filter: ListingFilter;
   imageUrl: string;
   photos: string[];
   price: string;
   priceValue: number;
+  previousPrice: string | null;
+  previousPriceValue: number | null;
+  priceCutLabel: string | null;
+  marketLabel: string;
   shortAddress: string;
   address: string;
   neighborhood: string;
@@ -155,11 +160,15 @@ function ListingBadge(props: { listing: PublicListingCardData }) {
         "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[11px] font-semibold shadow-[0_12px_28px_rgba(14,18,15,0.14)] backdrop-blur-md",
         props.listing.badgeTone === "new" && "bg-[#2fbf74] text-white",
         props.listing.badgeTone === "reduced" && "bg-white/90 text-qualified",
+        props.listing.badgeTone === "sold" && "bg-[#9f2f2f] text-white ring-1 ring-white/22",
         props.listing.badgeTone === "prime" && "bg-white/92 text-[#181814]",
       )}
     >
       {props.listing.badgeTone === "prime" ? (
         <Star aria-hidden="true" className="h-3.5 w-3.5 fill-harwick-brass text-harwick-brass" />
+      ) : null}
+      {props.listing.badgeTone === "reduced" ? (
+        <BadgeDollarSign aria-hidden="true" className="h-3.5 w-3.5 text-[#5f7356]" />
       ) : null}
       {props.listing.label}
     </div>
@@ -250,12 +259,21 @@ function ListingCard(props: {
       <div className="absolute inset-x-0 bottom-0 p-6 text-white">
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-64 bg-[radial-gradient(circle_at_30%_70%,rgba(86,112,45,0.34),transparent_42%),linear-gradient(180deg,transparent_0%,rgba(8,17,10,0.82)_100%)]" />
         <div className="relative rounded-[24px] border border-white/10 bg-white/[0.055] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.10),0_-24px_70px_rgba(6,12,8,0.15)] backdrop-blur-[10px]">
-          <div className="mb-2 flex items-end gap-2">
+          <div className="mb-2 flex flex-wrap items-end gap-x-2 gap-y-1">
             <div className="text-[30px] font-semibold leading-none tracking-[-0.01em]">{props.listing.price}</div>
+            {props.listing.previousPrice === null ? null : (
+              <div className="pb-0.5 text-[13px] text-white/42 line-through">{props.listing.previousPrice}</div>
+            )}
             <div className="pb-0.5 text-[12px] text-white/54">list price</div>
           </div>
-          <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-[#b5c9a8]/80">
-            live listing · updated {props.listing.updated}
+          <div className="mb-2 flex flex-wrap items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-[#b5c9a8]/80">
+            <span>{props.listing.marketLabel} · updated {props.listing.updated}</span>
+            {props.listing.priceCutLabel === null ? null : (
+              <span className="inline-flex items-center gap-1 rounded-full border border-[#b5c9a8]/25 bg-[#b5c9a8]/12 px-2 py-1 text-[#d7e7c9]">
+                <BadgeDollarSign aria-hidden="true" className="h-3 w-3" />
+                {props.listing.priceCutLabel}
+              </span>
+            )}
           </div>
           <div className="max-w-[82%] truncate text-[16px] font-medium text-white/86">{props.listing.shortAddress}</div>
           <div className="mt-1 flex items-center gap-1.5 text-[13px] text-white/58">
@@ -581,13 +599,13 @@ function HarwickListingChatPanel(props: {
     if (props.priorTurns === undefined || props.priorTurns.length === 0) {
       return [
         {
-          id: "harwick-open",
-          role: "assistant",
-          parts: [{
-            type: "text",
-            text: `I'm Harwick for ${workspaceName}. Ask anything about ${listing.shortAddress.toLowerCase()} — schools, payment, availability — or tell me what you're looking for.`,
-          }],
-        } satisfies UIMessage,
+            id: "harwick-open",
+            role: "assistant",
+            parts: [{
+              type: "text",
+              text: `I'm Harwick for ${workspaceName}. What should I call you? Ask me about ${listing.shortAddress.toLowerCase()} — schools, payment, availability, or showings.`,
+            }],
+          } satisfies UIMessage,
       ];
     }
     return props.priorTurns.map((turn, index) => ({
@@ -646,7 +664,7 @@ function HarwickListingChatPanel(props: {
     <section
       aria-labelledby="public-listing-chat-title"
       className={cn(
-        "relative flex min-h-[560px] flex-col overflow-hidden bg-[#0c130e] text-white [color-scheme:dark]",
+        "relative flex min-h-[560px] flex-col overflow-hidden bg-[#0c130e] text-white [color-scheme:dark] lg:h-full lg:min-h-0",
         framed && "rounded-[28px] border border-white/8 shadow-[0_34px_90px_-24px_rgba(0,0,0,0.72)]",
       )}
     >
@@ -686,7 +704,7 @@ function HarwickListingChatPanel(props: {
         )}
       </div>
 
-      <div className={cn("relative flex-1 space-y-2.5 overflow-y-auto px-5 py-4", SCROLL_HIDE)}>
+      <div className={cn("relative min-h-0 flex-1 space-y-2.5 overflow-y-auto px-5 py-4", SCROLL_HIDE)}>
         {messages.map((message) => {
           if (message.role === "user") {
             const text = message.parts.filter((p): p is { type: "text"; text: string } => p.type === "text").map((p) => p.text).join("");
@@ -716,7 +734,7 @@ function HarwickListingChatPanel(props: {
                   if (toolPart.state !== "output-available" || toolPart.output === undefined) return null;
                   return (
                     <div key={`${message.id}:tool:${partIndex}`} className="mr-auto max-w-[86%]">
-                      <ToolResultCard output={toolPart.output} />
+                      <ToolResultCard output={toolPart.output} workspaceSlug={workspaceSlug} />
                     </div>
                   );
                 }
@@ -1071,7 +1089,7 @@ function ListingViewerBody(props: {
       <div className="relative flex items-start justify-between gap-3 px-6 pb-4 pt-3.5">
         <div className="min-w-0">
           <div className="text-[10px] font-bold uppercase leading-none tracking-[0.18em] text-white/46">
-            {listing.badgeTone === "new" ? "new this week" : listing.badgeTone === "reduced" ? "price reduced" : "active listing"}
+            {listing.marketLabel}
             {" · "}
             {listing.updated}
           </div>
@@ -1093,10 +1111,17 @@ function ListingViewerBody(props: {
 
       <div className={cn("relative min-h-0 flex-1 overflow-y-auto pb-[120px]", SCROLL_HIDE)}>
         <ListingMediaGallery media={listingMediaFor(listing)} listingLabel={listing.shortAddress} />
-        <div className="mt-3 flex items-center justify-end px-4">
-          <span className="font-display text-[26px] font-semibold leading-none tracking-[-0.01em] text-white">
-            {listing.price}
-          </span>
+        <div className="mt-3 flex flex-wrap items-center justify-end gap-2 px-4">
+          {listing.previousPrice === null ? null : (
+            <span className="text-[13px] text-white/42 line-through">{listing.previousPrice}</span>
+          )}
+          <span className="font-display text-[26px] font-semibold leading-none tracking-[-0.01em] text-white">{listing.price}</span>
+          {listing.priceCutLabel === null ? null : (
+            <span className="inline-flex items-center gap-1 rounded-full border border-[#b5c9a8]/22 bg-[#b5c9a8]/10 px-2 py-1 text-[10.5px] font-semibold lowercase text-[#d7e7c9]">
+              <BadgeDollarSign aria-hidden="true" className="h-3 w-3" />
+              {listing.priceCutLabel}
+            </span>
+          )}
         </div>
 
         <div className="mt-1 grid grid-cols-2 gap-x-4 px-6 sm:grid-cols-4">
@@ -1116,6 +1141,7 @@ function ListingViewerBody(props: {
 
         <ListingViewerSection eyebrow="facts">
           <ListingViewerFactRow icon={Building2} label="mls" value={listing.mls} />
+          <ListingViewerFactRow icon={BadgeDollarSign} label="market" value={listing.priceCutLabel ?? listing.marketLabel} />
           <ListingViewerFactRow icon={Calendar} label="built" value={listing.yearBuilt} />
           <ListingViewerFactRow icon={Ruler} label="lot" value={listing.lot} />
           <ListingViewerFactRow icon={User} label="listing agent" value={listing.agent} />
@@ -1331,7 +1357,7 @@ export function PublicListingDetailPage(props: {
           <div className="rounded-[30px] border border-white/8 bg-white/[0.025] pb-6 shadow-[0_34px_90px_-34px_rgba(0,0,0,0.8)]">
             <div className="px-5 pb-4 pt-5 sm:px-6">
               <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#b5c9a8]/72">
-                live listing · updated {listing.updated}
+                {listing.marketLabel} · updated {listing.updated}
               </div>
               <div className="mt-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
                 <div className="min-w-0">
@@ -1343,8 +1369,19 @@ export function PublicListingDetailPage(props: {
                     <span className="truncate">{listing.address}</span>
                   </div>
                 </div>
-                <div className="font-display text-[34px] font-semibold leading-none tracking-[-0.01em] text-white sm:text-[40px]">
-                  {listing.price}
+                <div className="shrink-0 text-right">
+                  <div className="font-display text-[34px] font-semibold leading-none tracking-[-0.01em] text-white sm:text-[40px]">
+                    {listing.price}
+                  </div>
+                  {listing.previousPrice === null ? null : (
+                    <div className="mt-1 text-[13px] text-white/42 line-through">{listing.previousPrice}</div>
+                  )}
+                  {listing.priceCutLabel === null ? null : (
+                    <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-[#b5c9a8]/22 bg-[#b5c9a8]/10 px-2.5 py-1 text-[11px] font-semibold lowercase text-[#d7e7c9]">
+                      <BadgeDollarSign aria-hidden="true" className="h-3.5 w-3.5" />
+                      {listing.priceCutLabel}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1379,6 +1416,7 @@ export function PublicListingDetailPage(props: {
               <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/38">showing context</div>
               <div className="mt-4 space-y-3">
                 <ListingViewerFactRow icon={Building2} label="mls" value={listing.mls} />
+                <ListingViewerFactRow icon={BadgeDollarSign} label="market" value={listing.priceCutLabel ?? listing.marketLabel} />
                 <ListingViewerFactRow icon={Calendar} label="open house" value={listing.openHouse} />
                 <ListingViewerFactRow icon={User} label="listing agent" value={listing.agent} />
               </div>
@@ -1405,14 +1443,14 @@ export function PublicListingDetailPage(props: {
           </div>
         </section>
 
-        <aside className="min-w-0 lg:sticky lg:top-24">
+        <aside className="min-w-0 lg:sticky lg:top-24 lg:h-[calc(100dvh-7rem)]">
           <HarwickListingChatPanel
-            // Key by portal-hydration so useChat re-initializes with
-            // the real priorTurns AFTER the GET resolves — the hook
-            // consumes initialMessages only on mount, so without
-            // remounting, scrollback would stay stuck on the canned
-            // greeting forever.
-            key={portal.state === null ? "loading" : `hydrated-${portal.state.priorTurns.length}`}
+            // Remount once when the initial portal state arrives so
+            // useChat can seed persisted scrollback. Do not key by
+            // priorTurns.length: after a streamed response, portal.reload
+            // would remount the hook with text-only persisted turns and
+            // erase live tool cards that just rendered.
+            key={portal.state === null ? "loading" : `hydrated-${listing.id}`}
             listing={listing}
             workspaceSlug={props.workspaceSlug}
             workspaceName={workspaceName}

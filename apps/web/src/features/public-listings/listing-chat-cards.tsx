@@ -9,7 +9,7 @@
  * search_workspace_listings, etc.) are silent — they don't render here.
  */
 
-import { BedDouble, Bath, Calendar, CheckCircle2, Clock, MapPin, Phone, User } from "lucide-react";
+import { BedDouble, Bath, BadgeDollarSign, Calendar, CheckCircle2, Clock, MapPin, Phone, User } from "lucide-react";
 
 import { cn } from "../../lib/utils";
 
@@ -34,11 +34,11 @@ function isToolPayload(value: unknown): value is ToolPayload {
   return value !== null && typeof value === "object" && "kind" in value && typeof (value as { kind: unknown }).kind === "string";
 }
 
-export function ToolResultCard({ output }: { output: unknown }) {
+export function ToolResultCard({ output, workspaceSlug }: { output: unknown; workspaceSlug?: string | undefined }) {
   if (!isToolPayload(output)) return null;
   switch (output.kind) {
     case "listing_card":
-      return <ListingCard payload={output} />;
+      return <ListingCard payload={output} workspaceSlug={workspaceSlug} />;
     case "team_member_card":
       return <TeamMemberCard payload={output} />;
     case "showing_proposal_card":
@@ -57,6 +57,12 @@ export function ToolResultCard({ output }: { output: unknown }) {
 function formatPrice(price: number | null): string {
   if (price === null) return "—";
   return new Intl.NumberFormat("en-US", { currency: "USD", maximumFractionDigits: 0, style: "currency" }).format(price);
+}
+
+function formatCompactMoney(value: number): string {
+  if (Math.abs(value) >= 1_000_000) return `$${(value / 1_000_000).toFixed(value % 1_000_000 === 0 ? 0 : 1)}M`;
+  if (Math.abs(value) >= 1_000) return `$${Math.round(value / 1_000)}k`;
+  return formatPrice(value);
 }
 
 function formatShowingWindow(startAt: string | null, endAt: string | null): string | null {
@@ -83,11 +89,14 @@ function agentInitials(name: string): string {
 
 /* ─────────  Listing card  ───────── */
 
-function ListingCard({ payload }: { payload: ListingCardPayload }) {
+function ListingCard({ payload, workspaceSlug }: { payload: ListingCardPayload; workspaceSlug?: string | undefined }) {
+  const href = workspaceSlug === undefined
+    ? `#listing-${payload.listingId}`
+    : `/${workspaceSlug}/listings/${payload.listingId}`;
   return (
     <a
       className="block overflow-hidden rounded-[18px] border border-white/10 bg-white/[0.03] transition hover:border-white/22 hover:bg-white/[0.05]"
-      href={`#listing-${payload.listingId}`}
+      href={href}
     >
       {payload.photoUrl === null ? null : (
         <div
@@ -109,6 +118,9 @@ function ListingCard({ payload }: { payload: ListingCardPayload }) {
           </div>
           <div className="shrink-0 text-right">
             <div className="font-display text-[15px] font-semibold tabular-nums text-white">{formatPrice(payload.price)}</div>
+            {payload.previousPrice === null ? null : (
+              <div className="mt-0.5 text-[10.5px] tabular-nums text-white/38 line-through">{formatPrice(payload.previousPrice)}</div>
+            )}
             {payload.status === null ? null : (
               <div className={cn(
                 "mt-0.5 text-[10.5px] uppercase tracking-[0.12em]",
@@ -119,6 +131,12 @@ function ListingCard({ payload }: { payload: ListingCardPayload }) {
             )}
           </div>
         </div>
+        {payload.priceCutAmount === null || payload.priceCutAmount <= 0 ? null : (
+          <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-[#b5c9a8]/18 bg-[#b5c9a8]/10 px-2 py-1 text-[11px] font-semibold lowercase text-[#d7e7c9]">
+            <BadgeDollarSign aria-hidden="true" className="h-3.5 w-3.5" />
+            {formatCompactMoney(payload.priceCutAmount)} price cut
+          </div>
+        )}
         {payload.beds === null && payload.baths === null ? null : (
           <div className="mt-2 flex items-center gap-3 text-[12px] text-white/64">
             {payload.beds === null ? null : (

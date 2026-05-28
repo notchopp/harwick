@@ -72,6 +72,12 @@ function formatMoney(value: number | null) {
   }).format(value);
 }
 
+function formatCompactMoney(value: number): string {
+  if (Math.abs(value) >= 1_000_000) return `$${(value / 1_000_000).toFixed(value % 1_000_000 === 0 ? 0 : 1)}M`;
+  if (Math.abs(value) >= 1_000) return `$${Math.round(value / 1_000)}k`;
+  return formatMoney(value);
+}
+
 function formatRelativeDate(iso: string) {
   const diffMs = Date.now() - new Date(iso).getTime();
   if (diffMs < 60_000) return "now";
@@ -93,38 +99,56 @@ function mapPublicListing(row: PublicListingFactRow, workspaceName: string): Pub
   const status = row.status?.toLowerCase() ?? "";
   const openHouse = readRawString(rawFacts, "openHouse");
   const incentives = readRawStringArray(rawFacts, "incentives");
+  const factFeatures = readRawStringArray(rawFacts, "features");
+  const notes = readRawString(rawFacts, "description") ?? readRawString(rawFacts, "notes");
   const neighborhood = readRawString(rawFacts, "neighborhood") ?? "Workspace listing";
   const propertyType = readRawString(rawFacts, "propertyType") ?? "home";
   const squareFeet = readRawNumber(rawFacts, "squareFeet");
   const yearBuilt = readRawString(rawFacts, "yearBuilt") ?? String(readRawNumber(rawFacts, "yearBuilt") ?? "unknown");
+  const previousPrice = readRawNumber(rawFacts, "previousPrice");
+  const priceCutAmount = previousPrice !== null && row.price !== null && previousPrice > row.price
+    ? previousPrice - row.price
+    : readRawNumber(rawFacts, "priceCutAmount");
+  const marketLabel = readRawString(rawFacts, "marketLabel")
+    ?? (priceCutAmount !== null && priceCutAmount > 0 ? "price reduced" : status.includes("new") ? "new this week" : "live listing");
   const features = [
+    ...factFeatures,
     ...incentives,
     propertyType,
     neighborhood,
     row.has_pool === true ? "pool" : null,
+    priceCutAmount !== null && priceCutAmount > 0 ? `${formatCompactMoney(priceCutAmount)} price cut` : null,
     status.length > 0 ? status : null,
   ].filter((feature): feature is string => feature !== null && feature.trim().length > 0).slice(0, 6);
-  const isReduced = status.includes("reduced") || readRawString(rawFacts, "priceChange") === "reduced";
+  const isReduced = status.includes("reduced") || readRawString(rawFacts, "priceChange") === "reduced" || (priceCutAmount !== null && priceCutAmount > 0);
+  const isNew = status.includes("new") || marketLabel.toLowerCase().includes("new this week");
+  const isSold = status.includes("sold");
   const isWaterfront = features.some((feature) => feature.toLowerCase().includes("waterfront"));
   const isOpenHouse = openHouse !== null;
-  const filter = isReduced ? "reduced" : isOpenHouse ? "open-house" : isWaterfront ? "waterfront" : "all";
+  const filter = isReduced ? "reduced" : isNew ? "new" : isOpenHouse ? "open-house" : isWaterfront ? "waterfront" : "all";
 
   return {
     id: row.id,
     slug: `${slugify(row.address)}-${row.id.slice(0, 8)}`,
-    label: isReduced
-      ? "Price Reduced"
-      : row.verification_status === "verified"
+    label: isSold
+        ? "Sold"
+      : isReduced
+        ? "Price Reduced"
+        : row.verification_status === "verified"
         ? "Verified"
-        : status.includes("new")
+        : isNew
           ? "New"
           : "Active",
-    badgeTone: isReduced ? "reduced" : status.includes("new") ? "new" : "prime",
+    badgeTone: isSold ? "sold" : isReduced ? "reduced" : isNew ? "new" : "prime",
     filter,
     imageUrl: uniquePhotos[0] ?? "",
     photos: uniquePhotos.slice(0, 4),
     price: formatMoney(row.price),
     priceValue: row.price ?? 0,
+    previousPrice: previousPrice === null ? null : formatMoney(previousPrice),
+    previousPriceValue: previousPrice,
+    priceCutLabel: priceCutAmount !== null && priceCutAmount > 0 ? `${formatCompactMoney(priceCutAmount)} cut` : null,
+    marketLabel,
     shortAddress: row.address.split(",")[0]?.trim() ?? row.address,
     address: row.address,
     neighborhood,
@@ -138,8 +162,7 @@ function mapPublicListing(row: PublicListingFactRow, workspaceName: string): Pub
     features: features.length === 0 ? ["active listing"] : features,
     agent: readRawString(rawFacts, "agentName") ?? readRawString(rawFacts, "listingAgent") ?? workspaceName,
     updated: formatRelativeDate(row.updated_at),
-    description: readRawString(rawFacts, "notes")
-      ?? `${propertyType} in ${neighborhood}. Ask Harwick for current availability, showing windows, and agent follow-up.`,
+    description: notes ?? `${propertyType} in ${neighborhood}. Ask Harwick for current availability, showing windows, and agent follow-up.`,
     openHouse: openHouse ?? "By appointment",
     monthlyHoa: readRawNumber(rawFacts, "monthlyHoa") ?? readRawNumber(rawFacts, "hoa") ?? 0,
     annualTaxRate: readRawNumber(rawFacts, "annualTaxRate") ?? readRawNumber(rawFacts, "propertyTaxRate") ?? 1.1,

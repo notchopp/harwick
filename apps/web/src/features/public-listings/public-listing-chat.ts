@@ -299,6 +299,7 @@ export type LoadPublicListingPortalStateResult = {
 
 function summarizeQualificationAsFacts(q: PublicListingChatQualification): string[] {
   const facts: string[] = [];
+  const lifeContext = (q.lifeContext ?? []).filter((entry): entry is string => typeof entry === "string");
   // Lead with the model's own per-turn observations (auto-appended to
   // knownFacts via note_qualification.learned). These are the highest-
   // signal entries because they're whatever the model thought was
@@ -325,10 +326,33 @@ function summarizeQualificationAsFacts(q: PublicListingChatQualification): strin
   // targetArea = "Coral Gables").
   const seen = new Set<string>();
   return facts.filter((f) => {
-    const k = f.toLowerCase();
+    const k = normalizeMemoryFact(f);
     if (seen.has(k)) return false;
+    if (duplicatesLifeContext(f, lifeContext)) return false;
     seen.add(k);
     return true;
+  });
+}
+
+function normalizeMemoryFact(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\b(visitor|buyer|client|they|their|is|are|has|have|and|with|looking|for|needs|need|wants|want|must)\b/g, " ")
+    .replace(/\bchildren\b/g, "kids")
+    .replace(/\bsons\b/g, "kids")
+    .replace(/\bdaughters\b/g, "kids")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function duplicatesLifeContext(fact: string, lifeContext: readonly string[]): boolean {
+  const factKey = normalizeMemoryFact(fact);
+  if (factKey.length < 3) return false;
+  return lifeContext.some((life) => {
+    const lifeKey = normalizeMemoryFact(life);
+    if (lifeKey.length < 3) return false;
+    return factKey.includes(lifeKey) || lifeKey.includes(factKey);
   });
 }
 

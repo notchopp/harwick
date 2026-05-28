@@ -31,6 +31,7 @@ import type {
 } from "@realty-ops/core";
 
 import { lookupAreaInfo } from "./area-lookup";
+import type { ListingChatGateJudge } from "./listing-chat-gate-judge";
 import type {
   PublicListingChatLeadCapture,
   PublicListingChatListing,
@@ -44,6 +45,8 @@ export type ListingCardPayload = {
   listingId: string;
   address: string;
   price: number | null;
+  previousPrice: number | null;
+  priceCutAmount: number | null;
   beds: number | null;
   baths: number | null;
   status: string | null;
@@ -75,6 +78,7 @@ export type CallbackCardPayload = {
   kind: "callback_card";
   taskId: string;
   leadId: string;
+  assignedMemberName: string | null;
   urgency: "now" | "today" | "this_week";
   reason: string;
 };
@@ -117,6 +121,12 @@ export type ListingChatToolDeps = {
   assignedAgent: PublicListingPortalAgent | null;
   braveSearchApiKey: string | undefined;
   occurredAt: string;
+  latestVisitorText?: string | undefined;
+  // Optional small-model gate judge — when supplied, replaces the cheap
+  // length-floor check on `propose_showing_window` / `request_agent_callback` /
+  // `capture_lead` payloads with a semantic actionability check. Times out
+  // and fails open (length floor still applies).
+  gateJudge?: ListingChatGateJudge | undefined;
   // Mutated by tool executes; read by onFinish to know what to persist.
   state: ListingChatTurnState;
 };
@@ -128,10 +138,12 @@ const INTENT_VALUES = ["high", "medium", "low", "spam", "unknown"] as const;
 const FINANCING_VALUES = ["preapproved", "cash", "needs_lender", "unknown"] as const;
 const PREAPPROVAL_VALUES = ["preapproved", "pending", "none", "unknown"] as const;
 const URGENCY_VALUES = ["now", "today", "this_week"] as const;
+const WEEKDAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"] as const;
 
 function isValidPhone(value: string): boolean {
   const digits = value.replace(/\D/g, "");
   if (digits.length < 7) return false;
+  if (/^1?555/.test(digits) || /^1?\d{3}555/.test(digits)) return false;
   const lower = value.toLowerCase().trim();
   return lower !== "unknown" && lower !== "n/a" && lower !== "na" && lower !== "none" && !lower.includes("unknown");
 }
@@ -146,6 +158,80 @@ function readPhotoUrl(listing: PublicListingChatListing): string | null {
 function readNeighborhood(listing: PublicListingChatListing): string | null {
   const raw = listing.rawFacts;
   return typeof raw["neighborhood"] === "string" && raw["neighborhood"].length > 0 ? raw["neighborhood"] : null;
+}
+
+function readNumber(raw: Record<string, unknown>, key: string): number | null {
+  const value = raw[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function hasUsableName(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length >= 2;
+}
+
+function hasUsableBudget(value: unknown): boolean {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+/**
+ * Cheap fast-fail floor. The LLM judge handles semantic actionability;
+ * this just rejects obviously-empty / single-word payloads in microseconds
+ * so we don't burn a small-model call on garbage.
+ */
+function failsLengthFloor(value: string, minLength: number): boolean {
+  return value.trim().length < minLength;
+}
+
+function readCentralDateParts(iso: string): { year: number; month: number; day: number } {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Chicago",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date(iso));
+  const get = (type: string) => Number(parts.find((part) => part.type === type)?.value ?? 0);
+  return { year: get("year"), month: get("month"), day: get("day") };
+}
+
+function pad2(value: number): string {
+  return String(value).padStart(2, "0");
+}
+
+function centralIsoWithOffset(date: Date, hour: number, minute: number): string {
+  return `${date.getUTCFullYear()}-${pad2(date.getUTCMonth() + 1)}-${pad2(date.getUTCDate())}T${pad2(hour)}:${pad2(minute)}:00-05:00`;
+}
+
+function addDaysUtcDate(date: Date, days: number): Date {
+  const next = new Date(date);
+  next.setUTCDate(next.getUTCDate() + days);
+  return next;
+}
+
+function parseWeekdayTimeWindow(text: string | undefined, occurredAt: string): { startAt: string; endAt: string } | null {
+  if (text === undefined) return null;
+  const lower = text.toLowerCase();
+  const weekdayIndex = WEEKDAYS.findIndex((day) => lower.includes(day));
+  if (weekdayIndex < 0) return null;
+  const timeMatch = lower.match(/\b(1[0-2]|0?[1-9])(?::([0-5]\d))?\s*(am|pm)?\b/);
+  if (timeMatch === null) return null;
+  let hour = Number(timeMatch[1]);
+  const minute = timeMatch[2] === undefined ? 0 : Number(timeMatch[2]);
+  const meridiem = timeMatch[3];
+  if (meridiem === "pm" && hour < 12) hour += 12;
+  if (meridiem === "am" && hour === 12) hour = 0;
+  if (meridiem === undefined && hour >= 1 && hour <= 7) hour += 12;
+
+  const central = readCentralDateParts(occurredAt);
+  const today = new Date(Date.UTC(central.year, central.month - 1, central.day));
+  const todayDow = today.getUTCDay();
+  let daysUntil = weekdayIndex - todayDow;
+  if (daysUntil <= 0) daysUntil += 7;
+  const targetDate = addDaysUtcDate(today, daysUntil);
+  const endHour = hour + 1;
+  return {
+    startAt: centralIsoWithOffset(targetDate, hour, minute),
+    endAt: centralIsoWithOffset(targetDate, endHour, minute),
+  };
 }
 
 function buildLeadCapture(input: {
@@ -186,6 +272,20 @@ function parseBudgetToNumber(value: string): number | null {
   if (!Number.isFinite(parsed)) return null;
   const multiplier = normalized.includes("m") ? 1_000_000 : normalized.includes("k") ? 1_000 : 1;
   return Math.round(parsed * multiplier);
+}
+
+function summarizeListingForTool(listing: PublicListingChatListing) {
+  return {
+    id: listing.id,
+    address: listing.address,
+    price: listing.price,
+    previousPrice: readNumber(listing.rawFacts, "previousPrice"),
+    priceCutAmount: readNumber(listing.rawFacts, "priceCutAmount"),
+    beds: listing.beds,
+    baths: listing.baths,
+    status: listing.status,
+    neighborhood: typeof listing.rawFacts["neighborhood"] === "string" ? listing.rawFacts["neighborhood"] : null,
+  };
 }
 
 /* ─────────  Tool factory  ───────── */
@@ -304,29 +404,47 @@ export function buildListingChatTools(deps: ListingChatToolDeps) {
             message: "Ask one discovery question first to get ≥2 criteria (area + budget / beds + timeline). Then search.",
           };
         }
+        const criteria = {
+          minPrice: input.minPrice,
+          maxPrice: input.maxPrice,
+          minBeds: input.minBeds,
+          areaContains: input.areaContains,
+          propertyType: input.propertyType,
+        };
         const rows = await deps.repository.findOtherListings({
           workspaceId: deps.workspaceId,
           excludeListingId: deps.listing.id,
-          criteria: {
-            minPrice: input.minPrice,
-            maxPrice: input.maxPrice,
-            minBeds: input.minBeds,
-            areaContains: input.areaContains,
-            propertyType: input.propertyType,
-          },
+          criteria,
           limit: input.limit,
         });
+        if (rows.length === 0 && explicitCriteria > 0) {
+          const fallbackRows = await deps.repository.findOtherListings({
+            workspaceId: deps.workspaceId,
+            excludeListingId: deps.listing.id,
+            criteria: {
+              minPrice: null,
+              maxPrice: null,
+              minBeds: null,
+              areaContains: null,
+              propertyType: null,
+            },
+            limit: input.limit,
+          });
+          return {
+            count: 0,
+            listings: [],
+            broadened: true,
+            broadenedCount: fallbackRows.length,
+            broadenedListings: fallbackRows.map(summarizeListingForTool),
+            message: fallbackRows.length === 0
+              ? "No active listings exist in this workspace after dropping all filters."
+              : "No listings matched those filters, but active inventory exists after dropping filters. Surface these broader options before saying inventory is empty.",
+          };
+        }
         return {
           count: rows.length,
-          listings: rows.map((r) => ({
-            id: r.id,
-            address: r.address,
-            price: r.price,
-            beds: r.beds,
-            baths: r.baths,
-            status: r.status,
-            neighborhood: typeof r.rawFacts["neighborhood"] === "string" ? r.rawFacts["neighborhood"] : null,
-          })),
+          listings: rows.map(summarizeListingForTool),
+          broadened: false,
         };
       },
     }),
@@ -353,6 +471,8 @@ export function buildListingChatTools(deps: ListingChatToolDeps) {
             listingId,
             address: "Listing unavailable",
             price: null,
+            previousPrice: null,
+            priceCutAmount: null,
             beds: null,
             baths: null,
             status: "missing",
@@ -366,6 +486,8 @@ export function buildListingChatTools(deps: ListingChatToolDeps) {
           listingId: listing.id,
           address: listing.address,
           price: listing.price,
+          previousPrice: readNumber(listing.rawFacts, "previousPrice"),
+          priceCutAmount: readNumber(listing.rawFacts, "priceCutAmount"),
           beds: listing.beds,
           baths: listing.baths,
           status: listing.status,
@@ -465,7 +587,7 @@ export function buildListingChatTools(deps: ListingChatToolDeps) {
      * frame as "pinging [agent] to confirm".
      */
     propose_showing_window: tool({
-      description: "Propose a specific showing time. Creates an APPROVAL TASK for the agent — NEVER confirms the time. Phone is required. Your reply should say 'pinging [agent] to confirm Saturday 11' — not 'confirmed.'",
+      description: "Propose a specific showing time. Creates an APPROVAL TASK for the agent — NEVER confirms the time. Requires real phone, real name, and stated budget first; if any are missing this tool returns an error and you must ask for the missing qualifier instead of saying a showing was proposed.",
       inputSchema: z.object({
         requestedStartAt: z.string().datetime({ offset: true }).nullable().describe("ISO time the buyer wants — null if no specific window given."),
         requestedEndAt: z.string().datetime({ offset: true }).nullable(),
@@ -480,11 +602,40 @@ export function buildListingChatTools(deps: ListingChatToolDeps) {
           return { error: "Real phone number required before creating showing approval." };
         }
         const liveQual = { ...deps.priorQualification, ...deps.state.qualificationDelta };
+        const contactName = input.contactName ?? (hasUsableName(liveQual.name) ? liveQual.name : null);
+        if (!hasUsableName(contactName)) {
+          return { error: "Name required before creating showing approval. Ask what to call them, then continue qualification." };
+        }
+        if (!hasUsableBudget(liveQual.budget)) {
+          return { error: "Budget required before creating showing approval. Ask what price range they want to stay under before creating the task." };
+        }
+        if (failsLengthFloor(input.notes, 15)) {
+          return { error: "Showing notes too thin — give the agent a concrete sentence of context (who's coming, what they care about, any constraint)." };
+        }
+        if (deps.gateJudge !== undefined) {
+          const judgment = await deps.gateJudge({
+            kind: "showing_notes",
+            value: input.notes,
+            qualificationContext: {
+              name: contactName,
+              budget: liveQual.budget,
+              timeline: liveQual.timeline ?? null,
+              hasBuyerRep: liveQual.hasBuyerRep ?? null,
+              financingStatus: liveQual.financingStatus ?? null,
+            },
+          });
+          if (!judgment.ok) {
+            return { error: judgment.coaching };
+          }
+        }
+        const parsedWindow = parseWeekdayTimeWindow(deps.latestVisitorText, deps.occurredAt);
+        const requestedStartAt = parsedWindow?.startAt ?? input.requestedStartAt;
+        const requestedEndAt = parsedWindow?.endAt ?? input.requestedEndAt;
         const values = buildLeadCapture({
           funnelType: liveQual.funnelType ?? "buyer",
           intent: "showing",
           intentTier: "high",
-          fullName: input.contactName ?? liveQual.name ?? null,
+          fullName: contactName,
           email: input.contactEmail ?? liveQual.email ?? null,
           phone: input.contactPhone,
           qualification: liveQual,
@@ -516,8 +667,8 @@ export function buildListingChatTools(deps: ListingChatToolDeps) {
           listing: deps.listing,
           assignedMemberId: input.preferredAgentMemberId ?? deps.assignedAgent?.memberId ?? lead.assignedAgentId,
           values,
-          requestedStartAt: input.requestedStartAt,
-          requestedEndAt: input.requestedEndAt,
+          requestedStartAt,
+          requestedEndAt,
           createdAt: deps.occurredAt,
         });
         deps.state.capturedLead = { leadId: lead.id, intent: "showing", status: existing === null ? "created" : "updated" };
@@ -529,31 +680,55 @@ export function buildListingChatTools(deps: ListingChatToolDeps) {
           taskId,
           leadId: lead.id,
           assignedMemberName: assignedMember?.displayName ?? null,
-          requestedStartAt: input.requestedStartAt,
-          requestedEndAt: input.requestedEndAt,
+          requestedStartAt,
+          requestedEndAt,
           status: "pending_approval",
         };
       },
     }),
 
     request_agent_callback: tool({
-      description: "Queue a callback request for an agent. Use when buyer wants a human call without a specific showing time. Phone required.",
+      description: "Queue a callback request for a named agent. Use when buyer wants a human call without a specific showing time. Requires real phone, real first name, and a specific reason naming who or what (NOT 'trusted lender network' — name the lender or agent role). If any is missing this tool returns an error and you must ask for the missing item before saying anyone was queued.",
       inputSchema: z.object({
         contactPhone: z.string().min(7).max(40),
         contactName: z.string().min(1).max(160).nullable(),
-        reason: z.string().min(1).max(280),
+        reason: z.string().min(1).max(280).describe("What the agent should know before calling — concrete topic (e.g. 'first-time buyer wants lender intro for $625k cash + financed mix on Parkland Crossing'). Avoid vague phrases."),
         urgency: z.enum(URGENCY_VALUES),
+        preferredAgentMemberId: z.string().uuid().nullable(),
       }),
       execute: async (input): Promise<CallbackCardPayload | { error: string }> => {
         if (!isValidPhone(input.contactPhone)) {
           return { error: "Real phone number required before queuing callback." };
         }
         const liveQual = { ...deps.priorQualification, ...deps.state.qualificationDelta };
+        const contactName = input.contactName ?? (hasUsableName(liveQual.name) ? liveQual.name : null);
+        if (!hasUsableName(contactName)) {
+          return { error: "First name required before queuing callback. Ask what to call them, then queue the callback." };
+        }
+        if (failsLengthFloor(input.reason, 10)) {
+          return { error: "Reason is too thin — write a concrete sentence the receiving agent can act on (who's calling, what they want, any known constraint)." };
+        }
+        if (deps.gateJudge !== undefined) {
+          const judgment = await deps.gateJudge({
+            kind: "callback_reason",
+            value: input.reason,
+            qualificationContext: {
+              name: contactName,
+              budget: liveQual.budget ?? null,
+              timeline: liveQual.timeline ?? null,
+              financingStatus: liveQual.financingStatus ?? null,
+              urgency: input.urgency,
+            },
+          });
+          if (!judgment.ok) {
+            return { error: judgment.coaching };
+          }
+        }
         const values = buildLeadCapture({
           funnelType: liveQual.funnelType ?? "buyer",
           intent: "question",
           intentTier: input.urgency === "now" ? "high" : input.urgency === "today" ? "medium" : "low",
-          fullName: input.contactName ?? liveQual.name ?? null,
+          fullName: contactName,
           email: liveQual.email ?? null,
           phone: input.contactPhone,
           qualification: liveQual,
@@ -570,11 +745,14 @@ export function buildListingChatTools(deps: ListingChatToolDeps) {
         if (existing !== null) {
           await deps.repository.updateLead({ workspaceId: deps.workspaceId, leadId: existing.id, values, updatedAt: deps.occurredAt });
         }
+        const assignedMember = input.preferredAgentMemberId === null
+          ? deps.assignedAgent
+          : deps.team.find((m) => m.memberId === input.preferredAgentMemberId) ?? deps.assignedAgent;
         const taskId = await deps.repository.insertCallbackTask({
           workspaceId: deps.workspaceId,
           leadId: lead.id,
           listingId: deps.listing.id,
-          assignedMemberId: deps.assignedAgent?.memberId ?? lead.assignedAgentId,
+          assignedMemberId: assignedMember?.memberId ?? lead.assignedAgentId,
           reason: input.reason,
           urgency: input.urgency,
           createdAt: deps.occurredAt,
@@ -584,6 +762,7 @@ export function buildListingChatTools(deps: ListingChatToolDeps) {
           kind: "callback_card",
           taskId,
           leadId: lead.id,
+          assignedMemberName: assignedMember?.displayName ?? null,
           urgency: input.urgency,
           reason: input.reason,
         };
@@ -674,11 +853,35 @@ export function buildListingChatTools(deps: ListingChatToolDeps) {
           return { error: "Real phone number required to capture lead." };
         }
         const liveQual = { ...deps.priorQualification, ...deps.state.qualificationDelta };
+        const resolvedName = input.fullName ?? (hasUsableName(liveQual.name) ? liveQual.name : null);
+        if (!hasUsableName(resolvedName)) {
+          return { error: "First name required before capturing lead. Ask what to call them, then capture." };
+        }
+        if (failsLengthFloor(input.conversationSummary, 20)) {
+          return { error: "Conversation summary is too thin — the receiving agent needs a sentence or two of context (who they are, what they want, any constraint)." };
+        }
+        if (deps.gateJudge !== undefined) {
+          const judgment = await deps.gateJudge({
+            kind: "lead_capture_summary",
+            value: input.conversationSummary,
+            qualificationContext: {
+              name: resolvedName,
+              funnelType: input.funnelType,
+              intent: input.intent,
+              budget: input.budget ?? liveQual.budget ?? null,
+              timeline: input.timeline ?? liveQual.timeline ?? null,
+              targetArea: input.targetArea ?? liveQual.targetArea ?? null,
+            },
+          });
+          if (!judgment.ok) {
+            return { error: judgment.coaching };
+          }
+        }
         const values = buildLeadCapture({
           funnelType: input.funnelType,
           intent: input.intent,
           intentTier: input.intentTier,
-          fullName: input.fullName,
+          fullName: resolvedName,
           email: input.email,
           phone: input.phone,
           qualification: { ...liveQual, timeline: input.timeline ?? liveQual.timeline, budget: input.budget ?? liveQual.budget, targetArea: input.targetArea ?? liveQual.targetArea, financingStatus: input.financingStatus },

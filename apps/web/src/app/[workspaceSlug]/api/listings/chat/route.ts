@@ -2,9 +2,11 @@ import { createHash, randomBytes } from "node:crypto";
 
 import { createOpenAI } from "@ai-sdk/openai";
 import { UuidSchema } from "@realty-ops/core";
+import { createOpenAISmallModelClient } from "@realty-ops/integrations";
 import { convertToModelMessages, stepCountIs, streamText, type UIMessage } from "ai";
 import { NextResponse, type NextRequest } from "next/server";
 
+import { createSmallModelGateJudge } from "../../../../../features/public-listings/listing-chat-gate-judge";
 import { buildListingChatSystemPrompt } from "../../../../../features/public-listings/listing-chat-system-prompt";
 import {
   buildListingChatTools,
@@ -82,7 +84,7 @@ async function ensureSession(params: {
     });
     if (existing !== null) return { session: existing, created: false };
   }
-  const sessionToken = randomBytes(24).toString("base64url");
+  const sessionToken = params.cookieToken ?? randomBytes(24).toString("base64url");
   const created = await params.repository.createSession({
     workspaceId: params.workspaceId,
     listingId: params.listingId,
@@ -241,6 +243,17 @@ export async function POST(
     qualificationDelta: {},
     capturedLead: null,
   };
+  const openaiKey = process.env["OPENAI_API_KEY"];
+  const gateJudge = typeof openaiKey === "string" && openaiKey.length > 0
+    ? createSmallModelGateJudge({
+        smallModel: createOpenAISmallModelClient({ apiKey: openaiKey, model: "gpt-4o-mini" }),
+        timeoutMs: 1500,
+        onFallback: (reason, details) => {
+          console.warn(`[listing-chat] gate judge fell back (${reason})`, details);
+        },
+      })
+    : undefined;
+
   const tools = buildListingChatTools({
     repository,
     workspaceId,
@@ -251,6 +264,8 @@ export async function POST(
     assignedAgent: portal.state.assignedAgent,
     braveSearchApiKey: process.env["BRAVE_SEARCH_API_KEY"],
     occurredAt,
+    latestVisitorText: latestUserText ?? undefined,
+    gateJudge,
     state: turnState,
   });
 
@@ -423,17 +438,53 @@ function mergeQualificationAdditive(
         if (typeof entry !== "string") continue;
         const norm = entry.trim();
         if (norm.length === 0) continue;
-        const lower = norm.toLowerCase();
-        if (seen.has(lower)) continue;
-        seen.add(lower);
+        const dedupeKey = key === "knownFacts" ? normalizeKnownFact(norm) : normalizeMemoryLine(norm);
+        if (seen.has(dedupeKey)) continue;
+        seen.add(dedupeKey);
         combined.push(norm);
       }
-      next[key] = combined;
+      next[key] = key === "knownFacts" ? removeFactsDuplicatedByLifeContext(combined, next) : combined;
     } else {
       next[key] = value;
     }
   }
   return next;
+}
+
+function normalizeMemoryLine(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normalizeKnownFact(value: string): string {
+  return normalizeMemoryLine(value)
+    .replace(/\b(visitor|buyer|client|they|their|is|are|has|have|and|with|looking|for|needs|need|wants|want|must)\b/g, " ")
+    .replace(/\bchildren\b/g, "kids")
+    .replace(/\bsons\b/g, "kids")
+    .replace(/\bdaughters\b/g, "kids")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function removeFactsDuplicatedByLifeContext(
+  knownFacts: string[],
+  qualification: Record<string, unknown>,
+): string[] {
+  const lifeContext = Array.isArray(qualification["lifeContext"])
+    ? qualification["lifeContext"].filter((entry): entry is string => typeof entry === "string")
+    : [];
+  if (lifeContext.length === 0) return knownFacts;
+  const lifeKeys = lifeContext.map(normalizeKnownFact).filter((entry) => entry.length > 0);
+  return knownFacts.filter((fact) => {
+    const factKey = normalizeKnownFact(fact);
+    return !lifeKeys.some((lifeKey) => {
+      if (lifeKey.length < 3 || factKey.length < 3) return false;
+      return factKey.includes(lifeKey) || lifeKey.includes(factKey);
+    });
+  });
 }
 
 function buildEventValues(params: {

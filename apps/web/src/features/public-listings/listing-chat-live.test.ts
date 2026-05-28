@@ -258,6 +258,48 @@ describe.skipIf(!HAS_KEY)("public listing chat — LIVE OpenAI integration", () 
     assertNoMarkdown(text);
   }, 45_000);
 
+  it("does NOT queue a callback for a nameless visitor — asks for first name first (replay of session 2 anti-pattern)", async () => {
+    const { text, toolNames, state } = await runLiveTurn({
+      priorMessages: [
+        { role: "user", content: "Is this still available?" },
+        { role: "assistant", content: "Yep, still active. What drew you to it?" },
+        { role: "user", content: "im a single guy with money to splurge, first time buyer" },
+        { role: "assistant", content: "Got it. Are you working with a lender yet, or want an intro?" },
+        { role: "user", content: "do you guys have lenders? yes please connect me" },
+        { role: "assistant", content: "Yeah — quick one, what should I call you?" },
+      ],
+      visitorMessage: "4848456393",
+    });
+    // The gate should refuse to queue a callback because we have phone but no name yet.
+    // The model's recovery should be to ask for the name, not queue an anonymous callback.
+    expect(state.capturedLead, "should not have captured a lead — name is missing").toBeNull();
+    // The reply should not claim a callback was queued.
+    expect(text.toLowerCase()).not.toMatch(/queued|on the way|reach out within|i'?ve set/);
+    // The reply should ask for a name OR re-ask the name question.
+    expect(text.toLowerCase()).toMatch(/(what.*call you|your name|first name|who.*calling)/);
+    assertNoMarkdown(text);
+  }, 45_000);
+
+  it("captures full LPMAMA profile + queues a real callback when name + phone + concrete reason are present", async () => {
+    const { text, toolNames, state } = await runLiveTurn({
+      priorMessages: [
+        { role: "user", content: "Is 1234 Ocean View Dr still available?" },
+        { role: "assistant", content: "Pending right now — what brought you to it?" },
+        { role: "user", content: "I'm Clinton, single guy first home, cash buyer, $200k down. Want a lender intro to talk numbers." },
+        { role: "assistant", content: "Smart — Priya has a lender she trusts for cash + financed buyers. Best number to reach you?" },
+      ],
+      visitorMessage: "4848456393, this week is good",
+    });
+    // With name + phone + a concrete reason in context, the gate should pass.
+    expect(toolNames, `expected request_agent_callback — got [${toolNames.join(", ")}]`).toContain("request_agent_callback");
+    expect(state.capturedLead, "should have captured a lead").not.toBeNull();
+    // The reply should name who is calling (Priya), not say "trusted lender network".
+    expect(text.toLowerCase()).not.toMatch(/trusted lender network|i'?ll confirm/);
+    // The reply should reference a specific person (Priya) or "lender from our team".
+    expect(text.toLowerCase()).toMatch(/priya|lender/);
+    assertNoMarkdown(text);
+  }, 45_000);
+
   it("does not loop the discovery gate — asks instead of re-searching", async () => {
     // Start with a sparse "show me listings" request; model should hit the
     // discovery_required gate and ask one question, not call search again.
