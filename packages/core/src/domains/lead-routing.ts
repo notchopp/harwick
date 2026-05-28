@@ -118,8 +118,12 @@ function hasBudgetMatch(params: {
 }
 
 function hasEnoughQualification(qualification: LeadRoutingQualification): boolean {
+  // Public-chat leads often have a clear lead_type + intent + score but
+  // no explicit targetArea (they came in on a SPECIFIC listing, so the
+  // listing's geography IS the implicit area). Don't strand them in
+  // "hold_for_qualification" just because targetArea is null — let the
+  // caller backfill targetArea from the listing's city/neighborhood.
   return qualification.leadType !== "unknown"
-    && qualification.targetArea !== null
     && qualification.score >= 45;
 }
 

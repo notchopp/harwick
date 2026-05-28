@@ -101,6 +101,13 @@ function safePropertyType(value: string | null): RoutingPropertyType | null {
 }
 
 function buildSummary(lead: LeadRow): string {
+  // Prefer the rich qualification_summary Harwick writes turn-by-turn —
+  // it's a one-sentence English read of who this person is and what they
+  // want. Falls back to assembling a structured part-list only when the
+  // summary is empty.
+  if (typeof lead.qualification_summary === "string" && lead.qualification_summary.trim().length > 0) {
+    return lead.qualification_summary.trim();
+  }
   const parts: string[] = [];
   if (lead.lead_type !== "unknown") parts.push(lead.lead_type);
   if (lead.target_area !== null && lead.target_area.trim().length > 0) parts.push(lead.target_area.trim());

@@ -278,9 +278,63 @@ function buildLeadCapture(input: {
     targetArea: input.qualification.targetArea ?? null,
     propertyType: input.qualification.propertyType ?? null,
     financingStatus: input.qualification.financingStatus ?? "unknown",
-    score: input.intent === "showing" ? 75 : input.intentTier === "high" ? 70 : 50,
+    // Real signal-based score (was hardcoded 50/70/75). Sums up to ~100
+    // from independently-meaningful evidence so the operator sees a number
+    // grounded in the actual conversation, not a heuristic placeholder.
+    score: deriveLeadScore({
+      intent: input.intent,
+      intentTier: input.intentTier,
+      qualification: input.qualification,
+      conversationSummary: input.conversationSummary,
+    }),
     documentUpdate: input.conversationSummary,
   };
+}
+
+/**
+ * Real lead score from captured signals. Replaces the old hardcoded
+ * 50/70/75 ladder. Each signal contributes independently so the number
+ * the operator sees reflects what was actually captured:
+ *   intent + intentTier   ........ up to 25 pts
+ *   name captured          ........ 8 pts
+ *   phone captured (via gates).... 8 pts (handled by gate-level capture)
+ *   timeline captured      ........ 10 pts
+ *   budget captured        ........ 10 pts
+ *   financing captured     ........ 10 pts
+ *   target area captured   ........ 8 pts
+ *   life context entries   ........ 3 pts each, cap 12
+ *   vibe notes / headline  ........ 5 pts if either set
+ *   known facts depth      ........ 1 pt each, cap 8
+ *   showing intent         ........ 14 pts
+ * Capped at 100. Floor at 25 to avoid the "0" rendering when nothing was
+ * captured yet (otherwise operator sees a meaningless 0 next to a real
+ * lead that just hasn't been qualified deeply).
+ */
+function deriveLeadScore(input: {
+  intent: "question" | "showing";
+  intentTier: "high" | "medium" | "low" | "spam" | "unknown";
+  qualification: PublicListingChatQualification;
+  conversationSummary: string;
+}): number {
+  let score = 0;
+  if (input.intent === "showing") score += 14;
+  if (input.intentTier === "high") score += 25;
+  else if (input.intentTier === "medium") score += 15;
+  else if (input.intentTier === "low") score += 5;
+  if (typeof input.qualification.name === "string" && input.qualification.name.trim().length >= 2) score += 8;
+  if (typeof input.qualification.timeline === "string" && input.qualification.timeline.trim().length > 0) score += 10;
+  if (typeof input.qualification.budget === "string" && input.qualification.budget.trim().length > 0) score += 10;
+  if (typeof input.qualification.financingStatus === "string" && input.qualification.financingStatus !== "unknown") score += 10;
+  if (typeof input.qualification.targetArea === "string" && input.qualification.targetArea.trim().length > 0) score += 8;
+  const lifeContext = Array.isArray(input.qualification.lifeContext) ? input.qualification.lifeContext : [];
+  score += Math.min(lifeContext.length * 3, 12);
+  const vibe = Array.isArray(input.qualification.vibeNotes) ? input.qualification.vibeNotes : [];
+  const hasHeadline = typeof input.qualification.headline === "string" && input.qualification.headline.trim().length > 0;
+  if (vibe.length > 0 || hasHeadline) score += 5;
+  const known = Array.isArray(input.qualification.knownFacts) ? input.qualification.knownFacts : [];
+  score += Math.min(known.length, 8);
+  if (typeof input.qualification.hasBuyerRep === "boolean") score += 3;
+  return Math.min(100, Math.max(25, score));
 }
 
 function parseBudgetToNumber(value: string): number | null {
