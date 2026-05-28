@@ -8,6 +8,21 @@ export type LeadPageSource = "instagram" | "facebook" | "voice" | "listing_chat"
 export type LeadPageStage = "hot" | "qualified" | "unrouted" | "callback" | "nurture" | "showing";
 export type LeadPageCardKind = "listing" | "area" | "seller";
 
+/**
+ * A real timeline entry — built from one of three sources:
+ *  - "captured": synthesized from leads.created_at (always present)
+ *  - "chat_turn": a row from public_listing_session_turns
+ *  - "lead_event": a row from lead_events (replies sent, calls completed, etc.)
+ * The drawer renders these newest-first; actor drives the icon color.
+ */
+export type LeadTimelineEvent = {
+  kind: "captured" | "chat_turn" | "lead_event";
+  actor: "visitor" | "harwick" | "operator" | "system";
+  title: string;
+  description: string;
+  occurredAt: string;
+};
+
 export type LeadPageItem = {
   id: string;
   workspaceId: string;
@@ -44,6 +59,7 @@ export type LeadPageItem = {
   // `documentUpdate` on each surface-tool call.
   qualificationSummary: string | null;
   leadDocument: string | null;
+  timelineEvents: LeadTimelineEvent[];
 };
 
 export type LeadsPageData = {
@@ -66,6 +82,7 @@ export type LeadsPageRepository = {
     automationMode: ConversationAutomationMode;
     automationReason: string | null;
   } | null>;
+  loadLeadTimeline(params: { workspaceId: string; leadId: string; createdAt: string }): Promise<LeadTimelineEvent[]>;
 };
 
 /**
@@ -214,14 +231,21 @@ export async function loadLeadsPageData(params: {
     const name = leadDisplayName(lead);
     const stage = stageFromLead(lead);
     const assignedMember = lead.assigned_agent_id === null ? null : (membersById.get(lead.assigned_agent_id) ?? null);
-    const message = await params.repository.findLatestLeadMessage({
-      workspaceId: params.workspaceId,
-      leadId: lead.id,
-    });
-    const review = await params.repository.findLatestSocialReviewForLead({
-      workspaceId: params.workspaceId,
-      leadId: lead.id,
-    });
+    const [message, review, timelineEvents] = await Promise.all([
+      params.repository.findLatestLeadMessage({
+        workspaceId: params.workspaceId,
+        leadId: lead.id,
+      }),
+      params.repository.findLatestSocialReviewForLead({
+        workspaceId: params.workspaceId,
+        leadId: lead.id,
+      }),
+      params.repository.loadLeadTimeline({
+        workspaceId: params.workspaceId,
+        leadId: lead.id,
+        createdAt: lead.created_at,
+      }),
+    ]);
     const actionability = classifyHarwickLeadActionability({
       sourceChannel: lead.source_channel,
       status: lead.status,
@@ -266,6 +290,7 @@ export async function loadLeadsPageData(params: {
       automationReason: review?.automationReason ?? null,
       qualificationSummary: lead.qualification_summary ?? null,
       leadDocument: lead.lead_document ?? null,
+      timelineEvents,
     };
   }));
 

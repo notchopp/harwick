@@ -33,7 +33,8 @@ import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import { cn } from "../../lib/utils";
 import { LeadActionToolbar } from "../conversations/lead-action-toolbar";
-import type { LeadPageItem, LeadPageSource, LeadPageStage } from "./leads-data";
+import { Popover, PopoverContent, PopoverTrigger } from "../../components/ui/popover";
+import type { LeadPageItem, LeadPageSource, LeadPageStage, LeadTimelineEvent } from "./leads-data";
 import { LeadsKanban } from "./leads-kanban";
 
 type LeadStatus = "new" | "qualified" | "nurture" | "lost";
@@ -153,6 +154,9 @@ function draftFor(item: LeadPageItem) {
 function mapLeadPageItemToRecord(item: LeadPageItem): LeadRecord {
   return {
     ...item,
+    // Defensive default: API may temporarily omit timelineEvents during the rolling
+    // deploy of the data-layer changes. Better to render an empty list than crash.
+    timelineEvents: Array.isArray(item.timelineEvents) ? item.timelineEvents : [],
     assignedMemberId: item.assignedMemberId ?? null,
     automationMode: item.automationMode ?? (item.stage === "callback" ? "paused_by_rule" : "ai_on"),
     automationReason: item.automationReason ?? automationReasonFor(item),
@@ -207,7 +211,27 @@ function isLeadPageItem(value: unknown): value is LeadPageItem {
     && (typeof item["automationMode"] === "string" || item["automationMode"] === null || item["automationMode"] === undefined)
     && (typeof item["automationReason"] === "string" || item["automationReason"] === null || item["automationReason"] === undefined)
     && (typeof item["qualificationSummary"] === "string" || item["qualificationSummary"] === null || item["qualificationSummary"] === undefined)
-    && (typeof item["leadDocument"] === "string" || item["leadDocument"] === null || item["leadDocument"] === undefined);
+    && (typeof item["leadDocument"] === "string" || item["leadDocument"] === null || item["leadDocument"] === undefined)
+    // timeline is optional — tolerate older API responses while we deploy
+    && (item["timelineEvents"] === undefined || Array.isArray(item["timelineEvents"]));
+}
+
+/**
+ * Render a single timeline event's relative time. Falls back to the raw ISO
+ * if the date is unparseable so a malformed row never blanks the UI.
+ */
+function formatTimelineTime(occurredAt: string): string {
+  const date = new Date(occurredAt);
+  if (Number.isNaN(date.getTime())) return occurredAt;
+  const diffMs = Date.now() - date.getTime();
+  const diffMin = Math.round(diffMs / 60_000);
+  if (diffMin < 1) return "just now";
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.round(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  const diffDay = Math.round(diffHr / 24);
+  if (diffDay < 7) return `${diffDay}d ago`;
+  return date.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
 /**
@@ -398,6 +422,207 @@ function LeadListRow(props: {
   );
 }
 
+/**
+ * Real timeline rendered from the server's `lead.timeline` array. Each entry
+ * comes from a tagged source (lead capture, chat turn, or lead_event) and
+ * carries an `actor` we use to pick the bubble icon + color. The visitor
+ * (lead) gets the muted clock; Harwick and operator both get the Bot bubble
+ * — visually identical to keep the focus on what was said, not who said it.
+ *
+ * Fallback: when timeline is empty (rolling deploy, or a manually-created
+ * lead with no events yet) we still render the original "captured" line so
+ * the panel never looks broken.
+ */
+function LeadTimelineList(props: {
+  events: LeadTimelineEvent[];
+  fallback: { lastTouch: string; message: string };
+  drawerSurface: boolean;
+  primaryText: string;
+  mutedText: string;
+  faintText: string;
+}) {
+  const events = props.events.length > 0
+    ? props.events
+    : [{
+        kind: "captured" as const,
+        actor: "system" as const,
+        title: "Lead captured",
+        description: props.fallback.message,
+        occurredAt: new Date().toISOString(),
+      }];
+
+  return (
+    <div className="space-y-3">
+      {events.map((event, index) => {
+        const isHarwick = event.actor === "harwick" || event.actor === "operator";
+        return (
+          <div className="flex gap-3" key={`${event.kind}-${event.occurredAt}-${index}`}>
+            <div className="flex flex-col items-center">
+              <div className={cn("flex h-8 w-8 items-center justify-center rounded-full", isHarwick ? "bg-primary" : props.drawerSurface ? "bg-white/[0.04]" : "bg-[color:var(--panel-2)]")}>
+                {isHarwick ? (
+                  <Bot className="h-4 w-4 text-primary-foreground" />
+                ) : (
+                  <Clock className={cn("h-4 w-4", props.mutedText)} />
+                )}
+              </div>
+              {index === events.length - 1 ? null : <div className={cn("w-px flex-1", props.drawerSurface ? "bg-white/[0.08]" : "bg-[color:var(--panel-line)]")} />}
+            </div>
+            <div className="flex-1 pb-4">
+              <p className={cn("text-sm font-medium", props.primaryText)}>{event.title}</p>
+              {event.description.length > 0 && event.description !== event.title ? (
+                <p className={cn("mt-0.5 text-xs", props.mutedText)}>{event.description}</p>
+              ) : null}
+              <p className={cn("mt-1 text-xs", props.faintText)}>{formatTimelineTime(event.occurredAt)}</p>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * Schedule popover — opens a small date+time picker that POSTs to the
+ * `schedule-callback` endpoint. Replaces the dead Schedule button.
+ * Uses native datetime-local for now (works in every browser, no extra
+ * deps); we can upgrade to a real calendar grid later if needed.
+ */
+function SchedulePopover(props: {
+  lead: LeadRecord;
+  triggerClassName: string;
+  drawerSurface: boolean;
+  onScheduled: (message: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [pending, setPending] = useState(false);
+  const defaultWhen = useMemo(() => {
+    // Default to "tomorrow at 10am local" — the most common callback slot.
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    d.setHours(10, 0, 0, 0);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }, []);
+  const [when, setWhen] = useState(defaultWhen);
+  const [note, setNote] = useState("");
+
+  async function handleSchedule() {
+    setPending(true);
+    try {
+      const response = await fetch(
+        `/api/leads/${props.lead.id}/schedule-callback`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            workspaceId: props.lead.workspaceId,
+            scheduledFor: new Date(when).toISOString(),
+            note: note.trim().length > 0 ? note.trim() : null,
+          }),
+        }
+      );
+      if (response.ok) {
+        const formatted = new Date(when).toLocaleString("en-US", {
+          weekday: "short",
+          month: "short",
+          day: "numeric",
+          hour: "numeric",
+          minute: "2-digit",
+        });
+        props.onScheduled(`Callback scheduled for ${formatted}.`);
+        setOpen(false);
+      } else {
+        const body = await response.json().catch(() => ({ message: "Schedule failed." }));
+        props.onScheduled(`Schedule failed: ${body.message ?? response.status}`);
+      }
+    } catch (error) {
+      console.error(error);
+      props.onScheduled("Network error scheduling callback.");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button className={props.triggerClassName} size="sm" type="button" variant="outline">
+          <CalendarClock className="h-4 w-4" />
+          Schedule
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="end"
+        className={cn(
+          "w-80 space-y-3 p-4",
+          props.drawerSurface ? "border-white/10 bg-[#10160f] text-white" : "",
+        )}
+      >
+        <div>
+          <p className={cn("text-[10px] font-bold uppercase tracking-[0.12em]", props.drawerSurface ? "text-white/46" : "text-[color:var(--graphite-text-faint)]")}>
+            schedule callback
+          </p>
+          <p className={cn("mt-1 text-sm font-medium", props.drawerSurface ? "text-white" : "text-[color:var(--graphite-text)]")}>
+            {props.lead.name}
+          </p>
+        </div>
+        <label className="block space-y-1">
+          <span className={cn("text-[11px] uppercase tracking-[0.1em]", props.drawerSurface ? "text-white/46" : "text-[color:var(--graphite-text-faint)]")}>
+            when
+          </span>
+          <input
+            type="datetime-local"
+            value={when}
+            onChange={(e) => setWhen(e.target.value)}
+            className={cn(
+              "w-full rounded-[8px] border px-3 py-2 text-sm",
+              props.drawerSurface
+                ? "border-white/[0.1] bg-white/[0.045] text-white"
+                : "border-[color:var(--panel-line)] bg-[color:var(--panel-1)] text-[color:var(--graphite-text)]",
+            )}
+          />
+        </label>
+        <label className="block space-y-1">
+          <span className={cn("text-[11px] uppercase tracking-[0.1em]", props.drawerSurface ? "text-white/46" : "text-[color:var(--graphite-text-faint)]")}>
+            note (optional)
+          </span>
+          <textarea
+            rows={2}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="What's the call about?"
+            className={cn(
+              "w-full resize-none rounded-[8px] border px-3 py-2 text-sm",
+              props.drawerSurface
+                ? "border-white/[0.1] bg-white/[0.045] text-white placeholder:text-white/30"
+                : "border-[color:var(--panel-line)] bg-[color:var(--panel-1)] text-[color:var(--graphite-text)]",
+            )}
+          />
+        </label>
+        <div className="flex justify-end gap-2 pt-1">
+          <Button
+            disabled={pending}
+            onClick={() => setOpen(false)}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            cancel
+          </Button>
+          <Button
+            disabled={pending}
+            onClick={() => void handleSchedule()}
+            size="sm"
+            type="button"
+          >
+            {pending ? "scheduling…" : "schedule"}
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function LeadInlineDetail(props: {
   actionStatus: string | null;
   currentMemberId: string;
@@ -406,6 +631,7 @@ function LeadInlineDetail(props: {
   onClose: () => void;
   onOpenConversation: (leadId: string) => void;
   onPrimaryAction: (lead: LeadRecord) => void | Promise<void>;
+  onActionStatusChange?: (status: string | null) => void;
   surface?: "panel" | "drawer";
 }) {
   const automationPaused = props.lead.automationMode !== "ai_on";
@@ -669,14 +895,25 @@ function LeadInlineDetail(props: {
                 <MessageSquare className="h-4 w-4" />
                 Message
               </Button>
-              <Button className={detailActionClass} size="sm" type="button" variant="outline">
-                <CalendarClock className="h-4 w-4" />
-                Schedule
-              </Button>
-              <Button className={detailActionClass} size="sm" type="button" variant="outline">
-                <ExternalLink className="h-4 w-4" />
-                View in FUB
-              </Button>
+              {props.lead.phone === null || props.lead.phone.trim().length === 0 ? (
+                <Button className={cn(detailActionClass, "opacity-50")} disabled size="sm" type="button" variant="outline">
+                  <Phone className="h-4 w-4" />
+                  No phone
+                </Button>
+              ) : (
+                <Button asChild className={detailActionClass} size="sm" type="button" variant="outline">
+                  <a href={`tel:${props.lead.phone}`}>
+                    <Phone className="h-4 w-4" />
+                    Call {props.lead.phone}
+                  </a>
+                </Button>
+              )}
+              <SchedulePopover
+                lead={props.lead}
+                triggerClassName={detailActionClass}
+                drawerSurface={drawerSurface}
+                onScheduled={(message) => props.onActionStatusChange?.(message)}
+              />
               <Button className={detailActionClass} onClick={() => void props.onPrimaryAction(props.lead)} size="sm" type="button" variant="outline">
                 <Bot className="h-4 w-4" />
                 AI Action
@@ -688,31 +925,17 @@ function LeadInlineDetail(props: {
             <p className={cn("mb-3 text-xs font-medium uppercase tracking-[0.12em]", faintText)}>
               Activity Timeline
             </p>
-            <div className="space-y-3">
-              {[
-                { title: "Lead captured", description: props.lead.message, actor: "lead", time: props.lead.lastTouch },
-                { title: "Qualification updated", description: `${props.lead.intent} / ${props.lead.area} / ${props.lead.budget}`, actor: "harwick", time: "live" },
-                { title: "Routing checked", description: props.lead.routeReason, actor: "harwick", time: props.lead.assignedTo },
-              ].map((event, index) => (
-                <div className="flex gap-3" key={`${event.title}-${index}`}>
-                  <div className="flex flex-col items-center">
-                    <div className={cn("flex h-8 w-8 items-center justify-center rounded-full", event.actor === "harwick" ? "bg-primary" : drawerSurface ? "bg-white/[0.04]" : "bg-[color:var(--panel-2)]")}>
-                      {event.actor === "harwick" ? (
-                        <Bot className="h-4 w-4 text-primary-foreground" />
-                      ) : (
-                        <Clock className={cn("h-4 w-4", mutedText)} />
-                      )}
-                    </div>
-                    {index === 2 ? null : <div className={cn("w-px flex-1", drawerSurface ? "bg-white/[0.08]" : "bg-[color:var(--panel-line)]")} />}
-                  </div>
-                  <div className="flex-1 pb-4">
-                    <p className={cn("text-sm font-medium", primaryText)}>{event.title}</p>
-                    <p className={cn("mt-0.5 text-xs", mutedText)}>{event.description}</p>
-                    <p className={cn("mt-1 text-xs", faintText)}>{event.time}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <LeadTimelineList
+              events={props.lead.timelineEvents}
+              fallback={{
+                lastTouch: props.lead.lastTouch,
+                message: props.lead.message,
+              }}
+              drawerSurface={drawerSurface}
+              primaryText={primaryText}
+              mutedText={mutedText}
+              faintText={faintText}
+            />
           </div>
 
           {props.actionStatus ? <div className={cn("text-xs", faintText)}>{props.actionStatus}</div> : null}
@@ -1161,6 +1384,7 @@ export function LeadsPageContent(props: { workspaceId: string; workspaceName: st
             }}
             onOpenConversation={(leadId) => router.push(`/conversations?leadId=${leadId}`)}
             onPrimaryAction={(lead) => void handlePrimaryAction(lead)}
+            onActionStatusChange={setActionStatus}
           />
         ) : (
           <div className="flex h-full flex-col border-l border-[color:var(--panel-line)]/50 bg-[color:var(--panel-1)] p-6">
@@ -1218,6 +1442,7 @@ export function LeadsPageContent(props: { workspaceId: string; workspaceName: st
                 }}
                 onOpenConversation={(leadId) => router.push(`/conversations?leadId=${leadId}`)}
                 onPrimaryAction={(lead) => void handlePrimaryAction(lead)}
+                onActionStatusChange={setActionStatus}
                 surface="drawer"
               />
             ) : null}

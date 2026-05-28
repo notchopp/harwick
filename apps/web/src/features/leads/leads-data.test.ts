@@ -117,6 +117,7 @@ function buildRepository(): LeadsPageRepository {
           : null,
       );
     }),
+    loadLeadTimeline: vi.fn().mockResolvedValue([]),
   };
 }
 
