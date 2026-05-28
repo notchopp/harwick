@@ -98,6 +98,25 @@ export type LeadCaptureCardPayload = {
   nextStep: string;
 };
 
+export type AreaFactsCardPayload = {
+  kind: "area_facts_card";
+  // Human label above the cards row — "Nearby middle schools",
+  // "Top fiber providers", "Off-leash parks", etc. Model writes this.
+  title: string;
+  // 1 short clause the model puts above the cards as context.
+  // E.g. "since you mentioned 3 kids middle school". Keeps the
+  // proactive surface feeling reasoned, not algorithmic.
+  reason: string | null;
+  items: Array<{
+    name: string;
+    subtitle: string | null;
+    summary: string;
+    imageUrl: string | null;
+    sourceUrl: string;
+    score: string | null;
+  }>;
+};
+
 /* ─────────  Shared deps + collector  ───────── */
 
 /**
@@ -562,7 +581,7 @@ export function buildListingChatTools(deps: ListingChatToolDeps) {
      * walkability of a sub-area).
      */
     lookup_area_info: tool({
-      description: "Look up specific area info (schools by name, restaurants, walkability, demographics). ALWAYS cite source in your reply ('Per GreatSchools, Cinco Ranch HS is 9/10'). If empty, say so honestly.",
+      description: "Look up specific area info (schools, fiber/ISPs, parks, restaurants, walkability, HOA rules, demographics). CRITICAL: if the lookup returns 2+ named items (schools, providers, parks, etc), you MUST immediately call `surface_area_facts` next with the top 2-3 items as cards — NEVER list 2+ named items in prose. If only 1 item or pure prose answer, cite the source inline.",
       inputSchema: z.object({
         query: z.string().min(3).max(160),
       }),
@@ -578,6 +597,42 @@ export function buildListingChatTools(deps: ListingChatToolDeps) {
           contextLocation,
           apiKey: deps.searchApiKey,
         });
+      },
+    }),
+
+    /**
+     * Drop 2-3 tappable cards summarizing area facts (schools, fiber
+     * providers, parks, restaurants, gyms, etc). Companion to
+     * `lookup_area_info` — when the lookup returns multiple items
+     * (e.g. 3 nearby schools) OR when the visitor revealed life
+     * context where a card row would help them more than prose
+     * (e.g. "3 kids middle school" -> middle school cards;
+     * "I'm a streamer" -> fiber ISP cards), use this instead of
+     * writing the names in a paragraph. PROACTIVE surfacing is
+     * encouraged when relevance is clear — see system prompt's
+     * PROACTIVE SURFACING DOCTRINE.
+     */
+    surface_area_facts: tool({
+      description: "Drop a row of 2-3 tappable cards summarizing area facts (schools, fiber, parks, restaurants, gyms, etc). Use AFTER lookup_area_info or PROACTIVELY when the buyer revealed life context that maps to a card row. Each card opens its sourceUrl in a new tab on tap. After calling this, your reply text MUST NOT list the same items in prose — short hook + question only.",
+      inputSchema: z.object({
+        title: z.string().min(3).max(80).describe("Human label above the row. Examples: 'Nearby middle schools', 'Top fiber providers in Sunterra', 'Off-leash parks within 10 min'."),
+        reason: z.string().min(1).max(180).nullable().describe("ONE short clause explaining why this surfaced. Example: 'since you mentioned 3 kids middle school'. Null when surfaced in direct response to a question."),
+        items: z.array(z.object({
+          name: z.string().min(1).max(120),
+          subtitle: z.string().min(1).max(100).nullable().describe("One short clause under the name. E.g. 'K-5, Fort Bend ISD' or 'fiber · 1 Gbps' or '4.5★ on Google'."),
+          summary: z.string().min(1).max(280).describe("One sentence of substance. Cite source if applicable."),
+          imageUrl: z.string().url().nullable(),
+          sourceUrl: z.string().url(),
+          score: z.string().min(1).max(20).nullable().describe("Rating/score chip — 'GreatSchools 9/10', '4.6★', 'A-', 'Gold tier', etc."),
+        })).min(2).max(3),
+      }),
+      execute: async (input): Promise<AreaFactsCardPayload> => {
+        return {
+          kind: "area_facts_card",
+          title: input.title,
+          reason: input.reason,
+          items: input.items,
+        };
       },
     }),
 

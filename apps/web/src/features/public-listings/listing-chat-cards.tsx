@@ -14,6 +14,7 @@ import { BedDouble, Bath, BadgeDollarSign, Calendar, CheckCircle2, Clock, MapPin
 import { cn } from "../../lib/utils";
 
 import type {
+  AreaFactsCardPayload,
   CMACardPayload,
   CallbackCardPayload,
   LeadCaptureCardPayload,
@@ -28,7 +29,8 @@ type ToolPayload =
   | ShowingProposalCardPayload
   | CallbackCardPayload
   | CMACardPayload
-  | LeadCaptureCardPayload;
+  | LeadCaptureCardPayload
+  | AreaFactsCardPayload;
 
 function isToolPayload(value: unknown): value is ToolPayload {
   return value !== null && typeof value === "object" && "kind" in value && typeof (value as { kind: unknown }).kind === "string";
@@ -49,9 +51,71 @@ export function ToolResultCard({ output, workspaceSlug }: { output: unknown; wor
       return <CMACard payload={output} />;
     case "lead_capture_card":
       return <LeadCaptureCard payload={output} />;
+    case "area_facts_card":
+      return <AreaFactsCard payload={output} />;
     default:
       return null;
   }
+}
+
+function AreaFactsCard({ payload }: { payload: AreaFactsCardPayload }) {
+  return (
+    <div className="my-3 w-full overflow-hidden rounded-2xl border border-white/10 bg-white/[0.025] p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+      <div className="mb-3 flex items-baseline justify-between gap-3 px-0.5">
+        <div className="min-w-0">
+          <div className="truncate text-[13px] font-semibold text-white/86">{payload.title}</div>
+          {payload.reason === null ? null : (
+            <div className="mt-0.5 truncate text-[11px] text-white/48">{payload.reason}</div>
+          )}
+        </div>
+      </div>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {payload.items.map((item, idx) => (
+          <a
+            key={`${item.name}-${idx}`}
+            href={item.sourceUrl}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="group flex flex-col overflow-hidden rounded-xl border border-white/8 bg-white/[0.035] transition-all hover:border-white/16 hover:bg-white/[0.06]"
+          >
+            <div className="relative aspect-[4/3] w-full overflow-hidden bg-white/[0.05]">
+              {item.imageUrl === null ? (
+                <div className="flex h-full w-full items-center justify-center">
+                  <div className="font-display text-2xl font-medium text-white/24">
+                    {item.name.split(/\s+/).map((p) => p[0]).join("").slice(0, 2).toUpperCase()}
+                  </div>
+                </div>
+              ) : (
+                <img
+                  src={item.imageUrl}
+                  alt={item.name}
+                  loading="lazy"
+                  className="h-full w-full object-cover transition-transform group-hover:scale-[1.02]"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = "none";
+                  }}
+                />
+              )}
+              {item.score === null ? null : (
+                <div className="absolute right-2 top-2 rounded-full border border-white/14 bg-black/45 px-2 py-0.5 text-[10px] font-medium text-white/90 backdrop-blur-sm">
+                  {item.score}
+                </div>
+              )}
+            </div>
+            <div className="flex flex-1 flex-col gap-1.5 px-3 py-2.5">
+              <div className="truncate text-[12.5px] font-semibold text-white/88">{item.name}</div>
+              {item.subtitle === null ? null : (
+                <div className="truncate text-[10.5px] font-medium uppercase tracking-[0.06em] text-white/44">
+                  {item.subtitle}
+                </div>
+              )}
+              <div className="line-clamp-2 text-[11.5px] leading-[1.45] text-white/62">{item.summary}</div>
+            </div>
+          </a>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function formatPrice(price: number | null): string {

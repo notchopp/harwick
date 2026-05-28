@@ -26,7 +26,13 @@ export type AreaLookupResult = {
     title: string;
     url: string;
     snippet: string;
+    // Image URL when Tavily found one for this result. Used by
+    // `surface_area_facts` to render image-led cards in the chat.
+    imageUrl: string | null;
   }>;
+  // Standalone image URLs Tavily surfaced for the query (separate from
+  // per-result imagery). Falls back to citation imageUrls if empty.
+  images: string[];
 };
 
 type TavilySearchResponse = {
@@ -40,6 +46,9 @@ type TavilySearchResponse = {
     content?: string;
     score?: number;
   }>;
+  // Tavily returns up to 5 images when `include_images: true`.
+  // Useful for amenity / park / restaurant / school cards.
+  images?: string[];
 };
 
 export async function lookupAreaInfo(params: {
@@ -59,6 +68,7 @@ export async function lookupAreaInfo(params: {
       reason: "no_api_key",
       summary: "Area-lookup search is not configured (TAVILY_API_KEY missing). Tell the buyer the agent will confirm specifics.",
       citations: [],
+      images: [],
     };
   }
 
@@ -86,6 +96,8 @@ export async function lookupAreaInfo(params: {
         // affordance that Brave lacks.
         include_answer: true,
         include_raw_content: false,
+        // Up to 5 image URLs Harwick can drop into card UIs.
+        include_images: true,
       }),
       signal: controller.signal,
     });
@@ -98,6 +110,7 @@ export async function lookupAreaInfo(params: {
         reason: "rate_limited",
         summary: "Area-lookup is temporarily rate-limited. Tell the buyer the agent will confirm specifics.",
         citations: [],
+        images: [],
       };
     }
     if (!response.ok) {
@@ -107,14 +120,19 @@ export async function lookupAreaInfo(params: {
         reason: "api_error",
         summary: `Area-lookup failed (HTTP ${response.status}). Tell the buyer the agent will confirm specifics.`,
         citations: [],
+        images: [],
       };
     }
 
     const data = await response.json() as TavilySearchResponse;
-    const results = (data.results ?? []).slice(0, 5).map((entry) => ({
+    const images = (data.images ?? []).filter((url): url is string => typeof url === "string" && url.length > 0).slice(0, 5);
+    const results = (data.results ?? []).slice(0, 5).map((entry, index) => ({
       title: (entry.title ?? "").trim().slice(0, 240),
       url: (entry.url ?? "").trim(),
       snippet: (entry.content ?? "").trim().slice(0, 480),
+      // Pair each result with an image when we have enough — the model
+      // can use this for `surface_area_facts` to render image-led cards.
+      imageUrl: images[index] ?? null,
     })).filter((entry) => entry.title.length > 0 && entry.url.length > 0);
 
     if (results.length === 0) {
@@ -124,6 +142,7 @@ export async function lookupAreaInfo(params: {
         reason: "no_results",
         summary: `No web results for "${compositeQuery}". Acknowledge to the buyer and offer to have the agent confirm.`,
         citations: [],
+        images: [],
       };
     }
 
@@ -144,6 +163,7 @@ export async function lookupAreaInfo(params: {
       available: true,
       summary,
       citations: results,
+      images,
     };
   } catch (error) {
     clearTimeout(timeout);
@@ -153,6 +173,7 @@ export async function lookupAreaInfo(params: {
       reason: "api_error",
       summary: `Area-lookup error: ${error instanceof Error ? error.message : String(error)}. Tell the buyer the agent will confirm.`,
       citations: [],
+      images: [],
     };
   }
 }

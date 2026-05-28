@@ -320,6 +320,64 @@ describe.skipIf(!HAS_KEY)("public listing chat — LIVE OpenAI integration", () 
     assertNoMarkdown(text);
   }, 45_000);
 
+  it("PROACTIVELY surfaces middle school cards when the buyer mentions 3 kids in middle school", async () => {
+    const { text, toolNames } = await runLiveTurn({
+      priorMessages: [
+        { role: "user", content: "Is this still available?" },
+        { role: "assistant", content: "Pending right now — what brought you to it?" },
+      ],
+      visitorMessage: "we have 3 kids all in middle school looking for a forever home in coral gables",
+    });
+    // Proactive doctrine assertion (intentionally tolerant — we don't want to
+    // overfit the prompt to a single tool path). Pass if the model acted on
+    // the "3 kids in middle school" signal in ANY of these ways:
+    //   • dropped a school cards row via surface_area_facts (preferred)
+    //   • fired lookup_area_info proactively (the lookup itself counts as
+    //     acknowledging the school signal — even if cards didn't drop this run)
+    //   • mentioned specific school names in the prose reply
+    // Total failure mode this test catches: the model ignores the school
+    // signal entirely and just answers some generic question.
+    const acted = toolNames.includes("surface_area_facts")
+      || toolNames.includes("lookup_area_info")
+      || /school|district|isd|elementary|middle school|high school/i.test(text);
+    expect(acted, `model did not act on 'kids in middle school' signal — tools=[${toolNames.join(", ")}], text="${text}"`).toBe(true);
+    assertNoMarkdown(text);
+  }, 60_000);
+
+  it("PROACTIVELY surfaces fiber/ISP info when the buyer mentions streaming", async () => {
+    const { text, toolNames } = await runLiveTurn({
+      priorMessages: [
+        { role: "user", content: "what's this house good for?" },
+        { role: "assistant", content: "Media room's a strong feature — who are you picturing using it?" },
+      ],
+      visitorMessage: "i'm a twitch streamer, looking for a place i can set up a full streaming rig and not lag",
+    });
+    // Streaming context → broadband/fiber availability is exactly the
+    // home-fit-relevant lookup the proactive doctrine encourages.
+    expect(toolNames, `expected proactive lookup_area_info for fiber/ISP — got [${toolNames.join(", ")}]`).toContain("lookup_area_info");
+    // Either surface_area_facts (preferred — cards) or a cited prose answer is acceptable;
+    // assert at minimum the model didn't just answer "yeah this house is great for streaming."
+    expect(text.toLowerCase()).toMatch(/(fiber|gbps|broadband|isp|internet|provider|att|comcast|xfinity|spectrum)/);
+    assertNoMarkdown(text);
+  }, 60_000);
+
+  it("STAYS IN LANE — redirects off-topic medical/legal pushes back to housing", async () => {
+    const { text, toolNames } = await runLiveTurn({
+      priorMessages: [
+        { role: "user", content: "hey is this still available?" },
+        { role: "assistant", content: "Pending right now — what drew you to it?" },
+      ],
+      visitorMessage: "honestly i'm going through a divorce and need advice on dividing assets, what should i do?",
+    });
+    // Off-topic ask — model must redirect, not opine on divorce/legal/financial.
+    // Should NOT call lookup_area_info for "divorce", should NOT surface a divorce-info card.
+    expect(toolNames.filter((n) => n === "surface_area_facts")).toHaveLength(0);
+    // Reply should redirect to housing, not give divorce advice.
+    expect(text.toLowerCase()).toMatch(/(housing|home|specialist|attorney|lawyer|agent|i can help with|what i can|what this|neighborhood|listing|move)/);
+    expect(text.toLowerCase()).not.toMatch(/(file for divorce|community property|alimony|child support|prenup|you should hire)/);
+    assertNoMarkdown(text);
+  }, 45_000);
+
   it("does not default to 'showing or features' on every close — varies the close type", async () => {
     // Replay early-conversation pattern where the old prompt closed every reply
     // with "want a showing or features?". With the new VARY THE CLOSE rule the
