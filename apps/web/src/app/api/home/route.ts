@@ -25,6 +25,76 @@ export const runtime = "nodejs";
 const emptyTeamPresence = (workspaceId: string) =>
   TeamPresenceResponseSchema.parse({ workspaceId, members: [] });
 
+/**
+ * Surface pending callback tasks as a home-queue payload. This is what
+ * makes scheduled callbacks (created from the /leads drawer Schedule
+ * popover or by Harwick when the buyer asked for one) actually appear
+ * in /home. Without this, lead_tasks rows existed in the DB but never
+ * rendered anywhere — the queue looked empty even when work was waiting.
+ *
+ * Joined to the lead so we have a display name for the title.
+ */
+async function loadCallbackTaskQueue(params: {
+  workspaceId: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any;
+  limit: number;
+}): Promise<{
+  workspaceId: string;
+  items: Array<{
+    id: string;
+    workspaceId: string;
+    leadId: string | null;
+    title: string;
+    detail: string;
+    priority: string;
+    dueAt: string | null;
+    createdAt: string;
+    leadName: string | null;
+    leadPhone: string | null;
+  }>;
+}> {
+  const { data, error } = await params.supabase
+    .from("lead_tasks")
+    .select(
+      "id, workspace_id, lead_id, title, description, priority, due_at, created_at, leads!inner(full_name, phone, instagram_username)",
+    )
+    .eq("workspace_id", params.workspaceId)
+    .eq("task_type", "callback")
+    .eq("status", "pending")
+    .order("due_at", { ascending: true, nullsFirst: false })
+    .limit(params.limit);
+  if (error !== null) throw error;
+
+  const items = (data ?? []).map((row: {
+    id: string;
+    workspace_id: string;
+    lead_id: string | null;
+    title: string;
+    description: string | null;
+    priority: string;
+    due_at: string | null;
+    created_at: string;
+    leads: { full_name: string | null; phone: string | null; instagram_username: string | null } | null;
+  }) => ({
+    id: row.id,
+    workspaceId: row.workspace_id,
+    leadId: row.lead_id,
+    title: row.title,
+    detail: row.description ?? "Scheduled callback awaiting action.",
+    priority: row.priority,
+    dueAt: row.due_at,
+    createdAt: row.created_at,
+    leadName: row.leads?.full_name?.trim()
+      ?? row.leads?.phone?.trim()
+      ?? row.leads?.instagram_username?.trim()
+      ?? null,
+    leadPhone: row.leads?.phone ?? null,
+  }));
+
+  return { workspaceId: params.workspaceId, items };
+}
+
 export async function GET(request: NextRequest) {
   try {
     const requestedWorkspaceId = request.nextUrl.searchParams.get("workspaceId");
@@ -54,6 +124,7 @@ export async function GET(request: NextRequest) {
       harwickWorkItems,
       fubConflicts,
       operationsFailures,
+      callbackQueue,
     ] = await Promise.all([
       loadTeamPresence({
         workspaceId,
@@ -145,6 +216,14 @@ export async function GET(request: NextRequest) {
           return null;
         })
         : Promise.resolve(null),
+      loadCallbackTaskQueue({
+        workspaceId,
+        supabase,
+        limit: 10,
+      }).catch((error: unknown) => {
+        console.error("GET /api/home callback queue error:", error);
+        return null;
+      }),
     ]);
 
     return NextResponse.json({
@@ -163,6 +242,7 @@ export async function GET(request: NextRequest) {
       },
       fubConflicts,
       operationsFailures,
+      callbackQueue,
     });
   } catch (error) {
     console.error("GET /api/home error:", error);

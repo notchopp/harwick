@@ -580,7 +580,46 @@ export function mapHomePayloadToWorkItems(
     })
     : [];
 
-  return [...mappedHarwick, ...mappedOperationsFailures, ...mappedFubConflicts, ...mappedSocial, ...mappedVoice];
+  // Scheduled callbacks from lead_tasks (status=pending, task_type=callback).
+  // These are rows created by the /leads drawer Schedule popover, the voice
+  // handoff callback flow, and Harwick-initiated callbacks. Surfacing them
+  // here is what stops /home from looking empty when work actually exists.
+  const callbackQueueRaw = readObject(payload["callbackQueue"]);
+  const callbackItems = Array.isArray(callbackQueueRaw?.["items"]) ? callbackQueueRaw["items"] : [];
+  const mappedCallbacks: WorkItem[] = callbackItems.flatMap((entry): WorkItem[] => {
+    const row = readObject(entry);
+    if (row === null) return [];
+    const workspaceId = readString(row, "workspaceId");
+    const leadId = readString(row, "leadId");
+    const title = readString(row, "title") ?? "Scheduled callback";
+    const detail = readString(row, "detail") ?? "Pending callback awaiting action.";
+    const dueAt = readString(row, "dueAt");
+    const priority = readString(row, "priority") ?? "normal";
+    const taskId = readString(row, "id");
+    const thread = leadId === null ? null : threadMap.get(leadId) ?? null;
+
+    const task: Task = {
+      type: "callback",
+      label: "Callback",
+      title,
+      detail,
+      time: dueAt ?? readString(row, "createdAt") ?? new Date().toISOString(),
+      action: "Call back",
+      tone: priority === "urgent" ? "red" : priority === "high" ? "amber" : "green",
+      icon: Phone,
+    };
+    if (workspaceId !== null) task.workspaceId = workspaceId;
+    if (leadId !== null) task.leadId = leadId;
+    if (taskId !== null) task.workItemId = taskId;
+    if (thread !== null) task.thread = thread;
+
+    return [{
+      kind: "task",
+      item: task,
+    }];
+  });
+
+  return [...mappedCallbacks, ...mappedHarwick, ...mappedOperationsFailures, ...mappedFubConflicts, ...mappedSocial, ...mappedVoice];
 }
 
 export function getWorkItemKey(entry: WorkItem): string {
