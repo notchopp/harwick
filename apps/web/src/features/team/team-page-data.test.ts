@@ -39,6 +39,7 @@ function createRecentLead(overrides: Partial<RecentLeadItem> = {}): RecentLeadIt
     lastTouchAt: "2026-05-12T12:30:00.000Z",
     lastTouchLabel: "12m ago",
     assignedDisplayName: "Sarah Chen",
+    score: 80,
     ...overrides,
   };
 }
@@ -73,6 +74,7 @@ function createRoutingItem(overrides: Partial<RoutingDeskItem> = {}): RoutingDes
       escalationMemberId: null,
       matchScore: 92,
       taskLabel: "Route to Sarah Chen",
+      candidates: [],
     },
     ...overrides,
   };

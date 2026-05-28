@@ -27,6 +27,7 @@ describe("Harwick assistant context summaries", () => {
       lastTouchAt: "2026-05-13T12:00:00.000Z",
       lastTouchLabel: "12m ago",
       assignedDisplayName: null,
+      score: 0,
     };
 
     expect(buildHarwickRecentLeadSummary(lead)).toBe("@ava — Owner review · Instagram DM · last touch 12m ago · needs routing");
@@ -62,6 +63,7 @@ describe("Harwick assistant context summaries", () => {
         matchScore: 88,
         taskLabel: "Route to Sarah",
         reasons: ["Bethesda coverage and lower active workload"],
+        candidates: [],
       },
     };
 

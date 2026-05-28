@@ -189,6 +189,7 @@ export async function routeLeadWithHarwick(params: {
       matchScore: 100,
       taskLabel: "manual_assignment",
       reasons: [parsedInput.manualReason ?? `Manual assignment by ${params.viewer.role}.`],
+      candidates: [],
     };
 
     const routingDecisionId = await insertRoutingDecision({

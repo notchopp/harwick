@@ -108,28 +108,127 @@ function HotLeadRow({ lead, onOpenDetail }: { lead: RecentLeadItem; onOpenDetail
   );
 }
 
-function RoutingRow({ item, enabled }: { item: RoutingDeskItem; enabled: boolean }) {
+/**
+ * Routing-desk row, redesigned to be ACTIONABLE.
+ *
+ * Old version showed "→ unassigned / no available agent matched area..." with
+ * an Open-lead link. The operator had to leave the page to do anything.
+ *
+ * New version: a denser card showing the lead + qualification context plus
+ * a compact suggested-agent strip. Each candidate row has its match score
+ * and a one-tap "Assign" button that POSTs to the existing manual-assignment
+ * endpoint. On success the lead disappears from the desk.
+ */
+function RoutingRow({ item, enabled, onAssigned }: {
+  item: RoutingDeskItem;
+  enabled: boolean;
+  onAssigned: (leadId: string, agentName: string) => void;
+}) {
   const decision = item.decision;
+  const [pendingMemberId, setPendingMemberId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const candidates = decision.candidates.length > 0
+    ? decision.candidates
+    : decision.assignedMemberId !== null && decision.assignedDisplayName !== null
+      // Backfill from the assigned member when candidates is empty (older payloads).
+      ? [{ memberId: decision.assignedMemberId, displayName: decision.assignedDisplayName, matchScore: decision.matchScore, reasons: decision.reasons }]
+      : [];
+
+  async function assign(memberId: string, displayName: string) {
+    if (pendingMemberId !== null) return;
+    setPendingMemberId(memberId);
+    setError(null);
+    try {
+      const response = await fetch(
+        `/api/workspaces/${item.workspaceId}/leads/${item.leadId}/routing`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            mode: "manual",
+            manualMemberId: memberId,
+            manualReason: `Routed from /home desk by operator (match score ${candidates.find((c) => c.memberId === memberId)?.matchScore ?? "n/a"}).`,
+          }),
+        }
+      );
+      if (response.ok) {
+        onAssigned(item.leadId, displayName);
+      } else {
+        const body = await response.json().catch(() => ({ error: "failed" }));
+        setError(`Couldn't assign: ${body.error ?? response.status}`);
+      }
+    } catch {
+      setError("Network error");
+    } finally {
+      setPendingMemberId(null);
+    }
+  }
+
   return (
-    <div className={cn("grid items-start gap-3 px-4 py-3 md:grid-cols-[1fr_1fr_auto]", rowBase)}>
-      <div className="min-w-0">
-        <div className="text-[13px] font-medium text-white">{item.leadName}</div>
-        <div className="mt-0.5 truncate text-[11.5px] text-white/52">
-          {item.source} · {item.qualification.leadType}
+    <div className={cn("flex flex-col gap-2.5 px-4 py-3", rowBase)}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="text-[13.5px] font-medium text-white">{item.leadName}</span>
+            <span className="font-mono text-[10.5px] text-white/52">score {item.qualification.score}</span>
+          </div>
+          <div className="mt-0.5 truncate text-[11.5px] text-white/52">
+            {item.qualification.leadType}
+            {item.qualification.targetArea === null ? "" : ` · ${item.qualification.targetArea}`}
+            {item.qualification.timeline === null ? "" : ` · ${item.qualification.timeline}`}
+          </div>
+          <div className="mt-1 line-clamp-2 text-[12px] leading-5 text-white/72">{item.summary}</div>
         </div>
-      </div>
-      <div className="min-w-0 text-[12px] leading-5 text-white/60">
-        <div className="font-medium text-white">→ {decision.assignedDisplayName ?? "unassigned"}</div>
-        <div className="line-clamp-2">{decision.reasons[0] ?? item.summary}</div>
-      </div>
-      <div className="flex flex-col items-end gap-1.5">
         <a
           href={`/leads?leadId=${item.leadId}`}
-          className="inline-flex shrink-0 items-center gap-1 rounded-[8px] border border-white/[0.08] bg-white/[0.025] px-2.5 py-1.5 text-[11.5px] font-medium text-white/82 transition hover:border-white/[0.16] hover:bg-white/[0.05] hover:text-white"
+          className="inline-flex shrink-0 items-center gap-1 rounded-[8px] border border-white/[0.08] bg-white/[0.025] px-2.5 py-1.5 text-[11px] font-medium text-white/82 transition hover:border-white/[0.16] hover:bg-white/[0.05] hover:text-white"
+          aria-label="Open lead"
         >
-          Open lead
           <ArrowRight className="size-3" aria-hidden="true" />
         </a>
+      </div>
+
+      {candidates.length > 0 ? (
+        <div className="rounded-[10px] border border-white/[0.06] bg-white/[0.02] p-1.5">
+          <div className="px-1.5 pb-1 pt-0.5 text-[9.5px] font-semibold uppercase tracking-[0.14em] text-white/40">
+            {decision.status === "assigned" ? `suggested · auto-assigned to ${decision.assignedDisplayName ?? "—"}` : "best fits"}
+          </div>
+          <div className="space-y-1">
+            {candidates.map((cand) => (
+              <div key={cand.memberId} className="flex items-center justify-between gap-2 rounded-[8px] px-2 py-1.5 hover:bg-white/[0.04]">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="truncate text-[12.5px] font-medium text-white">{cand.displayName}</span>
+                    <span className="font-mono text-[10px] text-white/52">{cand.matchScore}/100</span>
+                  </div>
+                  {cand.reasons[0] !== undefined ? (
+                    <div className="mt-0.5 truncate text-[10.5px] text-white/48">{cand.reasons.slice(0, 2).join(" · ")}</div>
+                  ) : null}
+                </div>
+                <button
+                  type="button"
+                  disabled={pendingMemberId !== null || !enabled}
+                  onClick={() => void assign(cand.memberId, cand.displayName)}
+                  className={cn(
+                    "inline-flex shrink-0 items-center gap-1 rounded-[7px] border px-2.5 py-1 text-[11px] font-semibold transition disabled:cursor-not-allowed disabled:opacity-50",
+                    cand === candidates[0]
+                      ? "border-[var(--sage)]/40 bg-[var(--sage)]/12 text-[var(--sage)] hover:border-[var(--sage)]/60 hover:bg-[var(--sage)]/22"
+                      : "border-white/[0.1] bg-white/[0.04] text-white/72 hover:border-white/[0.2] hover:bg-white/[0.08] hover:text-white",
+                  )}
+                >
+                  {pendingMemberId === cand.memberId ? "assigning…" : "Assign"}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-[8px] border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-[11.5px] text-white/52">
+          {decision.reasons[0] ?? "No agent profiles match this lead yet."}
+        </div>
+      )}
+      {error === null ? null : <div className="text-[10.5px] text-[var(--oxblood)]">{error}</div>}
+      <div className="flex justify-end">
         <FeedbackButtons
           size="sm"
           compact
@@ -400,9 +499,12 @@ export function HomeOperatorPage(props: HomeOperatorPageProps) {
   const totalQueue = myQueue.length;
 
   const insights = deriveInsights({ workItems: myQueue, recentLeads: myLeads, routing: myRouting, tier: scope.tier });
-  // "Hot" = either (a) the lead is in the urgent work-item queue, or
-  // (b) it's freshly new in the last 24h and still untouched. Skip everything
-  // else so this section stops mirroring the full lead list.
+  // "Hot" = any of:
+  //   (a) the lead is in the urgent work-item queue (red-tone task or any reply),
+  //   (b) score >= 80 (the deriveLeadScore threshold for serious intent + signals),
+  //   (c) freshly new in the last 24h and still untouched.
+  // Prior version only allowed (a) + (c with stage==="new"), which silently
+  // hid high-scoring qualified leads like Clinton (87, stage="qualified").
   const hotLeadIdsFromQueue = new Set<string>();
   for (const entry of myQueue) {
     if (entry.kind === "task" && entry.item.tone === "red" && entry.item.leadId !== undefined && entry.item.leadId !== null) {
@@ -416,10 +518,11 @@ export function HomeOperatorPage(props: HomeOperatorPageProps) {
   const hotLeads = myLeads
     .filter((lead) => {
       if (hotLeadIdsFromQueue.has(lead.id)) return true;
-      if (lead.stage !== "new") return false;
-      if (lead.lastTouchAt === null) return false;
-      return Date.parse(lead.lastTouchAt) >= twentyFourHoursAgo;
+      if (lead.score >= 80) return true;
+      if (lead.stage === "new" && lead.lastTouchAt !== null && Date.parse(lead.lastTouchAt) >= twentyFourHoursAgo) return true;
+      return false;
     })
+    .sort((a, b) => b.score - a.score)
     .slice(0, 5);
   const enabled = actionsEnabled(scope);
 
@@ -608,8 +711,18 @@ export function HomeOperatorPage(props: HomeOperatorPageProps) {
                     No routing calls right now — every active lead has an owner.
                   </div>
                 ) : (
-                  <div className={cn("overflow-hidden", cardBase)}>
-                    {myRouting.slice(0, 4).map((item) => <RoutingRow key={item.leadId} item={item} enabled={enabled} />)}
+                  <div className={cn("overflow-hidden divide-y divide-white/[0.05]", cardBase)}>
+                    {myRouting.slice(0, 4).map((item) => (
+                      <RoutingRow
+                        key={item.leadId}
+                        item={item}
+                        enabled={enabled}
+                        onAssigned={(leadId, agentName) => {
+                          setStatus(`Assigned ${item.leadName} to ${agentName}.`);
+                          void refresh();
+                        }}
+                      />
+                    ))}
                   </div>
                 )}
               </section>
@@ -667,63 +780,18 @@ export function HomeOperatorPage(props: HomeOperatorPageProps) {
               </section>
             ) : null}
 
-            <section>
-              <SectionHead dot="bg-[var(--sage)]" title="What Harwick noticed" />
-              <div className={cn("overflow-hidden", cardBase)}>
-                {insights.map((insight, index) => (
-                  <InsightCard key={index} insight={insight} />
-                ))}
-              </div>
-            </section>
           </div>
         </div>
 
-        {showOpsHealth(scope) ? (
-          <section className="mt-8">
-            <SectionHead dot="bg-[var(--sage)]" title="System" />
-            <div className={cn("flex flex-wrap gap-2 p-3", cardBase)}>
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.03] px-2.5 py-1 text-[11.5px] text-white/86">
-                <span className="size-1.5 rounded-full bg-[var(--sage)]" aria-hidden="true" />
-                Inbound webhooks
-                <span className="font-mono text-[10.5px] text-white/40">healthy</span>
-              </span>
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.03] px-2.5 py-1 text-[11.5px] text-white/86">
-                <span className="size-1.5 rounded-full bg-[var(--sage)]" aria-hidden="true" />
-                FUB sync
-                <span className="font-mono text-[10.5px] text-white/40">current</span>
-              </span>
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.03] px-2.5 py-1 text-[11.5px] text-white/86">
-                <span className="size-1.5 rounded-full bg-[var(--sage)]" aria-hidden="true" />
-                Voice runtime
-                <span className="font-mono text-[10.5px] text-white/40">p50 0.6s</span>
-              </span>
-              <span className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.03] px-2.5 py-1 text-[11.5px] text-white/52">
-                <ShieldCheck className="size-3" aria-hidden="true" />
-                {scope.tier === "ops" ? "Ops view" : "Owner view"}
-              </span>
-            </div>
-            {scope.tier === "ops" ? (
-              <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                <div className={cn("p-3", cardBase)}>
-                  <div className="mb-1 flex items-center gap-1.5 text-[10.5px] font-medium uppercase tracking-[0.1em] text-white/52">
-                    <Users className="size-3" aria-hidden="true" />
-                    Voice deflection
-                  </div>
-                  <div className="text-[15px] font-semibold text-white">11 / 12</div>
-                  <p className="text-[11.5px] text-white/52">handled without handoff this week (p50 0.6s)</p>
-                </div>
-                <div className={cn("p-3", cardBase)}>
-                  <div className="mb-1 flex items-center gap-1.5 text-[10.5px] font-medium uppercase tracking-[0.1em] text-white/52">
-                    <ShieldCheck className="size-3" aria-hidden="true" />
-                    Auto-send guardrail
-                  </div>
-                  <div className="text-[15px] font-semibold text-white">0 violations</div>
-                  <p className="text-[11.5px] text-white/52">no policy breaches in the last 24h</p>
-                </div>
-              </div>
-            ) : null}
-          </section>
-        ) : null}
+        {/*
+         * "What Harwick noticed" + "System" tags both removed per operator
+         * feedback: the AI-insight cards read as dumb generic copy and the
+         * system-health pills are hardcoded fakes ("11/12 voice deflection",
+         * "0 violations") with no live telemetry behind them. Real signals
+         * land in the queue, routing desk, hot leads, and schedule pane —
+         * extra panels just dilute the page. If we bring health back, it
+         * should come from real per-workspace probes, not paste-in numbers.
+         */}
         <LeadDetailDrawer
           item={selectedWorkItem}
           open={detailOpen}

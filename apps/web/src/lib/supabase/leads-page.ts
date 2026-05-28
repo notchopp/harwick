@@ -5,27 +5,6 @@ import type { LeadRow } from "./leads";
 import type { ListingFactRow } from "./listings";
 import type { RealtyOpsSupabaseClient } from "./server-client";
 
-/**
- * Turn a chat actor + raw body into a short, human-readable timeline title.
- * Visitor turns get a leading quote so the source is immediately obvious;
- * Harwick/operator turns lead with the speaker.
- */
-function titleForChatTurn(actor: string, body: string): string {
-  const trimmed = body.trim().replace(/\s+/g, " ");
-  const snippet = trimmed.length <= 96 ? trimmed : `${trimmed.slice(0, 96).trimEnd()}…`;
-  if (actor === "visitor") return `Visitor: "${snippet}"`;
-  if (actor === "harwick" || actor === "assistant") return `Harwick: ${snippet}`;
-  if (actor === "operator") return `Operator: ${snippet}`;
-  return snippet;
-}
-
-function actorForChatTurn(rawActor: string): LeadTimelineEvent["actor"] {
-  if (rawActor === "visitor") return "visitor";
-  if (rawActor === "harwick" || rawActor === "assistant") return "harwick";
-  if (rawActor === "operator") return "operator";
-  return "system";
-}
-
 function titleForLeadEvent(eventType: string, sourceChannel: string): string {
   const channel = sourceChannel.replace(/_/g, " ");
   if (eventType === "reply_sent") return `Reply sent on ${channel}`;
@@ -146,33 +125,57 @@ export function createSupabaseLeadsPageRepository(
         occurredAt: params.createdAt,
       });
 
-      const sessionsQuery: { data: Array<{ id: string }> | null } = await untyped
+      // ONE synthesized "Public chat started" milestone from the earliest
+      // session, not the full transcript. The transcript belongs in /convos.
+      const sessionsQuery: {
+        data: Array<{ id: string; started_at: string | null }> | null;
+      } = await untyped
         .from("public_listing_sessions")
-        .select("id")
+        .select("id, started_at")
         .eq("workspace_id", params.workspaceId)
-        .eq("promoted_lead_id", params.leadId);
-      const sessionIds: string[] = (sessionsQuery.data ?? []).map((row) => row.id);
+        .eq("promoted_lead_id", params.leadId)
+        .order("started_at", { ascending: true })
+        .limit(1);
+      const firstSession = sessionsQuery.data?.[0];
+      if (firstSession !== undefined && firstSession.started_at !== null) {
+        events.push({
+          kind: "chat_turn",
+          actor: "visitor",
+          title: "Public chat started",
+          description: "Buyer began chatting on a public listing.",
+          occurredAt: firstSession.started_at,
+        });
+      }
 
-      if (sessionIds.length > 0) {
-        const turnsQuery: {
-          data: Array<{ actor: string; body: string | null; occurred_at: string }> | null;
-        } = await untyped
-          .from("public_listing_session_turns")
-          .select("actor,body,occurred_at")
-          .in("session_id", sessionIds)
-          .not("body", "is", null)
-          .order("occurred_at", { ascending: false })
-          .limit(40);
-        for (const row of turnsQuery.data ?? []) {
-          if (row.body === null) continue;
-          events.push({
-            kind: "chat_turn",
-            actor: actorForChatTurn(row.actor),
-            title: titleForChatTurn(row.actor, row.body),
-            description: row.body.trim().slice(0, 280),
-            occurredAt: row.occurred_at,
-          });
-        }
+      // Scheduled callbacks + showings from lead_tasks (typed: operator).
+      const tasksQuery: {
+        data: Array<{
+          task_type: string;
+          title: string;
+          description: string | null;
+          due_at: string | null;
+          created_at: string;
+        }> | null;
+      } = await untyped
+        .from("lead_tasks")
+        .select("task_type, title, description, due_at, created_at")
+        .eq("workspace_id", params.workspaceId)
+        .eq("lead_id", params.leadId)
+        .in("task_type", ["callback", "showing"])
+        .order("created_at", { ascending: false })
+        .limit(10);
+      for (const row of tasksQuery.data ?? []) {
+        const verb = row.task_type === "showing" ? "Showing scheduled" : "Callback scheduled";
+        const due = row.due_at === null
+          ? ""
+          : ` for ${new Date(row.due_at).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`;
+        events.push({
+          kind: "lead_event",
+          actor: "operator",
+          title: `${verb}${due}`,
+          description: row.description ?? row.title,
+          occurredAt: row.created_at,
+        });
       }
 
       const { data: leadEvents } = await supabase

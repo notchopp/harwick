@@ -36,6 +36,7 @@ function sourceFromChannel(channel: LeadRow["source_channel"]): RecentLeadSource
   if (channel === "call") return "voice";
   if (channel === "sms") return "sms";
   if (channel === "manual" || channel === "csv_import") return "manual";
+  if (channel === "public_listing_chat") return "manual"; // surface as manual until a dedicated `listing_chat` source is added to RecentLeadSource
   if (channel.startsWith("facebook")) return "facebook";
   return "instagram";
 }
@@ -161,6 +162,7 @@ export async function loadRecentLeads(params: {
       assignedDisplayName: lead.assigned_agent_id === null
         ? null
         : memberNames.get(lead.assigned_agent_id) ?? null,
+      score: lead.score,
     });
   });
 

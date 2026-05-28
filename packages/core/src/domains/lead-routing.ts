@@ -60,6 +60,18 @@ export const LeadRoutingInputSchema = z.object({
   roundRobinCursorMemberId: UuidSchema.nullable().default(null),
 });
 
+/**
+ * Candidate = a scored agent suggestion the operator can one-tap into.
+ * Even when status=unrouted, candidates contains the best-fit partial
+ * matches so the desk can render assignable rows instead of dead text.
+ */
+export const LeadRoutingCandidateSchema = z.object({
+  memberId: UuidSchema,
+  displayName: z.string().trim().min(1).max(120),
+  matchScore: z.number().int().min(0).max(100),
+  reasons: z.array(z.string().trim().min(1)).default([]),
+});
+
 export const LeadRoutingDecisionSchema = z.object({
   status: RoutingDecisionStatusSchema,
   assignedMemberId: UuidSchema.nullable(),
@@ -69,6 +81,10 @@ export const LeadRoutingDecisionSchema = z.object({
   matchScore: z.number().int().min(0).max(100),
   taskLabel: z.string().trim().min(1).max(160),
   reasons: z.array(z.string().trim().min(1)).min(1),
+  // Top-3 sorted candidates (best fit first). Populated for both assigned and
+  // unrouted decisions so the UI can offer one-tap fallbacks even when nobody
+  // crossed the auto-assign threshold.
+  candidates: z.array(LeadRoutingCandidateSchema).max(5).default([]),
 });
 
 export type RoutingPropertyType = z.infer<typeof RoutingPropertyTypeSchema>;
@@ -77,6 +93,7 @@ export type LeadRoutingQualification = z.infer<typeof LeadRoutingQualificationSc
 export type AgentRoutingProfile = z.infer<typeof AgentRoutingProfileSchema>;
 export type LeadRoutingInput = z.infer<typeof LeadRoutingInputSchema>;
 export type LeadRoutingDecision = z.infer<typeof LeadRoutingDecisionSchema>;
+export type LeadRoutingCandidate = z.infer<typeof LeadRoutingCandidateSchema>;
 
 function normalize(value: string): string {
   return value.trim().toLowerCase();
@@ -249,23 +266,43 @@ export function decideLeadRouting(input: LeadRoutingInput): LeadRoutingDecision 
         reasons,
       };
     })
-    .filter((entry) => entry.matchScore >= 56)
     .sort((a, b) => b.matchScore - a.matchScore || a.agent.activeLeadCount - b.agent.activeLeadCount);
 
-  if (scoredAgents.length === 0) {
+  // Build candidates list from the top-3 scored agents regardless of threshold.
+  // This is what powers the routing-desk "Assign to X" one-tap fallback rows
+  // when nobody crossed the auto-assign threshold but partial matches exist.
+  const topCandidates = scoredAgents.slice(0, 3).map((entry) => ({
+    memberId: entry.agent.memberId,
+    displayName: entry.agent.displayName,
+    matchScore: entry.matchScore,
+    reasons: entry.reasons,
+  }));
+
+  // Auto-assign threshold lowered from 56 to 40 so leads with a missing field
+  // (e.g. no target_area) but a clear buyer/budget signal still route to a
+  // matching agent automatically. The desk also shows top candidates either
+  // way, so the operator can override.
+  const autoEligible = scoredAgents.filter((entry) => entry.matchScore >= 40);
+
+  if (autoEligible.length === 0) {
     return LeadRoutingDecisionSchema.parse({
       status: "unrouted",
       assignedMemberId: null,
       assignedDisplayName: null,
       sourceOwnerMemberId: qualification.sourceOwnerMemberId,
       escalationMemberId: parsed.escalationMemberId,
-      matchScore: 0,
-      taskLabel: "owner review needed",
-      reasons: ["no available agent matched area, lead type, property type, budget, and capacity"],
+      matchScore: scoredAgents[0]?.matchScore ?? 0,
+      taskLabel: topCandidates.length === 0
+        ? "no available agents — review workspace setup"
+        : "pick the best fit from the suggested agents",
+      reasons: topCandidates.length === 0
+        ? ["no available agent matched area, lead type, property type, budget, and capacity"]
+        : [`partial fit: top candidate is ${topCandidates[0]!.displayName} at ${topCandidates[0]!.matchScore}/100`],
+      candidates: topCandidates,
     });
   }
 
-  const firstMatch = scoredAgents[0];
+  const firstMatch = autoEligible[0];
   if (firstMatch === undefined) {
     return LeadRoutingDecisionSchema.parse({
       status: "unrouted",
@@ -276,11 +313,12 @@ export function decideLeadRouting(input: LeadRoutingInput): LeadRoutingDecision 
       matchScore: 0,
       taskLabel: "owner review needed",
       reasons: ["no available agent matched area, lead type, property type, budget, and capacity"],
+      candidates: topCandidates,
     });
   }
 
   const topScore = firstMatch.matchScore;
-  const topMatches = scoredAgents
+  const topMatches = autoEligible
     .filter((entry) => entry.matchScore === topScore)
     .map((entry) => entry.agent);
   const rotatedTopMatches = rotateMatchedAgents(topMatches, parsed.roundRobinCursorMemberId);
@@ -296,5 +334,6 @@ export function decideLeadRouting(input: LeadRoutingInput): LeadRoutingDecision 
     matchScore: winningEntry.matchScore,
     taskLabel: `new qualified lead for ${assignedAgent.displayName}`,
     reasons: winningEntry.reasons,
+    candidates: topCandidates,
   });
 }

@@ -73,6 +73,7 @@ function routingItem(overrides: Partial<RoutingDeskItem> = {}): RoutingDeskItem 
       matchScore: 0,
       taskLabel: "owner review needed",
       reasons: ["no available agent matched area, lead type, property type, budget, and capacity"],
+      candidates: [],
     },
     ...overrides,
   };
@@ -129,6 +130,7 @@ describe("owner home data", () => {
           matchScore: 74,
           taskLabel: "new qualified lead for Sarah Kim",
           reasons: ["area match: Houston Heights"],
+          candidates: [],
         },
       }),
       routingItem(),

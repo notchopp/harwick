@@ -35,6 +35,10 @@ export const RecentLeadItemSchema = z.object({
   lastTouchAt: IsoDateTimeSchema.nullable(),
   lastTouchLabel: z.string().trim().min(1).max(60),
   assignedDisplayName: z.string().trim().min(1).max(120).nullable(),
+  // Score is the deriveLeadScore output stored on leads.score. Needed so the
+  // /home Hot leads filter can promote a high-scoring lead regardless of stage.
+  // Default 0 keeps the schema backwards compatible for older payloads.
+  score: z.number().int().min(0).max(100).default(0),
 });
 
 export const RecentLeadsResponseSchema = z.object({
