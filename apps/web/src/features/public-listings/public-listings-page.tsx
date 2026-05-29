@@ -45,6 +45,12 @@ export type PublicListingCardData = {
   label: string;
   badgeTone: "prime" | "new" | "reduced" | "sold";
   filter: ListingFilter;
+  /**
+   * All categories a listing matches. Used by the search-bar filter pills
+   * — a listing tagged both "new" and "reduced" appears under either pill.
+   * Always contains "all". Optional for back-compat with cached payloads.
+   */
+  filterTags?: ListingFilter[];
   imageUrl: string;
   photos: string[];
   price: string;
@@ -72,7 +78,7 @@ export type PublicListingCardData = {
   annualTaxRate: number;
 };
 
-type ListingFilter = "all" | "new" | "reduced" | "open-house" | "waterfront";
+export type ListingFilter = "all" | "new" | "reduced" | "open-house" | "waterfront";
 
 type PublicListingsCopy = {
   phone: string | null;
@@ -1488,7 +1494,11 @@ export function PublicListingsPage(props: { listings?: PublicListingCardData[]; 
     const normalizedQuery = searchQuery.trim().toLowerCase();
 
     return listings.filter((listing) => {
-      const matchesFilter = activeFilter === "all" || listing.filter === activeFilter;
+      // Prefer the multi-tag array when present; fall back to the legacy
+      // single-tag `filter` field for cached payloads that haven't been
+      // re-loaded since the loader change.
+      const tags = listing.filterTags ?? [listing.filter];
+      const matchesFilter = activeFilter === "all" || tags.includes(activeFilter);
       const matchesQuery = normalizedQuery.length === 0
         || [
           listing.shortAddress,
@@ -1497,6 +1507,9 @@ export function PublicListingsPage(props: { listings?: PublicListingCardData[]; 
           listing.mls,
           listing.type,
           listing.agent,
+          listing.beds,
+          listing.baths,
+          listing.price,
           ...listing.features,
         ].some((value) => value.toLowerCase().includes(normalizedQuery));
 

@@ -2,7 +2,7 @@ import { cache } from "react";
 
 import type { Json } from "../../lib/supabase/database.types";
 import { createServerSupabaseClient } from "../../lib/supabase/server-client";
-import type { PublicListingCardData } from "./public-listings-page";
+import type { ListingFilter, PublicListingCardData } from "./public-listings-page";
 
 type PublicListingFactRow = {
   id: string;
@@ -125,6 +125,18 @@ function mapPublicListing(row: PublicListingFactRow, workspaceName: string): Pub
   const isSold = status.includes("sold");
   const isWaterfront = features.some((feature) => feature.toLowerCase().includes("waterfront"));
   const isOpenHouse = openHouse !== null;
+  // Multi-tag filter membership — a listing can match several categories at
+  // once (a "new this week" listing that also had a price cut should appear
+  // under BOTH filters). Previously this was a single ternary, which meant
+  // tapping any specific filter pill (e.g. "new this week") hid most
+  // listings because they only got their primary tag. Every listing also
+  // gets "all" so the All pill works as the catch-all.
+  const filterTags: ListingFilter[] = ["all"];
+  if (isReduced) filterTags.push("reduced");
+  if (isNew) filterTags.push("new");
+  if (isOpenHouse) filterTags.push("open-house");
+  if (isWaterfront) filterTags.push("waterfront");
+  // Keep `filter` as the primary tag for backwards-compat badges.
   const filter = isReduced ? "reduced" : isNew ? "new" : isOpenHouse ? "open-house" : isWaterfront ? "waterfront" : "all";
 
   return {
@@ -141,6 +153,7 @@ function mapPublicListing(row: PublicListingFactRow, workspaceName: string): Pub
           : "Active",
     badgeTone: isSold ? "sold" : isReduced ? "reduced" : isNew ? "new" : "prime",
     filter,
+    filterTags,
     imageUrl: uniquePhotos[0] ?? "",
     photos: uniquePhotos.slice(0, 4),
     price: formatMoney(row.price),
