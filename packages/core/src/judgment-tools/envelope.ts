@@ -153,6 +153,6 @@ export const JudgmentRunInputSchema = z.object({
   /** Tool-specific structured input (lead state, agent profiles, etc.). */
   input: z.record(z.string(), z.unknown()),
   /** Force regeneration even if a cached brief matches state_hash. */
-  forceRegen: z.boolean().default(false),
+  forceRegen: z.boolean().optional().default(false),
 });
 export type JudgmentRunInput = z.infer<typeof JudgmentRunInputSchema>;
