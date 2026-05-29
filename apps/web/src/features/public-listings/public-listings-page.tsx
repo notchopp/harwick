@@ -1486,12 +1486,24 @@ export function PublicListingsPage(props: { listings?: PublicListingCardData[]; 
   const [favoriteSlugs, setFavoriteSlugs] = useState<string[]>([]);
   const [activeFilter, setActiveFilter] = useState<ListingFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  // Advanced filters opened by the slider-icon button next to the search input.
+  // Empty string = no constraint. Beds/baths use min-of (4 = "4+").
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [priceMin, setPriceMin] = useState<string>("");
+  const [priceMax, setPriceMax] = useState<string>("");
+  const [minBeds, setMinBeds] = useState<string>("");
+  const [minBaths, setMinBaths] = useState<string>("");
   const selectedListing = useMemo(
     () => listings.find((listing) => listing.slug === selectedListingSlug) ?? null,
     [selectedListingSlug],
   );
   const visibleListings = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
+
+    const minPrice = priceMin.trim().length === 0 ? null : Number(priceMin.replace(/[^0-9.]/g, ""));
+    const maxPrice = priceMax.trim().length === 0 ? null : Number(priceMax.replace(/[^0-9.]/g, ""));
+    const minBedsNum = minBeds.trim().length === 0 ? null : Number(minBeds);
+    const minBathsNum = minBaths.trim().length === 0 ? null : Number(minBaths);
 
     return listings.filter((listing) => {
       // Prefer the multi-tag array when present; fall back to the legacy
@@ -1513,9 +1525,22 @@ export function PublicListingsPage(props: { listings?: PublicListingCardData[]; 
           ...listing.features,
         ].some((value) => value.toLowerCase().includes(normalizedQuery));
 
-      return matchesFilter && matchesQuery;
+      // Numeric beds/baths from the display strings — `formatNumberLabel`
+      // produces e.g. "4" or "4 beds". Parse the leading number.
+      const bedsValue = Number.parseInt(listing.beds, 10);
+      const bathsValue = Number.parseFloat(listing.baths);
+      const matchesPrice = (minPrice === null || listing.priceValue >= minPrice)
+        && (maxPrice === null || listing.priceValue <= maxPrice);
+      const matchesBeds = minBedsNum === null
+        || (Number.isFinite(bedsValue) && bedsValue >= minBedsNum);
+      const matchesBaths = minBathsNum === null
+        || (Number.isFinite(bathsValue) && bathsValue >= minBathsNum);
+
+      return matchesFilter && matchesQuery && matchesPrice && matchesBeds && matchesBaths;
     });
-  }, [activeFilter, searchQuery]);
+  }, [activeFilter, searchQuery, priceMin, priceMax, minBeds, minBaths]);
+
+  const advancedFilterCount = [priceMin, priceMax, minBeds, minBaths].filter((v) => v.trim().length > 0).length;
   const featuredListing = listings[0] ?? null;
   const openInquiry = (intent: InquiryIntent, listing: PublicListingCardData | null = selectedListing) => {
     setInquiryState({ intent, listing });
@@ -1582,24 +1607,126 @@ export function PublicListingsPage(props: { listings?: PublicListingCardData[]; 
             <p className="mt-4 max-w-[620px] text-[15px] leading-6 text-white/56 sm:text-[18px] sm:leading-7">
               {pageCopy.subheadline}
             </p>
-            <div className="mt-6 flex h-12 max-w-[780px] items-center gap-1.5 rounded-[18px] border border-white/10 bg-white/[0.03] p-1.5 shadow-[0_24px_70px_rgba(6,12,8,0.40)] backdrop-blur-md sm:h-auto sm:gap-3 sm:rounded-[24px] sm:p-2">
-              <div className="flex min-w-0 flex-1 items-center gap-2 px-2 sm:gap-3 sm:px-4">
-                <Search aria-hidden="true" className="h-4 w-4 shrink-0 text-white/40 sm:h-5 sm:w-5" />
-                <input
-                  aria-label="search listings"
-                  className="h-9 min-w-0 flex-1 bg-transparent text-[13px] text-white outline-none placeholder:text-white/30 sm:h-11 sm:text-[14px]"
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder="search homes"
-                  value={searchQuery}
-                />
+            <div className="mt-6 max-w-[780px]">
+              <div className="flex h-12 items-center gap-1.5 rounded-[18px] border border-white/10 bg-white/[0.03] p-1.5 shadow-[0_24px_70px_rgba(6,12,8,0.40)] backdrop-blur-md sm:h-auto sm:gap-3 sm:rounded-[24px] sm:p-2">
+                <div className="flex min-w-0 flex-1 items-center gap-2 px-2 sm:gap-3 sm:px-4">
+                  <Search aria-hidden="true" className="h-4 w-4 shrink-0 text-white/40 sm:h-5 sm:w-5" />
+                  <input
+                    aria-label="search listings"
+                    className="h-9 min-w-0 flex-1 bg-transparent text-[13px] text-white outline-none placeholder:text-white/30 sm:h-11 sm:text-[14px]"
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                    placeholder="search homes"
+                    value={searchQuery}
+                  />
+                </div>
+                <button
+                  aria-label="filter listings"
+                  aria-expanded={showAdvancedFilters}
+                  className={cn(
+                    "relative flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] border transition sm:h-11 sm:w-auto sm:gap-2 sm:rounded-2xl sm:px-4 sm:text-[13px] sm:font-medium",
+                    showAdvancedFilters || advancedFilterCount > 0
+                      ? "border-[#88a276]/50 bg-[#88a276]/15 text-white"
+                      : "border-white/12 bg-white/[0.04] text-white/82 hover:border-white/22 hover:bg-white/[0.06]",
+                  )}
+                  onClick={() => setShowAdvancedFilters((v) => !v)}
+                  type="button"
+                >
+                  <SlidersHorizontal aria-hidden="true" className="h-4 w-4" />
+                  <span className="hidden sm:inline">filters</span>
+                  {advancedFilterCount > 0 ? (
+                    <span className="ml-1 hidden h-5 min-w-[20px] items-center justify-center rounded-full bg-[#88a276] px-1.5 text-[10px] font-bold text-[#07100a] sm:inline-flex">
+                      {advancedFilterCount}
+                    </span>
+                  ) : null}
+                </button>
+                <button
+                  className="hidden h-11 rounded-2xl bg-[#88a276] px-6 text-[13px] font-semibold lowercase text-[#07100a] shadow-[0_10px_22px_rgba(136,162,118,0.30)] transition hover:bg-[#94ad81] sm:block"
+                  onClick={() => {
+                    const input = document.querySelector<HTMLInputElement>('input[aria-label="search listings"]');
+                    input?.focus();
+                  }}
+                  type="button"
+                >
+                  search
+                </button>
               </div>
-              <button aria-label="filter listings" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] border border-white/12 bg-white/[0.04] text-white/82 transition hover:border-white/22 hover:bg-white/[0.06] sm:h-11 sm:w-auto sm:gap-2 sm:rounded-2xl sm:px-4 sm:text-[13px] sm:font-medium" type="button">
-                <SlidersHorizontal aria-hidden="true" className="h-4 w-4" />
-                <span className="hidden sm:inline">filters</span>
-              </button>
-              <button className="hidden h-11 rounded-2xl bg-[#88a276] px-6 text-[13px] font-semibold lowercase text-[#07100a] shadow-[0_10px_22px_rgba(136,162,118,0.30)] transition hover:bg-[#94ad81] sm:block" type="button">
-                search
-              </button>
+
+              {showAdvancedFilters ? (
+                <div className="mt-3 rounded-[20px] border border-white/10 bg-white/[0.03] p-4 shadow-[0_24px_70px_rgba(6,12,8,0.40)] backdrop-blur-md">
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    <label className="block">
+                      <span className="block text-[10px] font-semibold uppercase tracking-[0.12em] text-white/40">min price</span>
+                      <input
+                        className="mt-1 h-10 w-full rounded-[10px] border border-white/[0.1] bg-white/[0.04] px-3 text-[13px] text-white outline-none placeholder:text-white/30 focus:border-[#88a276]/40"
+                        inputMode="numeric"
+                        onChange={(e) => setPriceMin(e.target.value)}
+                        placeholder="$300k"
+                        value={priceMin}
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="block text-[10px] font-semibold uppercase tracking-[0.12em] text-white/40">max price</span>
+                      <input
+                        className="mt-1 h-10 w-full rounded-[10px] border border-white/[0.1] bg-white/[0.04] px-3 text-[13px] text-white outline-none placeholder:text-white/30 focus:border-[#88a276]/40"
+                        inputMode="numeric"
+                        onChange={(e) => setPriceMax(e.target.value)}
+                        placeholder="$1.2M"
+                        value={priceMax}
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="block text-[10px] font-semibold uppercase tracking-[0.12em] text-white/40">min beds</span>
+                      <select
+                        className="mt-1 h-10 w-full rounded-[10px] border border-white/[0.1] bg-white/[0.04] px-3 text-[13px] text-white outline-none focus:border-[#88a276]/40"
+                        onChange={(e) => setMinBeds(e.target.value)}
+                        value={minBeds}
+                      >
+                        <option value="">any</option>
+                        <option value="1">1+</option>
+                        <option value="2">2+</option>
+                        <option value="3">3+</option>
+                        <option value="4">4+</option>
+                        <option value="5">5+</option>
+                      </select>
+                    </label>
+                    <label className="block">
+                      <span className="block text-[10px] font-semibold uppercase tracking-[0.12em] text-white/40">min baths</span>
+                      <select
+                        className="mt-1 h-10 w-full rounded-[10px] border border-white/[0.1] bg-white/[0.04] px-3 text-[13px] text-white outline-none focus:border-[#88a276]/40"
+                        onChange={(e) => setMinBaths(e.target.value)}
+                        value={minBaths}
+                      >
+                        <option value="">any</option>
+                        <option value="1">1+</option>
+                        <option value="2">2+</option>
+                        <option value="3">3+</option>
+                        <option value="4">4+</option>
+                      </select>
+                    </label>
+                  </div>
+                  <div className="mt-3 flex justify-end gap-2">
+                    <button
+                      className="rounded-[10px] border border-white/10 px-3 py-1.5 text-[11px] font-medium text-white/72 transition hover:bg-white/[0.06] hover:text-white"
+                      onClick={() => {
+                        setPriceMin("");
+                        setPriceMax("");
+                        setMinBeds("");
+                        setMinBaths("");
+                      }}
+                      type="button"
+                    >
+                      clear
+                    </button>
+                    <button
+                      className="rounded-[10px] bg-[#88a276] px-3 py-1.5 text-[11px] font-semibold text-[#07100a] transition hover:bg-[#94ad81]"
+                      onClick={() => setShowAdvancedFilters(false)}
+                      type="button"
+                    >
+                      done
+                    </button>
+                  </div>
+                </div>
+              ) : null}
             </div>
           </div>
 
@@ -1672,6 +1799,10 @@ export function PublicListingsPage(props: { listings?: PublicListingCardData[]; 
               onClick={() => {
                 setSearchQuery("");
                 setActiveFilter("all");
+                setPriceMin("");
+                setPriceMax("");
+                setMinBeds("");
+                setMinBaths("");
               }}
               type="button"
             >
