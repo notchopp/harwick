@@ -1677,7 +1677,7 @@ export function PublicListingsPage(props: { listings?: PublicListingCardData[]; 
                     <label className="block">
                       <span className="block text-[10px] font-semibold uppercase tracking-[0.12em] text-white/40">min beds</span>
                       <select
-                        className="mt-1 h-10 w-full rounded-[10px] border border-white/[0.1] bg-white/[0.04] px-3 text-[13px] text-white outline-none focus:border-[#88a276]/40"
+                        className="mt-1 h-10 w-full rounded-[10px] border border-white/[0.1] bg-white/[0.04] px-3 text-[13px] text-white outline-none focus:border-[#88a276]/40 [color-scheme:dark] [&>option]:bg-[#0c130e] [&>option]:text-white"
                         onChange={(e) => setMinBeds(e.target.value)}
                         value={minBeds}
                       >
@@ -1692,7 +1692,7 @@ export function PublicListingsPage(props: { listings?: PublicListingCardData[]; 
                     <label className="block">
                       <span className="block text-[10px] font-semibold uppercase tracking-[0.12em] text-white/40">min baths</span>
                       <select
-                        className="mt-1 h-10 w-full rounded-[10px] border border-white/[0.1] bg-white/[0.04] px-3 text-[13px] text-white outline-none focus:border-[#88a276]/40"
+                        className="mt-1 h-10 w-full rounded-[10px] border border-white/[0.1] bg-white/[0.04] px-3 text-[13px] text-white outline-none focus:border-[#88a276]/40 [color-scheme:dark] [&>option]:bg-[#0c130e] [&>option]:text-white"
                         onChange={(e) => setMinBaths(e.target.value)}
                         value={minBaths}
                       >
