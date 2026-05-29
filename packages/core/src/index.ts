@@ -60,4 +60,5 @@ export * from "./judgment-tools/tools/decide-action.js";
 export * from "./judgment-tools/tools/dedupe-task.js";
 export * from "./judgment-tools/tools/interpret-policy.js";
 export * from "./judgment-tools/tools/nurture-voice-workspace.js";
+export * from "./domains/harwick-typed-cards.js";
 export * from "./crm-connectors/connector.js";
