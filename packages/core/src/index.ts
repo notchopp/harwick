@@ -51,4 +51,5 @@ export * from "./judgment-tools/envelope.js";
 export * from "./judgment-tools/state-hash.js";
 export * from "./judgment-tools/registry.js";
 export * from "./judgment-tools/runner.js";
+export * from "./judgment-tools/tools/brief-entity.js";
 export * from "./crm-connectors/connector.js";

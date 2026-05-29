@@ -16,6 +16,13 @@ import {
 } from "@realty-ops/core";
 
 import { createServerSupabaseClient } from "../../lib/supabase/server-client";
+import { createOpenAIToolExecutor } from "./openai-executor";
+
+// Side-effect import to register briefEntity tool definition + any other tool
+// implementations that have landed. Each tool module calls registerTool() at
+// import time, replacing the stub in the registry. Side-effect ordering doesn't
+// matter — the runner looks up via getTool() at execution time.
+import "@realty-ops/core";
 
 /**
  * Production wiring for runJudgment. Pulls/pushes cache rows from
@@ -165,8 +172,20 @@ function deriveEntityIdentityDefault(tool: JudgmentToolName, input: Record<strin
   return { entityType, entityId: id };
 }
 
-/** Compose the default Phase 0 deps wiring — cache+signals real, executor stub. */
+/** Compose the production deps wiring — cache + signals + OpenAI executor. */
 export function defaultRunJudgmentDeps(): RunJudgmentDeps {
+  return {
+    readBriefCache: createSupabaseBriefCacheReader(),
+    writeBriefCache: createSupabaseBriefCacheWriter(),
+    writeTrainingSignal: createSupabaseTrainingSignalWriter(),
+    executeTool: createOpenAIToolExecutor(),
+    deriveEntityIdentity: deriveEntityIdentityDefault,
+    computeCostUsd: computeDefaultCostUsd,
+  };
+}
+
+/** Tests/CI can opt into the stub executor explicitly. */
+export function stubRunJudgmentDeps(): RunJudgmentDeps {
   return {
     readBriefCache: createSupabaseBriefCacheReader(),
     writeBriefCache: createSupabaseBriefCacheWriter(),
