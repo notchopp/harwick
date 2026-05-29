@@ -34,6 +34,7 @@ import { Button } from "../../components/ui/button";
 import { cn } from "../../lib/utils";
 import { LeadActionToolbar } from "../conversations/lead-action-toolbar";
 import { Popover, PopoverContent, PopoverTrigger } from "../../components/ui/popover";
+import { useLeadBrief, type LeadBriefRole } from "../judgment-tools/use-lead-brief";
 import type { LeadPageItem, LeadPageSource, LeadPageStage, LeadTimelineEvent } from "./leads-data";
 import { LeadsKanban } from "./leads-kanban";
 
@@ -623,6 +624,130 @@ function SchedulePopover(props: {
   );
 }
 
+/**
+ * The AI-native brief at the top of the drawer. Replaces "what does this row
+ * mean" lookups across hardcoded panels with one LLM-written 2-second read
+ * + suggested action buttons. Hardcoded fields move below into the
+ * qualification panel which now acts as the "show raw fields" reference.
+ *
+ * Stale-while-revalidate: when the hook is loading the panel shows a
+ * neutral skeleton so the drawer doesn't shift; when the hook errors or
+ * returns low confidence the section quietly disappears and the drawer's
+ * lower deterministic panels still render.
+ */
+function LeadBriefSection(props: {
+  workspaceId: string;
+  leadId: string;
+  role: LeadBriefRole;
+  onSuggestedAction: (action: string, payload: Record<string, unknown>) => void;
+  drawerSurface: boolean;
+}) {
+  const state = useLeadBrief({
+    leadId: props.leadId,
+    workspaceId: props.workspaceId,
+    role: props.role,
+    destination: "harwick_drawer",
+  });
+  const [showRationale, setShowRationale] = useState(false);
+
+  if (state.status === "idle") return null;
+
+  if (state.status === "loading") {
+    return (
+      <div className={cn(
+        "rounded-[18px] border p-4",
+        props.drawerSurface
+          ? "border-[var(--sage)]/22 bg-[var(--sage)]/[0.04]"
+          : "border-[color:var(--panel-line)] bg-[color:var(--panel-1)]",
+      )}>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--sage)]">harwick read</span>
+          <span className="font-mono text-[10px] text-white/40">generating…</span>
+        </div>
+        <div className={cn("mt-3 h-3 w-3/4 rounded animate-pulse", props.drawerSurface ? "bg-white/[0.08]" : "bg-[color:var(--panel-2)]")} />
+        <div className={cn("mt-2 h-3 w-5/6 rounded animate-pulse", props.drawerSurface ? "bg-white/[0.06]" : "bg-[color:var(--panel-2)]")} />
+      </div>
+    );
+  }
+
+  if (state.status === "error") return null;
+
+  // Don't surface low-confidence outputs to the operator — the deterministic
+  // panels below are still rendering, no need to add noise.
+  if (state.envelope.confidence < 0.5) return null;
+
+  return (
+    <div className={cn(
+      "rounded-[18px] border p-4",
+      props.drawerSurface
+        ? "border-[var(--sage)]/26 bg-[var(--sage)]/[0.045] shadow-[inset_0_1px_0_rgba(136,162,118,0.08)]"
+        : "border-[color:var(--panel-line)] bg-[color:var(--panel-1)]",
+    )}>
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--sage)]">harwick read</span>
+        <span className="font-mono text-[10px] text-white/40">
+          {state.cached ? "cached" : state.model.replace("gpt-", "")}
+        </span>
+      </div>
+      <h3 className={cn(
+        "text-[15px] font-semibold leading-snug",
+        props.drawerSurface ? "text-white" : "text-[color:var(--graphite-text)]",
+      )}>
+        {state.envelope.brief.headline}
+      </h3>
+      <p className={cn(
+        "mt-2 text-[13px] leading-relaxed",
+        props.drawerSurface ? "text-white/75" : "text-[color:var(--graphite-text-muted)]",
+      )}>
+        {state.envelope.brief.body}
+      </p>
+
+      {state.envelope.suggestedActions.length > 0 ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {state.envelope.suggestedActions.map((action, index) => (
+            <Button
+              key={`${action.action}-${index}`}
+              className={cn(
+                "h-8 rounded-full px-3 text-[11.5px] font-semibold",
+                props.drawerSurface ? "" : "",
+              )}
+              onClick={() => props.onSuggestedAction(action.action, action.payload)}
+              size="sm"
+              type="button"
+              variant={index === 0 ? "default" : "outline"}
+            >
+              {action.label}
+            </Button>
+          ))}
+        </div>
+      ) : null}
+
+      {state.envelope.rationale !== null && state.envelope.rationale.length > 0 ? (
+        <div className="mt-3 border-t border-white/[0.06] pt-2">
+          <button
+            type="button"
+            onClick={() => setShowRationale((v) => !v)}
+            className={cn(
+              "text-[10.5px] font-medium uppercase tracking-[0.1em]",
+              props.drawerSurface ? "text-white/40 hover:text-white/60" : "text-[color:var(--graphite-text-faint)] hover:text-[color:var(--graphite-text-muted)]",
+            )}
+          >
+            {showRationale ? "hide receipts" : "show receipts"}
+          </button>
+          {showRationale ? (
+            <p className={cn(
+              "mt-1 text-[11px] leading-4 italic",
+              props.drawerSurface ? "text-white/50" : "text-[color:var(--graphite-text-faint)]",
+            )}>
+              {state.envelope.rationale}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function LeadInlineDetail(props: {
   actionStatus: string | null;
   currentMemberId: string;
@@ -692,6 +817,37 @@ function LeadInlineDetail(props: {
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className={bodyPadding}>
+          {/*
+           * AI-native brief at the top — Harwick's 2-second read on this lead,
+           * audience-shaped + destination-shaped. Replaces "scan a dozen
+           * hardcoded fields to figure out what this row means" with one
+           * LLM-written headline + body + suggested actions. The hardcoded
+           * qualification panel below now acts as the "show raw" reference.
+           */}
+          <LeadBriefSection
+            workspaceId={props.lead.workspaceId}
+            leadId={props.lead.id}
+            role="agent"
+            drawerSurface={drawerSurface}
+            onSuggestedAction={(action) => {
+              if (action === "open_conversation") {
+                props.onOpenConversation(props.lead.id);
+                return;
+              }
+              if (action === "schedule_callback") {
+                // The Schedule popover handles this; ensure visibility.
+                props.onActionStatusChange?.("Tap the Schedule button below to set a time.");
+                return;
+              }
+              if (action === "call_lead" && props.lead.phone !== null) {
+                window.location.href = `tel:${props.lead.phone}`;
+                return;
+              }
+              // Default: fall back to primary action (handlePrimaryAction).
+              void props.onPrimaryAction(props.lead);
+            }}
+          />
+
           {drawerSurface ? (
             <div className="rounded-[18px] border border-white/10 bg-white/[0.03] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
               <div className="mb-3 flex items-center justify-between gap-3">
