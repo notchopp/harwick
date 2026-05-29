@@ -47,3 +47,8 @@ export * from "./domains/workflow-job.js";
 export * from "./domains/workspace.js";
 export * from "./domains/workspace-memory.js";
 export * from "./normalization.js";
+export * from "./judgment-tools/envelope.js";
+export * from "./judgment-tools/state-hash.js";
+export * from "./judgment-tools/registry.js";
+export * from "./judgment-tools/runner.js";
+export * from "./crm-connectors/connector.js";
