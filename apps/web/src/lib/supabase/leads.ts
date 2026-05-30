@@ -1,5 +1,6 @@
 import {
   ExtractedLeadFieldsSchema,
+  normalizePhone,
   parseBudgetRangeText,
   type ExtractedLeadFields,
   type NormalizedLeadEvent,
@@ -227,7 +228,7 @@ export function mapInboundEventToLeadInsertRow(event: NormalizedLeadEvent): Lead
     instagram_user_id: event.provider === "meta" ? event.providerUserId : null,
     instagram_username: event.instagramUsername,
     full_name: extractedLead?.callerName ?? event.instagramUsername,
-    phone: event.phone,
+    phone: normalizePhone(event.phone),
     email: null,
     lead_type: extractedLead?.leadType ?? "unknown",
     intent: extractedLead?.intent ?? "unknown",
@@ -254,7 +255,7 @@ export function mapInboundEventToLeadUpdateRow(event: NormalizedLeadEvent): Lead
     source_comment_id: event.sourceCommentId,
     instagram_user_id: event.provider === "meta" ? event.providerUserId : null,
     instagram_username: event.instagramUsername,
-    phone: event.phone,
+    phone: normalizePhone(event.phone),
     last_message_at: event.occurredAt,
     updated_at: event.occurredAt,
   };
@@ -324,6 +325,24 @@ export function createSupabaseLeadUpsertRepository(
 ): LeadUpsertRepository {
   return {
     async findExistingLead(lookup) {
+      // Phone-as-canonical-ID: prefer phone match over channel-specific
+      // identifiers so a buyer who chats on web and later DMs on IG with
+      // the same number resolves to ONE lead, not two. Phone is normalized
+      // both at write-time (insert/update) and read-time (here) so the
+      // dedupe survives formatting variation.
+      const normalizedPhone = normalizePhone(lookup.phone);
+      if (normalizedPhone !== null) {
+        const { data, error } = await supabase
+          .from("leads")
+          .select("id")
+          .eq("workspace_id", lookup.workspaceId)
+          .eq("phone", normalizedPhone)
+          .limit(1)
+          .maybeSingle<Pick<LeadRow, "id">>();
+        if (error !== null) throw error;
+        if (data !== null) return data;
+      }
+
       let query = supabase
         .from("leads")
         .select("id")
@@ -332,8 +351,6 @@ export function createSupabaseLeadUpsertRepository(
 
       if (lookup.instagramUserId !== null) {
         query = query.eq("instagram_user_id", lookup.instagramUserId);
-      } else if (lookup.phone !== null) {
-        query = query.eq("phone", lookup.phone);
       } else if (lookup.email !== null) {
         query = query.eq("email", lookup.email);
       } else if (lookup.sourceProviderId !== null) {

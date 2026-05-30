@@ -89,6 +89,8 @@ export type BuyerChatTranscript = {
   qualificationSummary: string | null;
   lifeContext: string[];
   promotedLeadId: string | null;
+  takenOverByMemberId: string | null;
+  takenOverAt: string | null;
   turns: BuyerChatTranscriptTurn[];
 };
 
@@ -107,7 +109,7 @@ export async function loadBuyerChatTranscriptByLeadId(params: {
   const untyped = params.supabase as any;
   const { data: session } = await untyped
     .from("public_listing_sessions")
-    .select("id, listing_id, qualification, promoted_lead_id")
+    .select("id, listing_id, qualification, promoted_lead_id, taken_over_by_member_id, taken_over_at")
     .eq("workspace_id", params.workspaceId)
     .eq("promoted_lead_id", params.leadId)
     .order("last_active_at", { ascending: false, nullsFirst: false })
@@ -138,6 +140,8 @@ export async function loadBuyerChatTranscriptByLeadId(params: {
       ?? readString(qualification, "summary"),
     lifeContext: readStringArray(qualification, "lifeContext"),
     promotedLeadId: session.promoted_lead_id as string | null,
+    takenOverByMemberId: (session.taken_over_by_member_id as string | null) ?? null,
+    takenOverAt: (session.taken_over_at as string | null) ?? null,
     turns: ((turns ?? []) as Array<{ actor: "visitor" | "harwick_ai"; body: string; occurred_at: string }>).map((turn) => ({
       actor: turn.actor,
       body: turn.body,

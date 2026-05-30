@@ -35,6 +35,7 @@ export * from "./domains/policy-narrative.js";
 export * from "./domains/product-update.js";
 export * from "./domains/operations.js";
 export * from "./domains/owner-home.js";
+export * from "./domains/phone.js";
 export * from "./domains/social-post.js";
 export * from "./domains/system-health.js";
 export * from "./domains/team-presence.js";

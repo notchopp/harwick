@@ -209,6 +209,95 @@ function applyLocalDismiss(thread: ConversationInboxThread): ConversationInboxTh
   };
 }
 
+function BuyerChatFooter(props: {
+  workspaceId: string;
+  leadId: string;
+  transcript: BuyerChatTranscript | null;
+  onTakeoverChange: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const takenOver = props.transcript?.takenOverByMemberId !== null && props.transcript?.takenOverByMemberId !== undefined;
+
+  async function handleTakeover() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const res = await fetch("/api/conversations/listing-chat-takeover", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ workspaceId: props.workspaceId, leadId: props.leadId }),
+      });
+      if (res.ok) props.onTakeoverChange();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRelease() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const res = await fetch(
+        `/api/conversations/listing-chat-takeover?workspaceId=${props.workspaceId}&leadId=${props.leadId}`,
+        { method: "DELETE", credentials: "same-origin" },
+      );
+      if (res.ok) props.onTakeoverChange();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div
+      className={cn(
+        "shrink-0 border-t bg-[#101112] px-3 py-2.5 text-[11.5px] text-white/64 md:bg-[var(--graphite-surface-2)] md:px-4 md:py-3",
+        "border-[color:var(--graphite-line)]",
+      )}
+      style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2">
+          {takenOver ? (
+            <>
+              <ShieldCheck className="size-3.5 text-[var(--clay)]" aria-hidden="true" />
+              <span className="min-w-0 truncate">
+                You took this over. Harwick is paused for this session.
+              </span>
+            </>
+          ) : (
+            <>
+              <Bot className="size-3.5 text-[var(--sage)]" aria-hidden="true" />
+              <span className="min-w-0 truncate">
+                Harwick is handling this live. Take over if you want to step in.
+              </span>
+            </>
+          )}
+        </div>
+        {takenOver ? (
+          <button
+            className="inline-flex shrink-0 items-center gap-1 rounded-[9px] border border-[color:var(--graphite-line)] bg-[var(--graphite-surface-3)] px-2.5 py-1 text-[11px] font-semibold text-[var(--graphite-text)] transition hover:border-[color:var(--graphite-line-strong)] disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={busy}
+            onClick={() => void handleRelease()}
+            type="button"
+          >
+            Release back to Harwick
+          </button>
+        ) : (
+          <button
+            className="inline-flex shrink-0 items-center gap-1 rounded-[9px] border border-[color:var(--graphite-line)] bg-[var(--graphite-text)] px-2.5 py-1 text-[11px] font-semibold text-[var(--graphite-0)] shadow-[var(--shadow-elev-1)] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={busy}
+            onClick={() => void handleTakeover()}
+            type="button"
+          >
+            Take over
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function BuyerChatTranscriptView(props: {
   transcript: BuyerChatTranscript | null;
   loading: boolean;
@@ -581,6 +670,7 @@ export function ConversationsPageContent(props: {
   // synthesis blocks.
   const [buyerChatTranscript, setBuyerChatTranscript] = useState<BuyerChatTranscript | null>(null);
   const [buyerChatTranscriptLoading, setBuyerChatTranscriptLoading] = useState(false);
+  const [buyerChatTranscriptRefresh, setBuyerChatTranscriptRefresh] = useState(0);
 
   function replaceConversationQuery(thread: ConversationInboxThread | null) {
     const params = new URLSearchParams(searchParams.toString());
@@ -786,7 +876,7 @@ export function ConversationsPageContent(props: {
     return () => {
       cancelled = true;
     };
-  }, [selectedThread?.id, selectedThread?.source, selectedThread?.leadId, props.workspaceId]);
+  }, [selectedThread?.id, selectedThread?.source, selectedThread?.leadId, props.workspaceId, buyerChatTranscriptRefresh]);
 
   function updateThreadLocally(threadId: string, updater: (thread: ConversationInboxThread) => ConversationInboxThread) {
     setThreads((current) => current.map((thread) => (thread.id === threadId ? updater(thread) : thread)));
@@ -1299,17 +1389,12 @@ export function ConversationsPageContent(props: {
               </div>
 
               {selectedThread.source === "listing_chat" ? (
-                <div
-                  className={cn("shrink-0 border-t bg-[#101112] px-3 py-2.5 text-[11.5px] text-white/64 md:bg-[var(--graphite-surface-2)] md:px-4 md:py-3", graphiteBorder)}
-                  style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
-                >
-                  <div className="flex items-center gap-2">
-                    <Bot className="size-3.5 text-[var(--sage)]" aria-hidden="true" />
-                    <span>
-                      Harwick is handling this conversation live on the listing page. No reply needed from you.
-                    </span>
-                  </div>
-                </div>
+                <BuyerChatFooter
+                  workspaceId={props.workspaceId}
+                  leadId={selectedThread.leadId}
+                  transcript={buyerChatTranscript}
+                  onTakeoverChange={() => setBuyerChatTranscriptRefresh((n) => n + 1)}
+                />
               ) : (
                 <div
                   className={cn("shrink-0 border-t bg-[#101112] px-3 py-2.5 md:bg-[var(--graphite-surface-2)] md:px-4 md:py-3", graphiteBorder)}

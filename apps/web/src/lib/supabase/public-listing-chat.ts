@@ -3,7 +3,7 @@ import type {
   ListingMemory,
   PublicListingChatQualification,
 } from "@realty-ops/core";
-import { ListingAreaIntelSchema, PublicListingChatQualificationSchema } from "@realty-ops/core";
+import { ListingAreaIntelSchema, normalizePhone, PublicListingChatQualificationSchema } from "@realty-ops/core";
 
 import type {
   PublicListingChatLeadCapture,
@@ -648,6 +648,30 @@ export function createSupabasePublicListingChatRepository(
     },
 
     async findExistingLead(params) {
+      // Phone-as-canonical-ID: prefer phone match first, then fall back to
+      // email. The normalizePhone helper ensures the lookup matches values
+      // written by ANY channel (web chat, SMS, IG DM that later shares a
+      // phone) — every write path now normalizes too.
+      const normalizedPhone = normalizePhone(params.phone);
+      if (normalizedPhone !== null) {
+        const { data: phoneMatch, error: phoneError } = await supabase
+          .from("leads")
+          .select("id, assigned_agent_id")
+          .eq("workspace_id", params.workspaceId)
+          .eq("phone", normalizedPhone)
+          .limit(1)
+          .maybeSingle<LeadRow>();
+        if (phoneError !== null) {
+          throwSupabaseError(phoneError);
+        }
+        if (phoneMatch !== null) {
+          return {
+            id: phoneMatch.id,
+            assignedAgentId: phoneMatch.assigned_agent_id,
+          };
+        }
+      }
+
       if (params.email !== null) {
         const { data: emailMatch, error: emailError } = await supabase
           .from("leads")
@@ -669,24 +693,7 @@ export function createSupabasePublicListingChatRepository(
         }
       }
 
-      const { data: phoneMatch, error: phoneError } = await supabase
-        .from("leads")
-        .select("id, assigned_agent_id")
-        .eq("workspace_id", params.workspaceId)
-        .eq("phone", params.phone)
-        .limit(1)
-        .maybeSingle<LeadRow>();
-
-      if (phoneError !== null) {
-        throwSupabaseError(phoneError);
-      }
-
-      return phoneMatch === null
-        ? null
-        : {
-            id: phoneMatch.id,
-            assignedAgentId: phoneMatch.assigned_agent_id,
-          };
+      return null;
     },
 
     async insertLead(params) {
@@ -700,7 +707,7 @@ export function createSupabasePublicListingChatRepository(
           workspace_id: params.workspaceId,
           full_name: params.values.fullName,
           email: params.values.email,
-          phone: params.values.phone,
+          phone: normalizePhone(params.values.phone) ?? params.values.phone,
           lead_type: params.values.leadType === "unknown" ? "buyer" : params.values.leadType,
           intent: params.values.leadIntent === "unknown" ? "medium" : params.values.leadIntent,
           source_channel: "public_listing_chat",
