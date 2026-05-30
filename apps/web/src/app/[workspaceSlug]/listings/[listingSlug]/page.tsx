@@ -25,21 +25,24 @@ export async function generateMetadata(props: PageProps) {
     };
   }
 
-  const title = `${listing.shortAddress} - ${listing.price} | ${workspaceName}`;
-  const description = `${listing.beds} bed, ${listing.baths} bath ${listing.type} in ${listing.neighborhood}. Ask Harwick about availability, financing, and showing times.`;
+  // Tab format: "Address · Workspace" (middle-dot, not hyphen-pipe).
+  // Price + beds/baths belong on the page, not in the OS chrome.
+  const title = `${listing.shortAddress} · ${workspaceName}`;
+  const description = listing.beds.length > 0 && listing.baths.length > 0
+    ? `${listing.beds} bd, ${listing.baths} ba · ${listing.price} in ${listing.neighborhood}.`
+    : `${listing.type} in ${listing.neighborhood} · ${listing.price}.`;
   const canonicalPath = `/${workspaceSlug}/listings/${listing.slug}`;
-  const ogImages = listing.imageUrl.length > 0
-    ? [{ alt: listing.shortAddress, height: 630, url: listing.imageUrl, width: 1200 }]
-    : undefined;
 
+  // Note: no `images` here. Next 16 auto-wires the colocated
+  // opengraph-image.tsx, which renders the listing photo with a clean
+  // address + price overlay (Airbnb-style) instead of a raw image dump.
   return {
     title,
     description,
     alternates: { canonical: canonicalPath },
     openGraph: {
       description,
-      images: ogImages,
-      siteName: "Harwick",
+      siteName: workspaceName,
       title,
       type: "article" as const,
       url: canonicalPath,
@@ -47,7 +50,6 @@ export async function generateMetadata(props: PageProps) {
     twitter: {
       card: "summary_large_image" as const,
       description,
-      images: listing.imageUrl.length > 0 ? [listing.imageUrl] : undefined,
       title,
     },
   };
