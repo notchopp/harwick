@@ -266,7 +266,12 @@ export async function POST(
     // Tavily is the active backend; BRAVE_SEARCH_API_KEY is a legacy
     // fallback in case operators set Brave instead. Either powers the
     // same `lookup_area_info` tool — see `area-lookup.ts`.
-    searchApiKey: process.env["TAVILY_API_KEY"] ?? process.env["BRAVE_SEARCH_API_KEY"],
+    // Read via `environment` (not `process.env` directly) so the local-env
+    // fallback walker in lib/local-env.ts finds the root .env.local in
+    // monorepo dev. Otherwise TAVILY/BRAVE silently don't reach the dev
+    // server because `next dev` runs from apps/web cwd where there's no
+    // .env.local.
+    searchApiKey: environment.TAVILY_API_KEY ?? environment.BRAVE_SEARCH_API_KEY,
     occurredAt,
     latestVisitorText: latestUserText ?? undefined,
     gateJudge,

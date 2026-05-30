@@ -78,6 +78,11 @@ const ServerEnvironmentBaseSchema = z.object({
   // no-ops (initialization with no DSN never emits events), which is the
   // desired behavior for dev / unconfigured deploys.
   SENTRY_DSN: OptionalNonEmptyStringSchema,
+  // Area-lookup search backends for the public listing chat. Either works;
+  // TAVILY is preferred. Optional because the chat gracefully falls back
+  // when missing (returns available:false + agent-confirm message).
+  TAVILY_API_KEY: OptionalNonEmptyStringSchema,
+  BRAVE_SEARCH_API_KEY: OptionalNonEmptyStringSchema,
 });
 
 export const ServerEnvironmentSchema = ServerEnvironmentBaseSchema.superRefine((value, context) => {
