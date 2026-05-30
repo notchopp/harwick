@@ -3,6 +3,7 @@ import {
   renderAttribution,
   type CrmAssignment,
   type CrmConnector,
+  type CrmContactCreate,
   type CrmContactNote,
   type CrmContactState,
   type CrmTask,
@@ -82,6 +83,24 @@ function appendAttribution(body: string, attribution: CrmContactNote["attributio
 
 export const kvCoreConnector: CrmConnector = {
   provider: "kvcore",
+
+  async createContact(workspaceId, contact: CrmContactCreate) {
+    const creds = await getKvCoreCredentials(workspaceId);
+    if (creds === null) throw new Error("kvCore credentials not configured.");
+    // kvCore Public API V2: POST /contacts with first_name/last_name/email/phone/source/tags.
+    const result = await kvFetch(creds.apiToken, "/contacts", {
+      method: "POST",
+      body: JSON.stringify({
+        first_name: contact.firstName,
+        last_name: contact.lastName,
+        email: contact.email,
+        phone: contact.phone,
+        source: contact.source,
+        tags: contact.tags,
+      }),
+    }) as { id?: string | number };
+    return { providerContactId: String(result.id ?? "unknown") };
+  },
 
   async pushContactNote(workspaceId, note) {
     const creds = await getKvCoreCredentials(workspaceId);

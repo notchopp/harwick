@@ -65,6 +65,23 @@ export function renderAttribution(config: AttributionConfig): string {
 }
 
 /**
+ * Normalized contact create payload — what a buyer-chat capture becomes
+ * before it lands in the CRM as a new person record. Connectors translate
+ * to their provider-specific people-create shape (FUB /people, kvCore
+ * /contacts, etc).
+ */
+export const CrmContactCreateSchema = z.object({
+  firstName: z.string().trim().min(1).nullable(),
+  lastName: z.string().trim().min(1).nullable(),
+  email: z.string().trim().email().nullable(),
+  phone: z.string().trim().min(7).nullable(),
+  source: z.string().trim().min(1).max(120),
+  tags: z.array(z.string().trim().min(1)).default([]),
+  headline: z.string().trim().max(280).nullable().default(null),
+});
+export type CrmContactCreate = z.infer<typeof CrmContactCreateSchema>;
+
+/**
  * Normalized contact note payload — what every Harwick brief becomes when
  * destination=crm_note. Each connector translates this to its CRM's native
  * note shape (FUB notes have a different JSON than kvCore notes).
@@ -154,6 +171,15 @@ export type CrmWebhookEvent = z.infer<typeof CrmWebhookEventSchema>;
  */
 export interface CrmConnector {
   readonly provider: CrmProvider;
+
+  /**
+   * Create a new contact in the CRM and return the provider's contact ID.
+   * Called by the buyer-chat capture flow so leads land warm in the realtor's
+   * CRM at the moment of capture (not later via batch sync). Connectors that
+   * find an existing duplicate by phone/email may return the existing ID
+   * instead of creating a new one — idempotent semantics encouraged.
+   */
+  createContact(workspaceId: string, contact: CrmContactCreate): Promise<{ providerContactId: string }>;
 
   /** Push a Harwick-generated note onto a CRM contact. */
   pushContactNote(workspaceId: string, note: CrmContactNote): Promise<{ providerNoteId: string }>;

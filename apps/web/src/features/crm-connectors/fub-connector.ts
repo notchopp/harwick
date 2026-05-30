@@ -3,6 +3,7 @@ import {
   renderAttribution,
   type CrmAssignment,
   type CrmConnector,
+  type CrmContactCreate,
   type CrmContactNote,
   type CrmContactState,
   type CrmTask,
@@ -88,6 +89,34 @@ function appendAttribution(body: string, attribution: CrmContactNote["attributio
 
 export const fubConnector: CrmConnector = {
   provider: "fub",
+
+  async createContact(workspaceId, contact: CrmContactCreate) {
+    const credential = await getFubCredentials(workspaceId);
+    if (credential === null) {
+      throw new Error("FUB credentials not configured for this workspace.");
+    }
+    const emails = contact.email === null
+      ? []
+      : [{ value: contact.email, type: "personal", isPrimary: true }];
+    const phones = contact.phone === null
+      ? []
+      : [{ value: contact.phone, type: "mobile", isPrimary: true }];
+    // FUB POST /people supports firstName/lastName/emails/phones/source/tags.
+    // The `?dedupe=true` query asks FUB to return an existing person if it
+    // finds one by email/phone match — gives us idempotent creates.
+    const result = await fubFetch(credential.apiKey, "/people?dedupe=true", {
+      method: "POST",
+      body: JSON.stringify({
+        firstName: contact.firstName,
+        lastName: contact.lastName,
+        emails,
+        phones,
+        source: contact.source,
+        tags: contact.tags,
+      }),
+    }) as { id?: number };
+    return { providerContactId: String(result.id ?? "unknown") };
+  },
 
   async pushContactNote(workspaceId, note) {
     const credential = await getFubCredentials(workspaceId);

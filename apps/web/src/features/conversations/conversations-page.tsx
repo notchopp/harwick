@@ -22,6 +22,7 @@ import { getToolDescriptor } from "../../lib/training-signals/tool-labels";
 import { cn } from "../../lib/utils";
 import { useRealtimeThreadSync } from "./use-realtime-thread-sync";
 import { LeadActionToolbar } from "./lead-action-toolbar";
+import { BuyerChatThreadsSection } from "./buyer-chat-threads-section";
 
 type ThreadFilter = "all" | "in_progress" | "queued" | "paused" | "resolved";
 type LoadState = "loading" | "ready" | "error";
@@ -909,6 +910,16 @@ export function ConversationsPageContent(props: {
           </button>
         </div>
       </header>
+
+      {/* /convos refactor — phase 1: buyer-chat sessions surface as first-class
+          operator objects above the Meta DM/comment inbox. This is the live
+          qualification view: every buyer landing on a workspace listing page
+          and starting a conversation shows up here with their auto-built
+          profile, life context, and last message. Click-through transcript
+          view is the next phase. */}
+      <div className="shrink-0 border-b border-[color:var(--graphite-line)] px-5 pb-4 md:px-8">
+        <BuyerChatThreadsSection workspaceId={props.workspaceId} />
+      </div>
 
       <div className="flex min-h-0 min-w-0 flex-1 gap-2.5 overflow-hidden px-2.5 pb-2.5 max-md:gap-0 max-md:px-0 max-md:pb-0">
         {/* Thread list — desktop/tablet only. On mobile we use a dropdown in the thread header. */}

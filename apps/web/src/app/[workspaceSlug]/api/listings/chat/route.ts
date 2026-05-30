@@ -7,6 +7,7 @@ import { convertToModelMessages, stepCountIs, streamText, type UIMessage } from 
 import { NextResponse, type NextRequest } from "next/server";
 
 import { createSmallModelGateJudge } from "../../../../../features/public-listings/listing-chat-gate-judge";
+import { pushBuyerChatLeadToCrm } from "../../../../../features/judgment-tools/buyer-chat-crm-push";
 import { stripMarkdown } from "../../../../../features/public-listings/strip-markdown";
 import { buildListingChatSystemPrompt } from "../../../../../features/public-listings/listing-chat-system-prompt";
 import {
@@ -389,6 +390,35 @@ export async function POST(
           });
         } catch (error) {
           console.error("[public-listing-chat] lead linkage failed", error);
+        }
+        // Warm-handoff to the workspace's CRM. Creates the FUB contact
+        // (dedupes by phone if it already exists in the CRM), persists the
+        // FUB contact id onto our lead row, then pushes the chief-of-staff
+        // brief as a note so the realtor sees "who this person is + what
+        // got captured + what's worth doing next" in their CRM at the
+        // moment of capture. Best-effort: no-ops if no FUB integration.
+        const capturedLeadId = turnState.capturedLead.leadId;
+        try {
+          const crmResult = await pushBuyerChatLeadToCrm({
+            workspaceId,
+            leadId: capturedLeadId,
+          });
+          if (crmResult.pushed) {
+            console.info(
+              "[public-listing-chat] CRM push OK",
+              { leadId: capturedLeadId, fubContactId: crmResult.fubContactId },
+            );
+          } else if (crmResult.reason !== "no_fub_integration") {
+            console.info(
+              "[public-listing-chat] CRM push skipped",
+              { leadId: capturedLeadId, reason: crmResult.reason },
+            );
+          }
+        } catch (error) {
+          // pushBuyerChatLeadToCrm already catches internally; this is the
+          // belt-and-suspenders so a CRM failure never bubbles into the
+          // streaming response.
+          console.error("[public-listing-chat] CRM push threw", error);
         }
       }
     },
