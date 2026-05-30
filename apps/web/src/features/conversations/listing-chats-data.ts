@@ -74,6 +74,78 @@ function readStringArray(rec: Record<string, unknown> | null, key: string): stri
     : [];
 }
 
+export type BuyerChatTranscriptTurn = {
+  actor: "visitor" | "harwick_ai";
+  body: string;
+  occurredAt: string;
+};
+
+export type BuyerChatTranscript = {
+  sessionId: string;
+  listingId: string;
+  listingAddress: string;
+  visitorName: string | null;
+  visitorHeadline: string | null;
+  qualificationSummary: string | null;
+  lifeContext: string[];
+  promotedLeadId: string | null;
+  turns: BuyerChatTranscriptTurn[];
+};
+
+/**
+ * Full transcript for a single buyer chat session — by leadId. Used by the
+ * /conversations detail pane when the selected thread is sourced from
+ * public_listing_chat. Replaces the Meta-style synthesis/draft chrome with
+ * the actual visitor ↔ harwick_ai conversation that happened.
+ */
+export async function loadBuyerChatTranscriptByLeadId(params: {
+  supabase: RealtyOpsSupabaseClient;
+  workspaceId: string;
+  leadId: string;
+}): Promise<BuyerChatTranscript | null> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const untyped = params.supabase as any;
+  const { data: session } = await untyped
+    .from("public_listing_sessions")
+    .select("id, listing_id, qualification, promoted_lead_id")
+    .eq("workspace_id", params.workspaceId)
+    .eq("promoted_lead_id", params.leadId)
+    .order("last_active_at", { ascending: false, nullsFirst: false })
+    .limit(1)
+    .maybeSingle();
+  if (session === null || session === undefined) return null;
+
+  const { data: listing } = await untyped
+    .from("listing_facts")
+    .select("id, address")
+    .eq("id", session.listing_id)
+    .maybeSingle();
+
+  const { data: turns } = await untyped
+    .from("public_listing_session_turns")
+    .select("actor, body, occurred_at")
+    .eq("session_id", session.id)
+    .order("occurred_at", { ascending: true });
+
+  const qualification = asRecord(session.qualification);
+  return {
+    sessionId: session.id as string,
+    listingId: session.listing_id as string,
+    listingAddress: (listing?.address as string | undefined) ?? "Unknown listing",
+    visitorName: readString(qualification, "name"),
+    visitorHeadline: readString(qualification, "headline"),
+    qualificationSummary: readString(qualification, "qualificationSummary")
+      ?? readString(qualification, "summary"),
+    lifeContext: readStringArray(qualification, "lifeContext"),
+    promotedLeadId: session.promoted_lead_id as string | null,
+    turns: ((turns ?? []) as Array<{ actor: "visitor" | "harwick_ai"; body: string; occurred_at: string }>).map((turn) => ({
+      actor: turn.actor,
+      body: turn.body,
+      occurredAt: turn.occurred_at,
+    })),
+  };
+}
+
 export async function loadBuyerChatThreads(params: {
   supabase: RealtyOpsSupabaseClient;
   workspaceId: string;

@@ -22,7 +22,7 @@ import { getToolDescriptor } from "../../lib/training-signals/tool-labels";
 import { cn } from "../../lib/utils";
 import { useRealtimeThreadSync } from "./use-realtime-thread-sync";
 import { LeadActionToolbar } from "./lead-action-toolbar";
-import { BuyerChatThreadsSection } from "./buyer-chat-threads-section";
+import type { BuyerChatTranscript } from "./listing-chats-data";
 
 type ThreadFilter = "all" | "in_progress" | "queued" | "paused" | "resolved";
 type LoadState = "loading" | "ready" | "error";
@@ -207,6 +207,62 @@ function applyLocalDismiss(thread: ConversationInboxThread): ConversationInboxTh
     preview: getPreviewFromMessages({ ...thread, messages: nextMessages }),
     listingStatus: "Action dismissed",
   };
+}
+
+function BuyerChatTranscriptView(props: {
+  transcript: BuyerChatTranscript | null;
+  loading: boolean;
+}) {
+  if (props.loading && props.transcript === null) {
+    return (
+      <div className="rounded-[12px] border border-[color:var(--graphite-line)] bg-[var(--graphite-surface-2)] p-4 text-[12px] text-white/48">
+        Loading buyer chat…
+      </div>
+    );
+  }
+  if (props.transcript === null || props.transcript.turns.length === 0) {
+    return (
+      <div className="rounded-[12px] border border-[color:var(--graphite-line)] bg-[var(--graphite-surface-2)] p-4 text-[12px] text-white/56">
+        No transcript captured for this conversation yet.
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-3">
+      {props.transcript.turns.map((turn, idx) => {
+        const isHarwick = turn.actor === "harwick_ai";
+        return (
+          <div
+            className={cn("flex w-full", isHarwick ? "justify-end" : "justify-start")}
+            key={`${turn.occurredAt}-${idx}`}
+          >
+            <div
+              className={cn(
+                "max-w-[78%] rounded-[14px] border px-3.5 py-2.5 text-[13px] leading-[1.45] shadow-[var(--shadow-elev-1)]",
+                isHarwick
+                  ? "border-[var(--sage)]/25 bg-[var(--sage-soft)] text-white"
+                  : "border-[color:var(--graphite-line)] bg-[var(--graphite-surface-2)] text-white/86",
+              )}
+            >
+              <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-white/52">
+                <span>{isHarwick ? "Harwick" : (props.transcript?.visitorName ?? "Visitor")}</span>
+                <span className="text-white/30">·</span>
+                <span className="text-white/40">
+                  {new Date(turn.occurredAt).toLocaleString(undefined, {
+                    month: "short",
+                    day: "numeric",
+                    hour: "numeric",
+                    minute: "2-digit",
+                  })}
+                </span>
+              </div>
+              <div className="whitespace-pre-wrap">{turn.body}</div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 function MessageBubble(props: {
@@ -519,6 +575,12 @@ export function ConversationsPageContent(props: {
     const id = window.setInterval(() => setComposerNowMs(Date.now()), 60_000);
     return () => window.clearInterval(id);
   }, []);
+  // Buyer-chat (public-listing-chat) transcripts. When the selected thread
+  // is source == 'listing_chat' we load the actual visitor ↔ harwick turns
+  // and render them in the transcript pane instead of the Meta-style
+  // synthesis blocks.
+  const [buyerChatTranscript, setBuyerChatTranscript] = useState<BuyerChatTranscript | null>(null);
+  const [buyerChatTranscriptLoading, setBuyerChatTranscriptLoading] = useState(false);
 
   function replaceConversationQuery(thread: ConversationInboxThread | null) {
     const params = new URLSearchParams(searchParams.toString());
@@ -693,6 +755,38 @@ export function ConversationsPageContent(props: {
     setReply(getThreadDraft(selectedThread));
     setActionStatus(null);
   }, [selectedThread?.id]);
+
+  // Load the buyer-chat transcript when the selected thread is a
+  // public-listing-chat. Reset between threads. Best-effort: a 404 just
+  // means there's no linked session, so the existing message list shows.
+  useEffect(() => {
+    if (selectedThread === null || selectedThread.source !== "listing_chat") {
+      setBuyerChatTranscript(null);
+      return;
+    }
+    let cancelled = false;
+    setBuyerChatTranscriptLoading(true);
+    fetch(`/api/conversations/listing-chat-transcript?workspaceId=${props.workspaceId}&leadId=${selectedThread.leadId}`, {
+      credentials: "same-origin",
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          if (!cancelled) setBuyerChatTranscript(null);
+          return;
+        }
+        const json = await res.json() as { transcript: BuyerChatTranscript };
+        if (!cancelled) setBuyerChatTranscript(json.transcript ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setBuyerChatTranscript(null);
+      })
+      .finally(() => {
+        if (!cancelled) setBuyerChatTranscriptLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedThread?.id, selectedThread?.source, selectedThread?.leadId, props.workspaceId]);
 
   function updateThreadLocally(threadId: string, updater: (thread: ConversationInboxThread) => ConversationInboxThread) {
     setThreads((current) => current.map((thread) => (thread.id === threadId ? updater(thread) : thread)));
@@ -910,16 +1004,6 @@ export function ConversationsPageContent(props: {
           </button>
         </div>
       </header>
-
-      {/* /convos refactor — phase 1: buyer-chat sessions surface as first-class
-          operator objects above the Meta DM/comment inbox. This is the live
-          qualification view: every buyer landing on a workspace listing page
-          and starting a conversation shows up here with their auto-built
-          profile, life context, and last message. Click-through transcript
-          view is the next phase. */}
-      <div className="shrink-0 border-b border-[color:var(--graphite-line)] px-5 pb-4 md:px-8">
-        <BuyerChatThreadsSection workspaceId={props.workspaceId} />
-      </div>
 
       <div className="flex min-h-0 min-w-0 flex-1 gap-2.5 overflow-hidden px-2.5 pb-2.5 max-md:gap-0 max-md:px-0 max-md:pb-0">
         {/* Thread list — desktop/tablet only. On mobile we use a dropdown in the thread header. */}
@@ -1187,65 +1271,86 @@ export function ConversationsPageContent(props: {
                     <div className="my-3 flex items-center justify-center gap-2 text-[11px] text-white/40">
                       <span className="h-px flex-1 bg-white/[0.06]" aria-hidden="true" />
                       <span className="rounded-full border border-white/[0.07] bg-white/[0.025] px-2.5 py-1 text-white/60">
-                        {threadTimelineLabel(selectedThread)}
+                        {selectedThread.source === "listing_chat" ? "Buyer chat transcript" : threadTimelineLabel(selectedThread)}
                       </span>
                       <span className="h-px flex-1 bg-white/[0.06]" aria-hidden="true" />
                     </div>
 
-                    {selectedThread.messages.map((message) => (
-                      <MessageBubble
-                        avatar={selectedThread.initials}
-                        disabled={actionBusy}
-                        key={message.id}
-                        message={message}
-                        workspaceId={props.workspaceId}
+                    {selectedThread.source === "listing_chat" ? (
+                      <BuyerChatTranscriptView
+                        transcript={buyerChatTranscript}
+                        loading={buyerChatTranscriptLoading}
                       />
-                    ))}
+                    ) : (
+                      selectedThread.messages.map((message) => (
+                        <MessageBubble
+                          avatar={selectedThread.initials}
+                          disabled={actionBusy}
+                          key={message.id}
+                          message={message}
+                          workspaceId={props.workspaceId}
+                        />
+                      ))
+                    )}
                   </div>
                 ) : (
                   <ActivityLog thread={selectedThread} workspaceId={props.workspaceId} />
                 )}
               </div>
 
-              <div
-                className={cn("shrink-0 border-t bg-[#101112] px-3 py-2.5 md:bg-[var(--graphite-surface-2)] md:px-4 md:py-3", graphiteBorder)}
-                style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
-              >
-                <div className="mb-2 flex items-center justify-between gap-2 text-[11px] text-white/56">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <span className="min-w-0 truncate">{composerContextLabel(selectedThread)}</span>
-                    <MessagingWindowIndicator thread={selectedThread} nowMs={composerNowMs} />
+              {selectedThread.source === "listing_chat" ? (
+                <div
+                  className={cn("shrink-0 border-t bg-[#101112] px-3 py-2.5 text-[11.5px] text-white/64 md:bg-[var(--graphite-surface-2)] md:px-4 md:py-3", graphiteBorder)}
+                  style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
+                >
+                  <div className="flex items-center gap-2">
+                    <Bot className="size-3.5 text-[var(--sage)]" aria-hidden="true" />
+                    <span>
+                      Harwick is handling this conversation live on the listing page. No reply needed from you.
+                    </span>
                   </div>
-                  <button
-                    className="inline-flex shrink-0 items-center gap-1 rounded-[9px] border border-[color:var(--graphite-line)] bg-[var(--graphite-text)] px-2.5 py-1 text-[11px] font-semibold text-[var(--graphite-0)] shadow-[var(--shadow-elev-1)] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
-                    disabled={actionBusy}
-                    onClick={() => void handleGenerateAction()}
-                    type="button"
-                  >
-                    <Bot className="size-3 text-[var(--sage)]" aria-hidden="true" />
-                    Generate draft
-                  </button>
                 </div>
-                <LeadActionToolbar
-                  workspaceId={selectedThread.workspaceId}
-                  leadId={selectedThread.leadId}
-                  automationMode={selectedThread.automationMode ?? "ai_on"}
-                  assignedMemberId={null}
-                  currentMemberId={props.currentMemberId}
-                  appearance="dark"
-                  draft={reply}
-                  reviewId={selectedThread.reviewId}
-                  showAgentSteps={false}
-                  onDraftChange={(next) => setReply(next)}
-                  onChanged={() => void refreshThreads({ silent: true })}
-                />
-                {actionStatus ? (
-                  <div className="mt-2 flex items-center gap-2 text-[11px] text-white/64">
-                    <AlertCircle className="size-3 shrink-0" aria-hidden="true" />
-                    <span>{actionStatus}</span>
+              ) : (
+                <div
+                  className={cn("shrink-0 border-t bg-[#101112] px-3 py-2.5 md:bg-[var(--graphite-surface-2)] md:px-4 md:py-3", graphiteBorder)}
+                  style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
+                >
+                  <div className="mb-2 flex items-center justify-between gap-2 text-[11px] text-white/56">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span className="min-w-0 truncate">{composerContextLabel(selectedThread)}</span>
+                      <MessagingWindowIndicator thread={selectedThread} nowMs={composerNowMs} />
+                    </div>
+                    <button
+                      className="inline-flex shrink-0 items-center gap-1 rounded-[9px] border border-[color:var(--graphite-line)] bg-[var(--graphite-text)] px-2.5 py-1 text-[11px] font-semibold text-[var(--graphite-0)] shadow-[var(--shadow-elev-1)] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={actionBusy}
+                      onClick={() => void handleGenerateAction()}
+                      type="button"
+                    >
+                      <Bot className="size-3 text-[var(--sage)]" aria-hidden="true" />
+                      Generate draft
+                    </button>
                   </div>
-                ) : null}
-              </div>
+                  <LeadActionToolbar
+                    workspaceId={selectedThread.workspaceId}
+                    leadId={selectedThread.leadId}
+                    automationMode={selectedThread.automationMode ?? "ai_on"}
+                    assignedMemberId={null}
+                    currentMemberId={props.currentMemberId}
+                    appearance="dark"
+                    draft={reply}
+                    reviewId={selectedThread.reviewId}
+                    showAgentSteps={false}
+                    onDraftChange={(next) => setReply(next)}
+                    onChanged={() => void refreshThreads({ silent: true })}
+                  />
+                  {actionStatus ? (
+                    <div className="mt-2 flex items-center gap-2 text-[11px] text-white/64">
+                      <AlertCircle className="size-3 shrink-0" aria-hidden="true" />
+                      <span>{actionStatus}</span>
+                    </div>
+                  ) : null}
+                </div>
+              )}
             </>
           ) : (
             <div className="flex min-h-0 flex-1 items-center justify-center px-8">
