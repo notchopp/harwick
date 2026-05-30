@@ -199,6 +199,10 @@ function assertNoMarkdown(text: string): void {
   for (const { name, pattern } of MARKDOWN_PATTERNS) {
     expect(pattern.test(text), `reply contained ${name}: "${text}"`).toBe(false);
   }
+  // Em-dash (U+2014) and en-dash (U+2013) banned outright. Use commas/periods.
+  expect(/[—–]/.test(text), `reply contained em/en dash (use comma/period instead): "${text}"`).toBe(false);
+  // Hyphen-as-pause (" - " with surrounding spaces) banned. Compound hyphenated words ("first-time", "off-leash") stay fine because no surrounding spaces.
+  expect(/ - /.test(text), `reply used hyphen-as-pause (use comma/period instead): "${text}"`).toBe(false);
 }
 
 describe.skipIf(!HAS_KEY)("public listing chat — LIVE OpenAI integration", () => {
@@ -206,7 +210,7 @@ describe.skipIf(!HAS_KEY)("public listing chat — LIVE OpenAI integration", () 
     const { text, toolNames, state } = await runLiveTurn({
       priorMessages: [
         { role: "user", content: "Is 1234 Ocean View Dr still available?" },
-        { role: "assistant", content: "Pending right now — what drew you to it?" },
+        { role: "assistant", content: "Pending right now. What drew you to it?" },
       ],
       visitorMessage: "I'm Clinton, looking for a 4-bed in Coral Gables under 2.5M, before fall.",
     });
@@ -238,7 +242,7 @@ describe.skipIf(!HAS_KEY)("public listing chat — LIVE OpenAI integration", () 
     const { text, toolNames, state } = await runLiveTurn({
       priorMessages: [
         { role: "user", content: "Is this still available?" },
-        { role: "assistant", content: "Pending right now — what brought you to this one?" },
+        { role: "assistant", content: "Pending right now. What brought you to this one?" },
       ],
       visitorMessage: "I'm Martha. My husband and I have 3 kids entering middle school, and we're getting married this June actually — second marriage. We need something in Coral Gables before fall, around 2.5M.",
     });
@@ -266,7 +270,7 @@ describe.skipIf(!HAS_KEY)("public listing chat — LIVE OpenAI integration", () 
         { role: "user", content: "im a single guy with money to splurge, first time buyer" },
         { role: "assistant", content: "Got it. Are you working with a lender yet, or want an intro?" },
         { role: "user", content: "do you guys have lenders? yes please connect me" },
-        { role: "assistant", content: "Yeah — quick one, what should I call you?" },
+        { role: "assistant", content: "Yeah. Quick one, what should I call you?" },
       ],
       visitorMessage: "4848456393",
     });
@@ -284,9 +288,9 @@ describe.skipIf(!HAS_KEY)("public listing chat — LIVE OpenAI integration", () 
     const { text, toolNames, state } = await runLiveTurn({
       priorMessages: [
         { role: "user", content: "Is 1234 Ocean View Dr still available?" },
-        { role: "assistant", content: "Pending right now — what brought you to it?" },
+        { role: "assistant", content: "Pending right now. What brought you to it?" },
         { role: "user", content: "I'm Clinton, single guy first home, cash buyer, $200k down. Want a lender intro to talk numbers." },
-        { role: "assistant", content: "Smart — Priya has a lender she trusts for cash + financed buyers. Best number to reach you?" },
+        { role: "assistant", content: "Smart. Priya has a lender she trusts for cash + financed buyers. Best number to reach you?" },
       ],
       visitorMessage: "4848456393, this week is good",
     });
@@ -304,9 +308,9 @@ describe.skipIf(!HAS_KEY)("public listing chat — LIVE OpenAI integration", () 
     const { text, toolNames } = await runLiveTurn({
       priorMessages: [
         { role: "user", content: "hey i'm clinton and is this still available?" },
-        { role: "assistant", content: "Still active — what brought you to it?" },
+        { role: "assistant", content: "Still active. What brought you to it?" },
         { role: "user", content: "i'm a streamer looking for a streaming house, group of 6" },
-        { role: "assistant", content: "Got it — media room would be the move for streams. What else matters to you for the setup?" },
+        { role: "assistant", content: "Got it. Media room would be the move for streams. What else matters to you for the setup?" },
         { role: "user", content: "yeah how's the neighborhood we are pretty loud and wild lol" },
       ],
       visitorMessage: "what's the noise policy here? we stream pretty late",
@@ -324,23 +328,38 @@ describe.skipIf(!HAS_KEY)("public listing chat — LIVE OpenAI integration", () 
     const { text, toolNames } = await runLiveTurn({
       priorMessages: [
         { role: "user", content: "Is this still available?" },
-        { role: "assistant", content: "Pending right now — what brought you to it?" },
+        { role: "assistant", content: "Pending right now. What brought you to it?" },
       ],
       visitorMessage: "we have 3 kids all in middle school looking for a forever home in coral gables",
     });
-    // Proactive doctrine assertion (intentionally tolerant — we don't want to
-    // overfit the prompt to a single tool path). Pass if the model acted on
-    // the "3 kids in middle school" signal in ANY of these ways:
-    //   • dropped a school cards row via surface_area_facts (preferred)
-    //   • fired lookup_area_info proactively (the lookup itself counts as
-    //     acknowledging the school signal — even if cards didn't drop this run)
-    //   • mentioned specific school names in the prose reply
-    // Total failure mode this test catches: the model ignores the school
-    // signal entirely and just answers some generic question.
-    const acted = toolNames.includes("surface_area_facts")
-      || toolNames.includes("lookup_area_info")
-      || /school|district|isd|elementary|middle school|high school/i.test(text);
-    expect(acted, `model did not act on 'kids in middle school' signal — tools=[${toolNames.join(", ")}], text="${text}"`).toBe(true);
+    // STRICT contract (was tolerant before, missed the prod bug at session
+    // 8e1ce153 where model surfaced other listings instead of schools). The
+    // life-context reveal MUST route to area facts, NOT alternative listings.
+    expect(toolNames, `expected lookup_area_info — got [${toolNames.join(", ")}]`).toContain("lookup_area_info");
+    // Hard rule: search_workspace_listings is the wrong tool for a life-context
+    // reveal. If this fires, the doctrine drifted again.
+    expect(toolNames.includes("search_workspace_listings"), `model surfaced other listings instead of area facts — tools=[${toolNames.join(", ")}]`).toBe(false);
+    assertNoMarkdown(text);
+  }, 60_000);
+
+  it("PRODUCTION REPLAY — '3 middle schoolers looking to get a house big enough' must route to schools, not listings (session 8e1ce153 regression)", async () => {
+    // This is the literal buyer message from the production session that
+    // exposed the bug: model heard "looking to get a house big enough" and
+    // fired search_workspace_listings + surface_listing x3, ignoring the
+    // school signal. Fix: doctrine rewrite + tool-description tightening.
+    const { text, toolNames } = await runLiveTurn({
+      priorMessages: [
+        { role: "user", content: "hey" },
+        { role: "assistant", content: "Hey! What's on your mind about the listing or the area?" },
+      ],
+      visitorMessage: "i got 3 middle schoolers looking to get a house big enough",
+    });
+    // Must route to area facts for the school signal.
+    expect(toolNames, `expected lookup_area_info — got [${toolNames.join(", ")}]`).toContain("lookup_area_info");
+    // Must NOT escalate to alternative listings — household composition is
+    // not an explicit "show me others" intent.
+    expect(toolNames.includes("search_workspace_listings"), `regression: model fired search_workspace_listings on a life-context reveal — tools=[${toolNames.join(", ")}]`).toBe(false);
+    expect(toolNames.includes("surface_listing"), `regression: model surfaced other listings — tools=[${toolNames.join(", ")}]`).toBe(false);
     assertNoMarkdown(text);
   }, 60_000);
 
@@ -348,7 +367,7 @@ describe.skipIf(!HAS_KEY)("public listing chat — LIVE OpenAI integration", () 
     const { text, toolNames } = await runLiveTurn({
       priorMessages: [
         { role: "user", content: "what's this house good for?" },
-        { role: "assistant", content: "Media room's a strong feature — who are you picturing using it?" },
+        { role: "assistant", content: "Media room's a strong feature. Who are you picturing using it?" },
       ],
       visitorMessage: "i'm a twitch streamer, looking for a place i can set up a full streaming rig and not lag",
     });
@@ -365,7 +384,7 @@ describe.skipIf(!HAS_KEY)("public listing chat — LIVE OpenAI integration", () 
     const { text, toolNames } = await runLiveTurn({
       priorMessages: [
         { role: "user", content: "hey is this still available?" },
-        { role: "assistant", content: "Pending right now — what drew you to it?" },
+        { role: "assistant", content: "Pending right now. What drew you to it?" },
       ],
       visitorMessage: "honestly i'm going through a divorce and need advice on dividing assets, what should i do?",
     });
@@ -402,6 +421,58 @@ describe.skipIf(!HAS_KEY)("public listing chat — LIVE OpenAI integration", () 
     assertNoMarkdown(t1.text);
     assertNoMarkdown(t2.text);
   }, 60_000);
+
+  it("TURN 1 HARD GATE — first reply asks for the buyer's name when unknown", async () => {
+    // The rule: when the visitor's name is unknown, the very first reply MUST
+    // end with a name ask. The prior soft phrasing ("casually once", "do not
+    // badger") let the model skip this consistently in prod. This test asserts
+    // the new hard gate fires on turn 1.
+    const { text } = await runLiveTurn({
+      visitorMessage: "is this still available?",
+    });
+    expect(
+      /(what.*call you|your name|first name|who.*talking|who am i.*to)/i.test(text),
+      `turn 1 reply did NOT ask for name: "${text}"`,
+    ).toBe(true);
+    assertNoMarkdown(text);
+  }, 30_000);
+
+  it("TURN 2 HARD GATE — asks for name AGAIN when buyer ignored the turn 1 ask", async () => {
+    // The rule: if the visitor ignored the turn 1 name ask, the turn 2 reply
+    // MUST ask again, phrased differently. Two asks in turns 1-2, not one.
+    const { text } = await runLiveTurn({
+      priorMessages: [
+        { role: "user", content: "is this still available?" },
+        { role: "assistant", content: "Pending right now. What brought you to this one? And what should I call you?" },
+      ],
+      visitorMessage: "saw it on zillow, looks pretty",
+    });
+    expect(
+      /(what.*call you|your name|first name|who.*talking|name|call ya|what'?s your|i'?m harwick.*you)/i.test(text),
+      `turn 2 reply did NOT re-ask for name after buyer ignored turn 1 ask: "${text}"`,
+    ).toBe(true);
+    assertNoMarkdown(text);
+  }, 30_000);
+
+  it("USES the buyer's name once known — weaves it in within 2-3 turns of capture", async () => {
+    // The rule: every 2-3 turns minimum once name is known. Reply to a pivot
+    // moment 2 turns after name was given should reference the name to
+    // build relationship.
+    const { text } = await runLiveTurn({
+      priorMessages: [
+        { role: "user", content: "is this still available?" },
+        { role: "assistant", content: "Pending right now. What brought you to this one? And what should I call you?" },
+        { role: "user", content: "I'm Martha, looking for something for our family" },
+        { role: "assistant", content: "Hey Martha, pending right now, but a family-friendly setup. What's pulling you to this one specifically?" },
+      ],
+      visitorMessage: "media room and the yard mostly. we entertain a lot",
+    });
+    expect(
+      /martha/i.test(text),
+      `reply did not use buyer's name (Martha) on a natural pivot turn: "${text}"`,
+    ).toBe(true);
+    assertNoMarkdown(text);
+  }, 30_000);
 
   it("does not loop the discovery gate — asks instead of re-searching", async () => {
     // Start with a sparse "show me listings" request; model should hit the

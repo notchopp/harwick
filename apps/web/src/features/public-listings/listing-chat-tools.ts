@@ -454,7 +454,7 @@ export function buildListingChatTools(deps: ListingChatToolDeps) {
      * current listing is unavailable, in which case sparse search is OK).
      */
     search_workspace_listings: tool({
-      description: "Find other active listings in this workspace. Use when buyer asks for alternatives, or when THIS listing is sold/pending and they want to see what else exists. After this returns, call `surface_listing` for each one worth showing (max 3) — DO NOT paraphrase the list in prose.",
+      description: "Find OTHER active listings in this workspace. Use ONLY when (a) buyer EXPLICITLY asks for alternatives — phrases like 'what else', 'show me others', 'anything similar', 'too small', 'wrong area', 'out of budget' — or (b) THIS listing is sold/pending/withdrawn and they want to see what else exists. Do NOT use in response to a life-context reveal (kids, pets, profession, household composition, hobbies, lifestyle, where they're moving from) — those are area-fact signals; call `lookup_area_info` first for the matching category (schools, fiber, parks, etc). The buyer is on THIS listing; switching them to other listings on a life signal reads as deflection. After this returns, call `surface_listing` for each one worth showing (max 3) — do not paraphrase the list in prose.",
       inputSchema: z.object({
         minPrice: z.number().int().min(0).nullable(),
         maxPrice: z.number().int().min(0).nullable(),
@@ -635,7 +635,7 @@ export function buildListingChatTools(deps: ListingChatToolDeps) {
      * walkability of a sub-area).
      */
     lookup_area_info: tool({
-      description: "Look up specific area info (schools, fiber/ISPs, parks, restaurants, walkability, HOA rules, demographics). CRITICAL: if the lookup returns 2+ named items (schools, providers, parks, etc), you MUST immediately call `surface_area_facts` next with the top 2-3 items as cards — NEVER list 2+ named items in prose. If only 1 item or pure prose answer, cite the source inline.",
+      description: "Look up area info for THIS listing's area (schools, fiber/ISPs, parks, restaurants, walkability, HOA rules, demographics, healthcare, grocery, transit, etc). Fire this in two situations: (1) the buyer asks any factual question about the area, OR (2) the buyer reveals life context that maps to an area category — kids in school → schools, streamer/WFH → fiber/ISP, dogs → parks, vegan → grocery, retired → healthcare, etc. Match the life-context to the right category and look it up in the SAME turn they revealed it. After the lookup, if it returns 2+ named items, call `surface_area_facts` next with the top 2-3 as cards. Never list 2+ named items in prose — drop a card row instead.",
       inputSchema: z.object({
         query: z.string().min(3).max(160),
       }),

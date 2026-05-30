@@ -7,6 +7,7 @@ import { convertToModelMessages, stepCountIs, streamText, type UIMessage } from 
 import { NextResponse, type NextRequest } from "next/server";
 
 import { createSmallModelGateJudge } from "../../../../../features/public-listings/listing-chat-gate-judge";
+import { stripMarkdown } from "../../../../../features/public-listings/strip-markdown";
 import { buildListingChatSystemPrompt } from "../../../../../features/public-listings/listing-chat-system-prompt";
 import {
   buildListingChatTools,
@@ -286,8 +287,7 @@ export async function POST(
 
   const openai = createOpenAI({ apiKey: environment.OPENAI_API_KEY });
   const modelName = process.env["OPENAI_PUBLIC_LISTING_CHAT_MODEL"]
-    ?? environment.OPENAI_REPLY_MODEL
-    ?? "gpt-4o";
+    ?? environment.OPENAI_REPLY_MODEL;
 
   const modelMessages = await convertToModelMessages(body.messages);
   const result = streamText({
@@ -307,7 +307,11 @@ export async function POST(
     originalMessages: body.messages,
     async onFinish(event) {
       if (event.isAborted) return;
-      const assistantText = readTextFromMessage(event.responseMessage) ?? "";
+      // Strip markdown server-side too. The client also strips before render,
+      // but persisting raw markdown leaves broken artifacts in logs/audits and
+      // future replays. Single source of truth: strip-markdown.ts.
+      const rawAssistantText = readTextFromMessage(event.responseMessage) ?? "";
+      const assistantText = stripMarkdown(rawAssistantText);
       const finishOccurredAt = new Date().toISOString();
 
       // Persist the assistant turn with whatever real tool activity ran.
