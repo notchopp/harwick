@@ -215,18 +215,20 @@ function Stat(props: { icon: typeof BedDouble; value: string; label: string }) {
   );
 }
 
-function ListingCard(props: {
-  isFavorite: boolean;
+/**
+ * Reusable share control. Renders an icon-only button (Apple/Airbnb style)
+ * that tries the Web Share API first (gets the native iOS/Android share
+ * sheet — iMessage, AirDrop, Mail, Slack, etc for free) and falls back to
+ * clipboard with a 1.5s checkmark confirmation. Last-resort fallback opens
+ * the listing in a new tab. Used by the detail viewer (modal/drawer) and
+ * the standalone detail page header — NOT by the index card (share is a
+ * detail-level action, not a card-level one).
+ */
+function ListingShareButton(props: {
   listing: PublicListingCardData;
-  onOpen: (listing: PublicListingCardData) => void;
-  onToggleFavorite: (listing: PublicListingCardData) => void;
-  priority?: boolean;
   workspaceSlug: string;
+  className?: string;
 }) {
-  // Share state. On tap: try Web Share API (mobile + Safari + some Chrome);
-  // fall back to copying the URL to clipboard. "copied" flag flips the icon
-  // to a checkmark for 1.5s so the buyer gets immediate confirmation
-  // without us injecting a global toast system for one micro-interaction.
   const [copied, setCopied] = useState(false);
   const handleShare = async (event: React.MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
@@ -239,19 +241,43 @@ function ListingCard(props: {
         return;
       }
     } catch {
-      // User-cancelled or share-sheet failure — fall through to clipboard.
+      // User cancelled the native sheet, or it threw — fall through to clipboard.
     }
     try {
       await navigator.clipboard.writeText(url);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1500);
     } catch {
-      // Older browsers without clipboard API — open the listing in a new tab
-      // so the user can copy the URL themselves. Last-resort fallback.
       window.open(url, "_blank", "noopener,noreferrer");
     }
   };
 
+  return (
+    <button
+      aria-label={copied ? `link to ${props.listing.shortAddress} copied` : `share ${props.listing.shortAddress}`}
+      className={cn(
+        "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/12 bg-white/[0.04] text-white/70 transition hover:border-white/22 hover:text-white",
+        props.className,
+      )}
+      onClick={handleShare}
+      type="button"
+    >
+      {copied ? (
+        <Check aria-hidden="true" className="h-4 w-4" strokeWidth={2} />
+      ) : (
+        <Share aria-hidden="true" className="h-4 w-4" strokeWidth={1.8} />
+      )}
+    </button>
+  );
+}
+
+function ListingCard(props: {
+  isFavorite: boolean;
+  listing: PublicListingCardData;
+  onOpen: (listing: PublicListingCardData) => void;
+  onToggleFavorite: (listing: PublicListingCardData) => void;
+  priority?: boolean;
+}) {
   return (
     <article
       className="group relative min-h-[430px] cursor-pointer overflow-hidden rounded-[30px] bg-harwick-ink text-left shadow-[0_34px_92px_rgba(18,26,20,0.18)] ring-1 ring-black/[0.05] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_38px_88px_rgba(18,26,20,0.22)]"
@@ -276,18 +302,6 @@ function ListingCard(props: {
       <div className="absolute left-5 top-5">
         <ListingBadge listing={props.listing} />
       </div>
-      <button
-        onClick={handleShare}
-        aria-label={copied ? `link to ${props.listing.shortAddress} copied` : `share ${props.listing.shortAddress}`}
-        className="absolute right-[60px] top-5 flex h-10 w-10 items-center justify-center rounded-full bg-white/88 text-harwick-ink shadow-[0_14px_32px_rgba(14,18,15,0.16)] backdrop-blur-md transition hover:bg-white"
-        type="button"
-      >
-        {copied ? (
-          <Check aria-hidden="true" className="h-5 w-5" strokeWidth={2} />
-        ) : (
-          <Share aria-hidden="true" className="h-5 w-5" strokeWidth={1.8} />
-        )}
-      </button>
       <button
         onClick={(event) => {
           event.stopPropagation();
@@ -1372,9 +1386,12 @@ export function PublicListingDetailPage(props: {
             <ChevronLeft aria-hidden="true" className="h-4 w-4" />
             all listings
           </a>
-          <div className="ml-auto text-right">
-            <div className="text-[13px] font-semibold text-white">{workspaceName}</div>
-            <div className="mt-0.5 text-[9px] font-bold uppercase tracking-[0.16em] text-white/36">powered by harwick</div>
+          <div className="ml-auto flex items-center gap-3">
+            <ListingShareButton listing={listing} workspaceSlug={props.workspaceSlug} />
+            <div className="text-right">
+              <div className="text-[13px] font-semibold text-white">{workspaceName}</div>
+              <div className="mt-0.5 text-[9px] font-bold uppercase tracking-[0.16em] text-white/36">powered by harwick</div>
+            </div>
           </div>
         </div>
       </header>
@@ -1768,7 +1785,6 @@ export function PublicListingsPage(props: { listings?: PublicListingCardData[]; 
               onOpen={openListingPage}
               onToggleFavorite={toggleFavorite}
               priority
-              workspaceSlug={props.workspaceSlug}
             />
           )}
         </div>
@@ -1809,7 +1825,6 @@ export function PublicListingsPage(props: { listings?: PublicListingCardData[]; 
               listing={listing}
               onOpen={openListingPage}
               onToggleFavorite={toggleFavorite}
-              workspaceSlug={props.workspaceSlug}
             />
           ))}
         </div>
