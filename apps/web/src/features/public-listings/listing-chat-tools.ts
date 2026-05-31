@@ -31,6 +31,12 @@ import type {
 } from "@realty-ops/core";
 
 import { lookupAreaInfo } from "./area-lookup";
+import {
+  createShowingEvent,
+  findAvailableSlots,
+  isSlotAvailable,
+  parallelFreeBusy,
+} from "../calendar/calendar-actions";
 import type { ListingChatGateJudge } from "./listing-chat-gate-judge";
 import type {
   PublicListingChatLeadCapture,
@@ -72,6 +78,13 @@ export type ShowingProposalCardPayload = {
   requestedStartAt: string | null;
   requestedEndAt: string | null;
   status: "pending_approval";
+  // Optional calendar-aware fields, populated when the assigned agent has
+  // a connected Google Calendar. calendarEventId/Link means the event was
+  // actually created on the agent's calendar. calendarAlternates means the
+  // buyer's requested time was busy and these are the open alternatives.
+  calendarEventId?: string;
+  calendarEventLink?: string;
+  calendarAlternates?: Array<{ startIso: string; endIso: string; humanLabel: string }>;
 };
 
 export type CallbackCardPayload = {
@@ -770,28 +783,129 @@ export function buildListingChatTools(deps: ListingChatToolDeps) {
             updatedAt: deps.occurredAt,
           });
         }
+        // Calendar-aware showing: if the assigned agent has a connected
+        // calendar, query their free/busy and either (a) confirm the buyer's
+        // requested time is open and book it, or (b) propose 2-3 open slots
+        // for them to pick from. Falls back to the existing approval-task
+        // flow when no calendar is connected — backward compatible.
+        const explicitAssignedMemberId =
+          input.preferredAgentMemberId ?? deps.assignedAgent?.memberId ?? lead.assignedAgentId;
+        let routedMemberId: string | null = explicitAssignedMemberId;
+        let calendarSlot: { startIso: string; endIso: string; humanLabel?: string } | null = null;
+        let calendarEventId: string | null = null;
+        let calendarEventLink: string | null = null;
+        let calendarPropose: Array<{ startIso: string; endIso: string; humanLabel: string }> = [];
+
+        if (routedMemberId === null) {
+          // Availability-aware routing: parallel-query eligible team members'
+          // free/busy for the next 7 days. Pick the first one with an open
+          // slot. Falls back to no-route if nobody has calendar (then the
+          // approval task gets created without an assignment).
+          const eligibleMemberIds = deps.team.map((m) => m.memberId);
+          if (eligibleMemberIds.length > 0) {
+            const horizonFromIso = requestedStartAt ?? deps.occurredAt;
+            const horizonStart = new Date(horizonFromIso);
+            const horizonToIso = new Date(horizonStart.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
+            try {
+              const availability = await parallelFreeBusy({
+                workspaceId: deps.workspaceId,
+                memberIds: eligibleMemberIds,
+                fromIso: horizonFromIso,
+                toIso: horizonToIso,
+                durationMinutes: 60,
+              });
+              const available = availability.find((a) => a.hasCalendar && a.slotsAvailable > 0);
+              if (available !== undefined) {
+                routedMemberId = available.memberId;
+                if (available.firstSlot !== null) {
+                  calendarSlot = available.firstSlot;
+                }
+              }
+            } catch (error) {
+              console.error("[propose_showing_window] parallelFreeBusy failed", error);
+            }
+          }
+        } else if (requestedStartAt !== null && requestedEndAt !== null) {
+          // Validate the buyer's requested window is open on the routed agent's
+          // calendar. If yes, book it. If no, propose alternatives.
+          try {
+            const validity = await isSlotAvailable({
+              workspaceId: deps.workspaceId,
+              memberId: routedMemberId,
+              startIso: requestedStartAt,
+              endIso: requestedEndAt,
+            });
+            if (validity.error === undefined && validity.available) {
+              calendarSlot = { startIso: requestedStartAt, endIso: requestedEndAt };
+            } else if (validity.error === undefined && !validity.available) {
+              const alternates = await findAvailableSlots({
+                workspaceId: deps.workspaceId,
+                memberId: routedMemberId,
+                fromIso: requestedStartAt,
+                toIso: new Date(Date.parse(requestedStartAt) + 7 * 24 * 60 * 60 * 1000).toISOString(),
+                durationMinutes: 60,
+                limit: 3,
+              });
+              calendarPropose = alternates.slots;
+            }
+          } catch (error) {
+            console.error("[propose_showing_window] isSlotAvailable failed", error);
+          }
+        }
+
+        // If we found an open slot and an assigned agent, create the real
+        // calendar event. The buyer + agent get invites; event lands on the
+        // agent's calendar with Google Meet attached.
+        if (calendarSlot !== null && routedMemberId !== null) {
+          try {
+            const eventResult = await createShowingEvent({
+              workspaceId: deps.workspaceId,
+              memberId: routedMemberId,
+              summary: `Showing: ${deps.listing.address}`,
+              description: `Buyer: ${contactName} (${input.contactPhone})\n\nNotes: ${input.notes}`,
+              location: deps.listing.address,
+              startIso: calendarSlot.startIso,
+              endIso: calendarSlot.endIso,
+              attendeeEmail: input.contactEmail ?? liveQual.email ?? null,
+              attendeeName: contactName,
+            });
+            if (eventResult.ok) {
+              calendarEventId = eventResult.eventId;
+              calendarEventLink = eventResult.htmlLink;
+            }
+          } catch (error) {
+            console.error("[propose_showing_window] createShowingEvent failed", error);
+          }
+        }
+
         const taskId = await deps.repository.insertShowingTask({
           workspaceId: deps.workspaceId,
           leadId: lead.id,
           listing: deps.listing,
-          assignedMemberId: input.preferredAgentMemberId ?? deps.assignedAgent?.memberId ?? lead.assignedAgentId,
+          assignedMemberId: routedMemberId,
           values,
-          requestedStartAt,
-          requestedEndAt,
+          requestedStartAt: calendarSlot?.startIso ?? requestedStartAt,
+          requestedEndAt: calendarSlot?.endIso ?? requestedEndAt,
           createdAt: deps.occurredAt,
         });
         deps.state.capturedLead = { leadId: lead.id, intent: "showing", status: existing === null ? "created" : "updated" };
-        const assignedMember = input.preferredAgentMemberId === null
+        const assignedMember = routedMemberId === null
           ? deps.assignedAgent
-          : deps.team.find((m) => m.memberId === input.preferredAgentMemberId) ?? deps.assignedAgent;
+          : deps.team.find((m) => m.memberId === routedMemberId) ?? deps.assignedAgent;
         return {
           kind: "showing_proposal_card",
           taskId,
           leadId: lead.id,
           assignedMemberName: assignedMember?.displayName ?? null,
-          requestedStartAt,
-          requestedEndAt,
+          requestedStartAt: calendarSlot?.startIso ?? requestedStartAt,
+          requestedEndAt: calendarSlot?.endIso ?? requestedEndAt,
+          // When the calendar booked the event, the status moves past
+          // pending_approval — the agent's calendar now owns the source of
+          // truth. Otherwise the existing approval-task flow handles it.
           status: "pending_approval",
+          ...(calendarEventId === null ? {} : { calendarEventId }),
+          ...(calendarEventLink === null ? {} : { calendarEventLink }),
+          ...(calendarPropose.length === 0 ? {} : { calendarAlternates: calendarPropose }),
         };
       },
     }),
