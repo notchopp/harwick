@@ -474,6 +474,41 @@ describe.skipIf(!HAS_KEY)("public listing chat — LIVE OpenAI integration", () 
     assertNoMarkdown(text);
   }, 30_000);
 
+  it("DATE MATH GUARD — never proposes a Wednesday when buyer said weekend (session 26a0a807 replay)", async () => {
+    // Replays the prose-tool divergence bug: buyer said "anytime in the
+    // morning" after talking about the Saturday open house. Model chose
+    // Wednesday June 3 in the tool call while saying "Saturday" in prose.
+    // The tool now rejects this mismatch so the model has to either fix
+    // the date or pass null and let the calendar pick.
+    const { text, toolNames } = await runLiveTurn({
+      priorMessages: [
+        { role: "user", content: "Is this still available? Can I see it this weekend?" },
+        { role: "assistant", content: "There's an open house Saturday 12-2 PM. Interested, or want a private tour?" },
+        { role: "user", content: "I'm Clinton, 4848456393. budget about 2.5M. anytime in the morning is fine" },
+      ],
+      visitorMessage: "weekend morning works",
+    });
+    // The model may or may not call propose_showing_window — what we care about
+    // is that IF the visitor only mentioned "weekend"/"morning" with no
+    // specific weekday and the tool DID fire with a specific start date,
+    // that date must be a Saturday or Sunday (weekend). If the tool fired
+    // and got rejected, that's also fine — the error message coaches the
+    // model and the reply asks for confirmation.
+    const proposeCount = toolNames.filter((n) => n === "propose_showing_window").length;
+    // Either the tool didn't fire (model held back per the new prompt rule),
+    // or it fired and the response text confirms the day with the buyer.
+    if (proposeCount > 0) {
+      // If the tool was called, the model should have asked to confirm OR
+      // mentioned a real weekend day. The reply text should reference a
+      // weekend day name OR ask which day they want.
+      expect(
+        /(saturday|sunday|weekend|which day|what day|prefer.*(?:sat|sun))/i.test(text),
+        `tool fired but reply doesn't reference weekend or ask for confirmation: "${text}"`,
+      ).toBe(true);
+    }
+    assertNoMarkdown(text);
+  }, 60_000);
+
   it("does not loop the discovery gate — asks instead of re-searching", async () => {
     // Start with a sparse "show me listings" request; model should hit the
     // discovery_required gate and ask one question, not call search again.

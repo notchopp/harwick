@@ -753,6 +753,25 @@ export function buildListingChatTools(deps: ListingChatToolDeps) {
         const parsedWindow = parseWeekdayTimeWindow(deps.latestVisitorText, deps.occurredAt);
         const requestedStartAt = parsedWindow?.startAt ?? input.requestedStartAt;
         const requestedEndAt = parsedWindow?.endAt ?? input.requestedEndAt;
+
+        // Weekday-match guard. Defends against the prose-tool divergence bug
+        // where the model says "Saturday" to the buyer but submits a
+        // Wednesday date in the tool call. If the visitor's latest message
+        // mentions a specific weekday AND the proposed start date falls on
+        // a DIFFERENT weekday, reject the call so the model asks the buyer
+        // to confirm instead of silently booking the wrong day.
+        if (requestedStartAt !== null && deps.latestVisitorText !== undefined) {
+          const visitorText = deps.latestVisitorText.toLowerCase();
+          const mentionedWeekdayIndex = WEEKDAYS.findIndex((day) => visitorText.includes(day));
+          if (mentionedWeekdayIndex >= 0) {
+            const proposedDay = new Date(requestedStartAt).getUTCDay();
+            if (proposedDay !== mentionedWeekdayIndex) {
+              return {
+                error: `Buyer said "${WEEKDAYS[mentionedWeekdayIndex]}" but proposed start lands on "${WEEKDAYS[proposedDay]}". Ask the buyer to confirm which day they actually want, or pass requestedStartAt: null and let the calendar pick.`,
+              };
+            }
+          }
+        }
         const values = buildLeadCapture({
           funnelType: liveQual.funnelType ?? "buyer",
           intent: "showing",
